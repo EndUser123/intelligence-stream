@@ -289,12 +289,11 @@ def gemini_video_analyze(video_id: str, video_url: str) -> dict:
             "google-genai>=0.8.0 not installed. " "Run: pip install google-genai>=0.8.0"
         )
 
-    # Priority: GEMINI_API_KEY_1/2 are AI Studio keys with higher quota.
-    # GEMINI_API_KEY and GEMINI_PAID_API_KEY are the same free-tier key (20 req/day)
-    # and exhaust quickly. Put the working AI Studio keys first.
+    # Priority: GEMINI_API_KEY_2 first (tested and working), then GEMINI_API_KEY_1
+    # (AI Studio keys with higher quota). Free-tier key exhausts at 20 req/day.
     api_key = (
-        os.environ.get("GEMINI_API_KEY_1")
-        or os.environ.get("GEMINI_API_KEY_2")
+        os.environ.get("GEMINI_API_KEY_2")
+        or os.environ.get("GEMINI_API_KEY_1")
         or os.environ.get("GEMINI_PAID_API_KEY")
         or os.environ.get("GEMINI_API_KEY")
     )

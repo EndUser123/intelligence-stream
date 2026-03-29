@@ -376,7 +376,7 @@ def gemini_video_analyze(video_id: str, video_url: str) -> dict:
             client = genai.Client(api_key=api_key)
             video_part = Part.from_uri(file_uri=video_url, mime_type="video/mp4")
             response = client.models.generate_content(
-                model="gemini-3.1-flash-lite",
+                model="gemini-3.1-flash-lite-preview",
                 contents=[video_part, prompt],
             )
             text = response.text.strip()

@@ -19,6 +19,10 @@ from pathlib import Path
 # Add csf to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Load .env so API keys are available in subprocess workers
+from dotenv import load_dotenv
+load_dotenv("P:/.env")
+
 from csf.batch import analyze_videos_parallel
 from csf.batch_status import is_complete, reset_all
 

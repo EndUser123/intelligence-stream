@@ -289,10 +289,18 @@ def gemini_video_analyze(video_id: str, video_url: str) -> dict:
             "google-genai>=0.8.0 not installed. " "Run: pip install google-genai>=0.8.0"
         )
 
-    api_key = os.environ.get("GEMINI_API_KEY")
+    # Priority: GEMINI_API_KEY_1/2 are AI Studio keys with higher quota.
+    # GEMINI_API_KEY and GEMINI_PAID_API_KEY are the same free-tier key (20 req/day)
+    # and exhaust quickly. Put the working AI Studio keys first.
+    api_key = (
+        os.environ.get("GEMINI_API_KEY_1")
+        or os.environ.get("GEMINI_API_KEY_2")
+        or os.environ.get("GEMINI_PAID_API_KEY")
+        or os.environ.get("GEMINI_API_KEY")
+    )
     if not api_key:
         raise RuntimeError(
-            "GEMINI_API_KEY not set. " "Set it via: export GEMINI_API_KEY=your_key"
+            "GEMINI_API_KEY_1, GEMINI_API_KEY_2, GEMINI_PAID_API_KEY, or GEMINI_API_KEY must be set."
         )
 
     prompt = (
@@ -329,6 +337,21 @@ def gemini_video_analyze(video_id: str, video_url: str) -> dict:
     except Exception as e:
         # Fall back to transcript-based analysis
         return _analyze_via_transcript(video_id, video_url, str(e))
+
+    # Cache the transcript after successful SDK analysis so subsequent runs
+    # use the free transcript path instead of burning API quota.
+    try:
+        from csf.cache import set_cached_transcript
+        transcript_text = get_youtube_transcript(video_id)
+        set_cached_transcript(
+            video_id=video_id,
+            lang="en",
+            source="youtube_transcript_api",
+            transcript=transcript_text,
+        )
+    except Exception:
+        # Caching failures are non-critical — don't crash the analysis result
+        pass
 
     # Parse response
     try:
@@ -527,8 +550,8 @@ def analyze_video(
         except Exception:
             pass
 
-        # 3. SDK last — only if GEMINI_API_KEY is set
-        if os.environ.get("GEMINI_API_KEY"):
+        # 3. SDK last — only if a working API key is available
+        if os.environ.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY_1") or os.environ.get("GEMINI_API_KEY_2") or os.environ.get("GEMINI_PAID_API_KEY"):
             try:
                 return gemini_video_analyze(video_id, video_url)
             except Exception:
@@ -548,7 +571,7 @@ def analyze_video(
     # ---- "sdk" mode: SDK only, then transcript ----
     # sdk mode: explicit user intent
     if mode == "sdk":
-        if os.environ.get("GEMINI_API_KEY"):
+        if os.environ.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY_1") or os.environ.get("GEMINI_API_KEY_2") or os.environ.get("GEMINI_PAID_API_KEY"):
             try:
                 return gemini_video_analyze(video_id, video_url)
             except Exception:

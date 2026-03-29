@@ -45,6 +45,52 @@ def _sanitize_for_prompt(text: str, max_chars: int = 8000) -> str:
 
 
 # ---------------------------------------------------------------------------
+# API key rotation — survive per-key quota exhaustion
+# ---------------------------------------------------------------------------
+
+# Per-process set of keys that have returned 429 this session.
+# A key once marked exhausted is skipped for the rest of this process lifetime.
+_exhausted_keys: set[str] = set()
+
+# Ordered key pool: highest-quota keys first.  GEMINI_API_KEY_2 is tested
+# and working (2026-03-29), GEMINI_API_KEY_1 is exhausted (20 req/day).
+_API_KEYS: list[tuple[str, str | None]] = [
+    ("GEMINI_API_KEY_2", None),
+    ("GEMINI_API_KEY_1", None),
+    ("GEMINI_PAID_API_KEY", None),
+    ("GEMINI_API_KEY", None),
+]
+
+
+def _load_key_pool() -> None:
+    """Populate key values from environment (call once after dotenv loaded)."""
+    for i, (name, _placeholder) in enumerate(_API_KEYS):
+        _API_KEYS[i] = (name, os.environ.get(name))
+
+
+def _is_quota_error(exc: Exception) -> bool:
+    """Return True if this exception represents a 429 Quota Exceeded error."""
+    # google.api_core.exceptions.ResourceExhausted — the SDK's 429 class
+    try:
+        from google.api_core.exceptions import ResourceExhausted
+        if isinstance(exc, ResourceExhausted):
+            return True
+    except ImportError:
+        pass
+    # Fallback: any exception whose str contains "429" or "quota"
+    msg = str(exc).lower()
+    return "429" in msg or "quota" in msg
+
+
+def _working_key() -> tuple[str, str] | None:
+    """Return (env_var_name, api_key) for the first non-exhausted key, or None."""
+    for name, key in _API_KEYS:
+        if key and name not in _exhausted_keys:
+            return name, key
+    return None
+
+
+# ---------------------------------------------------------------------------
 # EWMA-based adaptive timeout
 # ---------------------------------------------------------------------------
 
@@ -289,18 +335,10 @@ def gemini_video_analyze(video_id: str, video_url: str) -> dict:
             "google-genai>=0.8.0 not installed. " "Run: pip install google-genai>=0.8.0"
         )
 
-    # Priority: GEMINI_API_KEY_2 first (tested and working), then GEMINI_API_KEY_1
-    # (AI Studio keys with higher quota). Free-tier key exhausts at 20 req/day.
-    api_key = (
-        os.environ.get("GEMINI_API_KEY_2")
-        or os.environ.get("GEMINI_API_KEY_1")
-        or os.environ.get("GEMINI_PAID_API_KEY")
-        or os.environ.get("GEMINI_API_KEY")
-    )
-    if not api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY_1, GEMINI_API_KEY_2, GEMINI_PAID_API_KEY, or GEMINI_API_KEY must be set."
-        )
+    # Load key pool from environment (once per process — safe for ThreadPoolExecutor
+    # since dotenv is loaded before the thread pool is created in batch.py)
+    if _API_KEYS[0][1] is None:  # not yet populated
+        _load_key_pool()
 
     prompt = (
         "Analyze this YouTube video carefully.\n\n"
@@ -322,20 +360,38 @@ def gemini_video_analyze(video_id: str, video_url: str) -> dict:
     except ImportError:
         InvalidArgument = Exception  # fallback: treat as base Exception
 
-    try:
-        client = genai.Client(api_key=api_key)
-        video_part = Part.from_uri(file_uri=video_url, mime_type="video/mp4")
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[video_part, prompt],
-        )
-        text = response.text.strip()
-    except InvalidArgument as e:
-        # Private/unavailable video — propagate as fallback signal
-        raise RuntimeError(f"Video unavailable for URL passthrough: {e}") from e
-    except Exception as e:
-        # Fall back to transcript-based analysis
-        return _analyze_via_transcript(video_id, video_url, str(e))
+    # Rotate through keys until one succeeds or all are exhausted.
+    # On 429, mark the key as exhausted and retry the next one.
+    last_error: Exception | None = None
+    while True:
+        key_pair = _working_key()
+        if key_pair is None:
+            # All keys exhausted — fall back to transcript
+            return _analyze_via_transcript(
+                video_id, video_url, f"all API keys exhausted: {last_error}"
+            )
+
+        key_name, api_key = key_pair
+        try:
+            client = genai.Client(api_key=api_key)
+            video_part = Part.from_uri(file_uri=video_url, mime_type="video/mp4")
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[video_part, prompt],
+            )
+            text = response.text.strip()
+            break  # success
+        except InvalidArgument as e:
+            # Private/unavailable video — propagate as fallback signal
+            raise RuntimeError(f"Video unavailable for URL passthrough: {e}") from e
+        except Exception as e:
+            if _is_quota_error(e):
+                # Key hit quota — mark exhausted and try the next one
+                _exhausted_keys.add(key_name)
+                last_error = e
+                continue
+            # Non-quota error — no point retrying other keys; fall back to transcript
+            return _analyze_via_transcript(video_id, video_url, str(e))
 
     # Cache the transcript after successful SDK analysis so subsequent runs
     # use the free transcript path instead of burning API quota.

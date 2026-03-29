@@ -1,0 +1,706 @@
+#!/usr/bin/env python3
+"""Analyze video content using Gemini CLI.
+
+Uses `gemini -p` (prompt mode) for video analysis.
+For true YouTube URL passthrough, the SDK approach (google-genai + Part.from_uri)
+is required but requires GOOGLE_API_KEY.
+"""
+
+import os
+import msvcrt
+import re
+import subprocess
+import json
+import shutil
+import sys
+import time
+from pathlib import Path
+from urllib.parse import urlparse, parse_qs
+
+# ---------------------------------------------------------------------------
+# Transcript sanitization — prevents prompt injection from YouTube captions
+# ---------------------------------------------------------------------------
+
+_PROMPT_INJECTION_PATTERNS = [
+    re.compile(r"ignore\s+(all\s+)?previous\s+instructions", re.I),
+    re.compile(r"disregard\s+(all\s+)?prior\s+(instructions?|commands?)", re.I),
+    re.compile(r"forget\s+(all\s+)?previous\s+instructions", re.I),
+    re.compile(r"you\s+are\s+now\s+(?:a|an)\s+", re.I),
+    re.compile(r"system\s*:\s*", re.I),
+    re.compile(r"<\|(?:system|user|assistant)\|>", re.I),
+]
+
+
+def _sanitize_for_prompt(text: str, max_chars: int = 8000) -> str:
+    """Strip prompt injection patterns and truncate before embedding in LLM prompt.
+
+    YouTube captions are user-supplied content and could contain attempts to
+    manipulate the LLM's behavior. This sanitization removes common injection
+    patterns while preserving legitimate transcript content.
+    """
+    sanitized = text
+    for pattern in _PROMPT_INJECTION_PATTERNS:
+        sanitized = pattern.sub("[redacted]", sanitized)
+    return sanitized[:max_chars]
+
+
+# ---------------------------------------------------------------------------
+# EWMA-based adaptive timeout
+# ---------------------------------------------------------------------------
+
+_SEED_TIMEOUT_S = 120.0  # 90s typical rate-limit recovery; seed ≥ 120s to avoid premature retry
+_ALPHA = 0.3  # EWMA smoothing factor — higher = more weight on recent observations
+_MIN_TIMEOUT = 15.0
+_MAX_TIMEOUT = 300.0
+_TIMINGS_FILE = Path(".logs/gemini_timings.jsonl")
+
+
+def _read_timings() -> list[float]:
+    """Read past latencies from the timing log. Returns empty list on first run."""
+    if not _TIMINGS_FILE.exists():
+        return []
+    try:
+        with open(_TIMINGS_FILE) as f:
+            latencies = []
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    latencies.append(float(json.loads(line)["latency_s"]))
+                except (json.JSONDecodeError, KeyError, ValueError):
+                    continue
+        return latencies
+    except OSError:
+        return []
+
+
+def _append_timing(latency_s: float) -> None:
+    """Append a completed latency observation to the timing log atomically.
+
+    Uses msvcrt exclusive file locking on Windows to prevent concurrent-write
+    corruption when multiple terminals write simultaneously.
+    """
+    _TIMINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(str(_TIMINGS_FILE), os.O_WRONLY | os.O_CREAT | os.O_APPEND)
+        try:
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)  # non-blocking exclusive lock
+            try:
+                entry = json.dumps({"ts": time.time(), "latency_s": latency_s}) + "\n"
+                os.write(fd, entry.encode("utf-8"))
+            finally:
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        finally:
+            os.close(fd)
+    except OSError:
+        pass  # Non-critical — don't crash on timing log failures
+
+
+def _adaptive_timeout() -> float:
+    """Compute adaptive subprocess timeout using EWMA of observed latencies.
+
+    Seeds with _SEED_TIMEOUT_S on first run. After each successful CLI call,
+    _append_timing is called to update the rolling history.
+    """
+    latencies = _read_timings()
+    if not latencies:
+        return _SEED_TIMEOUT_S
+
+    ewma = latencies[0]
+    for lat in latencies[1:]:
+        ewma = _ALPHA * lat + (1 - _ALPHA) * ewma
+
+    timeout = ewma * 2
+    # Clamp to floor/ceiling
+    return max(_MIN_TIMEOUT, min(timeout, _MAX_TIMEOUT))
+
+
+# ---------------------------------------------------------------------------
+# Subprocess timeout wrapper — uses OS `timeout` command (Git Bash) as process
+# launcher. On Windows, Python's subprocess timeout mechanisms (communicate(timeout=N),
+# wait(timeout=N)) fail to fire when the CMD wrapper blocks on stdout pipes.
+# Git Bash's `timeout` uses process-group termination that fires reliably.
+# Falls back to direct Popen if `timeout` is not available (unreliable on pure CMD).
+# ---------------------------------------------------------------------------
+
+
+def _run_with_timeout(
+    cmd: list[str],
+    timeout_s: float,
+    *,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess:
+    """Run a subprocess with a hard timeout using the OS `timeout` command.
+
+    On Windows, Python's subprocess timeout mechanisms (communicate(timeout=N),
+    wait(timeout=N)) fail to fire when the CMD wrapper blocks on stdout pipes.
+    The OS `timeout` command uses process-group termination that fires reliably.
+    Falls back to direct Popen if `timeout` is not available.
+    """
+    timeout_path = shutil.which("timeout")
+    if timeout_path:
+        # Git Bash timeout: launch timeout as the process, it manages the child
+        run_cmd = [timeout_path, "-k", "1s", str(int(timeout_s))] + cmd
+    else:
+        # Fallback: use communicate(timeout=N) — still broken on Windows CMD
+        run_cmd = cmd
+
+    proc = subprocess.Popen(
+        run_cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+    timed_out = False
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout_s + 5)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        proc.kill()
+        stdout, stderr = proc.communicate()
+
+    def _strip_ansi(text: str) -> str:
+        return re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", text)
+
+    return subprocess.CompletedProcess(
+        args=cmd,
+        returncode=124 if timed_out else proc.returncode,
+        stdout=_strip_ansi(stdout or ""),
+        stderr=_strip_ansi(stderr or ""),
+    )
+
+
+# Add csf to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from csf.logging import log_action
+from csf.terminal_context import resolve_tid
+from csf.cks_store import append_to_cks
+
+
+def is_youtube_url(url: str) -> bool:
+    """Check if URL is a YouTube URL."""
+    parsed = urlparse(url)
+    return "youtube.com" in parsed.netloc or "youtu.be" in parsed.netloc
+
+
+def extract_youtube_video_id(url: str) -> str:
+    """Extract video ID from YouTube URL."""
+    parsed = urlparse(url)
+    if "youtu.be" in parsed.netloc:
+        return parsed.path.lstrip("/")
+    qs = parse_qs(parsed.query)
+    return qs.get("v", [parsed.path.split("/")[-1]])[0]
+
+
+def analyze_by_url_cli(video_id: str, video_url: str, model: str | None = None) -> dict:
+    """Analyze a YouTube URL using Gemini CLI (same API backend as the SDK).
+
+    Uses the threading-based _run_with_timeout to avoid Windows subprocess hangs.
+
+    Args:
+        video_id: YouTube video ID.
+        video_url: Full YouTube URL.
+        model: Gemini model to use. None means auto-select via gemini CLI.
+    """
+    gemini_path = shutil.which("gemini")
+    if not gemini_path:
+        raise RuntimeError(
+            "gemini CLI not found on PATH. "
+            "Install Gemini CLI or set GEMINI_API_KEY and use SDK mode."
+        )
+
+    prompt = (
+        f"Analyze the YouTube video at this URL: {video_url}\n\n"
+        "Extract and return ONLY valid JSON with these exact keys:\n"
+        '  "title" (string),\n'
+        '  "summary" (2-3 sentence string),\n'
+        '  "key_topics" (list of 5 strings),\n'
+        '  "key_points" (list of 3 strings).\n\n'
+        "Return ONLY the JSON, no explanation or markdown formatting."
+    )
+
+    cmd = [gemini_path, "-p", prompt, "--output-format", "json"]
+    if model:
+        cmd.extend(["--model", model])
+
+    timeout = _adaptive_timeout()
+    start = time.monotonic()
+    result = _run_with_timeout(cmd, timeout)
+    _append_timing(time.monotonic() - start)
+
+    if result.returncode == 124:
+        raise TimeoutError(f"gemini CLI timed out after {timeout:.0f}s (rate limited)")
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"gemini CLI failed with returncode {result.returncode}: {result.stderr}"
+        )
+
+    # Parse response — handle both plain text and wrapped JSON
+    text = result.stdout.strip()
+    try:
+        # Try direct JSON parse first
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    try:
+        # Try wrapping in dict if it's a bare string
+        outer = json.loads(text)
+        inner = outer.get("response", None) if isinstance(outer, dict) else None
+        if inner is not None:
+            # Strip markdown code blocks if present
+            inner = re.sub(r"```(?:json)?\n?|```", "", inner).strip()
+            parsed = json.loads(inner)
+            return parsed
+        return {"content": text, "video_id": video_id}
+    except json.JSONDecodeError:
+        return {"content": text, "video_id": video_id}
+
+
+def analyze_by_file(video_id: str, file_path: Path) -> dict:
+    """Analyze a local video file using Gemini CLI.
+
+    Gemini CLI doesn't support file uploads in -p mode.
+    This requires the google-genai SDK with GOOGLE_API_KEY.
+    """
+    raise NotImplementedError(
+        "Local file analysis requires google-genai SDK with GOOGLE_API_KEY. "
+        "Install: pip install google-genai>=0.8.0"
+    )
+
+
+def gemini_video_analyze(video_id: str, video_url: str) -> dict:
+    """Analyze a YouTube video using Gemini SDK with true video passthrough.
+
+    Uses Part.from_uri() to pass the YouTube URL directly to gemini-2.5-flash.
+    Falls back to transcript-based analysis if video passthrough fails.
+
+    Requires GOOGLE_API_KEY environment variable.
+    """
+    try:
+        from google import genai
+        from google.genai.types import Part
+    except ImportError:
+        raise RuntimeError(
+            "google-genai>=0.8.0 not installed. " "Run: pip install google-genai>=0.8.0"
+        )
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY not set. " "Set it via: export GEMINI_API_KEY=your_key"
+        )
+
+    prompt = (
+        "Analyze this YouTube video carefully.\n\n"
+        "Extract and return ONLY valid JSON with these exact keys:\n"
+        '  "title" (string - the video title),\n'
+        '  "summary" (2-3 sentence string),\n'
+        '  "key_topics" (list of 5 strings - main subjects covered),\n'
+        '  "key_points" (list of 3 strings - most important takeaways).\n\n'
+        "Return ONLY the JSON, no explanation or markdown formatting."
+    )
+
+    # Validate URL scheme before calling SDK
+    parsed = urlparse(video_url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"Unsupported URL scheme: {parsed.scheme}")
+
+    try:
+        from google.api_core.exceptions import InvalidArgument
+    except ImportError:
+        InvalidArgument = Exception  # fallback: treat as base Exception
+
+    try:
+        client = genai.Client(api_key=api_key)
+        video_part = Part.from_uri(file_uri=video_url, mime_type="video/mp4")
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[video_part, prompt],
+        )
+        text = response.text.strip()
+    except InvalidArgument as e:
+        # Private/unavailable video — propagate as fallback signal
+        raise RuntimeError(f"Video unavailable for URL passthrough: {e}") from e
+    except Exception as e:
+        # Fall back to transcript-based analysis
+        return _analyze_via_transcript(video_id, video_url, str(e))
+
+    # Parse response
+    try:
+        parsed_response = json.loads(text)
+        parsed_response["raw_response"] = text
+        return parsed_response
+    except json.JSONDecodeError:
+        return {"content": text, "video_id": video_id, "raw_response": text}
+
+
+def get_youtube_transcript(video_id: str) -> str:
+    """Fetch YouTube transcript using youtube-transcript-api.
+
+    Returns:
+        Full transcript text joined by spaces.
+    Raises:
+        RuntimeError: if transcript cannot be fetched.
+    """
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+    except ImportError:
+        raise RuntimeError(
+            "youtube-transcript-api not installed. "
+            "Run: pip install youtube-transcript-api>=0.6.0"
+        )
+
+    try:
+        api = YouTubeTranscriptApi()
+        transcript = api.fetch(video_id, languages=["en"])
+        return " ".join(snippet.text for snippet in transcript.snippets)
+    except Exception as e:
+        raise RuntimeError(f"Could not fetch transcript for {video_id}: {e}") from e
+
+
+def _analyze_via_transcript(
+    video_id: str, video_url: str, reason: str, model: str | None = None
+) -> dict:
+    """Analyze video via transcript as fallback when SDK video passthrough fails.
+
+    Args:
+        video_id: YouTube video ID.
+        video_url: Full YouTube URL.
+        reason: Why this fallback was triggered (for result metadata).
+        model: Gemini model to use. None means auto-select.
+    """
+    transcript_text = get_youtube_transcript(video_id)
+
+    gemini_path = shutil.which("gemini")
+    if not gemini_path:
+        # Return raw transcript as content
+        return {
+            "content": transcript_text,
+            "video_id": video_id,
+            "fallback_reason": reason,
+        }
+
+    prompt = (
+        f"Here is the transcript of a YouTube video ({video_id}):\n\n"
+        f"{_sanitize_for_prompt(transcript_text)}\n\n"
+        "Extract and return ONLY valid JSON with these exact keys:\n"
+        '  "title" (string - the video title if identifiable, else "Unknown"),\n'
+        '  "summary" (2-3 sentence string),\n'
+        '  "key_topics" (list of 5 strings),\n'
+        '  "key_points" (list of 3 strings).\n\n'
+        "Return ONLY the JSON, no explanation or markdown formatting."
+    )
+
+    cmd = [gemini_path, "-p", prompt, "--output-format", "json"]
+    if model:
+        cmd.extend(["--model", model])
+
+    timeout = _adaptive_timeout()
+    start = time.monotonic()
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        _append_timing(time.monotonic() - start)
+        # Transcript analysis is timing out (rate limited) — return raw transcript
+        return {
+            "content": transcript_text,
+            "video_id": video_id,
+            "fallback_reason": f"transcript analysis timed out after {timeout:.0f}s: {reason}",
+        }
+
+    _append_timing(time.monotonic() - start)
+
+    if result.returncode != 0:
+        return {
+            "content": transcript_text,
+            "video_id": video_id,
+            "fallback_reason": f"gemini CLI also failed: {result.stderr}",
+        }
+
+    text = result.stdout.strip()
+    try:
+        parsed = json.loads(text)
+        parsed["fallback_reason"] = reason
+        return parsed
+    except json.JSONDecodeError:
+        return {
+            "content": transcript_text,
+            "video_id": video_id,
+            "fallback_reason": f"gemini CLI returned non-JSON: {reason}",
+        }
+
+
+def _get_source_label(result: dict) -> str:
+    """Determine the source label based on analysis result metadata."""
+    if result.get("fallback_reason"):
+        return f"gemini CLI (transcript fallback: {result['fallback_reason'][:50]})"
+    return "gemini SDK (video passthrough)"
+
+
+def analyze_to_cks(
+    video_id: str,
+    video_url: str,
+    mode: str = "auto",
+    model: str | None = None,
+) -> None:
+    """Analyze a video URL and write the result to CKS.
+
+    Args:
+        video_id: YouTube video ID
+        video_url: Full YouTube URL
+        mode: "auto", "cli", or "sdk"
+        model: Gemini model for CLI calls
+
+    Raises:
+        RuntimeError: if gemini CLI not found or analysis fails
+        ValueError: if URL scheme is invalid
+    """
+    result = analyze_video(video_id, video_url, mode=mode, model=model)
+    append_to_cks(
+        {
+            "type": "memory",
+            "title": result.get("title", video_id),
+            "content": result.get("summary", ""),
+            "source": f"youtube:analysis:{video_id}",
+            "key_topics": result.get("key_topics", []),
+            "key_points": result.get("key_points", []),
+        }
+    )
+
+
+def analyze_video(
+    video_id: str,
+    video_url: str,
+    mode: str = "auto",
+    model: str | None = None,
+) -> dict:
+    """Analyze a YouTube video URL.
+
+    Fallback chain (fastest reliable → slowest):
+      auto:       CLI → transcript → SDK   (CLI: ~2s; SDK: only if GEMINI_API_KEY set)
+      transcript: transcript only           (~2s, no API key)
+      sdk:        SDK → transcript         (SDK only if GEMINI_API_KEY set)
+
+    Args:
+        video_id: YouTube video ID.
+        video_url: Full YouTube URL.
+        mode: "auto", "transcript", or "sdk". Defaults to "auto".
+              "cli" is accepted as a backwards-compatible alias for "transcript".
+        model: Gemini model for CLI calls. None means auto-select.
+    """
+    # Normalize "cli" → "transcript" for backwards compatibility
+    if mode == "cli":
+        mode = "transcript"
+
+    # ---- "auto" mode: CLI (fastest with analysis), then transcript, then SDK ----
+    if mode == "auto":
+        # 1. CLI — ~2s, same API backend as SDK. Uses threading-timeout to avoid
+        #    Windows subprocess hangs that plague subprocess.run(timeout=N).
+        if shutil.which("gemini"):
+            try:
+                result = analyze_by_url_cli(video_id, video_url, model=model)
+                if result and ("summary" in result or "title" in result):
+                    return result
+            except TimeoutError:
+                pass  # fall through to transcript
+            except Exception:
+                pass  # fall through to transcript
+
+        # 2. Transcript fallback — ~2s, no API key, deterministic
+        try:
+            transcript_text = get_youtube_transcript(video_id)
+            return {
+                "content": transcript_text,
+                "video_id": video_id,
+                "mode": "transcript",
+            }
+        except Exception:
+            pass
+
+        # 3. SDK last — only if GEMINI_API_KEY is set
+        if os.environ.get("GEMINI_API_KEY"):
+            try:
+                return gemini_video_analyze(video_id, video_url)
+            except Exception:
+                pass
+
+        raise RuntimeError("All analysis methods failed")
+
+    # ---- "transcript" mode: raw transcript only, ~2s, no API key ----
+    if mode == "transcript":
+        transcript_text = get_youtube_transcript(video_id)
+        return {
+            "content": transcript_text,
+            "video_id": video_id,
+            "mode": "transcript",
+        }
+
+    # ---- "sdk" mode: SDK only, then transcript ----
+    # sdk mode: explicit user intent
+    if mode == "sdk":
+        if os.environ.get("GEMINI_API_KEY"):
+            try:
+                return gemini_video_analyze(video_id, video_url)
+            except Exception:
+                pass
+        return _analyze_via_transcript(
+            video_id, video_url, "sdk_unavailable", model=model
+        )
+
+    # Fallback for unknown mode
+    raise ValueError(f"Unknown mode: {mode!r}. Use 'auto', 'transcript', or 'sdk'.")
+
+
+def main() -> None:
+    """Main entry point."""
+    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+        print("Usage: csf-analyze --url <youtube_url> | --input <local_file> [options]")
+        print()
+        print(
+            "  --url <youtube_url>   Analyze video by YouTube URL (SDK with video passthrough)"
+        )
+        print(
+            "  --input <file>        Analyze local video file (requires google-genai SDK)"
+        )
+        print(
+            "  --cks                  Write analysis result to CKS (default: local file only)"
+        )
+        print(
+            "  --mode <mode>          Analysis mode: auto (default), transcript, or sdk"
+        )
+        print("  --model <model>        Gemini model for CLI (default: auto-select)")
+        print()
+        print(
+            "  auto (default):  CLI → transcript → SDK   (CLI: ~2s, SDK: only if GEMINI_API_KEY)"
+        )
+        print("  transcript:      transcript only             (~2s, no API key needed)")
+        print("  sdk:             SDK → transcript             (force SDK, skip CLI)")
+        print()
+        print(
+            "Timeout: Adaptive EWMA based on prior run latencies"
+            f" (floor={_MIN_TIMEOUT:.0f}s, ceiling={_MAX_TIMEOUT:.0f}s)."
+        )
+        sys.exit(0)
+
+    # Parse arguments
+    video_url: str | None = None
+    input_file: Path | None = None
+    write_to_cks: bool = False
+    run_mode: str = "auto"
+    run_model: str | None = None
+
+    i = 1
+    while i < len(sys.argv):
+        arg = sys.argv[i]
+        if arg == "--url" and i + 1 < len(sys.argv):
+            video_url = sys.argv[i + 1]
+            i += 2
+        elif arg == "--input" and i + 1 < len(sys.argv):
+            input_file = Path(sys.argv[i + 1]).expanduser()
+            i += 2
+        elif arg == "--cks":
+            write_to_cks = True
+            i += 1
+        elif arg == "--mode" and i + 1 < len(sys.argv):
+            run_mode = sys.argv[i + 1]
+            if run_mode not in ("auto", "transcript", "cli", "sdk"):
+                print(
+                    f"Invalid --mode {run_mode!r}. Use: auto, transcript, or sdk",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            i += 2
+        elif arg == "--model" and i + 1 < len(sys.argv):
+            run_model = sys.argv[i + 1]
+            i += 2
+        elif arg.startswith("http://") or arg.startswith("https://"):
+            video_url = arg
+            i += 1
+        else:
+            print(f"Unknown argument: {arg}", file=sys.stderr)
+            sys.exit(1)
+
+    # Determine video_id from URL or filename
+    if video_url:
+        video_id = (
+            extract_youtube_video_id(video_url)
+            if is_youtube_url(video_url)
+            else video_url
+        )
+    elif input_file:
+        video_id = input_file.stem
+    else:
+        print("Error: must provide --url or --input", file=sys.stderr)
+        sys.exit(1)
+
+    tid = resolve_tid()
+    log_action(
+        "analysis_start",
+        {
+            "video_id": video_id,
+            "mode": run_mode,
+            "model": run_model or "auto",
+            "tid": tid,
+        },
+    )
+
+    try:
+        if write_to_cks:
+            if not video_url:
+                raise ValueError("--cks requires --url")
+            analyze_to_cks(video_id, video_url, mode=run_mode, model=run_model)
+            log_action("analysis_cks_complete", {"video_id": video_id})
+            print(f"Analysis written to CKS for video: {video_id}")
+            return
+
+        if video_url:
+            result = analyze_video(video_id, video_url, mode=run_mode, model=run_model)
+            source = _get_source_label(result)
+        else:
+            raise RuntimeError(
+                "Local file analysis requires google-genai SDK with GOOGLE_API_KEY. "
+                "Use --url <youtube_url> with gemini CLI instead."
+            )
+
+        result["video_id"] = video_id
+
+    except Exception as e:
+        log_action("analysis_error", {"video_id": video_id, "error": str(e)})
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Save result - shared across terminals on P drive
+    output_dir = Path("P:/__csf/.data/intelligence-stream/analyses")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    out_path = output_dir / f"{video_id}.json"
+    out_path.write_text(json.dumps(result, indent=2))
+
+    log_action(
+        "analysis_complete",
+        {
+            "video_id": video_id,
+            "output": str(out_path),
+            "source": source,
+        },
+    )
+
+    print(f"Analysis saved to {out_path}")
+    title = result.get("title") or result.get("content", "N/A")
+    summary = (result.get("summary") or "")[:200]
+    print(f"Title: {title}")
+    if summary:
+        print(f"Summary: {summary}...")
+
+
+if __name__ == "__main__":
+    main()

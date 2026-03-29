@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>intelligence-stream - README Preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root, [data-theme="light"] {
+            --bg-color: #FAF7F2;
+            --bg-warm: #F5F0E8;
+            --bg-code: #1E1E2E;
+            --text-color: #2C2A28;
+            --text-muted: #6B6560;
+            --text-light: #9E9790;
+            --link-color: #0969da;
+            --border-color: #E5DFD6;
+            --heading-color: #111;
+            --inline-code-bg: #EEEBE5;
+            --blockquote-border: #E5DFD6;
+            --blockquote-bg: #F5F0E8;
+            --toggle-bg: #F5F0E8;
+            --toggle-fg: #655e56;
+            --accent: #D94F30;
+            --accent-hover: #C4432A;
+            --surface: #FFFFFF;
+            --surface-warm: #FDF9F3;
+            --code-keyword: #CBA6F7;
+            --code-string: #A6E3A1;
+            --code-function: #89B4FA;
+            --code-comment: #6C7086;
+            --code-number: #FAB387;
+            --code-property: #F9E2AF;
+            --code-operator: #94E2D5;
+        }
+        [data-theme="dark"] {
+            --bg-color: #0d1117;
+            --bg-warm: #161b22;
+            --bg-code: #1E1E2E;
+            --text-color: #c9d1d9;
+            --text-muted: #8b949e;
+            --text-light: #6e7681;
+            --link-color: #58a6ff;
+            --border-color: #30363d;
+            --heading-color: #f0f6fc;
+            --inline-code-bg: #2d333b;
+            --blockquote-border: #3b434b;
+            --blockquote-bg: #161b22;
+            --toggle-bg: #30363d;
+            --toggle-fg: #c9d1d9;
+            --accent: #D94F30;
+            --accent-hover: #C4432A;
+            --surface: #161b22;
+            --surface-warm: #1C2128;
+        }
+        body {
+            font-family: 'DM Sans', -apple-system, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            padding-top: calc(40px + 50px);
+            color: var(--text-color);
+            line-height: 1.6;
+            background: var(--bg-color);
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+        .skip-link {
+            position: absolute;
+            top: -100%;
+            left: 0;
+            background: var(--accent);
+            color: white;
+            padding: 8px 16px;
+            z-index: 9999;
+            transition: top 0.2s;
+        }
+        .skip-link:focus { top: 0; }
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: 1px solid var(--border-color);
+            background: var(--toggle-bg);
+            color: var(--toggle-fg);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+            z-index: 1000;
+        }
+        .theme-toggle:hover, .theme-toggle:focus-visible {
+            border-color: var(--accent);
+            color: var(--accent);
+            outline: none;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Bricolage Grotesque', Georgia, serif;
+            color: var(--heading-color);
+            line-height: 1.2;
+        }
+        h1 { font-size: 2.25rem; font-weight: 700; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
+        h2 { font-size: 1.5rem; font-weight: 600; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; margin-top: 2rem; }
+        h3 { font-size: 1.25rem; font-weight: 600; }
+        h4 { font-size: 1rem; font-weight: 600; color: var(--text-muted); }
+        p { color: var(--text-color); margin-bottom: 1rem; }
+        code {
+            background: var(--inline-code-bg);
+            border-radius: 4px;
+            padding: 0.2em 0.4em;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875em;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        pre {
+            background: var(--bg-code);
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: hidden;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        pre code { background: none; padding: 0; font-size: 0.875em; white-space: pre-wrap; word-break: break-word; }
+        .code-keyword { color: var(--code-keyword); }
+        .code-string { color: var(--code-string); }
+        .code-function { color: var(--code-function); }
+        .code-comment { color: var(--code-comment); }
+        .code-number { color: var(--code-number); }
+        .code-property { color: var(--code-property); }
+        .code-operator { color: var(--code-operator); }
+        a { color: var(--link-color); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+        th, td { border: 1px solid var(--border-color); padding: 8px 12px; text-align: left; color: var(--text-color); }
+        th { background: var(--bg-warm); font-weight: 600; }
+        blockquote { border-left: 4px solid var(--accent); margin: 1em 0; padding: 0.5em 1em; color: var(--text-muted); background: var(--blockquote-bg); border-radius: 0 4px 4px 0; }
+        .header-section {
+            background: linear-gradient(135deg, var(--accent) 0%, #C4432A 100%);
+            color: white;
+            padding: 2em;
+            border-radius: 12px;
+            margin-bottom: 2em;
+            transition: background 0.3s ease;
+        }
+        .header-section h1 { color: white; border: none; font-size: 2.5rem; }
+        .header-section p { color: rgba(255,255,255,0.9); font-size: 1.1rem; }
+        .badge { display: inline-block; background: var(--inline-code-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 3px 8px; font-size: 0.75em; margin: 2px; font-family: 'JetBrains Mono', monospace; }
+        hr { border: none; border-top: 1px solid var(--border-color); margin: 2em 0; }
+        .animate-in {
+            opacity: 0;
+            transform: translateY(16px);
+            transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .animate-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+    </style>
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle light/dark mode" title="Toggle theme">
+    <span id="theme-icon">&#9788;</span>
+</button>
+<script>
+function toggleTheme() {
+    const html = document.documentElement;
+    const icon = document.getElementById('theme-icon');
+    const current = html.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    icon.innerHTML = next === 'dark' ? '&#9790;' : '&#9788;';
+    localStorage.setItem('theme', next);
+}
+(function() {
+    const saved = localStorage.getItem('theme');
+    if (!saved) {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+        document.getElementById('theme-icon').innerHTML = prefersDark ? '&#9790;' : '&#9788;';
+    } else {
+        document.documentElement.setAttribute('data-theme', saved);
+        document.getElementById('theme-icon').innerHTML = saved === 'dark' ? '&#9790;' : '&#9788;';
+    }
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+        if (!localStorage.getItem('theme')) {
+            document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+            document.getElementById('theme-icon').innerHTML = e.matches ? '&#9790;' : '&#9788;';
+        }
+    });
+})();
+</script>
+<div id="content">
+<!-- README CONTENT -->
+<h1>intelligence-stream</h1>
+
+<p><img src="https://img.shields.io/badge/status-active-success" alt="Status"> <img src="https://img.shields.io/badge/platform-Windows%2011-blue" alt="Platform"> <img src="https://img.shields.io/badge/Claude%20Code-Compatible-green" alt="Claude Code"></p>
+
+<p>YouTube playlist analysis pipeline — ingest videos and analyze content with Gemini, storing results in CKS (Constitutional Knowledge System).</p>
+
+<h2>Quick Start</h2>
+
+<pre><code># Ingest a playlist
+/cs-ingest https://www.youtube.com/playlist?list=...
+
+# Analyze a single video
+/cs-analyze https://www.youtube.com/watch?v=...</code></pre>
+
+<h2>Installation</h2>
+
+<h3>Three Deployment Models</h3>
+
+<p><strong>IMPORTANT</strong>: This package supports three different deployment modes. Choose the right one for your use case.</p>
+
+<h4>1. SKILLS (Dev Deployment) ⭐ <strong>Recommended for Development</strong></h4>
+
+<p><strong>For</strong>: When you're actively developing this package and want instant feedback.</p>
+
+<p><strong>Setup:</strong></p>
+<pre><code># Windows (Junction - No admin required)
+# Junction each skill to the skills subdirectory
+New-Item -ItemType Junction -Path "P:\.claude\skills\intelligence-stream-analyze" -Target "P:\packages\intelligence-stream\skills\analyze"
+New-Item -ItemType Junction -Path "P:\.claude\skills\intelligence-stream-ingest" -Target "P:\packages\intelligence-stream\skills\ingest"
+
+# macOS/Linux (Symlink)
+ln -s /path/to/packages/intelligence-stream/skills/analyze ~/.claude/skills/intelligence-stream-analyze
+ln -s /path/to/packages/intelligence-stream/skills/ingest ~/.claude/skills/intelligence-stream-ingest</code></pre>
+
+<p><strong>Key points:</strong></p>
+<ul>
+<li>Edit in <code>P:/packages/intelligence-stream/</code>, changes work immediately</li>
+<li>No reinstallation required - skills auto-discover from <code>P:/.claude/skills/</code></li>
+<li>Perfect for active development</li>
+</ul>
+
+<h4>2. HOOKS (Dev Deployment - Hook Files Only)</h4>
+
+<p><strong>For</strong>: When this package has hook files (<code>.py</code> files) you want to test.</p>
+
+<h4>3. PLUGINS (End User Deployment)</h4>
+
+<p><strong>For</strong>: Distributing this package to other users via marketplace or GitHub.</p>
+
+<h2>What intelligence-stream Does</h2>
+
+<h3>Capabilities</h3>
+
+<ul>
+<li><strong>Playlist Ingestion</strong>: Download and process entire YouTube playlists using <code>yt-dlp</code></li>
+<li><strong>Video Analysis</strong>: Analyze video content using Gemini with true video passthrough</li>
+<li><strong>Transcript Fallback</strong>: Extract and analyze YouTube transcripts when video passthrough fails</li>
+<li><strong>CKS Integration</strong>: Store all analysis results in the Constitutional Knowledge System</li>
+</ul>
+
+<h3>Skills</h3>
+
+<h4><code>/csf-analyze</code></h4>
+
+<p>Analyze video content using Gemini and store results in CKS.</p>
+
+<h4><code>/csf-ingest</code></h4>
+
+<p>Ingest YouTube playlist videos and store metadata in CKS.</p>
+
+<h2>Development and Deployment</h2>
+
+<h3>Requirements</h3>
+
+<ul>
+<li>Python 3.12+</li>
+<li><code>yt-dlp>=2024.0.0</code></li>
+<li><code>google-genai>=0.8.0</code> (for SDK video passthrough)</li>
+<li><code>youtube-transcript-api>=0.6.0</code></li>
+<li><code>gemini</code> CLI (for CLI fallback mode)</li>
+</ul>
+
+<h3>Environment Variables</h3>
+
+<table>
+<tr><td><strong>Variable</strong></td><td><strong>Required</strong></td><td><strong>Description</strong></td></tr>
+<tr><td><code>GOOGLE_API_KEY</code></td><td>No</td><td>Enables SDK video passthrough for true video analysis</td></tr>
+</table>
+
+<hr>
+
+<p><strong>Key features</strong>:</p>
+
+<ul>
+<li>True video passthrough via Gemini SDK (when API key available)</li>
+<li>Automatic fallback chain: SDK → Transcript → CLI</li>
+<li>Idempotent playlist ingestion (skips already-ingested videos)</li>
+<li>Constitutional Knowledge System integration for persistent storage</li>
+</ul>
+</div>
+</body>
+</html>

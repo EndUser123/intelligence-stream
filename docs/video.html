@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>intelligence-stream - Video Player</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            width: 100%;
+        }
+        h1 {
+            color: #f0f6fc;
+            margin-bottom: 8px;
+            font-size: 1.5rem;
+        }
+        .subtitle {
+            color: #8b949e;
+            margin-bottom: 24px;
+            font-size: 0.9rem;
+        }
+        .video-card {
+            background: #161b22;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #30363d;
+        }
+        video {
+            width: 100%;
+            display: block;
+            background: #000;
+        }
+        .video-info {
+            padding: 16px;
+        }
+        .video-title {
+            color: #f0f6fc;
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+        }
+        .video-meta {
+            display: flex;
+            gap: 16px;
+            color: #8b949e;
+            font-size: 0.85rem;
+        }
+        .placeholder {
+            background: linear-gradient(135deg, #21262d 0%, #30363d 100%);
+            aspect-ratio: 16/9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #8b949e;
+            gap: 16px;
+        }
+        .placeholder-icon {
+            font-size: 48px;
+            opacity: 0.5;
+        }
+        .placeholder-text {
+            text-align: center;
+        }
+        .placeholder-text h3 {
+            color: #c9d1d9;
+            margin-bottom: 8px;
+        }
+        .placeholder-text p {
+            font-size: 0.9rem;
+            max-width: 400px;
+        }
+        .links {
+            margin-top: 24px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .links a {
+            color: #58a6ff;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        .links a:hover {
+            text-decoration: underline;
+        }
+        .badge {
+            display: inline-block;
+            background: #388bfd26;
+            color: #58a6ff;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <span class="badge">Claude Code Plugin</span>
+        <h1>intelligence-stream</h1>
+        <p class="subtitle">YouTube playlist analysis pipeline with Gemini AI integration</p>
+
+        <div class="video-card">
+            <div class="placeholder">
+                <div class="placeholder-icon">▶</div>
+                <div class="placeholder-text">
+                    <h3>Demo Video Coming Soon</h3>
+                    <p>This space is reserved for the intelligence-stream explainer video.<br>Generate it using the media pipeline in PHASE 4.7.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="links">
+            <a href="https://github.com/YOUR_USERNAME/intelligence-stream">View on GitHub</a>
+            <span>•</span>
+            <a href="https://github.com/YOUR_USERNAME/intelligence-stream/blob/main/README.md">Documentation</a>
+            <span>•</span>
+            <a href="https://github.com/YOUR_USERNAME/intelligence-stream/releases">Releases</a>
+        </div>
+    </div>
+</body>
+</html>

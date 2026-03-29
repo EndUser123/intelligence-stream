@@ -1,0 +1,373 @@
+#!/usr/bin/env python3
+"""YouTube source management CLI — Phase 2.
+
+Usage:
+    csf-source add <channel_url_or_playlist_url>  # Initial import: full API pagination
+    csf-source list                               # List all tracked sources
+    csf-source check <source_id>                  # Daily check: RSS → gap detection → API if needed
+    csf-source sync <source_id>                   # Process all pending videos via batch
+
+Commands:
+    add       Add a new channel or playlist source. For channels, resolves the uploads
+              playlist ID via API and enumerates all videos. For playlists, enumerates
+              all videos directly. Marks all videos as pending in batch_status.
+
+    list      List all tracked sources from channel_metadata table, showing:
+              - channel_url, playlist_id, video_count_estimate, last_checked
+
+    check     Run daily check for a specific source:
+              1. RSS feed for recent ~15-20 videos
+              2. Gap detection: if RSS shows ≥15 non-overlapping AND newest batch > 7 days
+              3. API gap resolution if gap detected
+              4. Marks new videos as pending
+
+    sync      Process all pending videos for a source via batch.analyze_videos_parallel().
+              Does NOT check for new videos — use 'check' first.
+"""
+
+import argparse
+import fasteners
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+# Multi-terminal lock directory for sync operations
+_LOCK_DIR = Path("P:/__csf/.data/intelligence-stream/locks")
+_LOCK_DIR.mkdir(parents=True, exist_ok=True)
+
+# Add csf to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from csf import batch
+from csf.batch_status import (
+    get_channel_metadata,
+    set_channel_metadata,
+    upsert_channel,
+    get_pending_by_source,
+    get_newest_published_for_source,
+    mark_complete,
+    set_status,
+    set_status_batch,
+    get_status_batch,
+)
+from csf.source_enumerator import (
+    parse_channel_url,
+    parse_playlist_url,
+    parse_video_url,
+    get_upload_playlist_id,
+    enumerate_full,
+    enumerate_recent,
+    check_rss,
+    detect_gap,
+)
+
+
+def _mark_videos_pending(
+    canonical_url: str, videos: list[dict]
+) -> int:
+    """Mark videos as pending, filtering out already-complete ones.
+
+    Returns the number of newly marked videos.
+    """
+    video_ids = [v["video_id"] for v in videos]
+    status_map = get_status_batch(video_ids)
+    complete_ids = {vid for vid, status in status_map.items() if status == "complete"}
+    entries = [
+        (video["video_id"], "pending", canonical_url, video.get("published_at"))
+        for video in videos
+        if video["video_id"] not in complete_ids
+    ]
+    if entries:
+        set_status_batch(entries)
+    return len(entries)
+
+
+def cmd_add(url: str) -> None:
+    """Add a new channel or playlist source with full enumeration."""
+    print(f"[source] Adding source: {url}")
+
+    # Check if this is a channel or playlist
+    channel_id = parse_channel_url(url)
+    playlist_id = parse_playlist_url(url)
+
+    if channel_id:
+        print(f"[source] Detected channel: {channel_id}")
+
+        # Get uploads playlist ID
+        uploads_playlist_id = get_upload_playlist_id(channel_id)
+        if not uploads_playlist_id:
+            print(f"[source] Error: Could not resolve uploads playlist for {channel_id}", file=sys.stderr)
+            print(f"[source] Check that YOUTUBE_API_KEY is set and channel exists.", file=sys.stderr)
+            sys.exit(1)
+
+        print(f"[source] Uploads playlist: {uploads_playlist_id}")
+        playlist_id = uploads_playlist_id
+        canonical_url = f"https://www.youtube.com/channel/{channel_id}"
+
+    elif playlist_id:
+        print(f"[source] Detected playlist: {playlist_id}")
+        canonical_url = f"https://www.youtube.com/playlist?list={playlist_id}"
+
+    else:
+        # Try video URL
+        video_id = parse_video_url(url)
+        if video_id:
+            print(f"[source] Detected video: {video_id}")
+            # Single-video entry: use watch URL as the source identifier
+            canonical_url = url
+            new_count = _mark_videos_pending(canonical_url, [
+                {"video_id": video_id, "title": None, "published_at": None}
+            ])
+            # Register/update source in channel_metadata (no playlist_id for single video)
+            now = datetime.now(timezone.utc).isoformat()
+            upsert_channel(canonical_url, last_checked=now)
+            print(f"[source] Done. 1 video, {new_count} new pending.")
+            return
+
+        print(f"[source] Error: Could not parse {url} as channel, playlist, or video URL", file=sys.stderr)
+        sys.exit(1)
+
+    # Check if already tracked
+    existing = get_channel_metadata(canonical_url)
+    if existing:
+        print(f"[source] Warning: {canonical_url} is already tracked.")
+        print(f"[source] Use 'check' to update, or remove and re-add for full re-enumeration.")
+
+    # Full enumeration
+    print(f"[source] Enumerating all videos...")
+    videos = enumerate_full(playlist_id)
+    print(f"[source] Found {len(videos)} videos")
+
+    if not videos:
+        print(f"[source] Warning: No videos found in playlist {playlist_id}")
+        sys.exit(1)
+
+    new_count = _mark_videos_pending(canonical_url, videos)
+    print(f"[source] Marked {new_count} new videos as pending")
+
+    # Update channel metadata
+    now = datetime.now(timezone.utc).isoformat()
+    set_channel_metadata(
+        canonical_url,
+        playlist_id=playlist_id,
+        last_checked=now,
+        last_full_enumeration=now,
+        video_count_estimate=len(videos),
+    )
+
+    print(f"[source] Done. {len(videos)} total videos, {new_count} new pending.")
+
+
+def cmd_list() -> None:
+    """List all tracked sources."""
+    from csf.batch_status import _get_batch_status_storage
+
+    storage = _get_batch_status_storage()
+    storage._ensure_channel_metadata()
+    conn = storage._get_conn()
+    cursor = conn.execute(
+        "SELECT channel_url, playlist_id, video_count_estimate, last_checked, last_full_enumeration FROM channel_metadata ORDER BY last_checked DESC"
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    if not rows:
+        print("[source] No sources tracked. Use 'add' to add a channel or playlist.")
+        return
+
+    print(f"[source] Tracked sources:")
+    print(f"{'Channel URL':<45} {'Playlist':<25} {'Videos':>6} {'Last Checked':<20} {'Full Enum'}")
+    print("-" * 120)
+    for row in rows:
+        channel_url, playlist_id, video_count, last_checked, last_full_enum = row
+        last_checked_str = last_checked[:19] if last_checked else "Never"
+        last_enum_str = last_full_enum[:19] if last_full_enum else "Never"
+        playlist_short = (playlist_id[:22] + "...") if playlist_id and len(playlist_id) > 25 else (playlist_id or "")
+        print(f"{channel_url:<45} {playlist_short:<25} {video_count or 0:>6} {last_checked_str:<20} {last_enum_str}")
+
+
+def cmd_check(source_id_or_url: str) -> None:
+    """Run daily check for a source: RSS + gap detection + API resolution."""
+    # Try to find the source
+    channel_url = None
+
+    # Check if it's a tracked channel URL
+    existing = get_channel_metadata(source_id_or_url)
+    if existing:
+        channel_url = source_id_or_url
+    else:
+        # Try to parse as channel URL
+        parsed = parse_channel_url(source_id_or_url)
+        if parsed and parsed.startswith("UC"):
+            channel_url = f"https://www.youtube.com/channel/{parsed}"
+            existing = get_channel_metadata(channel_url)
+
+    if not existing:
+        print(f"[source] Error: {source_id_or_url} is not a tracked source.", file=sys.stderr)
+        print(f"[source] Use 'add' to add it first.", file=sys.stderr)
+        sys.exit(1)
+
+    playlist_id = existing.get("playlist_id")
+    if not playlist_id:
+        print(f"[source] Error: No playlist_id found for {channel_url}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"[source] Checking {channel_url}")
+
+    # Step 1: RSS check
+    channel_id = parse_channel_url(channel_url)
+    if not channel_id or not channel_id.startswith("UC"):
+        print(f"[source] Error: Cannot run RSS check on non-UC channel {channel_id}", file=sys.stderr)
+        sys.exit(1)
+
+    rss_ids = check_rss(channel_id)
+    print(f"[source] RSS returned {len(rss_ids)} recent videos")
+
+    if not rss_ids:
+        print(f"[source] Warning: RSS returned no videos. Channel may be invalid or RSS disabled.")
+        # Still try API
+        rss_ids = []
+
+    # Get existing pending videos for this source
+    pending_ids = set(get_pending_by_source(channel_url))
+    print(f"[source] {len(pending_ids)} pending videos in batch_status")
+
+    # Step 2: Gap detection
+    from csf.batch_status import get_newest_published_for_source
+
+    # Get newest processed video's publishedAt for gap detection
+    newest_published = get_newest_published_for_source(channel_url)
+    last_enum = existing.get("last_full_enumeration")
+
+    # For gap detection: if RSS has >= 15 non-overlapping with pending
+    # AND newest_batch is stale
+    gap_detected = False
+    if rss_ids:
+        gap_detected = detect_gap(rss_ids, pending_ids, newest_published)
+
+    if gap_detected:
+        print(f"[source] Gap detected. Running API gap resolution...")
+        # Use publishedAfter = last_full_enumeration or epoch
+        published_after = last_enum if last_enum else "1970-01-01T00:00:00Z"
+        gap_videos = enumerate_recent(playlist_id, published_after=published_after)
+        print(f"[source] API gap resolution found {len(gap_videos)} videos")
+
+        # O(1) batch insert + O(1) batch pre-filter (avoids N individual is_complete calls)
+        gap_video_ids = [v["video_id"] for v in gap_videos]
+        gap_status_map = get_status_batch(gap_video_ids)
+        complete_ids = {vid for vid, status in gap_status_map.items() if status == "complete"}
+        entries = [
+            (video["video_id"], "pending", channel_url, video.get("published_at"))
+            for video in gap_videos
+            if video["video_id"] not in complete_ids
+        ]
+        if entries:
+            set_status_batch(entries)
+        new_count = len(entries)
+
+        print(f"[source] Marked {new_count} new videos as pending")
+
+    elif rss_ids:
+        # Normal RSS processing - O(1) batch pre-filter
+        rss_status_map = get_status_batch(rss_ids)
+        complete_ids = {vid for vid, status in rss_status_map.items() if status == "complete"}
+        entries = [
+            (vid, "pending", channel_url, None)
+            for vid in rss_ids
+            if vid not in complete_ids
+        ]
+        if entries:
+            set_status_batch(entries)
+        new_count = len(entries)
+        print(f"[source] Marked {new_count} new RSS videos as pending")
+
+    # Update last_checked
+    now = datetime.now(timezone.utc).isoformat()
+    upsert_channel(channel_url, last_checked=now)
+
+    print(f"[source] Check complete.")
+
+
+def cmd_sync(source_id_or_url: str) -> None:
+    """Process all pending videos for a source via batch."""
+    # Find the source
+    existing = get_channel_metadata(source_id_or_url)
+    if existing:
+        channel_url = source_id_or_url
+    else:
+        parsed = parse_channel_url(source_id_or_url)
+        if parsed and parsed.startswith("UC"):
+            channel_url = f"https://www.youtube.com/channel/{parsed}"
+            existing = get_channel_metadata(channel_url)
+        else:
+            channel_url = None
+
+    if not existing:
+        print(f"[source] Error: {source_id_or_url} is not a tracked source.", file=sys.stderr)
+        sys.exit(1)
+
+    # Inter-process lock to prevent concurrent sync on same source
+    # acquire() with timeout=60 prevents indefinite blocking if process crashes while holding lock
+    lock_name = channel_url.replace("https://www.youtube.com/", "").replace("/", "_")
+    lock = fasteners.InterProcessLock(_LOCK_DIR / f"{lock_name}.lock")
+
+    acquired = lock.acquire(blocking=True, timeout=60)
+    if not acquired:
+        print(f"[source] Error: Could not acquire lock for {channel_url} within 60s", file=sys.stderr)
+        print(f"[source] Another sync may be running. Try again later.", file=sys.stderr)
+        sys.exit(1)
+    try:
+        pending_ids = get_pending_by_source(channel_url)
+        if not pending_ids:
+            print(f"[source] No pending videos for {channel_url}")
+            return
+
+        print(f"[source] Processing {len(pending_ids)} pending videos for {channel_url}...")
+
+        successful, failed = batch.analyze_videos_parallel(pending_ids)
+    finally:
+        lock.release()
+
+    print(f"[source] Sync complete: {len(successful)} successful, {len(failed)} failed")
+    if failed:
+        print(f"[source] Failed video IDs: {', '.join(failed)}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="YouTube source management CLI — Phase 2."
+    )
+    subparsers = parser.add_subparsers(dest="command", help="Command to run")
+
+    # add command
+    add_parser = subparsers.add_parser("add", help="Add a new channel or playlist source")
+    add_parser.add_argument("url", help="Channel URL or playlist URL")
+
+    # list command
+    subparsers.add_parser("list", help="List all tracked sources")
+
+    # check command
+    check_parser = subparsers.add_parser("check", help="Daily check for a source")
+    check_parser.add_argument("source", help="Source ID (channel URL or bare channel ID)")
+
+    # sync command
+    sync_parser = subparsers.add_parser("sync", help="Process pending videos for a source")
+    sync_parser.add_argument("source", help="Source ID (channel URL or bare channel ID)")
+
+    args = parser.parse_args()
+
+    if args.command == "add":
+        cmd_add(args.url)
+    elif args.command == "list":
+        cmd_list()
+    elif args.command == "check":
+        cmd_check(args.source)
+    elif args.command == "sync":
+        cmd_sync(args.source)
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

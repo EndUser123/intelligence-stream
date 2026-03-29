@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Test / Coverage
+.pytest_cache/
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+.benchmarks/
+
+# Type checking
+.mypy_cache/
+
+# Logs
+*.log
+logs/
+
+# Evidence / Research
+.evidence/
+.research_report.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local config overrides
+config/local.yaml
+config/local.yml
+
+# Evidence (global location: ~/.claude/.evidence/)

@@ -1,0 +1,12 @@
+gemini:
+  model: gemini-3.5-flash-001
+  api_key_env: GOOGLE_API_KEY
+  output_format: json
+
+youtube:
+  download_format: "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+  timeout: 300
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

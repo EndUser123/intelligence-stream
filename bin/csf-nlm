@@ -1,0 +1,322 @@
+#!/usr/bin/env python3
+"""NotebookLM composite export CLI — TASK-008.
+
+Usage:
+    csf-nlm sync [--notebook <name>]   # Build + export composites to NotebookLM
+    csf-nlm status                     # Show export counts (exported/pending/word count)
+    csf-nlm preview <channel_url>      # Show composites without exporting
+
+Commands:
+    sync      Find completed-but-not-exported videos, build composites,
+              and export to NotebookLM via nlm CLI.
+
+    status    Show export summary:
+              - Total composites
+              - Exported vs pending
+              - Total word count
+
+    preview   Show composite plan for a channel without exporting.
+              Use --notebook to specify target notebook.
+
+Pre-sync auth check (BLOCKER-7): Runs `nlm auth status` before sync.
+If not authenticated, fails fast with a clear error message.
+
+Lock scope (BLOCKER-8): InterProcessLock acquired before checking
+nlm_source_id and held through file write + API call + DB update.
+"""
+
+from __future__ import annotations
+
+import argparse
+import fasteners
+import subprocess
+import sys
+from pathlib import Path
+
+# Multi-terminal lock directory
+_LOCK_DIR = Path("P:/__csf/.data/intelligence-stream/locks")
+_LOCK_DIR.mkdir(parents=True, exist_ok=True)
+
+# Add csf to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from csf import batch
+from csf.batch_status import (
+    get_channel_metadata,
+    get_pending_nlm_exports,
+    get_nlm_exports_by_video,
+    get_status_batch,
+    is_complete,
+)
+from csf.cache import get_cached_transcript
+from csf.nlm_exporter import build_composites, export_composite
+
+
+def _check_auth() -> bool:
+    """Run `nlm login --check` to verify user is authenticated.
+
+    Returns True if authenticated, False otherwise.
+    """
+    nlm_path = Path("P:/npm/bin/nlm-cli.js")
+    if nlm_path.exists():
+        cmd = ["node", str(nlm_path), "login", "--check"]
+    else:
+        cmd = ["nlm", "login", "--check"]
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return False
+
+
+def cmd_sync(notebook: str | None = None) -> None:
+    """Build composites from completed-but-not-exported videos and export to NLM."""
+    # BLOCKER-7: Pre-sync auth check
+    if not _check_auth():
+        print("[nlm] Error: Not authenticated with NotebookLM.", file=sys.stderr)
+        print("[nlm] Run `nlm login` first to authenticate.", file=sys.stderr)
+        sys.exit(1)
+
+    # Inter-process lock (BLOCKER-8)
+    lock = fasteners.InterProcessLock(_LOCK_DIR / "csf-nlm-sync.lock")
+    acquired = lock.acquire(blocking=True, timeout=60)
+    if not acquired:
+        print("[nlm] Error: Could not acquire sync lock within 60s", file=sys.stderr)
+        print("[nlm] Another sync may be running. Try again later.", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        _do_sync(notebook)
+    finally:
+        lock.release()
+
+
+def _do_sync(notebook: str | None) -> None:
+    """Perform the actual sync (called while holding the lock)."""
+    print("[nlm] Finding completed-but-not-exported videos...")
+
+    # Get all composite video_ids that are already exported
+    exported_video_ids: set[str] = set()
+    pending_composites = get_pending_nlm_exports()
+    for comp in pending_composites:
+        # nlm_source_id not yet set, but video_ids are recorded
+        for vid in comp["video_ids"].split("|"):
+            if vid:
+                exported_video_ids.add(vid)
+
+    # Find completed videos not in any composite
+    # In a real implementation, we'd scan all analysis_status entries.
+    # For now, we get pending composites' channels and find all completed videos.
+    channels_seen: set[str] = set()
+    for comp in pending_composites:
+        # batch_key format: "channel_url:partN"
+        batch_key = comp["batch_key"]
+        if ":" in batch_key:
+            ch = batch_key.rsplit(":", 1)[0]
+            channels_seen.add(ch)
+
+    # For each channel with pending composites, find completed-but-not-exported videos
+    videos_to_export: list[dict] = []
+
+    for channel_url in channels_seen:
+        # Get all completed videos for this channel
+        from csf.batch_status import get_pending_by_source
+
+        pending_ids = get_pending_by_source(channel_url)
+        if not pending_ids:
+            continue
+
+        # Filter to only completed
+        status_map = get_status_batch(pending_ids)
+        completed_ids = [
+            vid for vid, status in status_map.items() if status == "complete"
+        ]
+
+        for vid in completed_ids:
+            if vid not in exported_video_ids:
+                # Get transcript from cache
+                cached = get_cached_transcript(vid, "en", "youtube_transcript_api")
+                if cached:
+                    videos_to_export.append({
+                        "video_id": vid,
+                        "published_at": None,
+                        "title": None,
+                        "transcript": cached.transcript if hasattr(cached, "transcript") else str(cached),
+                    })
+                    exported_video_ids.add(vid)
+
+    if not videos_to_export:
+        print("[nlm] No videos to export.")
+        return
+
+    print(f"[nlm] Found {len(videos_to_export)} videos to export")
+
+    # Group by channel
+    by_channel: dict[str, list[dict]] = {}
+    for v in videos_to_export:
+        # We don't have channel_url per video here; put all in one composite
+        ch = "default"
+        by_channel.setdefault(ch, []).append(v)
+
+    # Build composites
+    composites = []
+    for channel_url, ch_videos in by_channel.items():
+        nb = notebook or "intelligence-stream"
+        try:
+            chunks = build_composites(channel_url, ch_videos, nb)
+            composites.extend(chunks)
+        except Exception as e:
+            print(f"[nlm] Warning: Could not build composite for {channel_url}: {e}")
+
+    if not composites:
+        print("[nlm] No composites to export.")
+        return
+
+    print(f"[nlm] Built {len(composites)} composite(s)")
+
+    # Export each composite
+    exported = 0
+    failed = 0
+    skipped = 0
+
+    for comp in composites:
+        result = export_composite(comp)
+        if result is None:
+            failed += 1
+        elif result == "":
+            skipped += 1
+        else:
+            exported += 1
+
+    print(f"[nlm] Export complete: {exported} exported, {skipped} skipped, {failed} failed")
+
+
+def cmd_status() -> None:
+    """Show export counts: exported/pending/word count."""
+    pending = get_pending_nlm_exports()
+
+    if not pending:
+        print("[nlm] No composites in nlm_export_state.")
+        return
+
+    exported_count = sum(1 for c in pending if c.get("nlm_source_id"))
+    pending_count = len(pending) - exported_count
+    total_words = sum(c.get("word_count", 0) for c in pending)
+    exported_words = sum(c.get("word_count", 0) for c in pending if c.get("nlm_source_id"))
+
+    print(f"[nlm] Export Status:")
+    print(f"  Total composites:  {len(pending)}")
+    print(f"  Exported:          {exported_count}")
+    print(f"  Pending export:     {pending_count}")
+    print(f"  Total word count:  {total_words:,}")
+    print(f"  Exported words:    {exported_words:,}")
+
+
+def cmd_preview(channel_url: str, notebook: str | None = None) -> None:
+    """Show composite plan for a channel without exporting."""
+    # Get channel metadata
+    meta = get_channel_metadata(channel_url)
+    if not meta:
+        print(f"[nlm] Warning: {channel_url} not tracked. Use 'csf-source add' first.", file=sys.stderr)
+
+    # Get all completed videos for this channel
+    from csf.batch_status import get_pending_by_source, get_status_batch
+
+    pending_ids = get_pending_by_source(channel_url)
+    if not pending_ids:
+        print(f"[nlm] No pending videos for {channel_url}")
+        return
+
+    status_map = get_status_batch(pending_ids)
+    completed_ids = [
+        vid for vid, status in status_map.items() if status == "complete"
+    ]
+
+    if not completed_ids:
+        print(f"[nlm] No completed videos for {channel_url}")
+        return
+
+    # Collect video data from cache
+    videos: list[dict] = []
+    for vid in completed_ids:
+        cached = get_cached_transcript(vid, "en", "youtube_transcript_api")
+        if cached:
+            videos.append({
+                "video_id": vid,
+                "published_at": None,
+                "title": None,
+                "transcript": cached.transcript if hasattr(cached, "transcript") else str(cached),
+            })
+
+    if not videos:
+        print(f"[nlm] No cached transcripts for {channel_url}")
+        return
+
+    nb = notebook or "intelligence-stream"
+    composites = build_composites(channel_url, videos, nb)
+
+    print(f"[nlm] Preview for {channel_url} (notebook: {nb})")
+    print(f"  Videos:     {len(videos)}")
+    print(f"  Composites: {len(composites)}\n")
+
+    for i, comp in enumerate(composites):
+        vid_count = len(comp.video_ids.split("|"))
+        print(f"  Composite {i + 1}:")
+        print(f"    ID:        {comp.composite_id}")
+        print(f"    Videos:    {vid_count}")
+        print(f"    Word count: {comp.word_count:,}")
+        print(f"    Video IDs:  {comp.video_ids[:80]}{'...' if len(comp.video_ids) > 80 else ''}")
+        print()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="NotebookLM composite export CLI."
+    )
+    subparsers = parser.add_subparsers(dest="command", help="Command to run")
+
+    # sync command
+    sync_parser = subparsers.add_parser("sync", help="Build and export composites to NotebookLM")
+    sync_parser.add_argument(
+        "--notebook",
+        dest="notebook",
+        default=None,
+        help="Target NotebookLM notebook name (default: intelligence-stream)",
+    )
+
+    # status command
+    subparsers.add_parser("status", help="Show export counts (exported/pending/word count)")
+
+    # preview command
+    preview_parser = subparsers.add_parser(
+        "preview", help="Show composite plan without exporting"
+    )
+    preview_parser.add_argument("channel_url", help="Channel URL to preview composites for")
+    preview_parser.add_argument(
+        "--notebook",
+        dest="notebook",
+        default=None,
+        help="Target NotebookLM notebook name (default: intelligence-stream)",
+    )
+
+    args = parser.parse_args()
+
+    if args.command == "sync":
+        cmd_sync(notebook=args.notebook)
+    elif args.command == "status":
+        cmd_status()
+    elif args.command == "preview":
+        cmd_preview(args.channel_url, notebook=args.notebook)
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

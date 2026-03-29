@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+"""Ingest YouTube playlist using yt-dlp."""
+
+import os
+import sys
+import subprocess
+import json
+from pathlib import Path
+
+# Add csf to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from csf.logging import log_action
+
+
+def get_video_metadata(video_path: Path) -> dict:
+    """Extract metadata from downloaded video using yt-dlp."""
+    # yt-dlp writes info to .info.json
+    info_path = video_path.with_suffix(".info.json")
+    if not info_path.exists():
+        return {}
+
+    with open(info_path) as f:
+        data = json.loads(f.read())
+
+    return {
+        "id": data.get("id", ""),
+        "title": data.get("title", ""),
+        "description": data.get("description", ""),
+        "duration": data.get("duration", 0),
+        "upload_date": data.get("upload_date", ""),
+        "uploader": data.get("uploader", ""),
+    }
+
+
+def ingest_playlist(
+    playlist_url: str, browser: str = "brave", auto_analyze: bool = False
+) -> None:
+    """Ingest all videos from a playlist."""
+    output_dir = Path("~/Downloads/intelligence-stream").expanduser()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Build yt-dlp command
+    cmd = [
+        "yt-dlp",
+        "--cookies-from-browser",
+        browser,
+        "-f",
+        "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "-o",
+        str(output_dir / "%(id)s.%(ext)s"),
+        "--write-info-json",
+        "--skip-download",
+        playlist_url,
+    ]
+
+    log_action("ingest_start", {"url": playlist_url})
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        log_action("ingest_error", {"stderr": result.stderr[:500]})
+        print(f"Error: {result.stderr}", file=sys.stderr)
+        return
+
+    # Load already-ingested video IDs to avoid duplicates
+    ingested_ids_file = output_dir / ".ingested_ids"
+    ingested_ids = (
+        set(ingested_ids_file.read_text().splitlines())
+        if ingested_ids_file.exists()
+        else set()
+    )
+
+    # Process downloaded videos
+    newly_ingested = []
+    for info_path in output_dir.glob("*.info.json"):
+        metadata = get_video_metadata(info_path)
+        video_id = metadata.get("id", "")
+        if not video_id:
+            continue
+        if video_id in ingested_ids:
+            log_action("video_skipped_already_ingested", {"video_id": video_id})
+            continue
+
+        log_action("video_ingested", metadata)
+
+        # Ingest to CKS
+        from csf.cks_store import append_to_cks
+
+        append_to_cks(
+            {
+                "type": "memory",
+                "title": metadata.get("title", "untitled"),
+                "content": metadata.get("description", ""),
+                "source": f"youtube:{video_id}",
+            }
+        )
+        newly_ingested.append(video_id)
+
+    # Persist newly-ingested IDs atomically (PERF-004: TOCTOU fix)
+    # Use temp file + os.replace() for atomic write on Windows
+    if newly_ingested:
+        ingested_ids.update(newly_ingested)
+        content = "\n".join(sorted(ingested_ids))
+        tmp_path = ingested_ids_file.with_suffix(".tmp")
+        tmp_path.write_text(content)
+        os.replace(tmp_path, ingested_ids_file)  # atomic on all platforms
+        log_action(
+            "ingest_ledger_updated",
+            {"count": len(newly_ingested), "total": len(ingested_ids)},
+        )
+
+    # Auto-analyze newly ingested videos
+    if auto_analyze and newly_ingested:
+        for video_id in newly_ingested:
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
+            log_action("analyze_start", {"video_id": video_id})
+            try:
+                result = subprocess.run(
+                    [
+                        "python",
+                        str(Path(__file__).resolve()),
+                        "--url",
+                        video_url,
+                        "--cks",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+                if result.returncode == 0:
+                    log_action("analyze_complete", {"video_id": video_id})
+                else:
+                    log_action(
+                        "analyze_failed",
+                        {"video_id": video_id, "stderr": result.stderr[:200]},
+                    )
+            except Exception as e:
+                log_action("analyze_error", {"video_id": video_id, "error": str(e)})
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+        print("Usage: csf-ingest <playlist_url> [--browser=<browser>] [--analyze]")
+        print()
+        print("  --browser=<browser>  Browser to extract cookies from (default: brave)")
+        print(
+            "  --analyze           After ingesting, auto-run csf-analyze on each new video"
+        )
+        sys.exit(0)
+
+    url = sys.argv[1]
+    browser = "brave"
+    auto_analyze = False
+
+    for arg in sys.argv[2:]:
+        if arg.startswith("--browser="):
+            browser = arg.split("=", 1)[1]
+        elif arg == "--analyze":
+            auto_analyze = True
+
+    ingest_playlist(url, browser, auto_analyze=auto_analyze)

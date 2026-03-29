@@ -1,0 +1,299 @@
+"""Integration tests for transcript language parameterization (i18n).
+
+Covers:
+- LanguageConfig defaults and field types
+- TranscriptResult fields including detected_lang
+- was_translated flag behavior
+- Translation opt-in/opt-out
+- Non-fatal translation degradation
+- Import smoke test
+
+Acceptance: All tests pass via `pytest tests/test_transcript_i18n.py`.
+"""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+
+from unittest import mock
+import pytest
+
+from csf.transcript import (
+    LanguageConfig,
+    TranscriptResult,
+    fetch_transcript_chain,
+    _translate_text,
+    _validate_bcp47,
+)
+
+
+# =============================================================================
+# Import smoke test
+# =============================================================================
+
+def test_import_smoke_test():
+    """Import smoke test: LanguageConfig and TranscriptResult are importable."""
+    from csf.transcript import LanguageConfig, TranscriptResult
+    cfg = LanguageConfig()
+    assert cfg.prefer_lang == "en"
+    assert cfg.allow_translation is False
+    result = TranscriptResult(
+        video_id="dQw4w9WgXcQ",
+        lang="en",
+        raw_lang="en",
+        was_translated=False,
+        transcript="test",
+        source="none",
+        detected_lang="en",
+    )
+    assert result.video_id == "dQw4w9WgXcQ"
+
+
+# =============================================================================
+# LanguageConfig defaults
+# =============================================================================
+
+def test_language_config_defaults():
+    """LanguageConfig has correct defaults."""
+    cfg = LanguageConfig()
+    assert cfg.prefer_lang == "en"
+    assert cfg.allow_translation is False
+    assert cfg.translation_provider == "gemini"
+
+
+def test_language_config_custom():
+    """LanguageConfig accepts custom values."""
+    cfg = LanguageConfig(prefer_lang="es", allow_translation=True)
+    assert cfg.prefer_lang == "es"
+    assert cfg.allow_translation is True
+    assert cfg.translation_provider == "gemini"
+
+
+# =============================================================================
+# TranscriptResult fields
+# =============================================================================
+
+def test_transcript_result_fields():
+    """TranscriptResult has all required fields."""
+    result = TranscriptResult(
+        video_id="dQw4w9WgXcQ",
+        lang="pt-BR",
+        raw_lang="en",
+        was_translated=True,
+        transcript="translated texto",
+        source="cli",
+        detected_lang="en",
+    )
+    assert result.video_id == "dQw4w9WgXcQ"
+    assert result.lang == "pt-BR"
+    assert result.raw_lang == "en"
+    assert result.was_translated is True
+    assert result.transcript == "translated texto"
+    assert result.source == "cli"
+    assert result.detected_lang == "en"
+
+
+def test_transcript_result_detected_lang_none():
+    """TranscriptResult detected_lang can be None on failure."""
+    result = TranscriptResult(
+        video_id="dQw4w9WgXcQ",
+        lang="en",
+        raw_lang=None,
+        was_translated=False,
+        transcript="",
+        source="none",
+        detected_lang=None,
+    )
+    assert result.transcript == ""
+    assert result.source == "none"
+    assert result.detected_lang is None
+
+
+# =============================================================================
+# BCP-47 validation
+# =============================================================================
+
+class TestBCP47Validation:
+    """BLOCKER-13: Invalid BCP-47 codes must raise ValueError before any API call."""
+
+    def test_valid_two_letter_code(self):
+        _validate_bcp47("en")
+        _validate_bcp47("es")
+        _validate_bcp47("zh")
+
+    def test_valid_with_region(self):
+        _validate_bcp47("pt-BR")
+        _validate_bcp47("zh-CN")
+
+    def test_invalid_code_raises(self):
+        with pytest.raises(ValueError, match="Invalid BCP-47"):
+            _validate_bcp47("eng")
+
+    def test_invalid_region_code_raises(self):
+        with pytest.raises(ValueError, match="Invalid BCP-47"):
+            _validate_bcp47("en-us")
+
+    def test_numeric_code_raises(self):
+        with pytest.raises(ValueError, match="Invalid BCP-47"):
+            _validate_bcp47("123")
+
+    def test_empty_code_raises(self):
+        with pytest.raises(ValueError, match="Invalid BCP-47"):
+            _validate_bcp47("")
+
+
+# =============================================================================
+# was_translated flag behavior
+# =============================================================================
+
+def test_was_translated_false_when_no_translation():
+    """was_translated=False when no translation performed."""
+    with (
+        mock.patch("csf.transcript.get_cached_transcript", return_value=None),
+        mock.patch(
+            "csf.transcript._fetch_via_youtube_transcript_api",
+            return_value=(True, "english transcript", None),
+        ),
+        mock.patch("csf.transcript._fetch_via_youtubei", return_value=(False, None, "fail")),
+        mock.patch("csf.transcript._fetch_via_sdk", return_value=(False, None, "fail")),
+    ):
+        result = fetch_transcript_chain(
+            "dQw4w9WgXcQ",
+            LanguageConfig(prefer_lang="en", allow_translation=True),
+        )
+        assert result.was_translated is False
+        assert result.transcript == "english transcript"
+
+
+def test_was_translated_true_when_translation_occurs():
+    """was_translated=True when non-preferred language returned and allow_translation=True."""
+    with (
+        mock.patch("csf.transcript.get_cached_transcript", return_value=None),
+        mock.patch(
+            "csf.transcript._fetch_via_youtube_transcript_api",
+            side_effect=[
+                (False, None, "no pt-BR transcript"),
+                (True, "texto espanol", None),
+            ],
+        ),
+        mock.patch("csf.transcript._fetch_via_youtubei", return_value=(False, None, "unavailable")),
+        mock.patch("csf.transcript._fetch_via_sdk", return_value=(False, None, "unavailable")),
+        mock.patch(
+            "csf.transcript._translate_text",
+            return_value="translated to portuguese",
+        ),
+    ):
+        result = fetch_transcript_chain(
+            "dQw4w9WgXcQ",
+            LanguageConfig(prefer_lang="pt-BR", allow_translation=True),
+        )
+        assert result.was_translated is True
+        assert result.raw_lang == "en"
+        assert result.transcript == "translated to portuguese"
+
+
+def test_no_translation_when_allow_translation_false():
+    """Translation not called when allow_translation=False."""
+    with (
+        mock.patch("csf.transcript.get_cached_transcript", return_value=None),
+        mock.patch(
+            "csf.transcript._fetch_via_youtube_transcript_api",
+            return_value=(True, "texto espanol", None),
+        ),
+        mock.patch("csf.transcript._translate_text") as mock_translate,
+    ):
+        result = fetch_transcript_chain(
+            "dQw4w9WgXcQ",
+            LanguageConfig(prefer_lang="en", allow_translation=False),
+        )
+        assert result.was_translated is False
+        mock_translate.assert_not_called()
+
+
+# =============================================================================
+# Non-fatal translation degradation
+# =============================================================================
+
+def test_translate_text_non_fatal_on_failure():
+    """Translation failure returns original text (non-fatal per FM-003)."""
+    mock_client = mock.MagicMock()
+    mock_client.models.generate_content.side_effect = Exception("Gemini API error")
+
+    with mock.patch.dict("os.environ", {"GEMINI_API_KEY": "fake-key"}):
+        with mock.patch("google.genai.Client", return_value=mock_client):
+            result = _translate_text("texto original", "es", "en", "gemini")
+            assert result == "texto original"
+
+
+def test_translate_text_success():
+    """_translate_text returns translated string on success."""
+    mock_client = mock.MagicMock()
+    mock_response = mock.MagicMock()
+    mock_response.text = "texto traducido"
+    mock_client.models.generate_content.return_value = mock_response
+
+    with mock.patch.dict("os.environ", {"GEMINI_API_KEY": "fake-key"}):
+        with mock.patch("google.genai.Client", return_value=mock_client):
+            result = _translate_text("texto original", "es", "en", "gemini")
+            assert result == "texto traducido"
+
+
+# =============================================================================
+# Graceful degradation
+# =============================================================================
+
+def test_all_methods_fail_returns_empty_transcript():
+    """When all methods fail, returns TranscriptResult with empty transcript."""
+    with (
+        mock.patch("csf.transcript.get_cached_transcript", return_value=None),
+        mock.patch(
+            "csf.transcript._fetch_via_youtube_transcript_api",
+            return_value=(False, None, "no transcript"),
+        ),
+        mock.patch(
+            "csf.transcript._fetch_via_youtubei",
+            return_value=(False, None, "no transcript"),
+        ),
+        mock.patch(
+            "csf.transcript._fetch_via_sdk",
+            return_value=(False, None, "no transcript"),
+        ),
+        mock.patch(
+            "csf.transcript._fetch_via_gemini_cli",
+            return_value=(False, None, "no transcript"),
+        ),
+        mock.patch("csf.transcript.is_free_only_mode", return_value=False),
+    ):
+        result = fetch_transcript_chain(
+            "dQw4w9WgXcQ",
+            LanguageConfig(prefer_lang="en"),
+        )
+        assert isinstance(result, TranscriptResult)
+        assert result.transcript == ""
+        assert result.source == "none"
+
+
+# =============================================================================
+# Return type
+# =============================================================================
+
+def test_returns_transcript_result_type():
+    """fetch_transcript_chain returns TranscriptResult (not 3-tuple)."""
+    with (
+        mock.patch("csf.transcript.get_cached_transcript", return_value=None),
+        mock.patch(
+            "csf.transcript._fetch_via_youtube_transcript_api",
+            return_value=(True, "english transcript", None),
+        ),
+    ):
+        result = fetch_transcript_chain(
+            "dQw4w9WgXcQ",
+            LanguageConfig(prefer_lang="en"),
+        )
+        assert isinstance(result, TranscriptResult)
+        assert result.video_id == "dQw4w9WgXcQ"
+        assert result.transcript == "english transcript"
+        assert result.was_translated is False
+        assert result.lang == "en"
+        assert result.raw_lang == "en"

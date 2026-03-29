@@ -1,0 +1,10 @@
+{
+  "current_intent": {
+    "work_type": "unknown",
+    "target": "s use YouTube API because it",
+    "problem": "For the first channel video enumeration, let's use YouTube API because it's going to be so much faster than YTDLP.\nWe need to detect when we need to do something more than just RSS to get updated v...",
+    "user_prompt": "For the first channel video enumeration, let's use YouTube API because it's going to be so much faster than YTDLP.\nWe need to detect when we need to do something more than just RSS to get updated videos.  The trigger can be when RSS has 15 videos that do not overlap with the videos we have already downloaded for that channel. If there's an overlap, it means we are consistent. If they don't have an overlap, we can assume we have a gap.  Should we do a full YouTube API or can we just do it in batches of 50? Can we use YouTube API for the most recent 50 channel videos? And if that then overlaps with what we already have downloaded, then it can mean that we've caught up. Otherwise, it means we need to do another 50 because we would still have a gap. Does that make sense? Is that logical?  Is there a more efficient or effective way to do it? I'm okay using YTDLP, but I prefer to use the API because of the incredible performance improvement.",
+    "timestamp": "2026-03-28T20:06:32.351357+00:00"
+  },
+  "last_updated": "2026-03-28T20:06:32.355898+00:00"
+}

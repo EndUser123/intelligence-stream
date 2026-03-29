@@ -1,0 +1,13 @@
+{
+  "exceptions": [
+    {
+      "id": "CSFX-001",
+      "category": "directoryNaming",
+      "path": "csf/",
+      "violation": "csf/ is non-standard directory name (plugin spec says scripts/ or component dirs)",
+      "rationale": "csf/ is the primary package namespace for this project. Renaming to scripts/ would break all imports throughout the package. This is an intentional architectural decision - csf/ is a meaningful package name (Constitutional Knowledge System abbreviation), not an oversight.",
+      "waived": true,
+      "created": "2026-03-29"
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""List and retrieve cached YouTube video transcripts.
+
+Usage:
+    csf-transcripts                  # List all cached transcripts
+    csf-transcripts --lang en       # Filter by language
+    csf-transcripts <video_id>      # Show cached transcript for video
+    csf-transcripts <video_id> --transcript  # Show raw transcript text
+"""
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+# Add csf to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from csf.cache import get_cached_transcript, list_cached_transcripts
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="List and retrieve cached YouTube video transcripts."
+    )
+    parser.add_argument(
+        "video_id",
+        nargs="?",
+        help="YouTube video ID (11 chars). If provided, show that transcript.",
+    )
+    parser.add_argument(
+        "--lang",
+        default=None,
+        help="Filter by ISO 639-1 language code (e.g. en, es, fr).",
+    )
+    parser.add_argument(
+        "--transcript",
+        action="store_true",
+        help="For single video: output raw transcript text only.",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output raw JSON for single video.",
+    )
+    args = parser.parse_args()
+
+    if args.video_id:
+        # Single video lookup
+        # Try common sources in order of preference
+        sources = ["cli", "youtube_transcript_api", "youtubei", "sdk"]
+        found = None
+        for source in sources:
+            cached = get_cached_transcript(args.video_id, args.lang or "en", source)
+            if cached:
+                found = cached
+                break
+
+        if not found:
+            print(f"No cached transcript for {args.video_id}", file=sys.stderr)
+            sys.exit(1)
+
+        if args.transcript:
+            print(found.transcript)
+        elif args.json:
+            print(
+                json.dumps(
+                    {
+                        "video_id": found.video_id,
+                        "lang": found.lang,
+                        "source": found.source,
+                        "transcript": found.transcript,
+                        "cached_at": found.cached_at.isoformat(),
+                        "cached_by": found.terminal_id,
+                    },
+                    indent=2,
+                )
+            )
+        else:
+            print(f"Title/ID: {found.video_id}")
+            print(f"Language: {found.lang}")
+            print(f"Source:   {found.source}")
+            print(f"Cached:   {found.cached_at.strftime('%Y-%m-%d %H:%M:%S')} by {found.terminal_id}")
+            print()
+            print(found.transcript[:500] + ("..." if len(found.transcript) > 500 else ""))
+    else:
+        # List all cached transcripts
+        transcripts = list_cached_transcripts(lang=args.lang)
+        if not transcripts:
+            print("No cached transcripts." if not args.lang else f"No cached transcripts for language '{args.lang}'.")
+            sys.exit(0)
+
+        print(f"{'Video ID':<15} {'Lang':<6} {'Source':<25} {'Cached At':<20} {'By Terminal'}")
+        print("-" * 90)
+        for t in transcripts:
+            preview = t.transcript[:40].replace("\n", " ")
+            print(
+                f"{t.video_id:<15} {t.lang:<6} {t.source:<25} "
+                f"{t.cached_at.strftime('%Y-%m-%d %H:%M'):<20} {t.terminal_id:<15} {preview}"
+            )
+
+
+if __name__ == "__main__":
+    main()

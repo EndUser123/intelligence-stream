@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""Batch video content analysis with idempotent restart.
+
+Usage:
+    csf-batch <video_id> [<video_id> ...] [options]
+    csf-batch --list <file> [options]
+
+Options:
+    --workers N       Number of parallel workers (default: 4, max: 8)
+    --force          Re-process videos even if already analyzed (skip idempotency)
+    --progress       Show real-time progress (pending, done, failed, cached counts)
+    --reset          Clear all status entries before running (full restart)
+"""
+
+import argparse
+import sys
+from pathlib import Path
+
+# Add csf to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from csf.batch import analyze_videos_parallel
+from csf.batch_status import is_complete, reset_all
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Batch video content analysis with idempotent restart."
+    )
+    parser.add_argument(
+        "video_ids",
+        nargs="*",
+        help="YouTube video IDs to analyze.",
+    )
+    parser.add_argument(
+        "--list",
+        type=Path,
+        metavar="FILE",
+        help="File containing video IDs (one per line).",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=4,
+        help="Number of parallel workers (default: 4, max: 8).",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-process videos even if already analyzed (skip idempotency check).",
+    )
+    parser.add_argument(
+        "--progress",
+        action="store_true",
+        help="Show real-time progress (pending, done, failed, cached counts).",
+    )
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Clear all status entries before running (full restart).",
+    )
+    args = parser.parse_args()
+
+    # Collect video IDs
+    video_ids: list[str] = list(args.video_ids)
+    if args.list:
+        if not args.list.exists():
+            print(f"Error: {args.list} not found.", file=sys.stderr)
+            sys.exit(1)
+        video_ids.extend(args.list.read_text().splitlines())
+
+    if not video_ids:
+        print("Error: no video IDs provided.", file=sys.stderr)
+        sys.exit(1)
+
+    # Filter out empty lines
+    video_ids = [vid.strip() for vid in video_ids if vid.strip()]
+
+    # --reset: clear all status before running
+    if args.reset:
+        reset_all()
+        print(f"[batch] Status cleared. Starting fresh run of {len(video_ids)} videos.")
+    else:
+        skipped = sum(1 for vid in video_ids if not args.force and is_complete(vid))
+        if skipped:
+            print(f"[batch] {skipped} videos already complete (use --force to re-process).")
+
+    # Set up progress callback
+    progress_callback = None
+    if args.progress:
+        import threading
+
+        lock = threading.Lock()
+
+        def on_progress(pending: int, done: int, failed: int, cached: int) -> None:
+            with lock:
+                print(f"[batch] pending={pending} done={done} failed={failed} cached={cached}", flush=True)
+
+        progress_callback = on_progress
+
+    print(f"[batch] Processing {len(video_ids)} videos with {args.workers} workers (force={args.force})...")
+
+    successful, failed = analyze_videos_parallel(
+        video_ids,
+        max_workers=args.workers,
+        progress_callback=progress_callback,
+        force=args.force,
+    )
+
+    print(f"[batch] Done. successful={len(successful)}, failed={len(failed)}")
+    if failed:
+        print(f"[batch] Failed video IDs: {', '.join(failed)}")
+
+
+if __name__ == "__main__":
+    main()

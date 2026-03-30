@@ -22,12 +22,14 @@ def _get_analyze_video() -> Callable[..., Any]:
     global _analyze_video_ref
     if _analyze_video_ref is None:
         import importlib.util
+        from importlib.machinery import SourceFileLoader
 
-        spec = importlib.util.spec_from_file_location(
-            "csf_analyze",
-            str(Path(__file__).parent.parent / "bin" / "csf-analyze"),
-        )
-        if spec is None or spec.loader is None:
+        # spec_from_file_location fails for extensionless files;
+        # use SourceFileLoader directly instead
+        bin_path = str(Path(__file__).parent.parent / "bin" / "csf-analyze")
+        loader = SourceFileLoader("csf_analyze", bin_path)
+        spec = importlib.util.spec_from_loader("csf_analyze", loader)
+        if spec is None:
             raise RuntimeError("Could not load csf-analyze module")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
@@ -77,12 +79,12 @@ def analyze_videos_parallel(
         video_url = f"https://www.youtube.com/watch?v={video_id}"
         try:
             analyze_video = _get_analyze_video()
-            # If transcript is already cached, use transcript-only mode to skip expensive
-            # Gemini API calls. This is the Path B optimization: reuse cached transcripts.
+            # If transcript is cached, use transcript-only mode (free, no API cost).
+            # Otherwise use SDK video passthrough for full video analysis.
             if has_cached_transcript(video_id):
                 result: dict = analyze_video(video_id, video_url, mode="transcript")  # type: ignore[assignment]
             else:
-                result = analyze_video(video_id, video_url)  # type: ignore[assignment]
+                result = analyze_video(video_id, video_url, mode="sdk")  # type: ignore[assignment]
             return (video_id, result, True, None)
         except Exception as e:
             log_action("batch_analyze_error", {"video_id": video_id, "error": repr(e)})

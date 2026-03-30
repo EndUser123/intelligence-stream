@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+"""Download missing transcripts for all tracked channels.
+
+Uses yt-dlp (no API key needed) to enumerate videos per playlist,
+then parallel-fetches missing transcripts using the youtube-transcript-api.
+
+Usage:
+    csf-transcript-fetch                  # Dry run: show missing counts
+    csf-transcript-fetch --run            # Actually download transcripts
+    csf-transcript-fetch --channel <url>  # Process specific channel only
+    csf-transcript-fetch --workers N      # Parallel workers (default: 4)
+"""
+
+import argparse
+import json
+import subprocess
+import sys
+import time
+import random
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+
+# Add csf to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from csf.batch_status import _get_batch_status_storage
+from csf.cache import has_cached_transcript, set_cached_transcript
+from csf.transcript import fetch_transcript_chain, LanguageConfig
+
+
+def _enumerate_playlist(playlist_url: str) -> list[dict]:
+    """Enumerate all videos in a playlist using yt-dlp (no API key needed)."""
+    try:
+        result = subprocess.run(
+            ["yt-dlp", "--flat-playlist", "--dump-json", playlist_url],
+            capture_output=True, text=True, timeout=300,
+        )
+        videos = []
+        for line in result.stdout.strip().split("\n"):
+            if line:
+                try:
+                    obj = json.loads(line)
+                    videos.append({
+                        "video_id": obj["id"],
+                        "title": obj.get("title", ""),
+                    })
+                except (json.JSONDecodeError, KeyError):
+                    continue
+        return videos
+    except Exception as e:
+        print(f"  [ERROR] yt-dlp failed for {playlist_url}: {e}")
+        return []
+
+
+def _fetch_one_transcript(video_id: str, lang: str = "en") -> tuple[str, bool, str]:
+    """Fetch transcript for a single video, cache it, return (video_id, success, error)."""
+    config = LanguageConfig(prefer_lang=lang, allow_translation=False)
+    result = fetch_transcript_chain(video_id, config)
+
+    if result.transcript:
+        # Cache the transcript
+        set_cached_transcript(video_id, result.lang, result.source, result.transcript)
+        return (video_id, True, result.source)
+    else:
+        return (video_id, False, result.source or "none")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Download missing transcripts for tracked YouTube channels."
+    )
+    parser.add_argument(
+        "--run", action="store_true",
+        help="Actually download transcripts (default is dry-run)."
+    )
+    parser.add_argument(
+        "--channel",
+        help="Process only this channel URL."
+    )
+    parser.add_argument(
+        "--workers", type=int, default=4,
+        help="Number of parallel workers (default: 4)."
+    )
+    parser.add_argument(
+        "--lang", default="en",
+        help="Preferred language code (default: en)."
+    )
+    args = parser.parse_args()
+
+    # Load .env for potential API keys
+    from dotenv import load_dotenv
+    load_dotenv("P:/.env")
+
+    storage = _get_batch_status_storage()
+    conn = storage._get_conn()
+    cursor = conn.execute(
+        "SELECT channel_url, playlist_id FROM channel_metadata"
+    )
+    channels = cursor.fetchall()
+    conn.close()
+
+    if args.channel:
+        channels = [(u, p) for u, p in channels if args.channel in u]
+        if not channels:
+            print(f"Channel '{args.channel}' not found in tracked sources.")
+            sys.exit(1)
+
+    print(f"=== Transcript Fetcher ===")
+    print(f"Channels: {len(channels)}")
+    print(f"Mode: {'DRY RUN (use --run to download)' if not args.run else 'LIVE'}")
+    print(f"Workers: {args.workers}")
+    print()
+
+    grand_total = 0
+    grand_missing = 0
+
+    for channel_url, playlist_id in channels:
+        if not playlist_id:
+            print(f"  [SKIP] {channel_url} — no playlist_id")
+            continue
+
+        playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
+        print(f"Channel: {channel_url}")
+
+        if not args.run:
+            # Dry run: just enumerate and count missing
+            print(f"  Enumerating videos...")
+            videos = _enumerate_playlist(playlist_url)
+            missing = sum(1 for v in videos if not has_cached_transcript(v["video_id"]))
+            print(f"  Videos: {len(videos)}, Already cached: {len(videos)-missing}, Missing: {missing}")
+            grand_total += len(videos)
+            grand_missing += missing
+        else:
+            # Live run: enumerate, then download missing
+            print(f"  Enumerating videos...")
+            videos = _enumerate_playlist(playlist_url)
+            missing_ids = [v["video_id"] for v in videos if not has_cached_transcript(v["video_id"])]
+            print(f"  Videos: {len(videos)}, Already cached: {len(videos)-len(missing_ids)}, Missing: {len(missing_ids)}")
+
+            if not missing_ids:
+                print(f"  All transcripts already cached.")
+                grand_total += len(videos)
+                grand_missing += 0
+                continue
+
+            print(f"  Downloading {len(missing_ids)} transcripts with {args.workers} workers...")
+
+            # Jitter to avoid thundering herd
+            time.sleep(random.uniform(1.0, 3.0))
+
+            success_count = 0
+            fail_count = 0
+
+            def progress(done: int, ok: int, fail: int) -> None:
+                print(f"    progress: done={done}/{len(missing_ids)}, ok={ok}, fail={fail}", flush=True)
+
+            with ThreadPoolExecutor(max_workers=args.workers) as executor:
+                futures = {
+                    executor.submit(_fetch_one_transcript, vid, args.lang): vid
+                    for vid in missing_ids
+                }
+                done = 0
+                for future in as_completed(futures):
+                    vid, ok, src = future.result()
+                    done += 1
+                    if ok:
+                        success_count += 1
+                    else:
+                        fail_count += 1
+                    if done % 20 == 0 or done == len(missing_ids):
+                        progress(done, success_count, fail_count)
+
+            print(f"  Downloaded: {success_count} ok, {fail_count} failed")
+            grand_total += len(videos)
+            grand_missing += len(missing_ids)
+
+    print()
+    print(f"=== Summary ===")
+    print(f"Total videos: {grand_total}")
+    print(f"Missing transcripts: {grand_missing}")
+    if args.run:
+        print("(Transcripts are cached; re-running will show 0 missing)")
+
+
+if __name__ == "__main__":
+    main()

@@ -342,6 +342,20 @@ def has_cached_transcript(video_id: str) -> bool:
     _SHARED_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(_SHARED_DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
+    # Ensure table exists before querying (may not exist on first use)
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS transcript_cache (
+            cache_key TEXT PRIMARY KEY,
+            video_id TEXT NOT NULL,
+            lang TEXT NOT NULL,
+            source TEXT NOT NULL,
+            transcript TEXT NOT NULL,
+            cached_at TEXT NOT NULL,
+            terminal_id TEXT NOT NULL
+        )
+        """
+    )
     cursor = conn.execute(
         "SELECT 1 FROM transcript_cache WHERE video_id = ? LIMIT 1",
         (video_id,),

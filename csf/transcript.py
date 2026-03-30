@@ -12,6 +12,7 @@ import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal, Tuple
 
 from csf.cache import get_cached_transcript, set_cached_transcript
@@ -25,6 +26,7 @@ _SOURCE_CLI = "cli"
 _SOURCE_YOUTUBE_TRANSCRIPT_API = "youtube_transcript_api"
 _SOURCE_YOUTUBEI = "youtubei"
 _SOURCE_SDK = "sdk"
+_SOURCE_YTDLP = "ytdlp"
 
 # Jitter bounds for rate limit avoidance
 # PERF-006: Wider range (was 0.5-2.5) to prevent thundering herd.
@@ -246,16 +248,114 @@ def _fetch_via_youtubei(
     except ImportError:
         return (False, None, "youtubei not installed")
 
+    def _fetch() -> Tuple[bool, str | None, str | None]:
+        try:
+            client = youtubei.get_client()
+            video = client.get_video(video_id)
+            transcript_data = video.get_transcript()
+            if transcript_data is None:
+                return (False, None, "No transcript available")
+            text = " ".join(item["text"] for item in transcript_data)
+            return (True, text, None)
+        except Exception as e:
+            return (False, None, f"youtubei error: {e}")
+
     try:
-        client = youtubei.get_client()
-        video = client.get_video(video_id)
-        transcript_data = video.get_transcript()
-        if transcript_data is None:
-            return (False, None, "No transcript available")
-        text = " ".join(item["text"] for item in transcript_data)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_fetch)
+            return future.result(timeout=60)
+    except TimeoutError:
+        return (False, None, "youtubei timeout (>15s)")
+
+
+def _fetch_via_ytdlp(
+    video_id: str, lang: str
+) -> Tuple[bool, str | None, str | None]:
+    """Fetch transcript using yt-dlp to download auto-generated subtitles.
+
+    Downloads auto-generated subtitles via yt-dlp (which can access YouTube
+    even when youtube-transcript-api is IP-blocked), then parses SRT to plain text.
+
+    Fails fast on 429 (rate limited) — chain falls back to SDK immediately.
+    """
+    import tempfile
+
+    video_url = f"https://www.youtube.com/watch?v={video_id}"
+    tmp_dir = tempfile.mkdtemp(prefix="ytdlp_subs_")
+    try:
+        output_template = os.path.join(tmp_dir, "subs")
+
+        cmd = [
+            "yt-dlp",
+            "--write-auto-subs",
+            "--skip-download",
+            "--convert-subs", "srt",
+            "--output", output_template,
+            video_url,
+        ]
+
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+        if proc.returncode != 0:
+            stderr_lower = proc.stderr.lower()
+            if "429" in proc.stderr or "too many requests" in stderr_lower:
+                return (False, None, "rate limited (429)")
+            if "no subtitles" in stderr_lower or "does not have any subtitles" in stderr_lower:
+                return (False, None, "no subtitles available")
+            return (False, None, f"yt-dlp failed: {proc.stderr.strip()[:200]}")
+
+        # Find the generated SRT file
+        srt_files = list(Path(tmp_dir).glob("*.srt"))
+        if not srt_files:
+            for ext in ("vtt", "ass", "lrc"):
+                subs = list(Path(tmp_dir).glob(f"*.{ext}"))
+                if subs:
+                    srt_files = subs
+                    break
+            if not srt_files:
+                return (False, None, "no subtitle file produced")
+
+        srt_path = srt_files[0]
+        text = _parse_srt(srt_path.read_text(encoding="utf-8"))
+        if not text.strip():
+            return (False, None, "subtitle file was empty")
         return (True, text, None)
+
+    except subprocess.TimeoutExpired:
+        return (False, None, "yt-dlp timed out")
     except Exception as e:
-        return (False, None, f"youtubei error: {e}")
+        return (False, None, f"yt-dlp error: {e}")
+    finally:
+        import shutil as _shutil
+        try:
+            _shutil.rmtree(tmp_dir)
+        except Exception:
+            pass
+
+
+def _parse_srt(srt_content: str) -> str:
+    """Parse SRT subtitle content into plain transcript text."""
+    import re
+
+    entries = re.split(r"\n\d+\n", srt_content)
+    text_parts = []
+    for entry in entries:
+        lines = entry.strip().split("\n")
+        for line in lines:
+            # Skip numeric timecodes (00:00:00,000 --> 00:00:00,000)
+            if "-->" in line:
+                continue
+            # Skip HTML tags
+            line = re.sub(r"<[^>]+>", "", line)
+            line = line.strip()
+            if line:
+                text_parts.append(line)
+    return " ".join(text_parts)
 
 
 def _fetch_via_sdk(video_id: str, lang: str) -> Tuple[bool, str | None, str | None]:
@@ -269,16 +369,24 @@ def _fetch_via_sdk(video_id: str, lang: str) -> Tuple[bool, str | None, str | No
     except ImportError:
         return (False, None, "google-genai not installed")
 
+    def _fetch() -> Tuple[bool, str | None, str | None]:
+        try:
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[f"Get the transcript for YouTube video {video_id} in language {lang}"],
+            )
+            text = response.text.strip()
+            return (True, text, None)
+        except Exception as e:
+            return (False, None, f"SDK error: {e}")
+
     try:
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[f"Get the transcript for YouTube video {video_id} in language {lang}"],
-        )
-        text = response.text.strip()
-        return (True, text, None)
-    except Exception as e:
-        return (False, None, f"SDK error: {e}")
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_fetch)
+            return future.result(timeout=60)
+    except TimeoutError:
+        return (False, None, "SDK timeout (>60s)")
 
 
 def fetch_transcript_chain(
@@ -347,6 +455,7 @@ def fetch_transcript_chain(
     # Try free sources first (TECH-01), then paid CLI last
     # LOGIC-004: Skip CLI if quota exceeded (free-only mode active)
     free_methods = [
+        (_SOURCE_YTDLP, _fetch_via_ytdlp),
         (_SOURCE_YOUTUBE_TRANSCRIPT_API, _fetch_via_youtube_transcript_api),
         (_SOURCE_YOUTUBEI, _fetch_via_youtubei),
         (_SOURCE_SDK, _fetch_via_sdk),

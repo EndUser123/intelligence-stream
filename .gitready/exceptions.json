@@ -8,6 +8,15 @@
       "rationale": "csf/ is the primary package namespace for this project. Renaming to scripts/ would break all imports throughout the package. This is an intentional architectural decision - csf/ is a meaningful package name (Constitutional Knowledge System abbreviation), not an oversight.",
       "waived": true,
       "created": "2026-03-29"
+    },
+    {
+      "id": "CSFX-002",
+      "category": "directoryNaming",
+      "path": "bin/",
+      "violation": "bin/ is non-standard for CLI entry points without pyproject.toml entry_points declaration",
+      "rationale": "bin/ scripts use sys.path.insert hack for portability within the package directory, which breaks when pip-installed or invoked from a different working directory. The proper fix requires pyproject.toml with [project.scripts] entry points (GAP-006), which is outside PHASE 1.7 scope. This is an interim structural waiver only - full portability requires follow-up work.",
+      "waived": true,
+      "created": "2026-03-29"
     }
   ]
 }

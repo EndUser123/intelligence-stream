@@ -63,6 +63,12 @@ def _get_api_keys() -> list[str]:
             os.environ.get("YOUTUBE_API_KEY_3"),
             os.environ.get("YOUTUBE_API_KEY_4"),
             os.environ.get("YOUTUBE_API_KEY_5"),
+            # Aliases used in P:/.env (YT_API_KEY_*, not YOUTUBE_API_KEY*)
+            os.environ.get("YT_API_KEY_1"),
+            os.environ.get("YT_API_KEY_2"),
+            os.environ.get("YT_API_KEY_3"),
+            os.environ.get("YT_API_KEY_4"),
+            os.environ.get("YT_API_KEY_5"),
         ]
         _YOUTUBE_API_KEYS = [k for k in raw_keys if k]
     assert _YOUTUBE_API_KEYS is not None

@@ -34,6 +34,7 @@ def test_transcript_result_fields():
         transcript="texto de prueba",
         source="youtube_transcript_api",
         detected_lang="es",
+        error=None,
     )
     assert result.video_id == "dQw4w9WgXcQ"
     assert result.lang == "es"
@@ -42,6 +43,7 @@ def test_transcript_result_fields():
     assert result.transcript == "texto de prueba"
     assert result.source == "youtube_transcript_api"
     assert result.detected_lang == "es"
+    assert result.error is None
 
 
 def test_transcript_result_detected_lang_none():
@@ -54,5 +56,7 @@ def test_transcript_result_detected_lang_none():
         transcript="",
         source="none",
         detected_lang=None,
+        error="invalid video_id format",
     )
     assert result.detected_lang is None
+    assert result.error == "invalid video_id format"

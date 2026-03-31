@@ -1,0 +1,128 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.0, pytest-9.0.2, pluggy-1.6.0 -- C:\Python314\python.exe
+cachedir: .pytest_cache
+hypothesis profile 'default'
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+metadata: {'Python': '3.14.0', 'Platform': 'Windows-11-10.0.26200-SP0', 'Packages': {'pytest': '9.0.2', 'pluggy': '1.6.0'}, 'Plugins': {'anyio': '4.12.1', 'hypothesis': '6.150.1', 'langsmith': '0.6.7', 'locust': '2.43.1', 'asyncio': '1.3.0', 'benchmark': '5.2.3', 'cov': '7.0.0', 'json-report': '1.5.0', 'metadata': '3.1.1', 'mock': '3.15.1', 'rerunfailures': '16.1', 'testmon': '2.2.0', 'timeout': '2.4.0', 'xdist': '3.8.0', 'typeguard': '4.4.4'}}
+rootdir: P:\packages\intelligence-stream
+plugins: anyio-4.12.1, hypothesis-6.150.1, langsmith-0.6.7, locust-2.43.1, asyncio-1.3.0, benchmark-5.2.3, cov-7.0.0, json-report-1.5.0, metadata-3.1.1, mock-3.15.1, rerunfailures-16.1, testmon-2.2.0, timeout-2.4.0, xdist-3.8.0, typeguard-4.4.4
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+timeout: 30.0s
+timeout method: thread
+timeout func_only: False
+collecting ... collected 6 items
+
+tests/test_providers_integration.py::TestProviderSelection::test_select_provider_returns_transcript_when_gemini_unavailable PASSED [ 16%]
+tests/test_providers_integration.py::TestProviderSelection::test_select_provider_returns_ocr_clip_when_gemini_unavailable_and_ocr_available FAILED [ 33%]
+tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_gemini_nonfatal_propagates +++++++++++++++++++++++++++++++++++ Timeout +++++++++++++++++++++++++++++++++++
+~~~~~~~~~~~~~~~~~~ Stack of Thread-8 (_readerthread) (54848) ~~~~~~~~~~~~~~~~~~
+  File "C:\Python314\Lib\threading.py", line 1043, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Python314\Lib\threading.py", line 1081, in _bootstrap_inner
+    self._context.run(self.run)
+  File "C:\Python314\Lib\threading.py", line 1023, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Python314\Lib\subprocess.py", line 1613, in _readerthread
+    buffer.append(fh.read())
+~~~~~~~~~~~~~~~~~~ Stack of Thread-7 (_readerthread) (61516) ~~~~~~~~~~~~~~~~~~
+  File "C:\Python314\Lib\threading.py", line 1043, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Python314\Lib\threading.py", line 1081, in _bootstrap_inner
+    self._context.run(self.run)
+  File "C:\Python314\Lib\threading.py", line 1023, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Python314\Lib\subprocess.py", line 1613, in _readerthread
+    buffer.append(fh.read())
+~~~~~~~~~~~~~~~~~~~ Stack of Thread-1 (run_server) (34352) ~~~~~~~~~~~~~~~~~~~~
+  File "C:\Python314\Lib\threading.py", line 1043, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Python314\Lib\threading.py", line 1081, in _bootstrap_inner
+    self._context.run(self.run)
+  File "C:\Python314\Lib\threading.py", line 1023, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pytest_rerunfailures.py", line 466, in run_server
+    conn, _ = self.sock.accept()
+  File "C:\Python314\Lib\socket.py", line 298, in accept
+    fd, addr = self._accept()
+~~~~~~~~~~~~~~~~~~~~~~~~~ Stack of MainThread (51688) ~~~~~~~~~~~~~~~~~~~~~~~~~
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pytest\__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\config\__init__.py", line 223, in console_main
+    code = main()
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\config\__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\runner.py", line 137, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\runner.py", line 179, in pytest_runtest_call
+    item.runtest()
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\python.py", line 1720, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\python.py", line 166, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "P:\packages\intelligence-stream\tests\test_providers_integration.py", line 94, in test_analyze_video_with_gemini_nonfatal_propagates
+    analyze_video(
+  File "P:\packages\intelligence-stream\csf\orchestrator.py", line 259, in analyze_video
+    return provider.analyze(video_id, video_url)
+  File "P:\packages\intelligence-stream\csf\providers\__init__.py", line 108, in analyze
+    result = fetch_transcript_chain(video_id, LanguageConfig(prefer_lang="en"))
+  File "P:\packages\intelligence-stream\csf\transcript.py", line 671, in fetch_transcript_chain
+    success, transcript, error = fetch_fn(video_id, "en")
+  File "P:\packages\intelligence-stream\csf\transcript.py", line 359, in _fetch_via_ytdlp
+    proc = subprocess.run(
+  File "C:\Python314\Lib\subprocess.py", line 556, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+  File "C:\Python314\Lib\subprocess.py", line 1220, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+  File "C:\Python314\Lib\subprocess.py", line 1642, in _communicate
+    self.stdout_thread.join(self._remaining_time(endtime))
+  File "C:\Python314\Lib\threading.py", line 1132, in join
+    self._os_thread_handle.join(timeout)
++++++++++++++++++++++++++++++++++++ Timeout +++++++++++++++++++++++++++++++++++

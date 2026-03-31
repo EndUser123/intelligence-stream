@@ -190,17 +190,21 @@ class TestCacheIntegrationWithTranscriptChain:
         with mock.patch.dict(os.environ, {"TERMINAL_ID": terminal_id}):
             with (
                 mock.patch("csf.transcript.set_cached_transcript") as mock_cache_set,
+                mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
                 mock.patch("csf.transcript._fetch_via_gemini_cli") as mock_cli,
                 mock.patch(
                     "csf.transcript._fetch_via_youtube_transcript_api"
                 ) as mock_yt_api,
                 mock.patch("csf.transcript._fetch_via_youtubei") as mock_youtubei,
                 mock.patch("csf.transcript._fetch_via_sdk") as mock_sdk,
+                mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
             ):
+                mock_ytdlp.return_value = (False, None, "ytdlp blocked")
                 mock_cli.return_value = (False, None, "CLI blocked")
                 mock_yt_api.return_value = (False, None, "API blocked")
                 mock_youtubei.return_value = (False, None, "youtubei blocked")
                 mock_sdk.return_value = (False, None, "SDK blocked")
+                mock_whisper.return_value = (False, None, "whisper blocked")
 
                 result = fetch_transcript_chain(video_id, lang_config)
 

@@ -5,7 +5,6 @@ All terminals can read any cached transcript; writes go to a shared DB.
 Transcripts are immutable - once cached, they don't expire.
 """
 
-import queue
 import re
 import sqlite3
 import threading
@@ -43,23 +42,12 @@ class TranscriptCache:
 class _CacheStorage:
     """Internal SQLite storage for transcript cache.
 
-    Uses WAL mode for concurrent reads and a single writer thread
-    to prevent write contention. All terminals share the same DB.
+    Uses WAL mode for concurrent reads and synchronous writes.
+    All terminals share the same DB.
     """
 
     def __init__(self, terminal_id: str) -> None:
         self._terminal_id = terminal_id
-        self._write_queue: queue.Queue[Optional[dict]] = queue.Queue()
-        self._writer_thread: Optional[threading.Thread] = None
-        self._started = False
-        self._stopped = False
-
-    def _stop(self) -> None:
-        """Stop the writer thread gracefully (drain queue, then exit)."""
-        self._stopped = True
-        self._write_queue.put(None)  # Shutdown signal
-        if self._writer_thread and self._writer_thread.is_alive():
-            self._writer_thread.join(timeout=2.0)  # Wait up to 2s for drain
 
     def _ensure_table(self) -> None:
         """Create cache table if not exists in shared DB."""
@@ -79,55 +67,39 @@ class _CacheStorage:
             )
             """
         )
+        # Index on video_id for has_cached_transcript lookups (batch pre-check)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_transcript_cache_video_id ON transcript_cache(video_id)"
+        )
         conn.close()
 
-    def _start_writer(self) -> None:
-        """Start the background writer thread."""
-        if self._started:
-            return
-        self._started = True
+    def _write_entry(self, cache_key: str, video_id: str, lang: str, source: str, transcript: str, cached_at: datetime) -> None:
+        """Write a single entry to the database synchronously."""
         self._ensure_table()
-        self._writer_thread = threading.Thread(target=self._writer_loop, daemon=True)
-        self._writer_thread.start()
-
-    def _writer_loop(self) -> None:
-        """Background thread that processes write requests."""
         conn = sqlite3.connect(_SHARED_DB_PATH)
         conn.execute("PRAGMA journal_mode=WAL")
-        while True:
-            item = self._write_queue.get()
-            if item is None:  # Shutdown signal
-                break
-            if self._stopped:
-                # Already stopped — discard remaining items
-                self._write_queue.task_done()
-                continue
-            self._write_entry(conn, item)
-            self._write_queue.task_done()
-        conn.close()
-
-    def _write_entry(self, conn: sqlite3.Connection, item: dict) -> None:
-        """Write a single entry to the database."""
-        cache_key = item["cache_key"]
-        conn.execute(
-            """
-            INSERT OR IGNORE INTO transcript_cache
-            (cache_key, video_id, lang, source, transcript, cached_at, terminal_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                cache_key,
-                item["video_id"],
-                item["lang"],
-                item["source"],
-                item["transcript"],
-                item["cached_at"].isoformat(),
-                item["terminal_id"],
-            ),
-        )
-        conn.commit()
-        # Checkpoint WAL to prevent unbounded WAL file growth (SEC-004)
-        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        try:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO transcript_cache
+                (cache_key, video_id, lang, source, transcript, cached_at, terminal_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    cache_key,
+                    video_id,
+                    lang,
+                    source,
+                    transcript,
+                    cached_at.isoformat(),
+                    self._terminal_id,
+                ),
+            )
+            conn.commit()
+            # Checkpoint WAL to prevent unbounded WAL file growth (SEC-004)
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        finally:
+            conn.close()
 
     def enqueue_write(
         self,
@@ -138,19 +110,8 @@ class _CacheStorage:
         transcript: str,
         cached_at: datetime,
     ) -> None:
-        """Enqueue a write operation to be processed by the writer thread."""
-        self._start_writer()
-        self._write_queue.put(
-            {
-                "cache_key": cache_key,
-                "video_id": video_id,
-                "lang": lang,
-                "source": source,
-                "transcript": transcript,
-                "cached_at": cached_at,
-                "terminal_id": self._terminal_id,
-            }
-        )
+        """Write a transcript entry to the database synchronously."""
+        self._write_entry(cache_key, video_id, lang, source, transcript, cached_at)
 
     def _read_entry(self, cache_key: str) -> Optional[TranscriptCache]:
         """Read a single entry from the shared database."""
@@ -192,13 +153,11 @@ def _get_storage(terminal_id: str) -> _CacheStorage:
 
 
 def clear_all_storages() -> None:
-    """Stop all writer threads and clear in-memory cache storages.
+    """Clear all in-memory cache storages.
 
     Used by test fixtures to ensure a clean state between tests.
     """
     with _storage_lock:
-        for storage in _cache_storages.values():
-            storage._stop()
         _cache_storages.clear()
 
 

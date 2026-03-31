@@ -1,0 +1,122 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.0, pytest-9.0.2, pluggy-1.6.0 -- C:\Python314\python.exe
+cachedir: .pytest_cache
+hypothesis profile 'default'
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+metadata: {'Python': '3.14.0', 'Platform': 'Windows-11-10.0.26200-SP0', 'Packages': {'pytest': '9.0.2', 'pluggy': '1.6.0'}, 'Plugins': {'anyio': '4.12.1', 'hypothesis': '6.150.1', 'langsmith': '0.6.7', 'locust': '2.43.1', 'asyncio': '1.3.0', 'benchmark': '5.2.3', 'cov': '7.0.0', 'json-report': '1.5.0', 'metadata': '3.1.1', 'mock': '3.15.1', 'rerunfailures': '16.1', 'testmon': '2.2.0', 'timeout': '2.4.0', 'xdist': '3.8.0', 'typeguard': '4.4.4'}}
+rootdir: P:\packages\intelligence-stream
+plugins: anyio-4.12.1, hypothesis-6.150.1, langsmith-0.6.7, locust-2.43.1, asyncio-1.3.0, benchmark-5.2.3, cov-7.0.0, json-report-1.5.0, metadata-3.1.1, mock-3.15.1, rerunfailures-16.1, testmon-2.2.0, timeout-2.4.0, xdist-3.8.0, typeguard-4.4.4
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 73 items
+
+tests/test_providers_integration.py::TestProviderSelection::test_select_provider_returns_transcript_when_gemini_unavailable PASSED [  1%]
+tests/test_providers_integration.py::TestProviderSelection::test_select_provider_returns_ocr_clip_when_gemini_unavailable_and_ocr_available FAILED [  2%]
+tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_gemini_nonfatal_propagates FAILED [  4%]
+tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_ocr_nonfatal_propagates FAILED [  5%]
+tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_transcript_provider_returns_result PASSED [  6%]
+tests/test_providers_integration.py::TestTierIntegration::test_ocr_clip_provider_empty_transcript_raises_nonfatal FAILED [  8%]
+tests/test_ocr_clip_provider.py::TestOcrClipProvider::test_empty_transcript_raises_nonfatal PASSED [  9%]
+tests/test_ocr_clip_provider.py::TestOcrClipProvider::test_valid_transcript_returns_video_analysis_result PASSED [ 10%]
+tests/test_ocr_clip_provider.py::TestOcrClipProvider::test_ocr_fails_raises_nonfatal PASSED [ 12%]
+tests/test_ocr_clip_provider.py::TestOcrClipProvider::test_clip_fails_returns_partial_with_empty_visual_tags PASSED [ 13%]
+tests/test_batch.py::TestAnalyzeVideosParallel::test_returns_tuple_of_dict_and_list PASSED [ 15%]
+tests/test_batch.py::TestAnalyzeVideosParallel::test_successful_video_in_results_dict PASSED [ 16%]
+tests/test_batch.py::TestAnalyzeVideosParallel::test_failed_video_in_failed_list PASSED [ 17%]
+tests/test_batch.py::TestAnalyzeVideosParallel::test_multiple_videos_parallel PASSED [ 19%]
+tests/test_batch.py::TestAnalyzeVideosParallel::test_max_workers_bounded_at_8 PASSED [ 20%]
+tests/test_batch.py::TestAnalyzeVideosParallel::test_max_workers_default_is_4 PASSED [ 21%]
+tests/test_batch.py::TestParallelSpeedup::test_parallel_faster_than_sequential PASSED [ 23%]
+tests/test_batch.py::TestSingleVideoUnchanged::test_single_video_output_keys_match PASSED [ 24%]
+tests/test_batch.py::TestSingleVideoUnchanged::test_single_video_in_results PASSED [ 26%]
+tests/test_batch.py::TestBatchErrorIsolation::test_invalid_id_does_not_crash_others PASSED [ 27%]
+tests/test_batch.py::TestBatchErrorIsolation::test_first_video_fails_others_continue PASSED [ 28%]
+tests/test_batch.py::TestBatchErrorIsolation::test_all_fail_returns_empty_successful PASSED [ 30%]
+tests/test_batch.py::TestQueueBoundedMemory::test_works_with_large_batch PASSED [ 31%]
+tests/test_batch.py::TestCPUCountAwareness::test_workers_capped_at_cpu_count PASSED [ 32%]
+tests/test_orchestrator.py::TestSelectProvider::test_select_provider_cached_transcript_returns_tier3 PASSED [ 34%]
+tests/test_orchestrator.py::TestSelectProvider::test_select_provider_invalid_video_id_raises_valueerror PASSED [ 35%]
+tests/test_orchestrator.py::TestSelectProvider::test_select_provider_invalid_url_raises_valueerror PASSED [ 36%]
+tests/test_orchestrator.py::TestSelectProvider::test_select_provider_tier1_when_gemini_available PASSED [ 38%]
+tests/test_orchestrator.py::TestSelectProvider::test_select_provider_tier2_when_tier1_unavailable PASSED [ 39%]
+tests/test_orchestrator.py::TestSelectProvider::test_select_provider_tier3_fallback PASSED [ 41%]
+tests/test_orchestrator.py::TestMidnightReset::test_midnight_reset_flips_gemini_available PASSED [ 42%]
+tests/test_orchestrator.py::TestQuotaError::test_quota_error_sets_gemini_unavailable PASSED [ 43%]
+tests/test_orchestrator.py::TestThreadSafety::test_thread_safety_concurrent_workers PASSED [ 45%]
+tests/test_orchestrator.py::TestAnalyzeVideo::test_analyze_video_wraps_unexpected_exception PASSED [ 46%]
+tests/test_video_utils.py::TestExtractFrames::test_extract_frames_produces_correct_count PASSED [ 47%]
+tests/test_video_utils.py::TestExtractFrames::test_extract_frames_respects_max_frames PASSED [ 49%]
+tests/test_video_utils.py::TestExtractFrames::test_ffmpeg_absent_raises_runtime_error PASSED [ 50%]
+tests/test_video_utils.py::TestExtractFrames::test_ffmpeg_failure_raises_nonfatal PASSED [ 52%]
+tests/test_video_utils.py::TestExtractFrames::test_zero_frames_raises_nonfatal PASSED [ 53%]
+tests/test_video_utils.py::TestExtractFrames::test_temp_dir_cleaned_on_normal_exit PASSED [ 54%]
+tests/test_video_utils.py::TestExtractFrames::test_sigterm_handler_cleans_up PASSED [ 56%]
+tests/test_summarize.py::TestSummarize::test_summarize_returns_video_analysis_result PASSED [ 57%]
+tests/test_summarize.py::TestSummarize::test_transcript_truncation PASSED [ 58%]
+tests/test_summarize.py::TestSummarize::test_gemini_timeout_returns_partial_result PASSED [ 60%]
+tests/test_summarize.py::TestSummarize::test_parse_error_returns_partial_result PASSED [ 61%]
+tests/test_summarize.py::TestSummarize::test_prompt_has_separate_sections PASSED [ 63%]
+tests/test_summarize.py::TestSummarize::test_gemini_cli_not_found PASSED [ 64%]
+tests/test_transcript.py::TestVideoIdValidation::test_invalid_video_id_returns_empty_result PASSED [ 65%]
+tests/test_transcript.py::TestVideoIdValidation::test_video_id_with_special_chars_returns_empty_result PASSED [ 67%]
+tests/test_transcript.py::TestVideoIdValidation::test_video_id_too_short_returns_empty_result PASSED [ 68%]
+tests/test_transcript.py::TestVideoIdValidation::test_video_id_too_long_returns_empty_result PASSED [ 69%]
+tests/test_transcript.py::TestVideoIdValidation::test_valid_video_id_accepted PASSED [ 71%]
+tests/test_transcript.py::TestFallbackChain::test_fallback_to_youtubei_when_api_blocked PASSED [ 72%]
+tests/test_transcript.py::TestFallbackChain::test_fallback_to_sdk_when_all_blocked PASSED [ 73%]
+tests/test_transcript.py::TestFallbackChain::test_all_methods_fail_returns_empty_result PASSED [ 75%]
+tests/test_transcript.py::TestFallbackChain::test_free_source_tried_before_paid_cli PASSED [ 76%]
+tests/test_transcript.py::TestCacheIntegration::test_result_cached_after_successful_fetch PASSED [ 78%]
+tests/test_transcript.py::TestJitter::test_jitter_in_range PASSED        [ 79%]
+tests/test_transcript.py::TestReturnType::test_returns_transcript_result PASSED [ 80%]
+tests/test_transcript.py::TestReturnType::test_success_returns_transcript PASSED [ 82%]
+tests/test_transcript.py::TestReturnType::test_all_fail_returns_empty_result PASSED [ 83%]
+tests/test_transcript.py::TestCircuitBreaker::test_circuit_opens_after_three_consecutive_429s PASSED [ 84%]
+tests/test_transcript.py::TestCircuitBreaker::test_success_resets_only_that_source_counter PASSED [ 86%]
+tests/test_transcript.py::TestCircuitBreaker::test_backoff_multiplier_grows_exponentially PASSED [ 87%]
+tests/test_transcript.py::TestCircuitBreaker::test_backoff_capped_at_32x PASSED [ 89%]
+tests/test_transcript.py::TestCircuitBreaker::test_is_source_rate_limited_during_cooldown PASSED [ 90%]
+tests/test_transcript.py::TestCircuitBreaker::test_concurrent_workers_increment_counter_atomically PASSED [ 91%]
+tests/test_ocr_client.py::TestExtractCodeSnippets::test_extract_code_snippets_returns_strings SKIPPED [ 93%]
+tests/test_ocr_client.py::TestExtractCodeSnippets::test_timeout_returns_empty_list SKIPPED [ 94%]
+tests/test_ocr_client.py::TestExtractCodeSnippets::test_ocr_exception_returns_empty_list SKIPPED [ 95%]
+tests/test_ocr_client.py::TestExtractCodeSnippets::test_boilerplate_filtered PASSED [ 97%]
+tests/test_ocr_client.py::TestExtractCodeSnippets::test_deduplication SKIPPED [ 98%]
+tests/test_ocr_client.py::TestExtractCodeSnippets::test_empty_images_returns_empty PASSED [100%]
+
+================================== FAILURES ===================================
+_ TestProviderSelection.test_select_provider_returns_ocr_clip_when_gemini_unavailable_and_ocr_available _
+tests\test_providers_integration.py:69: in test_select_provider_returns_ocr_clip_when_gemini_unavailable_and_ocr_available
+    assert isinstance(provider, OcrClipProvider)
+E   assert False
+E    +  where False = isinstance(<csf.providers.TranscriptProvider object at 0x000001E27C377A40>, OcrClipProvider)
+___ TestTierIntegration.test_analyze_video_with_gemini_nonfatal_propagates ____
+tests\test_providers_integration.py:93: in test_analyze_video_with_gemini_nonfatal_propagates
+    with pytest.raises(NonFatalAnalysisError, match="Tier 1 quota error"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class 'csf.providers.NonFatalAnalysisError'>
+_____ TestTierIntegration.test_analyze_video_with_ocr_nonfatal_propagates _____
+tests\test_providers_integration.py:118: in test_analyze_video_with_ocr_nonfatal_propagates
+    with pytest.raises(NonFatalAnalysisError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class 'csf.providers.NonFatalAnalysisError'>
+_ TestTierIntegration.test_ocr_clip_provider_empty_transcript_raises_nonfatal _
+tests\test_providers_integration.py:173: in test_ocr_clip_provider_empty_transcript_raises_nonfatal
+    mock.patch(
+C:\Python314\Lib\unittest\mock.py:1503: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+C:\Python314\Lib\unittest\mock.py:1473: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'csf.providers.ocr_clip_provider' from 'P:\\packages\\intelligence-stream\\csf\\providers\\ocr_clip_provider.py'> does not have the attribute 'fetch_transcript_chain'
+============================== warnings summary ===============================
+tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_gemini_nonfatal_propagates
+  C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\google\genai\types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_providers_integration.py::TestProviderSelection::test_select_provider_returns_ocr_clip_when_gemini_unavailable_and_ocr_available
+FAILED tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_gemini_nonfatal_propagates
+FAILED tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_ocr_nonfatal_propagates
+FAILED tests/test_providers_integration.py::TestTierIntegration::test_ocr_clip_provider_empty_transcript_raises_nonfatal
+======= 4 failed, 65 passed, 4 skipped, 1 warning in 340.90s (0:05:40) ========

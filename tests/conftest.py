@@ -19,6 +19,13 @@ def clean_shared_cache():
 
     csf.cache.clear_all_storages()
 
+    # Also clear the per-source circuit breaker state so tests are isolated.
+    import csf.transcript
+
+    with csf.transcript._circuit_lock:
+        csf.transcript._consecutive_429.clear()
+        csf.transcript._source_cooldown_until.clear()
+
     # 2. Now delete the DB files
     # CI-aware: skip if P:/__csf/ does not exist (ubuntu-latest has no P: drive)
     db_path = Path("P:/__csf/.data/intelligence-stream/transcripts/transcripts.sqlite")

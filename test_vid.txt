@@ -1,0 +1,20 @@
+..F....                                                                  [100%]
+================================== FAILURES ===================================
+__________ TestExtractFrames.test_ffmpeg_absent_raises_runtime_error __________
+tests\test_video_utils.py:86: in test_ffmpeg_absent_raises_runtime_error
+    extract_frames("/fake/video.mp4")
+csf\video_utils.py:85: in extract_frames
+    duration = _parse_duration_ffmpeg(video_path)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python314\Lib\unittest\mock.py:1175: in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python314\Lib\unittest\mock.py:1179: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python314\Lib\unittest\mock.py:1234: in _execute_mock_call
+    raise effect
+E   FileNotFoundError: ffmpeg not found
+=========================== short test summary info ===========================
+FAILED tests/test_video_utils.py::TestExtractFrames::test_ffmpeg_absent_raises_runtime_error
+1 failed, 6 passed in 0.41s

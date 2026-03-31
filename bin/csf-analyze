@@ -15,7 +15,11 @@ import shutil
 import sys
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse, parse_qs
+
+if TYPE_CHECKING:
+    from csf.providers import VideoAnalysisResult
 
 # ---------------------------------------------------------------------------
 # Transcript sanitization — prevents prompt injection from YouTube captions
@@ -73,6 +77,7 @@ def _is_quota_error(exc: Exception) -> bool:
     # google.api_core.exceptions.ResourceExhausted — the SDK's 429 class
     try:
         from google.api_core.exceptions import ResourceExhausted
+
         if isinstance(exc, ResourceExhausted):
             return True
     except ImportError:
@@ -94,7 +99,9 @@ def _working_key() -> tuple[str, str] | None:
 # EWMA-based adaptive timeout
 # ---------------------------------------------------------------------------
 
-_SEED_TIMEOUT_S = 120.0  # 90s typical rate-limit recovery; seed ≥ 120s to avoid premature retry
+_SEED_TIMEOUT_S = (
+    120.0  # 90s typical rate-limit recovery; seed ≥ 120s to avoid premature retry
+)
 _ALPHA = 0.3  # EWMA smoothing factor — higher = more weight on recent observations
 _MIN_TIMEOUT = 15.0
 _MAX_TIMEOUT = 300.0
@@ -397,6 +404,7 @@ def gemini_video_analyze(video_id: str, video_url: str) -> dict:
     # use the free transcript path instead of burning API quota.
     try:
         from csf.cache import set_cached_transcript
+
         transcript_text = get_youtube_transcript(video_id)
         set_cached_transcript(
             video_id=video_id,
@@ -556,6 +564,20 @@ def analyze_to_cks(
     )
 
 
+def _result_to_dict(result: "VideoAnalysisResult") -> dict:
+    """Convert a VideoAnalysisResult to the legacy dict format."""
+    return {
+        "title": result.title,
+        "summary": result.summary,
+        "key_topics": result.key_topics,
+        "key_points": result.key_points,
+        "code_snippets": result.code_snippets,
+        "visual_tags": result.visual_tags,
+        "mode": result.mode,
+        "fallback_reason": result.fallback_reason,
+    }
+
+
 def analyze_video(
     video_id: str,
     video_url: str,
@@ -564,79 +586,61 @@ def analyze_video(
 ) -> dict:
     """Analyze a YouTube video URL.
 
-    Fallback chain (fastest reliable → slowest):
-      auto:       CLI → transcript → SDK   (CLI: ~2s; SDK: only if GEMINI_API_KEY set)
-      transcript: transcript only           (~2s, no API key)
-      sdk:        SDK → transcript         (SDK only if GEMINI_API_KEY set)
+    Uses the tiered orchestrator by default (auto mode), with explicit
+    mode overrides for backwards compatibility.
 
     Args:
         video_id: YouTube video ID.
         video_url: Full YouTube URL.
-        mode: "auto", "transcript", or "sdk". Defaults to "auto".
+        mode: "auto", "transcript", "sdk", or "ocr_clip".
+              Defaults to "auto" (orchestrator routing).
               "cli" is accepted as a backwards-compatible alias for "transcript".
-        model: Gemini model for CLI calls. None means auto-select.
+        model: Gemini model for CLI calls (passed through to orchestrator for Tier 1).
     """
     # Normalize "cli" → "transcript" for backwards compatibility
     if mode == "cli":
         mode = "transcript"
 
-    # ---- "auto" mode: CLI (fastest with analysis), then transcript, then SDK ----
+    # ---- "auto" mode: use orchestrator routing ----
     if mode == "auto":
-        # 1. CLI — ~2s, same API backend as SDK. Uses threading-timeout to avoid
-        #    Windows subprocess hangs that plague subprocess.run(timeout=N).
-        if shutil.which("gemini"):
-            try:
-                result = analyze_by_url_cli(video_id, video_url, model=model)
-                if result and ("summary" in result or "title" in result):
-                    return result
-            except TimeoutError:
-                pass  # fall through to transcript
-            except Exception:
-                pass  # fall through to transcript
+        from csf.orchestrator import analyze_video as orchestrator_analyze
 
-        # 2. Transcript fallback — ~2s, no API key, deterministic
-        try:
-            transcript_text = get_youtube_transcript(video_id)
-            return {
-                "content": transcript_text,
-                "video_id": video_id,
-                "mode": "transcript",
-            }
-        except Exception:
-            pass
+        result = orchestrator_analyze(video_id, video_url)
+        return _result_to_dict(result)
 
-        # 3. SDK last — only if a working API key is available
-        if os.environ.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY_1") or os.environ.get("GEMINI_API_KEY_2") or os.environ.get("GEMINI_PAID_API_KEY"):
-            try:
-                return gemini_video_analyze(video_id, video_url)
-            except Exception:
-                pass
-
-        raise RuntimeError("All analysis methods failed")
-
-    # ---- "transcript" mode: raw transcript only, ~2s, no API key ----
+    # ---- Explicit tier overrides (backwards compatible) ----
     if mode == "transcript":
-        transcript_text = get_youtube_transcript(video_id)
-        return {
-            "content": transcript_text,
-            "video_id": video_id,
-            "mode": "transcript",
-        }
+        from csf.providers import TranscriptProvider
 
-    # ---- "sdk" mode: SDK only, then transcript ----
-    # sdk mode: explicit user intent
+        provider = TranscriptProvider()
+        result = provider.analyze(video_id, video_url)
+        return _result_to_dict(result)
+
     if mode == "sdk":
-        if os.environ.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY_1") or os.environ.get("GEMINI_API_KEY_2") or os.environ.get("GEMINI_PAID_API_KEY"):
-            try:
-                return gemini_video_analyze(video_id, video_url)
-            except Exception:
-                pass
-        return _analyze_via_transcript(
-            video_id, video_url, "sdk_unavailable", model=model
-        )
+        from csf.orchestrator import GeminiSDKProvider
 
-    # Fallback for unknown mode
-    raise ValueError(f"Unknown mode: {mode!r}. Use 'auto', 'transcript', or 'sdk'.")
+        provider = GeminiSDKProvider()
+        result = provider.analyze(video_id, video_url)
+        return _result_to_dict(result)
+
+    if mode == "ocr_clip":
+        from csf.providers.ocr_clip_provider import OcrClipProvider
+
+        provider = OcrClipProvider()
+        result = provider.analyze(video_id, video_url)
+        return _result_to_dict(result)
+
+    # Fallback for unknown mode: use orchestrator
+    import sys
+
+    print(
+        f"Warning: unknown --mode {mode!r}, falling back to orchestrator routing",
+        file=sys.stderr,
+    )
+    from csf.orchestrator import analyze_video as orchestrator_analyze
+
+    result = orchestrator_analyze(video_id, video_url)
+    return _result_to_dict(result)
 
 
 def main() -> None:
@@ -654,15 +658,20 @@ def main() -> None:
             "  --cks                  Write analysis result to CKS (default: local file only)"
         )
         print(
-            "  --mode <mode>          Analysis mode: auto (default), transcript, or sdk"
+            "  --mode <mode>          Analysis mode: auto (default), transcript, sdk, or ocr_clip"
         )
         print("  --model <model>        Gemini model for CLI (default: auto-select)")
         print()
         print(
-            "  auto (default):  CLI → transcript → SDK   (CLI: ~2s, SDK: only if GEMINI_API_KEY)"
+            "  auto (default):  tiered orchestrator routing  (uses best available tier)"
         )
-        print("  transcript:      transcript only             (~2s, no API key needed)")
-        print("  sdk:             SDK → transcript             (force SDK, skip CLI)")
+        print("  transcript:      YouTube transcript only      (~2s, no API key)")
+        print(
+            "  sdk:             Gemini SDK Tier 1            (full video passthrough)"
+        )
+        print(
+            "  ocr_clip:        OCR+CLIP Tier 2             (code-on-screen + visual tags)"
+        )
         print()
         print(
             "Timeout: Adaptive EWMA based on prior run latencies"
@@ -691,9 +700,9 @@ def main() -> None:
             i += 1
         elif arg == "--mode" and i + 1 < len(sys.argv):
             run_mode = sys.argv[i + 1]
-            if run_mode not in ("auto", "transcript", "cli", "sdk"):
+            if run_mode not in ("auto", "transcript", "cli", "sdk", "ocr_clip"):
                 print(
-                    f"Invalid --mode {run_mode!r}. Use: auto, transcript, or sdk",
+                    f"Invalid --mode {run_mode!r}. Use: auto, transcript, sdk, or ocr_clip",
                     file=sys.stderr,
                 )
                 sys.exit(1)

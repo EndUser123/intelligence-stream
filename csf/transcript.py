@@ -13,9 +13,9 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Tuple
+from typing import Literal
 
-from csf.cache import get_cached_transcript, set_cached_transcript
+from csf.cache import set_cached_transcript
 from csf.quota_tracker import is_free_only_mode
 
 # Validation
@@ -27,6 +27,7 @@ _SOURCE_YOUTUBE_TRANSCRIPT_API = "youtube_transcript_api"
 _SOURCE_YOUTUBEI = "youtubei"
 _SOURCE_SDK = "sdk"
 _SOURCE_YTDLP = "ytdlp"
+_SOURCE_WHISPER = "whisper"
 
 # Jitter bounds for rate limit avoidance
 # PERF-006: Wider range (was 0.5-2.5) to prevent thundering herd.
@@ -36,6 +37,18 @@ _JITTER_MAX = 10.0
 
 # BCP-47 validation regex: language is [a-z]{2}, region is [A-Z]{2} optional
 _BCP47_PATTERN = re.compile(r"^[a-z]{2}(-[A-Z]{2})?$")
+
+# Per-source circuit breaker state
+import threading
+
+_consecutive_429: dict[str, int] = {}
+_source_cooldown_until: dict[str, float] = {}
+_circuit_lock = threading.Lock()
+
+_CIRCUIT_OPEN_THRESHOLD = 3  # consecutive 429s before skipping source
+_COOLDOWN_SECONDS = 300  # 5 minutes
+_BACKOFF_BASE = 2  # jitter multiplier per consecutive 429
+_MAX_BACKOFF_MULTIPLIER = 32  # cap jitter at 32x to prevent pathological sleeps
 
 
 @dataclass
@@ -72,9 +85,11 @@ class TranscriptResult:
         transcript: The transcript text, in prefer_lang (after translation
             if was_translated=True). Empty string if no transcript found.
         source: Which fetch method succeeded ('cli', 'youtube_transcript_api',
-            'youtubei', 'sdk', 'none').
+            'youtubei', 'sdk', 'whisper', 'none').
         detected_lang: The detected language of the returned transcript,
             or None if language detection failed or no transcript available.
+        error: The error message from the last failed source, or None if no
+            error occurred or transcript was successfully fetched.
     """
 
     video_id: str
@@ -84,6 +99,7 @@ class TranscriptResult:
     transcript: str
     source: str
     detected_lang: str | None
+    error: str | None
 
 
 def _validate_bcp47(lang: str) -> None:
@@ -123,7 +139,9 @@ def _translate_text(text: str, from_lang: str, to_lang: str, provider: str) -> s
     if not api_key:
         import logging
 
-        logging.warning("GEMINI_API_KEY not set; cannot translate, returning original text.")
+        logging.warning(
+            "GEMINI_API_KEY not set; cannot translate, returning original text."
+        )
         return text
 
     try:
@@ -165,9 +183,50 @@ def _apply_jitter() -> None:
     time.sleep(jitter)
 
 
+def _is_source_rate_limited(source: str) -> bool:
+    """Return True if source is in circuit-open cooldown."""
+    return (
+        source in _source_cooldown_until
+        and time.monotonic() < _source_cooldown_until[source]
+    )
+
+
+def _record_source_429(source: str) -> None:
+    """Record a 429 for a source. Opens circuit after threshold."""
+    with _circuit_lock:
+        _consecutive_429[source] = _consecutive_429.get(source, 0) + 1
+        count = _consecutive_429[source]
+    if count >= _CIRCUIT_OPEN_THRESHOLD:
+        with _circuit_lock:
+            _source_cooldown_until[source] = time.monotonic() + _COOLDOWN_SECONDS
+        import logging
+
+        logging.warning(
+            f"[transcript] Circuit breaker OPEN for '{source}' "
+            f"({count} consecutive 429s, cooldown={_COOLDOWN_SECONDS}s)"
+        )
+
+
+def _record_source_success(source: str) -> None:
+    """Reset 429 counter on any success."""
+    with _circuit_lock:
+        _consecutive_429[source] = 0
+
+
+def _apply_jitter_with_backoff(source: str) -> None:
+    """Apply jitter with backoff multiplier based on consecutive failures, capped at MAX."""
+    with _circuit_lock:
+        count = _consecutive_429.get(source, 0)
+    multiplier = (
+        min(_BACKOFF_BASE**count, _MAX_BACKOFF_MULTIPLIER) if count > 0 else 1.0
+    )
+    jitter = random.uniform(_JITTER_MIN, _JITTER_MAX) * multiplier
+    time.sleep(jitter)
+
+
 def _fetch_via_gemini_cli(
     video_id: str, lang: str
-) -> Tuple[bool, str | None, str | None]:
+) -> tuple[bool, str | None, str | None]:
     """Fetch transcript using gemini CLI transcript command.
 
     Uses `timeout -k 1s 300s gemini transcript <video_id>`.
@@ -199,7 +258,7 @@ def _fetch_via_gemini_cli(
 
 def _fetch_via_youtube_transcript_api(
     video_id: str, lang: str
-) -> Tuple[bool, str | None, str | None]:
+) -> tuple[bool, str | None, str | None]:
     """Fetch transcript using youtube-transcript-api Python package."""
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
@@ -235,7 +294,7 @@ def _fetch_via_youtube_transcript_api(
 
 def _fetch_via_youtubei(
     video_id: str, lang: str
-) -> Tuple[bool, str | None, str | None]:
+) -> tuple[bool, str | None, str | None]:
     """Fetch transcript using direct YouTube API call with cookie auth.
 
     Note: youtubei does not support language parameter specification.
@@ -248,7 +307,7 @@ def _fetch_via_youtubei(
     except ImportError:
         return (False, None, "youtubei not installed")
 
-    def _fetch() -> Tuple[bool, str | None, str | None]:
+    def _fetch() -> tuple[bool, str | None, str | None]:
         try:
             client = youtubei.get_client()
             video = client.get_video(video_id)
@@ -258,6 +317,9 @@ def _fetch_via_youtubei(
             text = " ".join(item["text"] for item in transcript_data)
             return (True, text, None)
         except Exception as e:
+            msg = str(e).lower()
+            if "429" in msg or "rate limit" in msg:
+                return (False, None, "youtubei rate limited (429)")
             return (False, None, f"youtubei error: {e}")
 
     try:
@@ -268,9 +330,7 @@ def _fetch_via_youtubei(
         return (False, None, "youtubei timeout (>15s)")
 
 
-def _fetch_via_ytdlp(
-    video_id: str, lang: str
-) -> Tuple[bool, str | None, str | None]:
+def _fetch_via_ytdlp(video_id: str, lang: str) -> tuple[bool, str | None, str | None]:
     """Fetch transcript using yt-dlp to download auto-generated subtitles.
 
     Downloads auto-generated subtitles via yt-dlp (which can access YouTube
@@ -289,8 +349,10 @@ def _fetch_via_ytdlp(
             "yt-dlp",
             "--write-auto-subs",
             "--skip-download",
-            "--convert-subs", "srt",
-            "--output", output_template,
+            "--convert-subs",
+            "srt",
+            "--output",
+            output_template,
             video_url,
         ]
 
@@ -305,7 +367,10 @@ def _fetch_via_ytdlp(
             stderr_lower = proc.stderr.lower()
             if "429" in proc.stderr or "too many requests" in stderr_lower:
                 return (False, None, "rate limited (429)")
-            if "no subtitles" in stderr_lower or "does not have any subtitles" in stderr_lower:
+            if (
+                "no subtitles" in stderr_lower
+                or "does not have any subtitles" in stderr_lower
+            ):
                 return (False, None, "no subtitles available")
             return (False, None, f"yt-dlp failed: {proc.stderr.strip()[:200]}")
 
@@ -332,6 +397,7 @@ def _fetch_via_ytdlp(
         return (False, None, f"yt-dlp error: {e}")
     finally:
         import shutil as _shutil
+
         try:
             _shutil.rmtree(tmp_dir)
         except Exception:
@@ -358,7 +424,7 @@ def _parse_srt(srt_content: str) -> str:
     return " ".join(text_parts)
 
 
-def _fetch_via_sdk(video_id: str, lang: str) -> Tuple[bool, str | None, str | None]:
+def _fetch_via_sdk(video_id: str, lang: str) -> tuple[bool, str | None, str | None]:
     """Fetch transcript using Gemini SDK as last resort."""
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -369,16 +435,21 @@ def _fetch_via_sdk(video_id: str, lang: str) -> Tuple[bool, str | None, str | No
     except ImportError:
         return (False, None, "google-genai not installed")
 
-    def _fetch() -> Tuple[bool, str | None, str | None]:
+    def _fetch() -> tuple[bool, str | None, str | None]:
         try:
             client = genai.Client(api_key=api_key)
             response = client.models.generate_content(
                 model="gemini-2.5-flash",
-                contents=[f"Get the transcript for YouTube video {video_id} in language {lang}"],
+                contents=[
+                    f"Get the transcript for YouTube video {video_id} in language {lang}"
+                ],
             )
-            text = response.text.strip()
+            text = response.text.strip() if response.text else ""
             return (True, text, None)
         except Exception as e:
+            msg = str(e).lower()
+            if "429" in msg:
+                return (False, None, "SDK rate limited (429)")
             return (False, None, f"SDK error: {e}")
 
     try:
@@ -389,19 +460,100 @@ def _fetch_via_sdk(video_id: str, lang: str) -> Tuple[bool, str | None, str | No
         return (False, None, "SDK timeout (>60s)")
 
 
-def fetch_transcript_chain(
-    video_id: str, config: LanguageConfig
-) -> TranscriptResult:
+def _fetch_via_whisper(
+    video_id: str, lang: str
+) -> tuple[bool, str | None, str | None]:
+    """Transcribe audio using faster-whisper as final fallback.
+
+    Downloads audio via yt-dlp then transcribes with faster-whisper.
+    Used only after all caption-based sources fail — it is slow (~30-90s)
+    but can transcribe any video that has audio available.
+
+    Args:
+        video_id: YouTube video ID.
+        lang: Target language code (used only as hint; faster-whisper
+            auto-detects if not in known languages).
+
+    Returns:
+        (success, transcript, error).
+    """
+    import tempfile
+
+    video_url = f"https://www.youtube.com/watch?v={video_id}"
+    tmp_dir = tempfile.mkdtemp(prefix="whisper_audio_")
+    audio_path = os.path.join(tmp_dir, "audio")
+    try:
+        # Download audio only via yt-dlp
+        cmd = [
+            "yt-dlp",
+            "-f",
+            "bestaudio[ext=m4a]",
+            "--extract-audio",
+            "--audio-format",
+            "mp3",
+            "--output",
+            audio_path,
+            video_url,
+        ]
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if proc.returncode != 0:
+            stderr_lower = proc.stderr.lower()
+            if "429" in proc.stderr or "too many requests" in stderr_lower:
+                return (False, None, "audio download rate limited (429)")
+            if "not found" in stderr_lower or "video unavailable" in stderr_lower:
+                return (False, None, "video unavailable for audio download")
+            return (False, None, f"audio download failed: {proc.stderr.strip()[:200]}")
+
+        # Find the downloaded audio file
+        audio_files = list(Path(tmp_dir).glob("*.mp3"))
+        if not audio_files:
+            return (False, None, "no audio file produced")
+
+        audio_file = str(audio_files[0])
+
+        # Run faster-whisper transcription
+        try:
+            from faster_whisper import WhisperModel
+        except ImportError:
+            return (False, None, "faster-whisper not installed")
+
+        # Use medium model for better accuracy; falls back automatically
+        model = WhisperModel("medium", device="cpu", compute_type="int8")
+        segments, _ = model.transcribe(audio_file, language=lang if lang != "en" else None)
+        text = " ".join(segment.text for segment in segments)
+        if not text.strip():
+            return (False, None, "whisper produced empty transcript")
+        return (True, text.strip(), None)
+
+    except subprocess.TimeoutExpired:
+        return (False, None, "audio download timed out (>300s)")
+    except Exception as e:
+        return (False, None, f"whisper transcription error: {e}")
+    finally:
+        import shutil as _shutil
+
+        try:
+            _shutil.rmtree(tmp_dir)
+        except Exception:
+            pass
+
+
+def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptResult:
     """Fetch transcript using full fallback chain with optional translation.
 
     Chain order:
-      1. youtube_transcript_api with prefer_lang
-      2. If wrong language + allow_translation: translate to prefer_lang
-      3. youtube_transcript_api with any available language
-      4. If non-English + allow_translation: translate to prefer_lang
-      5. youtubei → Gemini SDK → gemini CLI (last)
+      1. yt-dlp subtitles (fastest, no API needed)
+      2. youtube_transcript_api with prefer_lang
+      3. youtubei → Gemini SDK → gemini CLI
+      4. If no captions found but audio available: faster-whisper transcription (last resort)
 
     Free sources first (TECH-01). CLI is skipped if quota exceeded (LOGIC-004).
+    Whisper is attempted only after ALL caption-based methods fail completely.
 
     Args:
         video_id: YouTube video ID (must be 11 chars)
@@ -424,6 +576,7 @@ def fetch_transcript_chain(
             transcript="",
             source="none",
             detected_lang=None,
+            error="invalid video_id format",
         )
 
     # BLOCKER-13: Validate BCP-47 before any API calls
@@ -438,10 +591,11 @@ def fetch_transcript_chain(
             transcript="",
             source="none",
             detected_lang=None,
+            error=f"invalid BCP-47 language code: {prefer_lang!r}",
         )
 
     # Helper to build a "no transcript" result
-    def _none_result() -> TranscriptResult:
+    def _none_result(last_err: str | None = None) -> TranscriptResult:
         return TranscriptResult(
             video_id=video_id,
             lang=prefer_lang,
@@ -450,6 +604,7 @@ def fetch_transcript_chain(
             transcript="",
             source="none",
             detected_lang=None,
+            error=last_err,
         )
 
     # Try free sources first (TECH-01), then paid CLI last
@@ -468,11 +623,15 @@ def fetch_transcript_chain(
 
     # Step 1: Try prefer_lang
     for source, fetch_fn in all_methods:
+        if _is_source_rate_limited(source):
+            continue  # skip circuit-open source
         if source == _SOURCE_CLI:
             from csf.quota_tracker import increment_cli_calls
+
             increment_cli_calls()
         success, transcript, error = fetch_fn(video_id, prefer_lang)
         if success and transcript:
+            _record_source_success(source)
             raw_lang = prefer_lang
             detected_lang = prefer_lang
             final_transcript = transcript
@@ -496,14 +655,22 @@ def fetch_transcript_chain(
                 transcript=final_transcript,
                 source=source,
                 detected_lang=detected_lang,
+                error=None,
             )
         last_error = error
-        _apply_jitter()
+        if error and ("429" in error.lower() or "rate limited" in error.lower()):
+            _record_source_429(source)
+            _apply_jitter_with_backoff(source)
+        else:
+            _apply_jitter()
 
     # Step 2: Try any language
     for source, fetch_fn in free_methods:  # Only free methods for fallback
+        if _is_source_rate_limited(source):
+            continue  # skip circuit-open source
         success, transcript, error = fetch_fn(video_id, "en")
         if success and transcript:
+            _record_source_success(source)
             raw_lang = "en"
             detected_lang = "en"
             final_transcript = transcript
@@ -522,9 +689,34 @@ def fetch_transcript_chain(
                 transcript=final_transcript,
                 source=source,
                 detected_lang=detected_lang,
+                error=None,
             )
         last_error = error
-        _apply_jitter()
+        if error and ("429" in error.lower() or "rate limited" in error.lower()):
+            _record_source_429(source)
+            _apply_jitter_with_backoff(source)
+        else:
+            _apply_jitter()
+
+    # Step 3: Whisper as final fallback (slow — audio download + transcription)
+    if not _is_source_rate_limited(_SOURCE_WHISPER):
+        success, transcript, error = _fetch_via_whisper(video_id, prefer_lang)
+        if success and transcript:
+            _record_source_success(_SOURCE_WHISPER)
+            set_cached_transcript(video_id, prefer_lang, _SOURCE_WHISPER, transcript)
+            return TranscriptResult(
+                video_id=video_id,
+                lang=prefer_lang,
+                raw_lang=prefer_lang,
+                was_translated=False,
+                transcript=transcript,
+                source=_SOURCE_WHISPER,
+                detected_lang=prefer_lang,
+                error=None,
+            )
+        last_error = error
+        if error and ("429" in str(error).lower() or "rate limited" in str(error).lower()):
+            _record_source_429(_SOURCE_WHISPER)
 
     # All methods failed — non-fatal
-    return _none_result()
+    return _none_result(last_error)

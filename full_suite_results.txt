@@ -1,0 +1,111 @@
+STDOUT:
+============================= test session starts+++++++++++++++++++++++++++++++++++ Timeout +++++++++++++++++++++++++++++++++++
+~~~~~~~~~~~~~~~~~~~~~~~~~~ Stack of Thread-71 (8376) ~~~~~~~~~~~~~~~~~~~~~~~~~~
+  File "C:\Python314\Lib\threading.py", line 1043, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Python314\Lib\threading.py", line 1081, in _bootstrap_inner
+    self._context.run(self.run)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\tqdm\_monitor.py", line 60, in run
+    self.was_killed.wait(self.sleep_interval)
+  File "C:\Python314\Lib\threading.py", line 669, in wait
+    signaled = self._cond.wait(timeout)
+  File "C:\Python314\Lib\threading.py", line 373, in wait
+    gotit = waiter.acquire(True, timeout)
+~~~~~~~~~~~~~~~~~~~~~~~~~ Stack of Thread-70 (65432) ~~~~~~~~~~~~~~~~~~~~~~~~~~
+  File "C:\Python314\Lib\threading.py", line 1043, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Python314\Lib\threading.py", line 1081, in _bootstrap_inner
+    self._context.run(self.run)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\tqdm\_monitor.py", line 60, in run
+    self.was_killed.wait(self.sleep_interval)
+  File "C:\Python314\Lib\threading.py", line 669, in wait
+    signaled = self._cond.wait(timeout)
+  File "C:\Python314\Lib\threading.py", line 373, in wait
+    gotit = waiter.acquire(True, timeout)
+~~~~~~~~~~~~~~~~~~~ Stack of Thread-1 (run_server) (31104) ~~~~~~~~~~~~~~~~~~~~
+  File "C:\Python314\Lib\threading.py", line 1043, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Python314\Lib\threading.py", line 1081, in _bootstrap_inner
+    self._context.run(self.run)
+  File "C:\Python314\Lib\threading.py", line 1023, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pytest_rerunfailures.py", line 466, in run_server
+    conn, _ = self.sock.accept()
+  File "C:\Python314\Lib\socket.py", line 298, in accept
+    fd, addr = self._accept()
+~~~~~~~~~~~~~~~~~~~~~~~~~ Stack of MainThread (34004) ~~~~~~~~~~~~~~~~~~~~~~~~~
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pytest\__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\config\__init__.py", line 223, in console_main
+    code = main()
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\config\__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\runner.py", line 137, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\runner.py", line 179, in pytest_runtest_call
+    item.runtest()
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\python.py", line 1720, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\pluggy\_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\_pytest\python.py", line 166, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "P:\packages\intelligence-stream\tests\test_cache.py", line 205, in test_fetch_transcript_chain_no_cache_call_on_all_fail
+    result = fetch_transcript_chain(video_id, lang_config)
+  File "P:\packages\intelligence-stream\csf\transcript.py", line 703, in fetch_transcript_chain
+    success, transcript, error = _fetch_via_whisper(video_id, prefer_lang)
+  File "P:\packages\intelligence-stream\csf\transcript.py", line 528, in _fetch_via_whisper
+    text = " ".join(segment.text for segment in segments)
+  File "P:\packages\intelligence-stream\csf\transcript.py", line 528, in <genexpr>
+    text = " ".join(segment.text for segment in segments)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\faster_whisper\transcribe.py", line 1190, in generate_segments
+    encoder_output = self.encode(segment)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\faster_whisper\transcribe.py", line 1400, in encode
+    return self.model.encode(features, to_cpu=to_cpu)
++++++++++++++++++++++++++++++++++++ Timeout +++++++++++++++++++++++++++++++++++

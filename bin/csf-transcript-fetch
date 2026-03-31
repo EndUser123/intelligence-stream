@@ -52,17 +52,26 @@ def _enumerate_playlist(playlist_url: str) -> list[dict]:
         return []
 
 
-def _fetch_one_transcript(video_id: str, lang: str = "en") -> tuple[str, bool, str]:
-    """Fetch transcript for a single video, cache it, return (video_id, success, error)."""
+def _fetch_one_transcript(video_id: str, lang: str = "en") -> tuple[str, bool, str, str]:
+    """Fetch transcript for a single video, cache it, return (video_id, success, source, error).
+
+    Returns:
+        video_id: The video ID
+        ok: True if transcript was fetched, False otherwise
+        source: Which source provided the transcript ('ytdlp', 'youtube_transcript_api',
+                'youtubei', 'sdk', 'cli', 'whisper', 'none')
+        error: Error message if failed, empty string if succeeded
+    """
     config = LanguageConfig(prefer_lang=lang, allow_translation=False)
     result = fetch_transcript_chain(video_id, config)
 
     if result.transcript:
         # Cache the transcript
         set_cached_transcript(video_id, result.lang, result.source, result.transcript)
-        return (video_id, True, result.source)
+        return (video_id, True, result.source, "")
     else:
-        return (video_id, False, result.source or "none")
+        error_msg = result.error or f"no transcript (source: {result.source or 'none'})"
+        return (video_id, False, result.source or "none", error_msg)
 
 
 def main() -> None:
@@ -161,12 +170,13 @@ def main() -> None:
                 }
                 done = 0
                 for future in as_completed(futures):
-                    vid, ok, src = future.result()
+                    vid, ok, src, err = future.result()
                     done += 1
                     if ok:
                         success_count += 1
                     else:
                         fail_count += 1
+                        print(f"    [FAIL] {vid}: {err}")
                     if done % 20 == 0 or done == len(missing_ids):
                         progress(done, success_count, fail_count)
 

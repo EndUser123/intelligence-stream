@@ -4,10 +4,13 @@ Uses ThreadPoolExecutor for concurrent processing.
 Each worker calls analyze_video for one video_id.
 """
 
+from __future__ import annotations
+
 import os
 from concurrent.futures import ThreadPoolExecutor, wait
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Tuple
 
 from csf.batch_status import is_complete, mark_complete, mark_failed
 from csf.cache import has_cached_transcript
@@ -15,6 +18,24 @@ from csf.logging import log_action
 
 # Lazy-loaded reference to analyze_video (set once, can be mocked)
 _analyze_video_ref: Callable[..., Any] | None = None
+
+
+@dataclass
+class BatchConfig:
+    """Configuration for batch video analysis.
+
+    Attributes:
+        max_workers: Maximum number of parallel workers. Bounded at min(os.cpu_count() or 4, 8).
+        force: If False (default), skip videos already marked 'complete' in the batch status DB
+            (idempotent restart). If True, process all videos regardless of status.
+        progress_callback: Optional callback(pending, done, failed, cached) called after each
+            video completes. pending=remaining, done=successful count, failed=failure count,
+            cached=successful count (alias for done). Enables --progress flag.
+    """
+
+    max_workers: int = 4
+    force: bool = False
+    progress_callback: Callable[[int, int, int, int], None] | None = None
 
 
 def _get_analyze_video() -> Callable[..., Any]:
@@ -41,20 +62,25 @@ def _get_analyze_video() -> Callable[..., Any]:
 
 def analyze_videos_parallel(
     video_ids: list[str],
+    batch_config: BatchConfig | None = None,
     max_workers: int = 4,
     progress_callback: Callable[[int, int, int, int], None] | None = None,
     force: bool = False,
-) -> Tuple[Dict[str, dict], List[str]]:
+) -> Tuple[dict[str, Any], list[str]]:
     """Analyze multiple videos in parallel using ThreadPoolExecutor.
+
+    Supports two calling conventions:
+    - New (recommended): analyze_videos_parallel(video_ids, BatchConfig(...))
+    - Legacy: analyze_videos_parallel(video_ids, max_workers=4, force=False, ...)
 
     Args:
         video_ids: List of YouTube video IDs to analyze.
-        max_workers: Maximum number of parallel workers. Bounded at min(os.cpu_count() or 4, 8).
-        progress_callback: Optional callback(pending, done, failed, cached) called after each
-            video completes. pending=remaining, done=successful count, failed=failure count,
-            cached=successful count (alias for done). Enables --progress flag.
-        force: If False (default), skip videos already marked 'complete' in the batch status DB
-            (idempotent restart). If True, process all videos regardless of status.
+        batch_config: Optional BatchConfig instance with max_workers, force,
+            and progress_callback. When provided, individual keyword args are ignored.
+        max_workers: Maximum number of parallel workers. Ignored if batch_config provided.
+        progress_callback: Optional callback. Ignored if batch_config provided.
+        force: If False (default), skip videos already marked 'complete' in the batch
+            status DB (idempotent restart). Ignored if batch_config provided.
 
     Returns:
         Tuple of (successful_results: dict, failed_video_ids: list).
@@ -62,15 +88,23 @@ def analyze_videos_parallel(
         failed_video_ids is a list of video IDs that failed to analyze.
         If batch_timeout is reached, in-progress videos are cancelled and added to failed_video_ids.
     """
+    if batch_config is not None:
+        effective_max_workers = batch_config.max_workers
+        effective_force = batch_config.force
+        effective_callback = batch_config.progress_callback
+    else:
+        effective_max_workers = max_workers
+        effective_force = force
+        effective_callback = progress_callback
 
-    effective_workers = min(os.cpu_count() or 4, 8, max_workers)
+    effective_workers = min(os.cpu_count() or 4, 8, effective_max_workers)
 
     # PROC-02: Filter out already-complete videos unless force=True
-    if not force:
+    if not effective_force:
         video_ids = [vid for vid in video_ids if not is_complete(vid)]
 
-    successful_results: Dict[str, dict] = {}
-    failed_video_ids: List[str] = []
+    successful_results: dict[str, Any] = {}
+    failed_video_ids: list[str] = []
     total = len(video_ids)
     completed = 0
 
@@ -105,9 +139,9 @@ def analyze_videos_parallel(
                 failed_video_ids.append(video_id)
                 mark_failed(video_id)
             completed += 1
-            if progress_callback:
+            if effective_callback:
                 pending = total - completed
-                progress_callback(
+                effective_callback(
                     pending,
                     len(successful_results),
                     len(failed_video_ids),
@@ -121,9 +155,9 @@ def analyze_videos_parallel(
                 failed_video_ids.append(vid)
                 mark_failed(vid)
             completed += 1
-            if progress_callback:
+            if effective_callback:
                 pending = total - completed
-                progress_callback(
+                effective_callback(
                     pending,
                     len(successful_results),
                     len(failed_video_ids),

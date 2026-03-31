@@ -86,6 +86,8 @@ class _BatchStatusStorage:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_analysis_status_source_status ON analysis_status(source, status)"
         )
+        # Checkpoint WAL to prevent unbounded WAL file growth (matches cache.py pattern)
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         conn.close()
         self._ensure_nlm_export_state()
         self._ensure_channel_metadata()

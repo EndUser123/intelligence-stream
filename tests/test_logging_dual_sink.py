@@ -20,6 +20,7 @@ from csf.logging import log_user_message
 def _reset_rich_cache():
     """Reset _rich_print cache so mocks work in every test."""
     import csf.logging
+
     csf.logging._rich_print = None
     yield
     csf.logging._rich_print = None
@@ -32,7 +33,9 @@ class TestLogUserMessageDualSink:
         """JSONL entry written to .logs/{tid}.jsonl with type=user_message."""
         with (
             mock.patch("csf.logging.resolve_tid", return_value="test-tid-123"),
-            mock.patch.dict("os.environ", {"INTELLIGENCE_STREAM_LOG_DIR": str(tmp_path / ".logs")}),
+            mock.patch.dict(
+                "os.environ", {"INTELLIGENCE_STREAM_LOG_DIR": str(tmp_path / ".logs")}
+            ),
             mock.patch("csf.logging._ALLOWED_LOG_BASES", (tmp_path,)),
             mock.patch("csf.logging._get_rich_print"),
         ):
@@ -50,6 +53,7 @@ class TestLogUserMessageDualSink:
     def test_emits_rich_console_output(self):
         """Rich.print called with styled output for user-facing message."""
         import csf.logging
+
         csf.logging._rich_print = None  # ensure fresh import
         with (
             mock.patch("csf.logging.resolve_tid", return_value="test-tid-console"),
@@ -63,12 +67,18 @@ class TestLogUserMessageDualSink:
     def test_jsonl_and_console_independent(self, tmp_path):
         """If console fails, JSONL still writes (silent degradation)."""
         import csf.logging
+
         csf.logging._rich_print = None
         with (
             mock.patch("csf.logging.resolve_tid", return_value="test-tid-indep"),
-            mock.patch.dict("os.environ", {"INTELLIGENCE_STREAM_LOG_DIR": str(tmp_path / ".logs")}),
+            mock.patch.dict(
+                "os.environ", {"INTELLIGENCE_STREAM_LOG_DIR": str(tmp_path / ".logs")}
+            ),
             mock.patch("csf.logging._ALLOWED_LOG_BASES", (tmp_path,)),
-            mock.patch("csf.logging._get_rich_print", side_effect=RuntimeError("Rich unavailable")),
+            mock.patch(
+                "csf.logging._get_rich_print",
+                side_effect=RuntimeError("Rich unavailable"),
+            ),
         ):
             log_user_message("Should still log to file")
 
@@ -80,10 +90,13 @@ class TestLogUserMessageDualSink:
     def test_default_level_is_info(self, tmp_path):
         """Default log level is info when not specified."""
         import csf.logging
+
         csf.logging._rich_print = None
         with (
             mock.patch("csf.logging.resolve_tid", return_value="test-tid-level"),
-            mock.patch.dict("os.environ", {"INTELLIGENCE_STREAM_LOG_DIR": str(tmp_path / ".logs")}),
+            mock.patch.dict(
+                "os.environ", {"INTELLIGENCE_STREAM_LOG_DIR": str(tmp_path / ".logs")}
+            ),
             mock.patch("csf.logging._ALLOWED_LOG_BASES", (tmp_path,)),
             mock.patch("csf.logging._get_rich_print"),
         ):
@@ -96,10 +109,13 @@ class TestLogUserMessageDualSink:
     def test_warning_level(self, tmp_path):
         """Warning level maps to appropriate Rich styling."""
         import csf.logging
+
         csf.logging._rich_print = None
         with (
             mock.patch("csf.logging.resolve_tid", return_value="test-tid-warn"),
-            mock.patch.dict("os.environ", {"INTELLIGENCE_STREAM_LOG_DIR": str(tmp_path / ".logs")}),
+            mock.patch.dict(
+                "os.environ", {"INTELLIGENCE_STREAM_LOG_DIR": str(tmp_path / ".logs")}
+            ),
             mock.patch("csf.logging._ALLOWED_LOG_BASES", (tmp_path,)),
             mock.patch("csf.logging._get_rich_print") as mock_get_rich,
         ):

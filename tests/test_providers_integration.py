@@ -122,7 +122,9 @@ class TestTierIntegration:
                     side_effect=NonFatalAnalysisError("Tier 2 OCR unavailable"),
                 ),
             ):
-                with pytest.raises(NonFatalAnalysisError, match="Tier 2 OCR unavailable"):
+                with pytest.raises(
+                    NonFatalAnalysisError, match="Tier 2 OCR unavailable"
+                ):
                     analyze_video(
                         "dQw4w9WgXcQ", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
                     )

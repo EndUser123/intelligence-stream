@@ -18,7 +18,9 @@ def test_language_config_defaults():
 
 def test_language_config_custom():
     """LanguageConfig accepts custom values."""
-    cfg = LanguageConfig(prefer_lang="es", allow_translation=True, translation_provider="gemini")
+    cfg = LanguageConfig(
+        prefer_lang="es", allow_translation=True, translation_provider="gemini"
+    )
     assert cfg.prefer_lang == "es"
     assert cfg.allow_translation is True
     assert cfg.translation_provider == "gemini"

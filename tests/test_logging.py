@@ -4,6 +4,7 @@
 def test_logging_module_importable():
     """Smoke test: csf.logging can be imported."""
     import csf.logging
+
     assert csf.logging is not None
 
 

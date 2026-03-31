@@ -10,7 +10,8 @@ import os
 from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Tuple
+from typing import Any, Tuple
+from collections.abc import Callable
 
 from csf.batch_status import is_complete, mark_complete, mark_failed
 from csf.cache import has_cached_transcript
@@ -66,7 +67,7 @@ def analyze_videos_parallel(
     max_workers: int = 4,
     progress_callback: Callable[[int, int, int, int], None] | None = None,
     force: bool = False,
-) -> Tuple[dict[str, Any], list[str]]:
+) -> tuple[dict[str, Any], list[str]]:
     """Analyze multiple videos in parallel using ThreadPoolExecutor.
 
     Supports two calling conventions:
@@ -108,7 +109,7 @@ def analyze_videos_parallel(
     total = len(video_ids)
     completed = 0
 
-    def _analyze_one(video_id: str) -> Tuple[str, dict | None, bool, str | None]:
+    def _analyze_one(video_id: str) -> tuple[str, dict | None, bool, str | None]:
         """Analyze a single video, returning (video_id, result or None, success, error_detail)."""
         video_url = f"https://www.youtube.com/watch?v={video_id}"
         try:

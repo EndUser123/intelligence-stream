@@ -11,7 +11,8 @@ import sqlite3
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal, Sequence
+from typing import Literal
+from collections.abc import Sequence
 
 # Type alias for batch entries: (video_id, status, source, published_at)
 BatchEntry = tuple[
@@ -880,9 +881,7 @@ def set_status_batch(
 # ---------------------------------------------------------------------------
 
 
-def get_nlm_export_state(
-    composite_id: str, db_path: Path | None = None
-) -> dict | None:
+def get_nlm_export_state(composite_id: str, db_path: Path | None = None) -> dict | None:
     """Get nlm_export_state by composite_id.
 
     Returns dict with keys: composite_id, notebook_id, batch_key, video_ids,
@@ -954,9 +953,7 @@ def get_pending_nlm_exports(db_path: Path | None = None) -> list[dict]:
     return _BatchStatusStorage(db_path=db_path)._get_pending_nlm_exports()
 
 
-def get_nlm_exports_by_video(
-    video_id: str, db_path: Path | None = None
-) -> list[dict]:
+def get_nlm_exports_by_video(video_id: str, db_path: Path | None = None) -> list[dict]:
     """Get all nlm_export_state rows that contain a given video_id.
 
     Used to check if a video is already part of a composite.

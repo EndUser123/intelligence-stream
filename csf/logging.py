@@ -8,7 +8,8 @@ import queue
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Literal
+from typing import Literal
+from collections.abc import Callable
 
 from .terminal_context import resolve_tid
 
@@ -26,11 +27,14 @@ def _get_rich_print():
     global _rich_print
     if _rich_print is None:
         from rich import print as _rich_impl
+
         _rich_print = _rich_impl
     return _rich_print
 
 
-def log_user_message(msg: str, level: Literal["info", "warning", "error"] = "info") -> None:
+def log_user_message(
+    msg: str, level: Literal["info", "warning", "error"] = "info"
+) -> None:
     """Log a user-facing message to both JSONL file and console (Rich).
 
     Silently degrades on console errors — file logging takes priority.
@@ -122,6 +126,7 @@ def log_action(action: str, data: dict) -> None:
 # Async log handler: QueueHandler + QueueListener for non-blocking I/O
 # ---------------------------------------------------------------------------
 
+
 def _create_queue_handler(log_queue: queue.Queue[logging.LogRecord]) -> logging.Handler:
     """Create a QueueHandler that places log records in a queue without blocking.
 
@@ -198,12 +203,19 @@ class _QueueListener:
         except (OSError, PermissionError):
             pass
         with open(self._log_file, "a") as f:
-            f.write(json.dumps({
-                "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
-                "trace_id": getattr(record, "trace_id", "unknown"),
-                "action": "log",
-                "data": {"level": record.levelname, "msg": msg},
-            }) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "timestamp": datetime.fromtimestamp(
+                            record.created, tz=timezone.utc
+                        ).isoformat(),
+                        "trace_id": getattr(record, "trace_id", "unknown"),
+                        "action": "log",
+                        "data": {"level": record.levelname, "msg": msg},
+                    }
+                )
+                + "\n"
+            )
 
     def _run(self) -> None:
         """Run loop: process queue items until stop event is set."""

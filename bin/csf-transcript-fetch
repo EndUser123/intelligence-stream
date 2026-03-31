@@ -33,17 +33,21 @@ def _enumerate_playlist(playlist_url: str) -> list[dict]:
     try:
         result = subprocess.run(
             ["yt-dlp", "--flat-playlist", "--dump-json", playlist_url],
-            capture_output=True, text=True, timeout=300,
+            capture_output=True,
+            text=True,
+            timeout=300,
         )
         videos = []
         for line in result.stdout.strip().split("\n"):
             if line:
                 try:
                     obj = json.loads(line)
-                    videos.append({
-                        "video_id": obj["id"],
-                        "title": obj.get("title", ""),
-                    })
+                    videos.append(
+                        {
+                            "video_id": obj["id"],
+                            "title": obj.get("title", ""),
+                        }
+                    )
                 except (json.JSONDecodeError, KeyError):
                     continue
         return videos
@@ -52,7 +56,9 @@ def _enumerate_playlist(playlist_url: str) -> list[dict]:
         return []
 
 
-def _fetch_one_transcript(video_id: str, lang: str = "en") -> tuple[str, bool, str, str]:
+def _fetch_one_transcript(
+    video_id: str, lang: str = "en"
+) -> tuple[str, bool, str, str]:
     """Fetch transcript for a single video, cache it, return (video_id, success, source, error).
 
     Returns:
@@ -79,32 +85,30 @@ def main() -> None:
         description="Download missing transcripts for tracked YouTube channels."
     )
     parser.add_argument(
-        "--run", action="store_true",
-        help="Actually download transcripts (default is dry-run)."
+        "--run",
+        action="store_true",
+        help="Actually download transcripts (default is dry-run).",
+    )
+    parser.add_argument("--channel", help="Process only this channel URL.")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=4,
+        help="Number of parallel workers (default: 4).",
     )
     parser.add_argument(
-        "--channel",
-        help="Process only this channel URL."
-    )
-    parser.add_argument(
-        "--workers", type=int, default=4,
-        help="Number of parallel workers (default: 4)."
-    )
-    parser.add_argument(
-        "--lang", default="en",
-        help="Preferred language code (default: en)."
+        "--lang", default="en", help="Preferred language code (default: en)."
     )
     args = parser.parse_args()
 
     # Load .env for potential API keys
     from dotenv import load_dotenv
+
     load_dotenv("P:/.env")
 
     storage = _get_batch_status_storage()
     conn = storage._get_conn()
-    cursor = conn.execute(
-        "SELECT channel_url, playlist_id FROM channel_metadata"
-    )
+    cursor = conn.execute("SELECT channel_url, playlist_id FROM channel_metadata")
     channels = cursor.fetchall()
     conn.close()
 
@@ -114,7 +118,7 @@ def main() -> None:
             print(f"Channel '{args.channel}' not found in tracked sources.")
             sys.exit(1)
 
-    print(f"=== Transcript Fetcher ===")
+    print("=== Transcript Fetcher ===")
     print(f"Channels: {len(channels)}")
     print(f"Mode: {'DRY RUN (use --run to download)' if not args.run else 'LIVE'}")
     print(f"Workers: {args.workers}")
@@ -133,26 +137,36 @@ def main() -> None:
 
         if not args.run:
             # Dry run: just enumerate and count missing
-            print(f"  Enumerating videos...")
+            print("  Enumerating videos...")
             videos = _enumerate_playlist(playlist_url)
             missing = sum(1 for v in videos if not has_cached_transcript(v["video_id"]))
-            print(f"  Videos: {len(videos)}, Already cached: {len(videos)-missing}, Missing: {missing}")
+            print(
+                f"  Videos: {len(videos)}, Already cached: {len(videos)-missing}, Missing: {missing}"
+            )
             grand_total += len(videos)
             grand_missing += missing
         else:
             # Live run: enumerate, then download missing
-            print(f"  Enumerating videos...")
+            print("  Enumerating videos...")
             videos = _enumerate_playlist(playlist_url)
-            missing_ids = [v["video_id"] for v in videos if not has_cached_transcript(v["video_id"])]
-            print(f"  Videos: {len(videos)}, Already cached: {len(videos)-len(missing_ids)}, Missing: {len(missing_ids)}")
+            missing_ids = [
+                v["video_id"]
+                for v in videos
+                if not has_cached_transcript(v["video_id"])
+            ]
+            print(
+                f"  Videos: {len(videos)}, Already cached: {len(videos)-len(missing_ids)}, Missing: {len(missing_ids)}"
+            )
 
             if not missing_ids:
-                print(f"  All transcripts already cached.")
+                print("  All transcripts already cached.")
                 grand_total += len(videos)
                 grand_missing += 0
                 continue
 
-            print(f"  Downloading {len(missing_ids)} transcripts with {args.workers} workers...")
+            print(
+                f"  Downloading {len(missing_ids)} transcripts with {args.workers} workers..."
+            )
 
             # Jitter to avoid thundering herd
             time.sleep(random.uniform(1.0, 3.0))
@@ -161,7 +175,10 @@ def main() -> None:
             fail_count = 0
 
             def progress(done: int, ok: int, fail: int) -> None:
-                print(f"    progress: done={done}/{len(missing_ids)}, ok={ok}, fail={fail}", flush=True)
+                print(
+                    f"    progress: done={done}/{len(missing_ids)}, ok={ok}, fail={fail}",
+                    flush=True,
+                )
 
             with ThreadPoolExecutor(max_workers=args.workers) as executor:
                 futures = {
@@ -185,7 +202,7 @@ def main() -> None:
             grand_missing += len(missing_ids)
 
     print()
-    print(f"=== Summary ===")
+    print("=== Summary ===")
     print(f"Total videos: {grand_total}")
     print(f"Missing transcripts: {grand_missing}")
     if args.run:

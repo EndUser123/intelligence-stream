@@ -460,9 +460,7 @@ def _fetch_via_sdk(video_id: str, lang: str) -> tuple[bool, str | None, str | No
         return (False, None, "SDK timeout (>60s)")
 
 
-def _fetch_via_whisper(
-    video_id: str, lang: str
-) -> tuple[bool, str | None, str | None]:
+def _fetch_via_whisper(video_id: str, lang: str) -> tuple[bool, str | None, str | None]:
     """Transcribe audio using faster-whisper as final fallback.
 
     Downloads audio via yt-dlp then transcribes with faster-whisper.
@@ -524,7 +522,9 @@ def _fetch_via_whisper(
 
         # Use medium model for better accuracy; falls back automatically
         model = WhisperModel("medium", device="cpu", compute_type="int8")
-        segments, _ = model.transcribe(audio_file, language=lang if lang != "en" else None)
+        segments, _ = model.transcribe(
+            audio_file, language=lang if lang != "en" else None
+        )
         text = " ".join(segment.text for segment in segments)
         if not text.strip():
             return (False, None, "whisper produced empty transcript")
@@ -715,7 +715,9 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
                 error=None,
             )
         last_error = error
-        if error and ("429" in str(error).lower() or "rate limited" in str(error).lower()):
+        if error and (
+            "429" in str(error).lower() or "rate limited" in str(error).lower()
+        ):
             _record_source_429(_SOURCE_WHISPER)
 
     # All methods failed — non-fatal

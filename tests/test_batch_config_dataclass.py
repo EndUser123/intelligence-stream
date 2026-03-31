@@ -15,11 +15,15 @@ class TestBatchConfigDataclass:
 
     def test_batch_config_is_dataclass(self):
         """BatchConfig is a dataclass with max_workers, force, progress_callback fields."""
-        assert hasattr(BatchConfig, "__dataclass_fields__"), "BatchConfig should be a dataclass"
+        assert hasattr(
+            BatchConfig, "__dataclass_fields__"
+        ), "BatchConfig should be a dataclass"
         fields = BatchConfig.__dataclass_fields__
         assert "max_workers" in fields, "BatchConfig needs max_workers field"
         assert "force" in fields, "BatchConfig needs force field"
-        assert "progress_callback" in fields, "BatchConfig needs progress_callback field"
+        assert (
+            "progress_callback" in fields
+        ), "BatchConfig needs progress_callback field"
 
     def test_batch_config_defaults(self):
         """BatchConfig has sensible defaults: max_workers=4, force=False, progress_callback=None."""
@@ -39,7 +43,9 @@ class TestBatchConfigDataclass:
     def test_analyze_videos_parallel_accepts_batch_config(self, tmp_path):
         """analyze_videos_parallel accepts BatchConfig as second positional argument."""
         with (
-            mock.patch.dict("os.environ", {"INTELLIGENCE_STREAM_LOG_DIR": str(tmp_path / ".logs")}),
+            mock.patch.dict(
+                "os.environ", {"INTELLIGENCE_STREAM_LOG_DIR": str(tmp_path / ".logs")}
+            ),
             mock.patch("csf.batch._get_analyze_video") as mock_get,
         ):
             mock_analyze = mock.Mock(return_value={"title": "test"})
@@ -52,7 +58,9 @@ class TestBatchConfigDataclass:
     def test_analyze_videos_parallel_batch_config_kwarg(self, tmp_path):
         """analyze_videos_parallel accepts BatchConfig as keyword argument."""
         with (
-            mock.patch.dict("os.environ", {"INTELLIGENCE_STREAM_LOG_DIR": str(tmp_path / ".logs")}),
+            mock.patch.dict(
+                "os.environ", {"INTELLIGENCE_STREAM_LOG_DIR": str(tmp_path / ".logs")}
+            ),
             mock.patch("csf.batch._get_analyze_video") as mock_get,
         ):
             mock_analyze = mock.Mock(return_value={"title": "test"})
@@ -65,7 +73,9 @@ class TestBatchConfigDataclass:
     def test_backward_compat_individual_kwargs(self, tmp_path):
         """Existing callers using individual kwargs still work (backward compat)."""
         with (
-            mock.patch.dict("os.environ", {"INTELLIGENCE_STREAM_LOG_DIR": str(tmp_path / ".logs")}),
+            mock.patch.dict(
+                "os.environ", {"INTELLIGENCE_STREAM_LOG_DIR": str(tmp_path / ".logs")}
+            ),
             mock.patch("csf.batch._get_analyze_video") as mock_get,
         ):
             mock_analyze = mock.Mock(return_value={"title": "test"})

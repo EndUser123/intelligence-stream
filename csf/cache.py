@@ -73,7 +73,15 @@ class _CacheStorage:
         )
         conn.close()
 
-    def _write_entry(self, cache_key: str, video_id: str, lang: str, source: str, transcript: str, cached_at: datetime) -> None:
+    def _write_entry(
+        self,
+        cache_key: str,
+        video_id: str,
+        lang: str,
+        source: str,
+        transcript: str,
+        cached_at: datetime,
+    ) -> None:
         """Write a single entry to the database synchronously."""
         self._ensure_table()
         conn = sqlite3.connect(_SHARED_DB_PATH)
@@ -113,7 +121,7 @@ class _CacheStorage:
         """Write a transcript entry to the database synchronously."""
         self._write_entry(cache_key, video_id, lang, source, transcript, cached_at)
 
-    def _read_entry(self, cache_key: str) -> Optional[TranscriptCache]:
+    def _read_entry(self, cache_key: str) -> TranscriptCache | None:
         """Read a single entry from the shared database."""
         self._ensure_table()
         conn = sqlite3.connect(_SHARED_DB_PATH)
@@ -139,7 +147,7 @@ class _CacheStorage:
             terminal_id=row[5],
         )
 
-    def get(self, cache_key: str) -> Optional[TranscriptCache]:
+    def get(self, cache_key: str) -> TranscriptCache | None:
         """Get cache entry if exists."""
         return self._read_entry(cache_key)
 
@@ -177,7 +185,7 @@ def _validate_video_id(video_id: str) -> bool:
 
 def get_cached_transcript(
     video_id: str, lang: str, source: str
-) -> Optional[TranscriptCache]:
+) -> TranscriptCache | None:
     """Get cached transcript if exists.
 
     Reads from the shared transcript pool - any terminal's cached

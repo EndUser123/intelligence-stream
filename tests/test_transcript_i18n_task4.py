@@ -18,7 +18,9 @@ def test_returns_transcript_result_type():
             "csf.transcript._fetch_via_youtube_transcript_api",
             return_value=(True, "english transcript", None),
         ),
-        mock.patch("csf.transcript._fetch_via_youtubei", return_value=(False, None, "fail")),
+        mock.patch(
+            "csf.transcript._fetch_via_youtubei", return_value=(False, None, "fail")
+        ),
         mock.patch("csf.transcript._fetch_via_sdk", return_value=(False, None, "fail")),
         mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
         mock.patch("time.sleep"),
@@ -26,9 +28,9 @@ def test_returns_transcript_result_type():
         mock_ytdlp.return_value = (False, None, "no captions")
         mock_whisper.return_value = (False, None, "whisper failed")
         result = fetch_transcript_chain("dQw4w9WgXcQ", LanguageConfig(prefer_lang="en"))
-        assert isinstance(result, TranscriptResult), (
-            f"Expected TranscriptResult, got {type(result)}"
-        )
+        assert isinstance(
+            result, TranscriptResult
+        ), f"Expected TranscriptResult, got {type(result)}"
         assert result.video_id == "dQw4w9WgXcQ"
         assert result.transcript == "english transcript"
         assert result.was_translated is False
@@ -83,7 +85,9 @@ def test_no_translation_when_allow_translation_false():
             "csf.transcript._fetch_via_youtube_transcript_api",
             return_value=(True, "texto espanol", None),
         ),
-        mock.patch("csf.transcript._fetch_via_youtubei", return_value=(False, None, "fail")),
+        mock.patch(
+            "csf.transcript._fetch_via_youtubei", return_value=(False, None, "fail")
+        ),
         mock.patch("csf.transcript._fetch_via_sdk", return_value=(False, None, "fail")),
         mock.patch("csf.transcript._translate_text") as mock_translate,
         mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,

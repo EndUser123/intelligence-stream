@@ -32,9 +32,11 @@ from csf.transcript import (
 # Import smoke test
 # =============================================================================
 
+
 def test_import_smoke_test():
     """Import smoke test: LanguageConfig and TranscriptResult are importable."""
     from csf.transcript import LanguageConfig, TranscriptResult
+
     cfg = LanguageConfig()
     assert cfg.prefer_lang == "en"
     assert cfg.allow_translation is False
@@ -55,6 +57,7 @@ def test_import_smoke_test():
 # LanguageConfig defaults
 # =============================================================================
 
+
 def test_language_config_defaults():
     """LanguageConfig has correct defaults."""
     cfg = LanguageConfig()
@@ -74,6 +77,7 @@ def test_language_config_custom():
 # =============================================================================
 # TranscriptResult fields
 # =============================================================================
+
 
 def test_transcript_result_fields():
     """TranscriptResult has all required fields."""
@@ -119,6 +123,7 @@ def test_transcript_result_detected_lang_none():
 # BCP-47 validation
 # =============================================================================
 
+
 class TestBCP47Validation:
     """BLOCKER-13: Invalid BCP-47 codes must raise ValueError before any API call."""
 
@@ -152,6 +157,7 @@ class TestBCP47Validation:
 # was_translated flag behavior
 # =============================================================================
 
+
 def test_was_translated_false_when_no_translation():
     """was_translated=False when no translation performed."""
     with (
@@ -161,7 +167,9 @@ def test_was_translated_false_when_no_translation():
             "csf.transcript._fetch_via_youtube_transcript_api",
             return_value=(True, "english transcript", None),
         ),
-        mock.patch("csf.transcript._fetch_via_youtubei", return_value=(False, None, "fail")),
+        mock.patch(
+            "csf.transcript._fetch_via_youtubei", return_value=(False, None, "fail")
+        ),
         mock.patch("csf.transcript._fetch_via_sdk", return_value=(False, None, "fail")),
         mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
         mock.patch("time.sleep"),
@@ -188,8 +196,13 @@ def test_was_translated_true_when_translation_occurs():
                 (True, "texto espanol", None),
             ],
         ),
-        mock.patch("csf.transcript._fetch_via_youtubei", return_value=(False, None, "unavailable")),
-        mock.patch("csf.transcript._fetch_via_sdk", return_value=(False, None, "unavailable")),
+        mock.patch(
+            "csf.transcript._fetch_via_youtubei",
+            return_value=(False, None, "unavailable"),
+        ),
+        mock.patch(
+            "csf.transcript._fetch_via_sdk", return_value=(False, None, "unavailable")
+        ),
         mock.patch(
             "csf.transcript._translate_text",
             return_value="translated to portuguese",
@@ -217,7 +230,9 @@ def test_no_translation_when_allow_translation_false():
             "csf.transcript._fetch_via_youtube_transcript_api",
             return_value=(True, "texto espanol", None),
         ),
-        mock.patch("csf.transcript._fetch_via_youtubei", return_value=(False, None, "fail")),
+        mock.patch(
+            "csf.transcript._fetch_via_youtubei", return_value=(False, None, "fail")
+        ),
         mock.patch("csf.transcript._fetch_via_sdk", return_value=(False, None, "fail")),
         mock.patch("csf.transcript._translate_text") as mock_translate,
         mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
@@ -236,6 +251,7 @@ def test_no_translation_when_allow_translation_false():
 # =============================================================================
 # Non-fatal translation degradation
 # =============================================================================
+
 
 def test_translate_text_non_fatal_on_failure():
     """Translation failure returns original text (non-fatal per FM-003)."""
@@ -264,6 +280,7 @@ def test_translate_text_success():
 # =============================================================================
 # Graceful degradation
 # =============================================================================
+
 
 def test_all_methods_fail_returns_empty_transcript():
     """When all methods fail, returns TranscriptResult with empty transcript."""
@@ -304,6 +321,7 @@ def test_all_methods_fail_returns_empty_transcript():
 # =============================================================================
 # Return type
 # =============================================================================
+
 
 def test_returns_transcript_result_type():
     """fetch_transcript_chain returns TranscriptResult (not 3-tuple)."""

@@ -10,7 +10,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any
 from collections.abc import Callable
 
 from csf.batch_status import is_complete, mark_complete, mark_failed

@@ -11,7 +11,6 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 # Validation
 _VIDEO_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{11}$")

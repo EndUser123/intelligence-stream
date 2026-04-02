@@ -68,7 +68,8 @@ class _BatchStatusStorage:
                 status TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 source TEXT,
-                published_at TEXT
+                published_at TEXT,
+                has_captions INTEGER
             )
             """
         )
@@ -83,6 +84,11 @@ class _BatchStatusStorage:
             conn.execute("SELECT published_at FROM analysis_status LIMIT 1")
         except sqlite3.OperationalError:
             conn.execute("ALTER TABLE analysis_status ADD COLUMN published_at TEXT")
+        # Migrate existing DBs that predate the has_captions column
+        try:
+            conn.execute("SELECT has_captions FROM analysis_status LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE analysis_status ADD COLUMN has_captions INTEGER")
         # Index for get_pending_by_source queries (source, status) — avoids full table scan
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_analysis_status_source_status ON analysis_status(source, status)"

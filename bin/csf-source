@@ -73,7 +73,7 @@ def _mark_videos_pending(
     status_map = get_status_batch(video_ids)
     complete_ids = {vid for vid, status in status_map.items() if status == "complete"}
     entries = [
-        (video["video_id"], "pending", canonical_url, video.get("published_at"))
+        (video["video_id"], "pending", canonical_url, video.get("published_at"), video.get("has_captions"))
         for video in videos
         if video["video_id"] not in complete_ids
     ]

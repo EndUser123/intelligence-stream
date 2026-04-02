@@ -880,6 +880,19 @@ def get_newest_published_for_source(
     )
 
 
+def get_entries_for_source(
+    channel_url: str, db_path: Path | None = None
+) -> list[tuple[str, str, bool | None]]:
+    """Get all entries for a channel/source.
+
+    Returns list of (video_id, status, has_captions) tuples.
+    Used by csf-transcript-fetch to avoid re-enumerating via yt-dlp.
+    """
+    if db_path is None:
+        return _get_batch_status_storage().get_entries_for_source(channel_url)
+    return _BatchStatusStorage(db_path=db_path).get_entries_for_source(channel_url)
+
+
 def set_status_batch(
     entries: Sequence["BatchEntry"],
     db_path: Path | None = None,

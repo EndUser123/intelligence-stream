@@ -106,14 +106,16 @@ def main() -> None:
         print(f"Channel: {channel_url}")
 
         # Use batch DB for has_captions from YouTube Data API.
-        # Note: contentDetails.caption=false only means no MANUAL captions —
-        # auto-generated captions may still exist. Only skip when has_captions=False.
+        # has_captions=True: has manual captions (prefer these)
+        # has_captions=None: API said no captions OR unknown — attempt anyway (auto-captions may exist)
+        # has_captions=False (stored as 0): skip — API explicitly confirmed no captions
+        # SQLite stores False as integer 0; Python: 0 is not False (identity), but bool(0) == False
         entries = get_entries_for_source(channel_url)
 
         if not args.run:
             # Dry run: count missing from DB
-            captionless = sum(1 for _, _, hc in entries if hc is False)
-            downloadable = [vid for vid, _, hc in entries if hc is not False]
+            captionless = sum(1 for _, _, hc in entries if hc == False)  # noqa: E712
+            downloadable = [vid for vid, _, hc in entries if hc != False]  # noqa: E712
             missing = sum(1 for vid in downloadable if not has_cached_transcript(vid))
             print(
                 f"  Videos: {len(entries)}, Has captions: {len(downloadable)}, "
@@ -123,8 +125,8 @@ def main() -> None:
             grand_missing += missing
         else:
             # Live run: download missing for videos not explicitly marked as captionless
-            captionless = sum(1 for _, _, hc in entries if hc is False)
-            downloadable = [vid for vid, _, hc in entries if hc is not False]
+            captionless = sum(1 for _, _, hc in entries if hc == False)  # noqa: E712
+            downloadable = [vid for vid, _, hc in entries if hc != False]  # noqa: E712
             missing_ids = [vid for vid in downloadable if not has_cached_transcript(vid)]
             print(
                 f"  Videos: {len(entries)}, Has captions: {len(downloadable)}, "

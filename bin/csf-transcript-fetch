@@ -110,9 +110,9 @@ def main() -> None:
 
         if not args.run:
             # Dry run: count missing from DB
-            captionless = sum(1 for _, _, hc in entries if hc is False)
-            downloadable = [(vid,) for vid, _, hc in entries if hc is True]
-            missing = sum(1 for vid, in downloadable if not has_cached_transcript(vid))
+            captionless = sum(1 for _, _, hc in entries if not hc)
+            downloadable = [vid for vid, _, hc in entries if hc]
+            missing = sum(1 for vid in downloadable if not has_cached_transcript(vid))
             print(
                 f"  Videos: {len(entries)}, Has captions: {len(downloadable)}, "
                 f"No captions (skipped): {captionless}, Already cached: {len(downloadable)-missing}, Missing: {missing}"
@@ -121,9 +121,9 @@ def main() -> None:
             grand_missing += missing
         else:
             # Live run: download missing for caption-having videos
-            captionless = sum(1 for _, _, hc in entries if hc is False)
-            downloadable = [(vid,) for vid, _, hc in entries if hc is True]
-            missing_ids = [vid for vid, in downloadable if not has_cached_transcript(vid)]
+            captionless = sum(1 for _, _, hc in entries if not hc)
+            downloadable = [vid for vid, _, hc in entries if hc]
+            missing_ids = [vid for vid in downloadable if not has_cached_transcript(vid)]
             print(
                 f"  Videos: {len(entries)}, Has captions: {len(downloadable)}, "
                 f"No captions (skipped): {captionless}, Already cached: {len(downloadable)-len(missing_ids)}, Missing: {len(missing_ids)}"

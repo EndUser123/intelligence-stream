@@ -257,7 +257,7 @@ def cmd_check(source_id_or_url: str) -> None:
         gap_status_map = get_status_batch(gap_video_ids)
         complete_ids = {vid for vid, status in gap_status_map.items() if status == "complete"}
         entries = [
-            (video["video_id"], "pending", channel_url, video.get("published_at"))
+            (video["video_id"], "pending", channel_url, video.get("published_at"), video.get("has_captions"))
             for video in gap_videos
             if video["video_id"] not in complete_ids
         ]

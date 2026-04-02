@@ -105,13 +105,15 @@ def main() -> None:
 
         print(f"Channel: {channel_url}")
 
-        # Use batch DB for has_captions instead of re-enumerating via yt-dlp
+        # Use batch DB for has_captions from YouTube Data API.
+        # Note: contentDetails.caption=false only means no MANUAL captions —
+        # auto-generated captions may still exist. Only skip when has_captions=False.
         entries = get_entries_for_source(channel_url)
 
         if not args.run:
             # Dry run: count missing from DB
-            captionless = sum(1 for _, _, hc in entries if not hc)
-            downloadable = [vid for vid, _, hc in entries if hc]
+            captionless = sum(1 for _, _, hc in entries if hc is False)
+            downloadable = [vid for vid, _, hc in entries if hc is not False]
             missing = sum(1 for vid in downloadable if not has_cached_transcript(vid))
             print(
                 f"  Videos: {len(entries)}, Has captions: {len(downloadable)}, "
@@ -120,9 +122,9 @@ def main() -> None:
             grand_total += len(entries)
             grand_missing += missing
         else:
-            # Live run: download missing for caption-having videos
-            captionless = sum(1 for _, _, hc in entries if not hc)
-            downloadable = [vid for vid, _, hc in entries if hc]
+            # Live run: download missing for videos not explicitly marked as captionless
+            captionless = sum(1 for _, _, hc in entries if hc is False)
+            downloadable = [vid for vid, _, hc in entries if hc is not False]
             missing_ids = [vid for vid in downloadable if not has_cached_transcript(vid)]
             print(
                 f"  Videos: {len(entries)}, Has captions: {len(downloadable)}, "

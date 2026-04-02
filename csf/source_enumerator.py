@@ -496,6 +496,11 @@ def detect_gap(
             # No existing videos = this is initial import, not a gap
             return False
 
+        # Parse ISO string to datetime if needed (DB stores ISO strings)
+        if isinstance(newest_batch_published, str):
+            from datetime import datetime as dt
+            newest_batch_published = dt.fromisoformat(newest_batch_published.replace("Z", "+00:00"))
+
         now = datetime.now(timezone.utc)
         age = now - newest_batch_published
 

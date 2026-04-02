@@ -169,7 +169,7 @@ def main() -> None:
 
             if not missing_ids:
                 print("  All transcripts already cached.")
-                grand_total += len(videos)
+                grand_total += len(entries)
                 grand_missing += 0
                 continue
 

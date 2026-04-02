@@ -125,9 +125,9 @@ class TestSetStatusBatch:
     def test_set_status_batch_inserts_multiple(self):
         """set_status_batch inserts multiple entries and returns correct count."""
         entries: list[BatchEntry] = [
-            ("vid1", "pending", "https://youtube.com/channel/UC1", "2026-01-01T00:00:00Z"),
-            ("vid2", "pending", "https://youtube.com/channel/UC1", "2026-01-02T00:00:00Z"),
-            ("vid3", "pending", "https://youtube.com/channel/UC1", "2026-01-03T00:00:00Z"),
+            ("vid1", "pending", "https://youtube.com/channel/UC1", "2026-01-01T00:00:00Z", None),
+            ("vid2", "pending", "https://youtube.com/channel/UC1", "2026-01-02T00:00:00Z", None),
+            ("vid3", "pending", "https://youtube.com/channel/UC1", "2026-01-03T00:00:00Z", None),
         ]
         count = set_status_batch(entries, db_path=_TEST_DB_PATH)
         assert count == 3

@@ -207,7 +207,7 @@ def main() -> None:
                         progress(done, success_count, fail_count)
 
             print(f"  Downloaded: {success_count} ok, {fail_count} failed")
-            grand_total += len(videos)
+            grand_total += len(entries)
             grand_missing += len(missing_ids)
 
     print()

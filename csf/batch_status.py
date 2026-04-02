@@ -873,7 +873,7 @@ def set_status_batch(
     rolling back successful ones. Uses busy_timeout to handle writer contention.
 
     Args:
-        entries: Sequence of (video_id, status, source, published_at) tuples.
+        entries: Sequence of (video_id, status, source, published_at, has_captions) tuples.
         db_path: Optional path to a non-default batch_status DB.
 
     Returns:

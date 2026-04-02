@@ -27,43 +27,6 @@ from csf.cache import has_cached_transcript, set_cached_transcript
 from csf.transcript import fetch_transcript_chain, LanguageConfig
 
 
-def _enumerate_playlist(playlist_url: str) -> list[dict]:
-    """Enumerate all videos in a playlist using yt-dlp (no API key needed).
-
-    Captures availability and subtitle availability from yt-dlp JSON output.
-    """
-    try:
-        result = subprocess.run(
-            ["yt-dlp", "--flat-playlist", "--dump-json", playlist_url],
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
-        videos = []
-        for line in result.stdout.strip().split("\n"):
-            if line:
-                try:
-                    obj = json.loads(line)
-                    # yt-dlp availability field: 'public', 'unlisted', 'private', or 'needs_auth'
-                    # subtitlesavailability: 'yes' means subtitles are available
-                    availability = obj.get("availability", "")
-                    has_subtitles = obj.get("subtitlesavailability", "") == "yes"
-                    videos.append(
-                        {
-                            "video_id": obj["id"],
-                            "title": obj.get("title", ""),
-                            "availability": availability,
-                            "has_captions": has_subtitles,
-                        }
-                    )
-                except (json.JSONDecodeError, KeyError):
-                    continue
-        return videos
-    except Exception as e:
-        print(f"  [ERROR] yt-dlp failed for {playlist_url}: {e}")
-        return []
-
-
 def _fetch_one_transcript(
     video_id: str, lang: str = "en"
 ) -> tuple[str, bool, str, str]:

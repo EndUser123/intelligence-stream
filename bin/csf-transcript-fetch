@@ -22,7 +22,7 @@ from pathlib import Path
 # Add csf to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from csf.batch_status import get_entries_for_source
+from csf.batch_status import _get_batch_status_storage, get_entries_for_source
 from csf.cache import has_cached_transcript, set_cached_transcript
 from csf.transcript import fetch_transcript_chain, LanguageConfig
 

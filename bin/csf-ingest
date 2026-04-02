@@ -112,18 +112,13 @@ def ingest_playlist(
 
     # Auto-analyze newly ingested videos
     if auto_analyze and newly_ingested:
+        analyze_script = Path(__file__).parent.parent / "bin" / "csf-analyze"
         for video_id in newly_ingested:
             video_url = f"https://www.youtube.com/watch?v={video_id}"
             log_action("analyze_start", {"video_id": video_id})
             try:
                 result = subprocess.run(
-                    [
-                        "python",
-                        str(Path(__file__).resolve()),
-                        "--url",
-                        video_url,
-                        "--cks",
-                    ],
+                    ["python", str(analyze_script), "--url", video_url, "--cks"],
                     capture_output=True,
                     text=True,
                     timeout=180,

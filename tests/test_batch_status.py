@@ -144,7 +144,7 @@ class TestSetStatusBatch:
         """set_status_batch with INSERT OR REPLACE updates existing entries."""
         mark_complete("vid1", db_path=_TEST_DB_PATH)
         entries: list[BatchEntry] = [
-            ("vid1", "pending", "https://youtube.com/channel/UC1", "2026-01-01T00:00:00Z"),
+            ("vid1", "pending", "https://youtube.com/channel/UC1", "2026-01-01T00:00:00Z", None),
         ]
         count = set_status_batch(entries, db_path=_TEST_DB_PATH)
         assert count == 1
@@ -160,8 +160,8 @@ class TestSetStatusBatch:
         """
         # First insert some valid entries
         good_entries: list[BatchEntry] = [
-            ("vid_good1", "pending", "https://youtube.com/channel/UC1", "2026-01-01T00:00:00Z"),
-            ("vid_good2", "pending", "https://youtube.com/channel/UC1", "2026-01-02T00:00:00Z"),
+            ("vid_good1", "pending", "https://youtube.com/channel/UC1", "2026-01-01T00:00:00Z", None),
+            ("vid_good2", "pending", "https://youtube.com/channel/UC1", "2026-01-02T00:00:00Z", None),
         ]
         count1 = set_status_batch(good_entries, db_path=_TEST_DB_PATH)
         assert count1 == 2

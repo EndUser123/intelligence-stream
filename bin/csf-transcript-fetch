@@ -23,13 +23,16 @@ from pathlib import Path
 # Add csf to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from csf.batch_status import _get_batch_status_storage
+from csf.batch_status import _get_batch_status_storage, get_status_batch
 from csf.cache import has_cached_transcript, set_cached_transcript
 from csf.transcript import fetch_transcript_chain, LanguageConfig
 
 
 def _enumerate_playlist(playlist_url: str) -> list[dict]:
-    """Enumerate all videos in a playlist using yt-dlp (no API key needed)."""
+    """Enumerate all videos in a playlist using yt-dlp (no API key needed).
+
+    Captures availability and subtitle availability from yt-dlp JSON output.
+    """
     try:
         result = subprocess.run(
             ["yt-dlp", "--flat-playlist", "--dump-json", playlist_url],
@@ -42,10 +45,16 @@ def _enumerate_playlist(playlist_url: str) -> list[dict]:
             if line:
                 try:
                     obj = json.loads(line)
+                    # yt-dlp availability field: 'public', 'unlisted', 'private', or 'needs_auth'
+                    # subtitlesavailability: 'yes' means subtitles are available
+                    availability = obj.get("availability", "")
+                    has_subtitles = obj.get("subtitlesavailability", "") == "yes"
                     videos.append(
                         {
                             "video_id": obj["id"],
                             "title": obj.get("title", ""),
+                            "availability": availability,
+                            "has_captions": has_subtitles,
                         }
                     )
                 except (json.JSONDecodeError, KeyError):

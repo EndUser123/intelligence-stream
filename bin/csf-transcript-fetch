@@ -148,9 +148,13 @@ def main() -> None:
             # Dry run: just enumerate and count missing
             print("  Enumerating videos...")
             videos = _enumerate_playlist(playlist_url)
-            missing = sum(1 for v in videos if not has_cached_transcript(v["video_id"]))
+            # Filter out videos without subtitles (no captions = no transcript possible)
+            captionless = [v for v in videos if not v.get("has_captions", True)]
+            downloadable = [v for v in videos if v.get("has_captions", True)]
+            missing = sum(1 for v in downloadable if not has_cached_transcript(v["video_id"]))
             print(
-                f"  Videos: {len(videos)}, Already cached: {len(videos)-missing}, Missing: {missing}"
+                f"  Videos: {len(videos)}, Has captions: {len(downloadable)}, "
+                f"No captions (skipped): {len(captionless)}, Already cached: {len(downloadable)-missing}, Missing: {missing}"
             )
             grand_total += len(videos)
             grand_missing += missing
@@ -158,13 +162,24 @@ def main() -> None:
             # Live run: enumerate, then download missing
             print("  Enumerating videos...")
             videos = _enumerate_playlist(playlist_url)
+            # Filter out videos without subtitles
+            captionless = [v for v in videos if not v.get("has_captions", True)]
+            downloadable = [v for v in videos if v.get("has_captions", True)]
             missing_ids = [
                 v["video_id"]
-                for v in videos
+                for v in downloadable
                 if not has_cached_transcript(v["video_id"])
             ]
+            # Update has_captions in batch DB for all enumerated videos
+            entries = [
+                (v["video_id"], "pending", channel_url, None, v.get("has_captions"))
+                for v in downloadable
+            ]
+            if entries:
+                set_status_batch(entries)
             print(
-                f"  Videos: {len(videos)}, Already cached: {len(videos)-len(missing_ids)}, Missing: {len(missing_ids)}"
+                f"  Videos: {len(videos)}, Has captions: {len(downloadable)}, "
+                f"No captions (skipped): {len(captionless)}, Already cached: {len(downloadable)-len(missing_ids)}, Missing: {len(missing_ids)}"
             )
 
             if not missing_ids:

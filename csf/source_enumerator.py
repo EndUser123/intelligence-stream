@@ -303,7 +303,7 @@ def enumerate_videos_api(
         published_after: ISO timestamp to filter videos published after
 
     Returns:
-        Tuple of (list of video dicts with id/title/publishedAt, next_page_token or None)
+        Tuple of (list of video dicts with id/title/publishedAt/has_captions, next_page_token or None)
     """
     params: dict[str, str | int] = {
         "part": "snippet,status,contentDetails",

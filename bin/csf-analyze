@@ -132,18 +132,29 @@ def _append_timing(latency_s: float) -> None:
     """Append a completed latency observation to the timing log atomically.
 
     Uses msvcrt exclusive file locking on Windows to prevent concurrent-write
-    corruption when multiple terminals write simultaneously.
+    corruption when multiple terminals write simultaneously. On non-Windows,
+    uses fcntl flock.
     """
     _TIMINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
     try:
         fd = os.open(str(_TIMINGS_FILE), os.O_WRONLY | os.O_CREAT | os.O_APPEND)
         try:
-            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)  # non-blocking exclusive lock
+            if sys.platform == "win32":
+                import msvcrt
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)  # non-blocking exclusive lock
+            else:
+                import fcntl
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             try:
                 entry = json.dumps({"ts": time.time(), "latency_s": latency_s}) + "\n"
                 os.write(fd, entry.encode("utf-8"))
             finally:
-                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                if sys.platform == "win32":
+                    import msvcrt
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(fd, fcntl.LOCK_UN)
         finally:
             os.close(fd)
     except OSError:

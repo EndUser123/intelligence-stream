@@ -306,7 +306,7 @@ def enumerate_videos_api(
         Tuple of (list of video dicts with id/title/publishedAt, next_page_token or None)
     """
     params: dict[str, str | int] = {
-        "part": "snippet,status",
+        "part": "snippet,status,contentDetails",
         "playlistId": playlist_id,
         "maxResults": min(max_results, 50),
     }
@@ -347,6 +347,7 @@ def enumerate_videos_api(
                 "video_id": snippet["resourceId"]["videoId"],
                 "title": snippet.get("title", ""),
                 "published_at": snippet.get("publishedAt", ""),
+                "has_captions": item.get("contentDetails", {}).get("caption", False),
             }
             videos.append(video)
         except KeyError:

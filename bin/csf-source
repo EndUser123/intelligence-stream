@@ -272,7 +272,7 @@ def cmd_check(source_id_or_url: str) -> None:
         rss_status_map = get_status_batch(rss_ids)
         complete_ids = {vid for vid, status in rss_status_map.items() if status == "complete"}
         entries = [
-            (vid, "pending", channel_url, None)
+            (vid, "pending", channel_url, None, None)
             for vid in rss_ids
             if vid not in complete_ids
         ]

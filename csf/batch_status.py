@@ -597,6 +597,23 @@ class _BatchStatusStorage:
         conn.close()
         return row[0] if row and row[0] else None
 
+    def get_entries_for_source(
+        self, channel_url: str
+    ) -> list[tuple[str, str, bool | None]]:
+        """Get all entries for a channel/source.
+
+        Returns list of (video_id, status, has_captions) tuples.
+        Used by csf-transcript-fetch to avoid re-enumerating via yt-dlp.
+        """
+        conn = self._get_conn()
+        cursor = conn.execute(
+            "SELECT video_id, status, has_captions FROM analysis_status WHERE source = ?",
+            (channel_url,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [(r[0], r[1], r[2]) for r in rows]
+
     def set_status_batch(self, entries: Sequence["BatchEntry"]) -> int:
         """Bulk insert/update status for multiple videos — best-effort.
 

@@ -38,7 +38,7 @@ def _get_pacific_date() -> datetime.date:
     utc_now = datetime.datetime.now(datetime.UTC)
     # Pacific timezone: UTC-8 (PST) or UTC-7 (PDT) depending on DST
     # DST starts second Sunday in March, ends first Sunday in November
-    pacific_offset = -8 if _is_dst(utc_now) else -7
+    pacific_offset = -7 if _is_dst(utc_now) else -8
     pacific_tz = datetime.timezone(datetime.timedelta(hours=pacific_offset))
     pacific_now = utc_now.astimezone(pacific_tz)
     return pacific_now.date()

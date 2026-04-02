@@ -14,9 +14,9 @@ from pathlib import Path
 from typing import Literal
 from collections.abc import Sequence
 
-# Type alias for batch entries: (video_id, status, source, published_at)
+# Type alias for batch entries: (video_id, status, source, published_at, has_captions)
 BatchEntry = tuple[
-    str, Literal["pending", "complete", "failed"], str | None, str | None
+    str, Literal["pending", "complete", "failed"], str | None, str | None, bool | None
 ]
 
 # Status values
@@ -611,12 +611,12 @@ class _BatchStatusStorage:
         count = 0
         try:
             now = datetime.now(timezone.utc).isoformat()
-            for video_id, status, source, published_at in entries:
+            for video_id, status, source, published_at, has_captions in entries:
                 try:
-                    # Preserve existing source/published_at if not provided
-                    if source is None or published_at is None:
+                    # Preserve existing source/published_at/has_captions if not provided
+                    if source is None or published_at is None or has_captions is None:
                         row = conn.execute(
-                            "SELECT source, published_at FROM analysis_status WHERE video_id = ?",
+                            "SELECT source, published_at, has_captions FROM analysis_status WHERE video_id = ?",
                             (video_id,),
                         ).fetchone()
                         if row:
@@ -624,10 +624,12 @@ class _BatchStatusStorage:
                                 source = row[0]
                             if published_at is None:
                                 published_at = row[1]
+                            if has_captions is None:
+                                has_captions = row[2]
                     conn.execute(
                         "INSERT OR REPLACE INTO analysis_status "
-                        "(video_id, status, updated_at, source, published_at) VALUES (?, ?, ?, ?, ?)",
-                        (video_id, status, now, source, published_at),
+                        "(video_id, status, updated_at, source, published_at, has_captions) VALUES (?, ?, ?, ?, ?, ?)",
+                        (video_id, status, now, source, published_at, has_captions),
                     )
                     count += 1
                 except Exception:

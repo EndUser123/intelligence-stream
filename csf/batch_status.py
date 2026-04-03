@@ -98,6 +98,25 @@ class _BatchStatusStorage:
         conn.close()
         self._ensure_nlm_export_state()
         self._ensure_channel_metadata()
+        self._ensure_provider_score()
+
+    def _ensure_provider_score(self) -> None:
+        """Create or migrate provider_score table for failure-aware routing."""
+        conn = self._get_conn()
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS provider_score (
+                channel_url TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                successes INTEGER DEFAULT 0,
+                failures INTEGER DEFAULT 0,
+                last_result TEXT,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (channel_url, provider)
+            )
+            """
+        )
+        conn.close()
 
     def _ensure_channel_metadata(self) -> None:
         """Create or migrate channel_metadata table to current schema.

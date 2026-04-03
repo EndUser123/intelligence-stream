@@ -1,4 +1,4 @@
-# ADR-20260403: GemmaVisionProvider — Local Vision-Language Provider + TurboQuant KV Compression
+# ADR-20260403: LocalModelProvider — Windows-Native Vision-Language Provider + TurboQuant Outlook
 
 **Status:** Proposed
 **Date:** 2026-04-03

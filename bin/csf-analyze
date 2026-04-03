@@ -594,6 +594,7 @@ def analyze_video(
     video_url: str,
     mode: str = "auto",
     model: str | None = None,
+    channel_url: str | None = None,
 ) -> dict:
     """Analyze a YouTube video URL.
 
@@ -607,6 +608,10 @@ def analyze_video(
               Defaults to "auto" (orchestrator routing).
               "cli" is accepted as a backwards-compatible alias for "transcript".
         model: Gemini model for CLI calls (passed through to orchestrator for Tier 1).
+        channel_url: Optional channel URL for GAUC failure-aware routing. When provided,
+              the orchestrator uses per-channel provider success history to route around
+              consistently-failing providers. In auto mode, also used to record
+              provider outcomes for future routing decisions.
     """
     # Normalize "cli" → "transcript" for backwards compatibility
     if mode == "cli":

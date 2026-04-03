@@ -262,7 +262,7 @@ def select_provider(
             pass  # Never let routing data affect availability
 
     # Instantiate providers in sorted order, skipping unavailable ones
-    for provider_name, class_name in candidates:
+    for provider_name in candidates:
         if provider_name == "gemini_sdk" and not gemini_available:
             continue
         if provider_name == "ocr_clip":

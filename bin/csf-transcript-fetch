@@ -126,8 +126,8 @@ def main() -> None:
             # Live run: download missing transcripts for all pending videos
             missing_ids = [vid for vid, _, _ in entries if not has_cached_transcript(vid)]
             print(
-                f"  Videos: {len(entries)}, Has captions: {len(downloadable)}, "
-                f"No captions (skipped): {captionless}, Already cached: {len(downloadable)-len(missing_ids)}, Missing: {len(missing_ids)}"
+                f"  Videos: {len(entries)}, Attempt fetch: {len(entries)}, "
+                f"Already cached: {len(entries)-len(missing_ids)}, Missing: {len(missing_ids)}"
             )
 
             if not missing_ids:

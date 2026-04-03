@@ -1,9 +1,10 @@
 """Video analysis providers with tiered availability.
 
-Three provider tiers (ordered by quality):
-  1. Gemini SDK video passthrough  (API quota, full multi-modal)
-  2. OCR + CLIP pipeline            (zero cost, code-on-screen + visual tags)
-  3. YouTube transcript only        (zero cost, free API)
+Four provider tiers (ordered by quality):
+  1. Local model (LM Studio / Ollama)  — zero cost, GPU-accelerated, Gemma 4
+  2. Gemini SDK video passthrough        (API quota, full multi-modal)
+  3. OCR + CLIP pipeline                (zero cost, code-on-screen + visual tags)
+  4. YouTube transcript only             (zero cost, free API)
 """
 
 from __future__ import annotations

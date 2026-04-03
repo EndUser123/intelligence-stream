@@ -70,101 +70,49 @@ TurboQuant is 2 weeks old (ICLR 2026, March 25). No desktop platform has shipped
 
 ## Implementation
 
-### File: `csf/providers/gemma_vision_provider.py`
+### File: `csf/providers/lm_studio_provider.py`
 
 ```python
-"""GemmaVisionProvider — Tier 1.5 local vision-language analysis via vLLM."""
+"""LocalModelProvider — Tier 1.5 local vision-language analysis via LM Studio (OpenAI-compatible API).
+
+LM Studio (lmstudio.ai) is the recommended backend for Windows-native deployment.
+Gemma 4 models are available in the LM Studio model catalog today.
+
+Swap backend: set LM_STUDIO_BACKEND_URL to switch between LM Studio and Ollama.
+Both expose the same OpenAI-compatible /v1/chat/completions interface.
+"""
 
 from __future__ import annotations
 
-import subprocess
-import threading
-import time
-from dataclasses import dataclass
+import os
+import re
 from typing import Any
 
 import httpx
 
 from csf.providers import AnalysisProvider, VideoAnalysisResult, NonFatalAnalysisError
-from csf.transcript import fetch_transcript
+from csf.providers import TranscriptProvider
 
-_health_lock = threading.Lock()
-_server_lock = threading.Lock()
-_server: subprocess.Popen | None = None
-_server_ready = False
-
-
-def _wait_for_server(timeout: float = 60.0) -> None:
-    """Poll /health until ready or timeout."""
-    start = time.monotonic()
-    while time.monotonic() - start < timeout:
-        try:
-            resp = httpx.get("http://localhost:8000/health", timeout=2.0)
-            if resp.status_code == 200:
-                return
-        except (httpx.ConnectError, httpx.ReadError):
-            pass
-        time.sleep(1.0)
-    raise RuntimeError("GemmaServer failed to start within 60s")
+# Default LM Studio server URL (starts automatically when LM Studio app is open)
+DEFAULT_LM_STUDIO_URL = "http://localhost:1234/v1"
+LM_STUDIO_URL = os.environ.get("LM_STUDIO_URL", DEFAULT_LM_STUDIO_URL).rstrip("/")
 
 
-class GemmaServer:
-    """Subprocess manager for vLLM serving Gemma 4."""
-
-    __slots__ = ()
-
-    @staticmethod
-    def start() -> None:
-        global _server, _server_ready
-        with _server_lock:
-            if _server is not None and _server.poll() is None:
-                return  # already running
-            cmd = [
-                "vllm", "serve", "google/gemma-4-E4B-it",
-                "--tensor-parallel-size", "1",
-                "--port", "8000",
-                "--quantization", "fp8",      # or "turboquant" when available
-                "--max-model-len", "32768",
-            ]
-            _server = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            _server_ready = False
-        _wait_for_server()
-        _server_ready = True
-
-    @staticmethod
-    def stop() -> None:
-        global _server, _server_ready
-        with _server_lock:
-            if _server is not None:
-                _server.terminate()
-                _server.wait(timeout=10)
-                _server = None
-                _server_ready = False
-
-    @staticmethod
-    def is_ready() -> bool:
-        return _server_ready
-
-
-class GemmaVisionProvider:
-    """Tier 1.5 — Local Gemma 4 E4B via vLLM OpenAI-compatible API."""
+class LocalModelProvider:
+    """Tier 1.5 — Local Gemma 4 via LM Studio OpenAI-compatible API."""
 
     __slots__ = ()
 
     def analyze(self, video_id: str, video_url: str, **kwargs: Any) -> VideoAnalysisResult:
-        # 1. Start server if not running
-        GemmaServer.start()
-
-        # 2. Fetch transcript
-        from csf.providers import TranscriptProvider
+        # 1. Fetch transcript
         try:
             transcript = TranscriptProvider().analyze(video_id, video_url)
         except NonFatalAnalysisError:
             raise NonFatalAnalysisError(
-                f"GemmaVisionProvider: transcript fetch failed for {video_id}"
+                f"LocalModelProvider: transcript fetch failed for {video_id}"
             )
 
-        # 3. Call vLLM (OpenAI-compatible API)
+        # 2. Call LM Studio (OpenAI-compatible API)
         system_prompt = (
             "You are a video analysis assistant. Given the transcript, produce a JSON object "
             "with: title (string), summary (string, 1-2 sentences), key_topics (list of 3-5 strings), "
@@ -172,8 +120,12 @@ class GemmaVisionProvider:
         )
         user_prompt = f"Video URL: {video_url}\n\nTranscript:\n{transcript.summary[:8000]}"
 
+        # Model loaded in LM Studio — must match a model in LM Studio's model catalog.
+        # Gemma 4: google/gemma-4-31b, google/gemma-4-27b, google/gemma-4-E4B-it (when available)
+        model = os.environ.get("LM_STUDIO_MODEL", "google/gemma-4-31b")
+
         payload = {
-            "model": "google/gemma-4-E4B-it",
+            "model": model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -183,17 +135,16 @@ class GemmaVisionProvider:
         }
 
         try:
-            with httpx.Client(timeout=httpx.Timeout(60.0)) as client:
-                resp = client.post("http://localhost:8000/v1/chat/completions", json=payload)
+            with httpx.Client(timeout=httpx.Timeout(120.0)) as client:
+                resp = client.post(f"{LM_STUDIO_URL}/chat/completions", json=payload)
                 resp.raise_for_status()
                 content = resp.json()["choices"][0]["message"]["content"]
         except Exception as e:
-            raise NonFatalAnalysisError(f"GemmaVisionProvider: vLLM call failed: {e}")
+            raise NonFatalAnalysisError(f"LocalModelProvider: LM Studio call failed: {e}")
 
-        # 4. Parse JSON → VideoAnalysisResult
-        import json, re
+        # 3. Parse JSON → VideoAnalysisResult
+        import json
         try:
-            # Strip markdown code fences
             match = re.search(r"\{.*\}", content, re.DOTALL)
             data = json.loads(match.group()) if match else json.loads(content)
             return VideoAnalysisResult(
@@ -201,10 +152,63 @@ class GemmaVisionProvider:
                 summary=data.get("summary", ""),
                 key_topics=data.get("key_topics", []),
                 key_points=data.get("key_points", []),
-                mode="gemma_vision",
+                mode="local_model",
             )
         except Exception as e:
-            raise NonFatalAnalysisError(f"GemmaVisionProvider: JSON parse failed: {e}")
+            raise NonFatalAnalysisError(f"LocalModelProvider: JSON parse failed: {e}")
+
+
+class OllamaVisionProvider:
+    """Tier 1.5 — Local Gemma via Ollama (swap-in backend when Gemma 4 lands in Ollama)."""
+
+    __slots__ = ()
+
+    OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+    OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma3:12b")  # Gemma 3 until Gemma 4 PR merges
+
+    def analyze(self, video_id: str, video_url: str, **kwargs: Any) -> VideoAnalysisResult:
+        try:
+            transcript = TranscriptProvider().analyze(video_id, video_url)
+        except NonFatalAnalysisError:
+            raise NonFatalAnalysisError(
+                f"OllamaVisionProvider: transcript fetch failed for {video_id}"
+            )
+
+        system_prompt = (
+            "You are a video analysis assistant. Given the transcript, produce a JSON object "
+            "with: title, summary, key_topics, key_points. Respond ONLY with valid JSON."
+        )
+        payload = {
+            "model": self.OLLAMA_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Video: {video_url}\nTranscript: {transcript.summary[:8000]}"},
+            ],
+            "stream": False,
+            "options": {"temperature": 0.3, "num_predict": 1024},
+        }
+
+        try:
+            with httpx.Client(timeout=httpx.Timeout(120.0)) as client:
+                resp = client.post(f"{self.OLLAMA_URL}/api/chat", json=payload)
+                resp.raise_for_status()
+                content = resp.json()["message"]["content"]
+        except Exception as e:
+            raise NonFatalAnalysisError(f"OllamaVisionProvider: Ollama call failed: {e}")
+
+        import json
+        try:
+            match = re.search(r"\{.*\}", content, re.DOTALL)
+            data = json.loads(match.group()) if match else json.loads(content)
+            return VideoAnalysisResult(
+                title=data.get("title", ""),
+                summary=data.get("summary", ""),
+                key_topics=data.get("key_topics", []),
+                key_points=data.get("key_points", []),
+                mode="ollama_vision",
+            )
+        except Exception as e:
+            raise NonFatalAnalysisError(f"OllamaVisionProvider: JSON parse failed: {e}")
 ```
 
 ### Insert into orchestrator.py

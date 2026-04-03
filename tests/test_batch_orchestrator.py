@@ -134,7 +134,7 @@ class TestConcurrentWorkers:
         worker_start_times = []
         lock = __import__("threading").Lock()
 
-        def slow_analyze(video_id, video_url):
+        def slow_analyze(video_id, video_url, **kwargs):
             with lock:
                 worker_start_times.append((video_id, time.monotonic()))
             time.sleep(0.1)

@@ -90,7 +90,7 @@ class OllamaVisionProvider:
             "model": _OLLAMA_MODEL,
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Video: {video_url}\nTranscript: {transcript.summary[:8000]}"},
+                {"role": "user", "content": f"Video: {video_url}\nTranscript: {getattr(transcript, 'summary', '')[:8000]}"},
             ],
             "stream": False,
             "options": {"temperature": 0.3, "num_predict": 1024},

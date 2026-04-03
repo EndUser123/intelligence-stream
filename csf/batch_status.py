@@ -1001,3 +1001,45 @@ def get_nlm_exports_by_video(video_id: str, db_path: Path | None = None) -> list
     if db_path is None:
         return _get_batch_status_storage()._get_nlm_exports_by_video(video_id)
     return _BatchStatusStorage(db_path=db_path)._get_nlm_exports_by_video(video_id)
+
+
+# ---------------------------------------------------------------------------
+# provider_score public API — failure-aware routing
+# ---------------------------------------------------------------------------
+
+def record_provider_result(
+    channel_url: str,
+    provider: str,
+    success: bool,
+    db_path: Path | None = None,
+) -> None:
+    """Record a provider result for a channel, supporting failure-aware routing.
+
+    Args:
+        channel_url: The channel (source) this video belongs to.
+        provider: Provider name ('gemini_sdk', 'ocr_clip', 'transcript').
+        success: True if the provider succeeded, False if it fell through.
+        db_path: Optional path to a non-default batch_status DB.
+    """
+    if db_path is None:
+        _get_batch_status_storage()._record_provider_result(channel_url, provider, success)
+    else:
+        _BatchStatusStorage(db_path=db_path)._record_provider_result(channel_url, provider, success)
+
+
+def get_provider_scores(
+    channel_url: str, db_path: Path | None = None
+) -> dict[str, tuple[int, int]]:
+    """Get success/failure counts for each provider for a channel.
+
+    Args:
+        channel_url: The channel (source) to look up.
+        db_path: Optional path to a non-default batch_status DB.
+
+    Returns:
+        Dict mapping provider name -> (successes, failures).
+        Providers with no record return (0, 0).
+    """
+    if db_path is None:
+        return _get_batch_status_storage()._get_provider_scores(channel_url)
+    return _BatchStatusStorage(db_path=db_path)._get_provider_scores(channel_url)

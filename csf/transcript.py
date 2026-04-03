@@ -349,13 +349,16 @@ def _fetch_via_ytdlp(video_id: str, lang: str) -> tuple[bool, str | None, str | 
 
     video_url = f"https://www.youtube.com/watch?v={video_id}"
 
-    ydl_opts = {
+    ydl_opts: dict = {
         "skip_download": True,
         "writeautomaticsubs": True,
         "writesubtitles": True,
         "subtitleslangs": [lang],
         "subtitlesformat": "json3",
-        "impersonate": "android",
+        # No explicit impersonate — yt-dlp auto-selects android_vr client when no
+        # JS runtime is found, which bypasses YouTube's JS-challenge bot detection.
+        # ImpersonateTarget('android') is Linux-only; on Windows this would raise
+        # YoutubeDLError. Letting android_vr auto-select achieves the same effect.
         "quiet": True,
         "no_warnings": True,
         "http_headers": {

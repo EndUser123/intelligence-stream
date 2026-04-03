@@ -15,13 +15,11 @@ from csf.orchestrator import (
     select_provider,
     analyze_video,
     GeminiSDKProvider,
-    _load_local_model_provider,
 )
 from csf.providers import (
     NonFatalAnalysisError,
     TranscriptProvider,
 )
-from csf.providers.lm_studio_provider import LocalModelProvider
 
 
 class TestSelectProvider:

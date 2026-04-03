@@ -257,7 +257,7 @@ def select_provider(
                         return -1.0
                     return successes / total
 
-                candidates = sorted(candidates, key=lambda c: success_rate(c[0]), reverse=True)
+                candidates = sorted(candidates, key=success_rate, reverse=True)
         except Exception:
             pass  # Never let routing data affect availability
 

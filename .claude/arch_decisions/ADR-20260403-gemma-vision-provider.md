@@ -243,14 +243,14 @@ candidates = ["gemini_vision", "gemini_sdk", "ocr_clip", "transcript"]
 
 ## Hardware Guidance
 
-| Model | Quantization | VRAM (weights) | VRAM (KV cache, no TurboQuant) | VRAM (KV cache, TurboQuant 3.76x) |
-|-------|-------------|----------------|-------------------------------|----------------------------------|
-| E2B Q4 | Q4_0 | ~1.2GB | ~0.3GB | ~0.08GB |
-| **E4B Q4** | Q4_0 | **~2.5GB** | **~0.8GB** | **~0.2GB** |
-| 26B A4B MoE | FP8 | ~9GB | ~2.5GB | ~0.7GB |
-| 31B Dense | FP8 | ~16GB | ~4GB | ~1.1GB |
+| Model | Quantization | VRAM (weights) | KV cache (no TurboQuant) | KV cache (TurboQuant ~4x) | Fits RTX 5070 12GB? |
+|-------|-------------|----------------|--------------------------|--------------------------|---------------------|
+| E2B Q4 | Q4_0 | ~1.2GB | ~0.3GB | ~0.08GB | YES, plenty of headroom |
+| **E4B Q4** | Q4_0 | **~2.5GB** | **~0.8GB** | **~0.2GB** | **YES — ~8.5GB free** |
+| 26B A4B MoE | Q4_0 | ~9GB | ~2.5GB | ~0.7GB | Marginal (~0.3GB free) |
+| 31B Dense | Q4_0 | ~16GB | — | — | NO |
 
-**Recommendation for RTX 5070 12GB:** E4B Q4_0 with TurboQuant KV compression — leaves ~10GB for activations and 10+ video frames in CLIP.
+**Recommendation for RTX 5070 12GB:** E4B Q4_0 today (~$8.5GB headroom). When LM Studio ships TurboQuant (via updated llama.cpp), 26B A4B MoE becomes viable (~9GB weights + activations with 4x KV compression).
 
 ---
 

@@ -257,8 +257,10 @@ candidates = ["gemini_vision", "gemini_sdk", "ocr_clip", "transcript"]
 ## References
 
 - Gemma 4 (Google DeepMind, April 2, 2026): apache/license — E2B/E4B/26B A4B MoE/31B Dense
+- LM Studio Gemma 4 models: lmstudio.ai/models/gemma-4 — Gemma 4 31B and 27B available in catalog
 - TurboQuant (Google Research, ICLR 2026): 6x KV cache memory reduction, 8x speedup on H100
-- `turboquant-vllm` v1.3.0: github.com/turboderp/turboquant-vllm — Gemma + Molmo2 validated, 3.76x KV compression on vision models
-- vLLM issue #38171: Native TurboQuant KV cache support in progress (CUDA/Triton kernels)
+- llama.cpp TurboQuant: PRs #21089 (CPU), #21307 (CUDA/GPU) — in review, not merged
+- Ollama TurboQuant: Issue #15051, PR #15090 — in review, not merged
+- LM Studio TurboQuant: Feature request #1719 on lmstudio-ai/lmstudio-bug-tracker
 - IS provider protocol: `csf/providers/__init__.py` — `AnalysisProvider` + `VideoAnalysisResult`
 - IS orchestrator: `csf/orchestrator.py` — `select_provider()` with GAUC failure-aware routing

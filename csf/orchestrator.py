@@ -167,6 +167,13 @@ def _load_ocr_clip_provider() -> Any:
     return OCP
 
 
+def _load_local_model_provider() -> Any:
+    """Load and return the LocalModelProvider class lazily to avoid circular imports."""
+    from csf.providers.lm_studio_provider import LocalModelProvider
+
+    return LocalModelProvider
+
+
 # ---------------------------------------------------------------------------
 # Transcript provider (Tier 3)
 # ---------------------------------------------------------------------------

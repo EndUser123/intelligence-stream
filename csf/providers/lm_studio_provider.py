@@ -32,7 +32,7 @@ class LocalModelProvider:
             "key_points (list of 3-5 strings). Respond ONLY with valid JSON."
         )
         model = os.environ.get("LM_STUDIO_MODEL", "google/gemma-4-31b")
-        user_prompt = f"Video URL: {video_url}\n\nTranscript:\n{transcript.summary[:8000]}"
+        user_prompt = f"Video URL: {video_url}\n\nTranscript:\n{getattr(transcript, 'summary', '')[:8000]}"
 
         payload = {
             "model": model,

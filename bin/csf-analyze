@@ -617,9 +617,9 @@ def analyze_video(
         from csf.orchestrator import analyze_video as orchestrator_analyze
         from csf.batch_status import get_source, record_provider_result
 
-        result = orchestrator_analyze(video_id, video_url)
-        # Record success for failure-aware routing (per-channel provider scores)
         source = get_source(video_id)
+        result = orchestrator_analyze(video_id, video_url, channel_url=source)
+        # Record success for failure-aware routing (per-channel provider scores)
         if source:
             record_provider_result(source, result.mode, success=True)
         return _result_to_dict(result)

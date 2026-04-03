@@ -621,13 +621,23 @@ def analyze_video(
     if mode == "auto":
         from csf.orchestrator import analyze_video as orchestrator_analyze
         from csf.batch_status import get_source, record_provider_result
+        from csf.providers import NonFatalAnalysisError
 
-        source = get_source(video_id)
-        result = orchestrator_analyze(video_id, video_url, channel_url=source)
-        # Record success for failure-aware routing (per-channel provider scores)
-        if source:
-            record_provider_result(source, result.mode, success=True)
-        return _result_to_dict(result)
+        # Use provided channel_url (from batch pipeline with known source context)
+        # or fall back to per-video source lookup (CLI single-video mode).
+        effective_source = channel_url if channel_url else get_source(video_id)
+        try:
+            result = orchestrator_analyze(video_id, video_url, channel_url=effective_source)
+            if effective_source:
+                record_provider_result(effective_source, result.mode, success=True)
+            return _result_to_dict(result)
+        except NonFatalAnalysisError:
+            # Record failure for GAUC routing so future calls route around the bad provider.
+            # We record against "gemini_sdk" as the default tier-1 provider since
+            # NonFatalAnalysisError from the orchestrator means at least one provider failed.
+            if effective_source:
+                record_provider_result(effective_source, "gemini_sdk", success=False)
+            raise
 
     # ---- Explicit tier overrides (backwards compatible) ----
     if mode == "transcript":

@@ -98,10 +98,12 @@ def analyze_videos_parallel(
         effective_max_workers = batch_config.max_workers
         effective_force = batch_config.force
         effective_callback = batch_config.progress_callback
+        effective_channel_url = getattr(batch_config, "channel_url", None)
     else:
         effective_max_workers = max_workers
         effective_force = force
         effective_callback = progress_callback
+        effective_channel_url = channel_url
 
     effective_workers = min(os.cpu_count() or 4, 8, effective_max_workers)
 
@@ -120,11 +122,12 @@ def analyze_videos_parallel(
         try:
             analyze_video = _get_analyze_video()
             # If transcript is cached, use transcript-only mode (free, no API cost).
-            # Otherwise use SDK video passthrough for full video analysis.
+            # Otherwise use auto mode (orchestrator routing with GAUC failure-aware
+            # routing when channel_url is available for this batch).
             if has_cached_transcript(video_id):
                 result: dict = analyze_video(video_id, video_url, mode="transcript")  # type: ignore[assignment]
             else:
-                result = analyze_video(video_id, video_url, mode="sdk")  # type: ignore[assignment]
+                result = analyze_video(video_id, video_url, mode="auto", channel_url=effective_channel_url)  # type: ignore[assignment]
             return (video_id, result, True, None)
         except Exception as e:
             log_action("batch_analyze_error", {"video_id": video_id, "error": repr(e)})

@@ -29,6 +29,7 @@ _SOURCE_YOUTUBEI = "youtubei"
 _SOURCE_SDK = "sdk"
 _SOURCE_YTDLP = "ytdlp"
 _SOURCE_WHISPER = "whisper"
+_SOURCE_SELENIUM = "selenium"
 
 # Jitter bounds for rate limit avoidance
 # PERF-006: Wider range (was 0.5-2.5) to prevent thundering herd.

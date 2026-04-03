@@ -225,19 +225,19 @@ candidates = ["gemini_vision", "gemini_sdk", "ocr_clip", "transcript"]
 
 **Positive:**
 - Zero external API dependency for Tier 1.5 — immune to Gemini SDK 429s
-- Local GPU inference — no per-video API cost
-- TurboQuant can push 26B A4B MoE onto 12GB (if native vLLM lands)
-- Transcript fetch + analysis in one pipeline step
+- LM Studio has Gemma 4 in catalog today — no waiting for upstream PR merges
+- Native Windows GPU acceleration — no WSL2 required
+- No subprocess management needed — LM Studio runs as a standalone app
+- Dual-provider design: TurboQuant adoption is a config swap, not a code change
 
 **Negative:**
-- Requires vLLM installation on target machine
-- Server cold-start adds ~10-15s latency on first call
-- Must manage GPU VRAM separately from system RAM
+- LM Studio GUI must be open (or server started) for the provider to connect
+- TurboQuant not yet available on Windows native (llama.cpp PRs still in review)
+- 26B A4B MoE on 12GB still marginal without TurboQuant
 
 **Risks:**
-- vLLM subprocess management on Windows — tested on WSL/Linux only initially
-- TurboQuant native vLLM integration is not yet merged (issue #38171)
-- Gemma 4 E4B Q4_0 still requires ~5GB VRAM for weights + activations
+- Gemma 4 E4B may not be in LM Studio catalog yet (31B is confirmed available; check for E4B)
+- LM Studio's bundled llama.cpp must be updated for TurboQuant support (feature request #1719)
 
 ---
 

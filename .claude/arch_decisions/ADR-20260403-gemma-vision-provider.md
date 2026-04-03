@@ -29,35 +29,42 @@ Two problems motivate this ADR:
 
 ## Decision
 
-### GemmaVisionProvider (Tier 1.5)
+### LocalModelProvider (Tier 1.5)
 
-Add a new `GemmaVisionProvider` implementing the `AnalysisProvider` protocol, running Gemma 4 via vLLM's OpenAI-compatible API.
+Add a new `LocalModelProvider` implementing the `AnalysisProvider` protocol, running Gemma 4 via **LM Studio** (Windows-native, GPU-accelerated). A separate `OllamaVisionProvider` is also defined as a swap-in backend.
 
 **Provider priority chain:**
 ```
-TranscriptProvider(cached) → GemmaVisionProvider → GeminiSDKProvider → OcrClipProvider → TranscriptProvider(uncached)
+TranscriptProvider(cached) → LocalModelProvider → GeminiSDKProvider → OcrClipProvider → TranscriptProvider(uncached)
 ```
 
-### GemmaServer — Subprocess Lifecycle Manager
+### Backend Selection
 
-`GemmaServer` is a process-supervisor singleton (threading.Lock) managing the vLLM server lifecycle:
-- `start()` — launch `vllm serve` subprocess, wait for `/health` endpoint
-- `stop()` — kill subprocess
-- `is_ready()` — HTTP GET `http://localhost:8000/health`
-- Auto-starts on first `GemmaVisionProvider.analyze()` call if not running
+LM Studio and Ollama both expose an OpenAI-compatible API. The provider is instantiated via a config-driven backend selector:
 
-### TurboQuant Integration (Future)
+| Backend | Gemma 4 available | Native Windows | TurboQuant (current) | Notes |
+|---------|-----------------|----------------|---------------------|-------|
+| **LM Studio** | **YES** — Gemma 4 31B/27B listed in catalog | YES | No (llama.cpp build pending) | Use for Windows today |
+| Ollama | No — gemma4 PR pending | YES | PR #15090 open, not merged | Swap-in when Gemma 4 lands |
 
-`turboquant-vllm` (v1.3.0, third-party) provides Gemma KV cache compression:
-- **3.76x KV compression** on vision models (Gemma + Molmo2 validated)
-- 6x memory reduction, 8x attention computation speedup on H100
-- Zero accuracy loss, training-free, data-oblivious
+**TurboQuant path**: Once LM Studio updates its bundled llama.cpp to include TurboQuant KV cache types (`TBQ3_0`/`TBQ4_0`, llama.cpp PRs #21089/#21307), LM Studio gains TurboQuant with no API change — only a model reload with the TurboQuant quant type is needed.
 
-Two integration paths:
-1. **Near-term**: `turboquant-vllm` installed alongside vLLM, started with `--quantization turboquant`
-2. **Long-term**: Native vLLM TurboQuant support (issue #38171, CUDA/Triton kernels being developed)
+**Dual-provider architecture**: Both backends implement `AnalysisProvider`. The orchestrator selects one via config. This means TurboQuant adoption is a provider swap, not an architecture change.
 
-With TurboQuant on E4B: VRAM drops from ~5GB to ~0.8GB for KV cache, leaving more headroom for activations or enabling 26B A4B MoE on 12GB.
+### TurboQuant Status (2026-04-03)
+
+TurboQuant is 2 weeks old (ICLR 2026, March 25). No desktop platform has shipped it yet.
+
+| Platform | Status |
+|----------|--------|
+| **MLX (Apple Silicon)** | Shipped — PR merged in `mlx-lm` |
+| **llama.cpp** | In progress — PRs #21089 (CPU), #21307 (CUDA/GPU) |
+| **vLLM** | In progress — PRs #38280, #38479 |
+| **LM Studio** | Feature request #1719 — no timeline |
+| **Ollama** | PR #15090 open — not merged |
+| **Windows native** | No path yet |
+
+`turboquant-vllm` (third-party) is the fastest on-ramp for TurboQuant but requires vLLM + WSL2, which conflicts with the Windows-native preference.
 
 ---
 

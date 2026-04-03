@@ -92,7 +92,7 @@ class TestNonFatalIsolation:
 
         call_log = []
 
-        def tiered_analyze(video_id, video_url):
+        def tiered_analyze(video_id, video_url, **kwargs):
             call_log.append(video_id)
             if video_id == "failTier2":
                 raise NonFatalAnalysisError("Tier 2 OCR/CLIP failed")

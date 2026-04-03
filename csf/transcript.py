@@ -792,7 +792,28 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
         else:
             _apply_jitter()
 
-    # Step 3: Whisper as final fallback (slow — audio download + transcription)
+    # Step 3: Selenium Chrome — bypass YouTube TLS fingerprinting via real browser.
+    #          Slow (~15-30s) but reliable when youtube_transcript_api gets IpBlocked.
+    if not _is_source_rate_limited(_SOURCE_SELENIUM):
+        success, transcript, error = _fetch_via_selenium_chrome(video_id, prefer_lang)
+        if success and transcript:
+            _record_source_success(_SOURCE_SELENIUM)
+            set_cached_transcript(video_id, prefer_lang, _SOURCE_SELENIUM, transcript)
+            return TranscriptResult(
+                video_id=video_id,
+                lang=prefer_lang,
+                raw_lang=prefer_lang,
+                was_translated=False,
+                transcript=transcript,
+                source=_SOURCE_SELENIUM,
+                detected_lang=prefer_lang,
+                error=None,
+            )
+        last_error = error
+        if error and ("429" in str(error).lower() or "rate limited" in str(error).lower()):
+            _record_source_429(_SOURCE_SELENIUM)
+
+    # Step 4: Whisper as final fallback (slow — audio download + transcription)
     if not _is_source_rate_limited(_SOURCE_WHISPER):
         success, transcript, error = _fetch_via_whisper(video_id, prefer_lang)
         if success and transcript:

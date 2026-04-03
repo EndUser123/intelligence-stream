@@ -237,7 +237,7 @@ def select_provider(
     tier2 = ("ocr_clip", "OcrClipProvider")
     tier3 = ("transcript", "TranscriptProvider")
 
-    candidates = [tier1, tier2, tier3]
+    candidates = [tier1[0], tier2[0], tier3[0]]
 
     # Failure-aware reordering: if we have channel history, sort by success rate
     # Higher success rate (succeeded/(succeeded+failed)) = try first

@@ -32,11 +32,15 @@ class BatchConfig:
         progress_callback: Optional callback(pending, done, failed, cached) called after each
             video completes. pending=remaining, done=successful count, failed=failure count,
             cached=successful count (alias for done). Enables --progress flag.
+        channel_url: Optional channel URL for failure-aware GAUC routing. When provided,
+            the orchestrator uses per-channel provider success history to route around
+            consistently-failing providers, maximizing first-try success rate.
     """
 
     max_workers: int = 4
     force: bool = False
     progress_callback: Callable[[int, int, int, int], None] | None = None
+    channel_url: str | None = None
 
 
 def _get_analyze_video() -> Callable[..., Any]:

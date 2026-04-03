@@ -281,7 +281,10 @@ def select_provider(
 
 
 def analyze_video(
-    video_id: str, video_url: str, provider: Any | None = None
+    video_id: str,
+    video_url: str,
+    provider: Any | None = None,
+    channel_url: str | None = None,
 ) -> VideoAnalysisResult:
     """Analyze a video using the selected provider or orchestrator's default selection.
 
@@ -289,6 +292,10 @@ def analyze_video(
         video_id: YouTube video ID (11 chars).
         video_url: Full YouTube URL.
         provider: Optional pre-selected provider instance. If None, select automatically.
+        channel_url: Optional channel URL for failure-aware routing. If None,
+            provider order falls back to default priority (first video in channel
+            or unknown channel uses default order; subsequent videos benefit from
+            recorded history).
 
     Returns:
         VideoAnalysisResult from the provider.
@@ -298,7 +305,7 @@ def analyze_video(
         NonFatalAnalysisError: if all provider tiers fail (propagated from provider).
     """
     if provider is None:
-        provider = select_provider(video_id, video_url)
+        provider = select_provider(video_id, video_url, channel_url=channel_url)
     assert provider is not None  # for pyright type narrowing
 
     try:

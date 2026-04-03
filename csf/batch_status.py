@@ -329,6 +329,70 @@ class _BatchStatusStorage:
             for row in rows
         ]
 
+    # ---------------------------------------------------------------------------
+    # provider_score — failure-aware routing
+    # ---------------------------------------------------------------------------
+
+    def _record_provider_result(
+        self, channel_url: str, provider: str, success: bool
+    ) -> None:
+        """Record a provider result for a channel.
+
+        Uses BEGIN IMMEDIATE to prevent TOCTOU races with concurrent writers.
+        """
+        self._ensure_provider_score()
+        conn = self._get_conn()
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            if success:
+                conn.execute(
+                    """
+                    INSERT INTO provider_score (channel_url, provider, successes, failures, last_result, updated_at)
+                    VALUES (?, ?, 1, 0, 'success', ?)
+                    ON CONFLICT(channel_url, provider) DO UPDATE SET
+                        successes = successes + 1,
+                        last_result = 'success',
+                        updated_at = excluded.updated_at
+                    """,
+                    (channel_url, provider, now),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO provider_score (channel_url, provider, successes, failures, last_result, updated_at)
+                    VALUES (?, ?, 0, 1, 'failure', ?)
+                    ON CONFLICT(channel_url, provider) DO UPDATE SET
+                        failures = failures + 1,
+                        last_result = 'failure',
+                        updated_at = excluded.updated_at
+                    """,
+                    (channel_url, provider, now),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def _get_provider_scores(
+        self, channel_url: str
+    ) -> dict[str, tuple[int, int]]:
+        """Get (successes, failures) per provider for a channel.
+
+        Returns {provider: (successes, failures)}. Unknown providers omitted.
+        """
+        self._ensure_provider_score()
+        conn = self._get_conn()
+        cursor = conn.execute(
+            "SELECT provider, successes, failures FROM provider_score WHERE channel_url = ?",
+            (channel_url,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return {row[0]: (row[1], row[2]) for row in rows}
+
     def _get_conn(self) -> sqlite3.Connection:
         """Get a connection to the batch status DB."""
         conn = sqlite3.connect(self._db_path)

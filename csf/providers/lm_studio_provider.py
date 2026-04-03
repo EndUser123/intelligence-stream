@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from csf.providers import AnalysisProvider, VideoAnalysisResult, NonFatalAnalysisError
+from csf.providers import VideoAnalysisResult, NonFatalAnalysisError
 from csf.providers import TranscriptProvider
 
 DEFAULT_LM_STUDIO_URL = "http://localhost:1234/v1"

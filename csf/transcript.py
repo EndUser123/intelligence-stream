@@ -486,6 +486,7 @@ def _fetch_via_whisper(video_id: str, lang: str) -> tuple[bool, str | None, str 
         # Download audio only via yt-dlp
         cmd = [
             "yt-dlp",
+            *get_browser_cookies("firefox"),
             "-f",
             "bestaudio[ext=m4a]",
             "--extract-audio",

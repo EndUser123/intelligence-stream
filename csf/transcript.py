@@ -17,6 +17,7 @@ from typing import Literal
 
 from csf.cache import set_cached_transcript
 from csf.quota_tracker import is_free_only_mode
+from csf.youtube_auth import get_browser_cookies
 
 # Validation
 _VIDEO_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{11}$")

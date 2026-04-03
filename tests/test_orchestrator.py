@@ -51,8 +51,24 @@ class TestSelectProvider:
             select_provider("dQw4w9WgXcQ", "ftp://youtube.com/watch?v=dQw4w9WgXcQ")
 
     @mock.patch("csf.orchestrator.has_cached_transcript", return_value=False)
-    def test_select_provider_tier1_when_gemini_available(self, mock_cached):
-        """When _gemini_available is True, GeminiSDKProvider is returned."""
+    def test_select_provider_tier1_when_local_model_available(self, mock_cached):
+        """When _load_local_model_provider succeeds, LocalModelProvider is returned."""
+        import csf.orchestrator as oc
+
+        # Mock local_model to return a mock provider
+        mock_provider_instance = mock.Mock()
+        with mock.patch.object(
+            oc, "_load_local_model_provider",
+            return_value=type(mock_provider_instance)
+        ):
+            provider = select_provider(
+                "dQw4w9WgXcQ", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+            )
+            assert isinstance(provider, mock.Mock)
+
+    @mock.patch("csf.orchestrator.has_cached_transcript", return_value=False)
+    def test_select_provider_tier2_when_tier1_unavailable(self, mock_cached):
+        """When LocalModelProvider fails, GeminiSDKProvider is returned (tier 2)."""
         import csf.orchestrator as oc
 
         # Set gemini available to True under lock
@@ -60,53 +76,44 @@ class TestSelectProvider:
             oc._gemini_available = True
             oc._last_reset_date = oc._get_pacific_date()
 
-        provider = select_provider(
-            "dQw4w9WgXcQ", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-        )
+        # Mock local_model to raise so we fall through to gemini_sdk
+        def raise_nonfatal(*args, **kwargs):
+            raise NonFatalAnalysisError("Local model unavailable")
 
-        assert isinstance(provider, GeminiSDKProvider)
-
-    @mock.patch("csf.orchestrator.has_cached_transcript", return_value=False)
-    def test_select_provider_tier2_when_tier1_unavailable(self, mock_cached):
-        """When _gemini_available is False, OcrClipProvider is returned."""
-        import csf.orchestrator as oc
-
-        # Set gemini unavailable
-        with oc._gemini_lock:
-            oc._gemini_available = False
-
-        # Mock the OcrClipProvider class via _load_ocr_clip_provider
-        mock_provider_instance = mock.Mock()
         with mock.patch.object(
-            oc, "_load_ocr_clip_provider", return_value=type(mock_provider_instance)
+            oc, "_load_local_model_provider", side_effect=raise_nonfatal
         ):
             provider = select_provider(
                 "dQw4w9WgXcQ", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
             )
-
-            # Should get OcrClipProvider when tier 1 is down
-            assert isinstance(provider, mock.Mock)
+            # Should get GeminiSDKProvider as tier 2
+            assert isinstance(provider, GeminiSDKProvider)
 
     @mock.patch("csf.orchestrator.has_cached_transcript", return_value=False)
     def test_select_provider_tier3_fallback(self, mock_cached):
-        """When tier 1 and tier 2 both unavailable, TranscriptProvider is returned."""
+        """When tiers 1 and 2 unavailable, OcrClipProvider is returned."""
         import csf.orchestrator as oc
 
+        # Set gemini unavailable so tier 2 (gemini_sdk) is skipped
         with oc._gemini_lock:
             oc._gemini_available = False
 
-        # Mock _load_ocr_clip_provider to raise NonFatalAnalysisError so we fall through
+        # Mock local_model and gemini_sdk to raise so we fall through to ocr_clip
         def raise_nonfatal(*args, **kwargs):
-            raise NonFatalAnalysisError("Tier 2 down")
+            raise NonFatalAnalysisError("Provider unavailable")
 
+        mock_ocr_instance = mock.Mock()
         with mock.patch.object(
-            oc, "_load_ocr_clip_provider", side_effect=raise_nonfatal
+            oc, "_load_local_model_provider", side_effect=raise_nonfatal
+        ), mock.patch.object(
+            oc, "_load_ocr_clip_provider",
+            return_value=type(mock_ocr_instance)
         ):
             provider = select_provider(
                 "dQw4w9WgXcQ", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
             )
-
-        assert isinstance(provider, TranscriptProvider)
+            # Should get OcrClipProvider as tier 3 (tier 1 and 2 both failed)
+            assert isinstance(provider, mock.Mock)
 
 
 class TestMidnightReset:

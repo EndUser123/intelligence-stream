@@ -71,6 +71,7 @@ def analyze_videos_parallel(
     max_workers: int = 4,
     progress_callback: Callable[[int, int, int, int], None] | None = None,
     force: bool = False,
+    channel_url: str | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
     """Analyze multiple videos in parallel using ThreadPoolExecutor.
 

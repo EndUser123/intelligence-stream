@@ -348,8 +348,7 @@ def _fetch_via_ytdlp(video_id: str, lang: str) -> tuple[bool, str | None, str | 
 
         cmd = [
             "yt-dlp",
-            "--cookies-from-browser",
-            "firefox",
+            *get_browser_cookies("firefox"),
             "--write-auto-subs",
             "--skip-download",
             "--convert-subs",

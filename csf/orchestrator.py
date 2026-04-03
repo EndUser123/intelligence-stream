@@ -274,6 +274,12 @@ def select_provider(
                 return OcrClipProvider()
             except Exception:
                 continue
+        if provider_name == "local_model":
+            try:
+                LocalModelProvider = _load_local_model_provider()
+                return LocalModelProvider()
+            except Exception:
+                continue
         if provider_name == "gemini_sdk" and gemini_available:
             return GeminiSDKProvider()
         if provider_name == "transcript":

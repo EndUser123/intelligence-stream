@@ -179,18 +179,27 @@ def _load_ocr_clip_provider() -> Any:
 # ---------------------------------------------------------------------------
 
 
-def select_provider(video_id: str, video_url: str) -> Any:
+def select_provider(
+    video_id: str, video_url: str, channel_url: str | None = None
+) -> Any:
     """Select and return the best available analysis provider.
 
-    Routing priority:
-      1. Cached transcript exists → return TranscriptProvider directly (fastest)
-      2. Gemini SDK available → return GeminiSDKProvider (Tier 1)
-      3. OCR/CLIP available → return OcrClipProvider (Tier 2)
-      4. Fallback → return TranscriptProvider (Tier 3)
+    Failure-aware routing: if per-channel success/failure history is available
+    for this channel_url, providers are reordered to try the most reliable one
+    first (highest success rate). Circuit-breaker logic still applies to
+    Gemini availability.
+
+    Default priority (no history):
+      1. Cached transcript exists → TranscriptProvider directly (zero cost)
+      2. Gemini SDK available → GeminiSDKProvider
+      3. OCR/CLIP available → OcrClipProvider
+      4. Fallback → TranscriptProvider
 
     Args:
         video_id: YouTube video ID (must be 11 chars, alphanumeric + hyphen/underscore).
         video_url: Full YouTube URL (must be http or https).
+        channel_url: Optional channel URL for failure-aware routing. If None,
+            provider order falls back to default priority.
 
     Returns:
         An AnalysisProvider instance.
@@ -223,18 +232,51 @@ def select_provider(video_id: str, video_url: str) -> Any:
         _check_and_reset_gemini()
         gemini_available = _gemini_available
 
-    # Tier 1: Gemini SDK
-    if gemini_available:
-        return GeminiSDKProvider()
+    # Build candidate list in default quality order (highest first)
+    tier1 = ("gemini_sdk", "GeminiSDKProvider")
+    tier2 = ("ocr_clip", "OcrClipProvider")
+    tier3 = ("transcript", "TranscriptProvider")
 
-    # Tier 2: OCR/CLIP (lazy import to avoid circular deps)
-    try:
-        OcrClipProvider = _load_ocr_clip_provider()
-        return OcrClipProvider()
-    except Exception:
-        pass
+    candidates = [tier1, tier2, tier3]
 
-    # Tier 3: Transcript fallback
+    # Failure-aware reordering: if we have channel history, sort by success rate
+    # Higher success rate (succeeded/(succeeded+failed)) = try first
+    if channel_url:
+        try:
+            from csf.batch_status import get_provider_scores
+
+            scores = get_provider_scores(channel_url)
+            if scores:
+                # Sort candidates by success rate desc; unknown providers last
+                def success_rate(provider_name: str) -> float:
+                    if provider_name not in scores:
+                        return -1.0  # unknown = try last
+                    successes, failures = scores[provider_name]
+                    total = successes + failures
+                    if total == 0:
+                        return -1.0
+                    return successes / total
+
+                candidates = sorted(candidates, key=lambda c: success_rate(c[0]), reverse=True)
+        except Exception:
+            pass  # Never let routing data affect availability
+
+    # Instantiate providers in sorted order, skipping unavailable ones
+    for provider_name, class_name in candidates:
+        if provider_name == "gemini_sdk" and not gemini_available:
+            continue
+        if provider_name == "ocr_clip":
+            try:
+                OcrClipProvider = _load_ocr_clip_provider()
+                return OcrClipProvider()
+            except Exception:
+                continue
+        if provider_name == "gemini_sdk" and gemini_available:
+            return GeminiSDKProvider()
+        if provider_name == "transcript":
+            return TranscriptProvider()
+
+    # Should never reach here (TranscriptProvider is always available)
     return TranscriptProvider()
 
 

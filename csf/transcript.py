@@ -644,10 +644,13 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
       1. yt-dlp subtitles (fastest, no API needed)
       2. youtube_transcript_api with prefer_lang
       3. youtubei → Gemini SDK → gemini CLI
-      4. If no captions found but audio available: faster-whisper transcription (last resort)
+      4. youtube_transcript_api / youtubei / SDK with "en" (fallback language)
+      5. Selenium Chrome — real browser TLS bypasses YouTube IpBlocked (~15-30s)
+      6. Whisper audio transcription (last resort, ~30-90s)
 
     Free sources first (TECH-01). CLI is skipped if quota exceeded (LOGIC-004).
-    Whisper is attempted only after ALL caption-based methods fail completely.
+    Selenium Chrome is attempted only after all fast caption-based methods fail.
+    Whisper is attempted only after ALL other methods fail completely.
 
     Args:
         video_id: YouTube video ID (must be 11 chars)

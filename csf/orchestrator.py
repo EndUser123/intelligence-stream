@@ -4,6 +4,10 @@ Routing priority: Tier 3 (cached transcript) → Tier 1 (Gemini SDK) →
 Tier 2 (OCR/CLIP) → Tier 3 (transcript fallback).
 
 Thread-safe _gemini_available flag with per-process reset at Pacific midnight.
+
+Failure-aware routing: select_provider() uses per-channel success/failure
+history to route around channels where certain providers consistently fail,
+maximizing the probability of getting a high-quality result on the first try.
 """
 
 from __future__ import annotations

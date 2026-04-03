@@ -233,11 +233,7 @@ def select_provider(
         gemini_available = _gemini_available
 
     # Build candidate list in default quality order (highest first)
-    tier1 = ("gemini_sdk", "GeminiSDKProvider")
-    tier2 = ("ocr_clip", "OcrClipProvider")
-    tier3 = ("transcript", "TranscriptProvider")
-
-    candidates = [tier1[0], tier2[0], tier3[0]]
+    candidates = ["gemini_sdk", "ocr_clip", "transcript"]
 
     # Failure-aware reordering: if we have channel history, sort by success rate
     # Higher success rate (succeeded/(succeeded+failed)) = try first

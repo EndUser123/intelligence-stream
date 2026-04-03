@@ -334,78 +334,99 @@ def _fetch_via_youtubei(
 
 
 def _fetch_via_ytdlp(video_id: str, lang: str) -> tuple[bool, str | None, str | None]:
-    """Fetch transcript using yt-dlp to download auto-generated subtitles.
+    """Fetch transcript using yt-dlp Python API with Android impersonation.
 
-    Downloads auto-generated subtitles via yt-dlp (which can access YouTube
-    even when youtube-transcript-api is IP-blocked), then parses SRT to plain text.
+    Uses yt-dlp's Python API (not CLI subprocess) with --impersonate android,
+    which bypasses YouTube's JS challenge bot detection that hits CLI subprocesses.
+    Fetches subtitles directly from YouTube's timedtext endpoint via the android_vr
+    client, which is reliably accessible without triggering n-challenge-solver failures.
 
-    Fails fast on 429 (rate limited) — chain falls back to SDK immediately.
+    Falls back to SDK on 429 rate-limit — this method bypasses BOT detection, not
+    rate-limits (both SDK and yt-dlp Android client share the same subtitle endpoint).
     """
-    import tempfile
+    import json
+    import urllib.request
 
     video_url = f"https://www.youtube.com/watch?v={video_id}"
-    tmp_dir = tempfile.mkdtemp(prefix="ytdlp_subs_")
+
+    ydl_opts = {
+        "skip_download": True,
+        "writeautomaticsubs": True,
+        "writesubtitles": True,
+        "subtitleslangs": [lang],
+        "subtitlesformat": "json3",
+        "impersonate": "android",
+        "quiet": True,
+        "no_warnings": True,
+        "http_headers": {
+            "User-Agent": "com.google.android.youtube/19.02.39 (Linux; U; Android 11; en_US; Build/KRT3M; gzip)",
+        },
+    }
+
     try:
-        output_template = os.path.join(tmp_dir, "subs")
+        import yt_dlp
 
-        cmd = [
-            "yt-dlp",
-            *get_browser_cookies("firefox"),
-            "--write-auto-subs",
-            "--skip-download",
-            "--convert-subs",
-            "srt",
-            "--output",
-            output_template,
-            video_url,
-        ]
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=False)
 
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=120,
+        # Get subtitle entries from automatic_captions (prefer) or subtitles
+        subs = (
+            info.get("automatic_captions", {}).get(lang)
+            or info.get("subtitles", {}).get(lang)
+            or info.get("automatic_captions", {}).get("en")
+            or info.get("subtitles", {}).get("en")
         )
 
-        if proc.returncode != 0:
-            stderr_lower = proc.stderr.lower()
-            if "429" in proc.stderr or "too many requests" in stderr_lower:
-                return (False, None, "rate limited (429)")
-            if (
-                "no subtitles" in stderr_lower
-                or "does not have any subtitles" in stderr_lower
-            ):
-                return (False, None, "no subtitles available")
-            return (False, None, f"yt-dlp failed: {proc.stderr.strip()[:200]}")
+        if not subs or len(subs) == 0:
+            return (False, None, "no subtitles available")
 
-        # Find the generated SRT file
-        srt_files = list(Path(tmp_dir).glob("*.srt"))
-        if not srt_files:
-            for ext in ("vtt", "ass", "lrc"):
-                subs = list(Path(tmp_dir).glob(f"*.{ext}"))
-                if subs:
-                    srt_files = subs
-                    break
-            if not srt_files:
-                return (False, None, "no subtitle file produced")
+        # Get the subtitle URL from the first entry
+        sub_url = subs[0].get("url")
+        if not sub_url:
+            return (False, None, "no subtitle URL in yt-dlp response")
 
-        srt_path = srt_files[0]
-        text = _parse_srt(srt_path.read_text(encoding="utf-8"))
-        if not text.strip():
+        # Fetch and parse JSON3 timedtext
+        req = urllib.request.Request(
+            sub_url,
+            headers={
+                "User-Agent": "com.google.android.youtube/19.02.39 (Linux; U; Android 11; en_US; Build/KRT3M; gzip)",
+                "Accept": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+
+        # Parse timedtext JSON3 format into plain text
+        # JSON3 format: {"events": [{"segs": [{"utf8": "text"}, ...]}, ...]}
+        text_parts = []
+        for event in data.get("events", []):
+            for seg in event.get("segs", []):
+                text = seg.get("utf8", "").strip()
+                if text:
+                    text_parts.append(text)
+            # Add newline between subtitle blocks for readability
+            if event.get("segs"):
+                text_parts.append("\n")
+
+        full_text = " ".join(t for t in text_parts if t != "\n")
+        if not full_text.strip():
             return (False, None, "subtitle file was empty")
-        return (True, text, None)
 
+        return (True, full_text.strip(), None)
+
+    except urllib.error.HTTPError as e:
+        if e.code == 429:
+            return (False, None, "rate limited (429)")
+        return (False, None, f"yt-dlp HTTP error: {e.code}")
     except subprocess.TimeoutExpired:
         return (False, None, "yt-dlp timed out")
     except Exception as e:
+        err_str = str(e).lower()
+        if "429" in err_str or "too many requests" in err_str:
+            return (False, None, "rate limited (429)")
+        if "no subtitles" in err_str or "does not have any subtitles" in err_str:
+            return (False, None, "no subtitles available")
         return (False, None, f"yt-dlp error: {e}")
-    finally:
-        import shutil as _shutil
-
-        try:
-            _shutil.rmtree(tmp_dir)
-        except Exception:
-            pass
 
 
 def _parse_srt(srt_content: str) -> str:

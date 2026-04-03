@@ -547,6 +547,95 @@ def _fetch_via_whisper(video_id: str, lang: str) -> tuple[bool, str | None, str 
             pass
 
 
+def _fetch_via_selenium_chrome(
+    video_id: str, lang: str
+) -> tuple[bool, str | None, str | None]:
+    """Fetch transcript using Selenium-driven Chrome with real browser TLS.
+
+    This is a last-resort fallback that bypasses YouTube's TLS fingerprinting
+    by running an actual Chrome browser. It is slow (~15-30s per video) but
+    reliable when youtube_transcript_api and yt-dlp both fail due to bot detection.
+
+    Args:
+        video_id: YouTube video ID.
+        lang: BCP-47 language code (currently unused — Chrome always returns
+            the transcript in whatever language YouTube provides, usually en).
+
+    Returns:
+        (success, transcript_text, error)
+    """
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.chrome.service import Service
+        from selenium.webdriver.common.by import By
+    except ImportError:
+        return (False, None, "selenium not installed")
+
+    tmp_dir = None
+    try:
+        tmp_dir = tempfile.mkdtemp(prefix="selenium_transcript_")
+
+        opts = Options()
+        opts.add_argument("--headless=new")
+        opts.add_argument("--no-sandbox")
+        opts.add_argument("--disable-dev-shm-usage")
+        opts.add_argument("--disable-gpu")
+        opts.add_argument(f"--user-data-dir={tmp_dir}")
+        opts.add_argument("--window-size=1920,1080")
+
+        service = Service()
+        driver = webdriver.Chrome(service=service, options=opts)
+
+        try:
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
+            driver.get(video_url)
+            time.sleep(3)
+
+            # Scroll down to expose the transcript button, then click it via JS
+            driver.execute_script("window.scrollBy(0, 400)")
+            time.sleep(0.5)
+
+            transcript_clicked = False
+            buttons = driver.find_elements(By.TAG_NAME, "button")
+            for btn in buttons:
+                aria_label = btn.get_attribute("aria-label") or ""
+                if "transcript" in aria_label.lower():
+                    driver.execute_script(
+                        "arguments[0].scrollIntoView({block:'center'});", btn
+                    )
+                    time.sleep(0.3)
+                    driver.execute_script("arguments[0].click();", btn)
+                    transcript_clicked = True
+                    time.sleep(3)
+                    break
+
+            if not transcript_clicked:
+                return (False, None, "transcript button not found")
+
+            # Extract all transcript text from the rendered page
+            body_text = driver.find_element(By.TAG_NAME, "body").text
+
+            if not body_text or len(body_text) < 20:
+                return (False, None, "transcript panel was empty")
+
+            return (True, body_text, None)
+
+        finally:
+            driver.quit()
+
+    except Exception as e:
+        return (False, None, f"selenium error: {e}")
+    finally:
+        if tmp_dir:
+            import shutil as _shutil
+
+            try:
+                _shutil.rmtree(tmp_dir)
+            except Exception:
+                pass
+
+
 def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptResult:
     """Fetch transcript using full fallback chain with optional translation.
 

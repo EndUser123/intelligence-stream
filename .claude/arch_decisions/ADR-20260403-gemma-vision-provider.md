@@ -1,8 +1,10 @@
 # ADR-20260403: LocalModelProvider — Windows-Native Vision-Language Provider + TurboQuant Outlook
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-04-03
+**Accepted:** 2026-04-04
 **Deciders:** Bruce Thomson
+**Implementation verified:** `csf/providers/lm_studio_provider.py` (LocalModelProvider + OllamaVisionProvider) implemented and wired into `csf/orchestrator.py:243` via `_load_local_model_provider()`; `local_model` in candidate priority chain.
 
 ---
 

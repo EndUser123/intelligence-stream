@@ -1,6 +1,6 @@
 from pathlib import Path
 existing = Path("P:/packages/intelligence-stream/.claude/arch_decisions/ADR-20260404-round-robin-batch-scheduler.md").read_text(encoding="utf-8")
-more = "---
+more = """---
 
 ## Consequences
 

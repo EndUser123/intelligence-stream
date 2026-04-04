@@ -18,6 +18,6 @@ more = """---
 **Risks:**
 - Stale attempting entries: if terminal crashes, attempting videos never get failed written. Fix: on scheduler start, promote status=attempting to status=failed for all entries older than some threshold.
 - time.monotonic() for cooldown: not wall-clock. Cooldown expires based on process uptime, not real time. YouTube rate limits are real-time, so if a terminal was idle for hours then wakes up, its cooldown timers may have expired but YouTube limit has not. Minor — circuit will re-open on first 429 if needed.
-"
+"""
 Path("P:/packages/intelligence-stream/.claude/arch_decisions/ADR-20260404-round-robin-batch-scheduler.md").write_text(existing + more, encoding="utf-8")
 print(len(more), "chars appended")

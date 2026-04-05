@@ -97,3 +97,129 @@ The download archive closes this:
 - On success -> update to (video_id, success, ...)
 - On 429/error -> update to (video_id, failed, ...)
 - On restart -> yield_next() skips all status != pending entries
+
+---
+
+## Consequences
+
+**Positive:**
+- Round-robin diffusion: time between requests to same channel is maximized
+- Persistent archive: restart after 429 skips failed videos without YouTube metadata API calls
+- Shared channel cooldown: one terminal's 429 protects all other terminals from same channel
+- Jitter: desynchronizes workers so they do not slam server simultaneously during recovery
+- Archive write-before-fetch: crash-safe, no lost work
+
+**Negative:**
+- Throughput per channel is lower — deliberate tradeoff against 429 blackouts
+- Scheduler is stateful (SQLite WAL) — must survive crashes cleanly
+- `status='attempting'` in archive requires restart-safe cleanup (stale entries = re-process)
+
+**Risks:**
+- Stale `attempting` entries: if terminal crashes, `attempting` videos never get `failed` written. Fix: on scheduler start, promote `status='attempting'` older than a threshold (e.g., 30 min) to `status='failed'`.
+- `time.monotonic()` for cooldown: not wall-clock. YouTube rate limits are real-time. If a terminal was idle for hours then wakes up, its cooldown timers may have expired but YouTube limit has not. Minor — circuit re-opens on first 429 if needed.
+
+---
+
+## Contract Authority Packet
+
+```yaml
+contract_authority_packet:
+  packet_version: "1"
+  contract_sensitive: true
+  authority:
+    closure_source: "adr_20260404_round_robin_scheduler"
+    prose_role: "explanatory_only"
+  boundaries:
+
+    - boundary_id: "scheduler-archive-read"
+      producer: "BatchScheduler.yield_next()"
+      consumer: "ThreadPoolExecutor workers"
+      schema:
+        id: "video_id"
+        version: "1"
+      required_fields: ["video_id", "source"]
+      optional_fields: []
+      freshness_authority: "download_archive SQLite"
+      invalidation_trigger: "video_id appears in download_archive with status='success'|'failed'"
+      precedence_rule: "archive supersedes pending queue"
+      failure_behavior: "yield skips archived video_id silently"
+      validator_owner: "batch_scheduler.py"
+      proof_owner: "test_batch_scheduler.py"
+      downstream_consumers: ["transcript.py"]
+
+    - boundary_id: "scheduler-cooldown-write"
+      producer: "BatchScheduler.record_429()"
+      consumer: "BatchScheduler.yield_next() (other terminals)"
+      schema:
+        id: "channel_cooldown"
+        version: "1"
+      required_fields: ["source", "cooldown_until", "consecutive_429s"]
+      optional_fields: []
+      freshness_authority: "channel_cooldown SQLite table"
+      invalidation_trigger: "cooldown_until < time.monotonic()"
+      precedence_rule: "channel_cooldown entry blocks source from yield"
+      failure_behavior: "cooldown expires after cooldown_until → source unblocked"
+      validator_owner: "batch_scheduler.py"
+      proof_owner: "test_batch_scheduler.py"
+      downstream_consumers: ["batch_scheduler.py"]
+
+    - boundary_id: "transcript-archive-write"
+      producer: "transcript.py fetch_transcript_chain()"
+      consumer: "BatchScheduler.yield_next()"
+      schema:
+        id: "download_archive"
+        version: "1"
+      required_fields: ["video_id", "status", "source", "attempted_at"]
+      optional_fields: ["error"]
+      freshness_authority: "transcript.py (result of fetch)"
+      invalidation_trigger: "new entry for same video_id"
+      precedence_rule: "newer entry wins"
+      failure_behavior: "archive write failure does NOT propagate to transcript result"
+      validator_owner: "batch_status.py"
+      proof_owner: "test_batch_scheduler.py"
+      downstream_consumers: ["batch_scheduler.py"]
+
+    - boundary_id: "worker-scheduler-handoff"
+      producer: "ThreadPoolExecutor worker"
+      consumer: "BatchScheduler"
+      schema:
+        id: "worker-result"
+        version: "1"
+      required_fields: ["video_id", "success", "error"]
+      optional_fields: []
+      freshness_authority: "worker result"
+      invalidation_trigger: "N/A — write once"
+      precedence_rule: "N/A"
+      failure_behavior: "failed video_id written to download_archive as 'failed'"
+      validator_owner: "batch_scheduler.py"
+      proof_owner: "test_batch_status.py"
+      downstream_consumers: ["batch_status.py"]
+```
+
+---
+
+## Rejected Alternatives
+
+**A. Global circuit breaker in transcript.py (process-local only)**
+Rejected: Only protects the process that hits 429. Other terminals remain exposed.
+
+**B. yt-dlp --download-archive at CLI level**
+Rejected: We use transcript.py Python API, not yt-dlp CLI. Archive must cover all 6 transcript methods.
+
+**C. asyncio-based scheduler with rate-limit-aware backoff**
+Rejected: transcript.py is synchronous. asyncio workers with sync workers adds complexity without benefit.
+
+**D. Proxy rotation (residential/mobile proxies)**
+Rejected: Requires third-party proxy service ($). Does not help when rate limit is per-channel, not per-IP.
+
+---
+
+## Gaps Not Yet Closed
+
+| Gap | Status | Notes |
+|---|---|---|
+| `channel_metadata.last_fetch_attempt` column migration | OPEN | Needs migration script for existing DBs |
+| `BatchScheduler` test suite | OPEN | Round-robin ordering, cooldown blocking, archive skip |
+| Stale `attempting` entry recovery | OPEN | On startup, promote old `attempting` → `failed` |
+| yt-dlp --impersonate chrome via curl-cffi | FUTURE | Stronger TLS fingerprint impersonation — pip install + Windows testing |
+| --sleep-subtitles 61 for auto-translated subs | FUTURE | Additional yt-dlp flag for auto-sub 429 avoidance |

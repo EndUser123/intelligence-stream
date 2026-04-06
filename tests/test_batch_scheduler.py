@@ -11,7 +11,6 @@ import pytest
 from collections.abc import Generator
 
 from csf.batch_scheduler import (
-    _COOLDOWN_SECONDS,
     _JITTER_MAX,
     _JITTER_MIN,
     _STALE_ATTEMPTING_SECONDS,

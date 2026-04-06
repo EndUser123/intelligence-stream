@@ -176,7 +176,6 @@ class BatchScheduler:
 
         # Rebuild iterators for any channels that are exhausted
         active_channels = [ch for ch in self._channels if self._iterators[ch]]
-        round_robin = cycle(active_channels)
 
         yielded_this_pass: set[str] = set()
         while active_channels:

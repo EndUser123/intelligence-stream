@@ -49,8 +49,8 @@ def _seed_analysis_status(db_path: Path, rows: list[tuple]) -> None:
         )
         """
     )
-    conn.execute(
-        "INSERT OR REPLACE INTO analysis_status (video_id, status, updated_at, source, published_at) VALUES (?, ?, datetime('now'), ?, ?)",
+    conn.executemany(
+        "INSERT OR REPLACE INTO analysis_status (video_id, status, updated_at, source, published_at, has_captions) VALUES (?, ?, datetime('now'), ?, ?, NULL)",
         rows,
     )
     conn.commit()

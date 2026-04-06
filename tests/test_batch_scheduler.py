@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from collections.abc import Generator
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import pytest
-from collections.abc import Generator
 
 from csf.batch_scheduler import (
     _JITTER_MAX,
@@ -18,34 +18,26 @@ from csf.batch_scheduler import (
 )
 
 
-@pytest.fixture(autouse=True)
-def _no_jitter(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Disable jitter sleeps for all tests so they run in <1s instead of ~50s."""
-    import csf.batch_scheduler as bs
-    monkeypatch.setattr(bs, "_JITTER_MIN", 0.001)
-    monkeypatch.setattr(bs, "_JITTER_MAX", 0.001)
+# ─── Shared test DB path ───────────────────────────────────────────────────────
+
+_TEST_DB_DIR = Path("P:/__csf/.data/intelligence-stream/batch_status")
+_TEST_DB_DIR.mkdir(parents=True, exist_ok=True)
+_TEST_DB = _TEST_DB_DIR / "test_scheduler.sqlite"
 
 
-@pytest.fixture
-def db_path() -> Generator[Path, None, None]:
-    with TemporaryDirectory() as tmpdir:
-        p = Path(tmpdir) / "test.db"
-        yield p
-        # Explicitly close all connections and checkpoint WAL before cleanup on Windows
-        try:
-            conn = sqlite3.connect(p)
-            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            conn.close()
-        except Exception:
-            pass
+def _reset_test_db() -> None:
+    """Clear all tables in the test DB."""
+    conn = sqlite3.connect(_TEST_DB)
+    conn.execute("DELETE FROM download_archive")
+    conn.execute("DELETE FROM channel_cooldown")
+    conn.execute("DELETE FROM analysis_status")
+    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    conn.close()
 
 
-def _make_scheduler(db_path: Path) -> BatchScheduler:
-    return BatchScheduler(db_path=db_path)
-
-
-def _seed_analysis_status(db_path: Path, rows: list[tuple]) -> None:
-    conn = sqlite3.connect(db_path)
+def _seed(rows: list[tuple]) -> None:
+    """Seed analysis_status with (video_id, status, source, published_at) tuples."""
+    conn = sqlite3.connect(_TEST_DB)
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS analysis_status (
@@ -66,35 +58,43 @@ def _seed_analysis_status(db_path: Path, rows: list[tuple]) -> None:
     conn.close()
 
 
+@pytest.fixture(autouse=True)
+def _no_jitter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disable jitter sleeps so tests run fast."""
+    import csf.batch_scheduler as bs
+
+    monkeypatch.setattr(bs, "_JITTER_MIN", 0.001)
+    monkeypatch.setattr(bs, "_JITTER_MAX", 0.001)
+
+
+@pytest.fixture(autouse=True)
+def _clean_db() -> Generator[None, None, None]:
+    _reset_test_db()
+    yield
+    _reset_test_db()
+
+
 # ─── test_round_robin_interleaving ───────────────────────────────────────────
 
-def test_round_robin_interleaving(db_path: Path) -> None:
+def test_round_robin_interleaving() -> None:
     """3 channels × 3 videos each → first 9 yields cover all 3 channels."""
-    _seed_analysis_status(
-        db_path,
-        [
-            # Channel A
-            ("A1", "pending", "https://youtube.com/channel/UC_A", "2025-01-01T00:00:00"),
-            ("A2", "pending", "https://youtube.com/channel/UC_A", "2025-01-02T00:00:00"),
-            ("A3", "pending", "https://youtube.com/channel/UC_A", "2025-01-03T00:00:00"),
-            # Channel B
-            ("B1", "pending", "https://youtube.com/channel/UC_B", "2025-01-01T00:00:00"),
-            ("B2", "pending", "https://youtube.com/channel/UC_B", "2025-01-02T00:00:00"),
-            ("B3", "pending", "https://youtube.com/channel/UC_B", "2025-01-03T00:00:00"),
-            # Channel C
-            ("C1", "pending", "https://youtube.com/channel/UC_C", "2025-01-01T00:00:00"),
-            ("C2", "pending", "https://youtube.com/channel/UC_C", "2025-01-02T00:00:00"),
-            ("C3", "pending", "https://youtube.com/channel/UC_C", "2025-01-03T00:00:00"),
-        ],
-    )
-    sched = _make_scheduler(db_path)
+    _seed([
+        ("A1", "pending", "https://youtube.com/channel/UC_A", "2025-01-01T00:00:00"),
+        ("A2", "pending", "https://youtube.com/channel/UC_A", "2025-01-02T00:00:00"),
+        ("A3", "pending", "https://youtube.com/channel/UC_A", "2025-01-03T00:00:00"),
+        ("B1", "pending", "https://youtube.com/channel/UC_B", "2025-01-01T00:00:00"),
+        ("B2", "pending", "https://youtube.com/channel/UC_B", "2025-01-02T00:00:00"),
+        ("B3", "pending", "https://youtube.com/channel/UC_B", "2025-01-03T00:00:00"),
+        ("C1", "pending", "https://youtube.com/channel/UC_C", "2025-01-01T00:00:00"),
+        ("C2", "pending", "https://youtube.com/channel/UC_C", "2025-01-02T00:00:00"),
+        ("C3", "pending", "https://youtube.com/channel/UC_C", "2025-01-03T00:00:00"),
+    ])
+    sched = BatchScheduler(db_path=_TEST_DB)
     results = list(sched.yield_next())
 
     assert len(results) == 9
-    channels = {src for _, src in results}
-    assert len(channels) == 3  # all three channels appear
-    # Verify each channel appears 3 times
     from collections import Counter
+
     counts = Counter(src for _, src in results)
     assert counts["https://youtube.com/channel/UC_A"] == 3
     assert counts["https://youtube.com/channel/UC_B"] == 3
@@ -103,15 +103,12 @@ def test_round_robin_interleaving(db_path: Path) -> None:
 
 # ─── test_archive_skip_failed ─────────────────────────────────────────────────
 
-def test_archive_skip_failed(db_path: Path) -> None:
+def test_archive_skip_failed() -> None:
     """Pre-insert failed entry → verify video is not yielded."""
-    _seed_analysis_status(
-        db_path,
-        [
-            ("VID1", "pending", "https://youtube.com/channel/UC_X", "2025-01-01T00:00:00"),
-        ],
-    )
-    conn = sqlite3.connect(db_path)
+    _seed([
+        ("VID1", "pending", "https://youtube.com/channel/UC_X", "2025-01-01T00:00:00"),
+    ])
+    conn = sqlite3.connect(_TEST_DB)
     conn.execute(
         "INSERT OR REPLACE INTO download_archive VALUES (?, ?, ?, ?, ?)",
         ("VID1", "failed", "https://youtube.com/channel/UC_X", time.time(), None),
@@ -119,7 +116,7 @@ def test_archive_skip_failed(db_path: Path) -> None:
     conn.commit()
     conn.close()
 
-    sched = _make_scheduler(db_path)
+    sched = BatchScheduler(db_path=_TEST_DB)
     results = list(sched.yield_next())
     video_ids = [vid for vid, _ in results]
     assert "VID1" not in video_ids
@@ -127,15 +124,12 @@ def test_archive_skip_failed(db_path: Path) -> None:
 
 # ─── test_archive_skip_attempting ─────────────────────────────────────────────
 
-def test_archive_skip_attempting(db_path: Path) -> None:
+def test_archive_skip_attempting() -> None:
     """Pre-insert attempting entry → verify video is not yielded."""
-    _seed_analysis_status(
-        db_path,
-        [
-            ("VID2", "pending", "https://youtube.com/channel/UC_X", "2025-01-01T00:00:00"),
-        ],
-    )
-    conn = sqlite3.connect(db_path)
+    _seed([
+        ("VID2", "pending", "https://youtube.com/channel/UC_X", "2025-01-01T00:00:00"),
+    ])
+    conn = sqlite3.connect(_TEST_DB)
     conn.execute(
         "INSERT OR REPLACE INTO download_archive VALUES (?, ?, ?, ?, ?)",
         ("VID2", "attempting", "https://youtube.com/channel/UC_X", time.time(), None),
@@ -143,7 +137,7 @@ def test_archive_skip_attempting(db_path: Path) -> None:
     conn.commit()
     conn.close()
 
-    sched = _make_scheduler(db_path)
+    sched = BatchScheduler(db_path=_TEST_DB)
     results = list(sched.yield_next())
     video_ids = [vid for vid, _ in results]
     assert "VID2" not in video_ids
@@ -151,15 +145,12 @@ def test_archive_skip_attempting(db_path: Path) -> None:
 
 # ─── test_archive_skip_success ────────────────────────────────────────────────
 
-def test_archive_skip_success(db_path: Path) -> None:
+def test_archive_skip_success() -> None:
     """Pre-insert success entry → verify video is not yielded."""
-    _seed_analysis_status(
-        db_path,
-        [
-            ("VID3", "pending", "https://youtube.com/channel/UC_X", "2025-01-01T00:00:00"),
-        ],
-    )
-    conn = sqlite3.connect(db_path)
+    _seed([
+        ("VID3", "pending", "https://youtube.com/channel/UC_X", "2025-01-01T00:00:00"),
+    ])
+    conn = sqlite3.connect(_TEST_DB)
     conn.execute(
         "INSERT OR REPLACE INTO download_archive VALUES (?, ?, ?, ?, ?)",
         ("VID3", "success", "https://youtube.com/channel/UC_X", time.time(), None),
@@ -167,7 +158,7 @@ def test_archive_skip_success(db_path: Path) -> None:
     conn.commit()
     conn.close()
 
-    sched = _make_scheduler(db_path)
+    sched = BatchScheduler(db_path=_TEST_DB)
     results = list(sched.yield_next())
     video_ids = [vid for vid, _ in results]
     assert "VID3" not in video_ids
@@ -175,17 +166,14 @@ def test_archive_skip_success(db_path: Path) -> None:
 
 # ─── test_cooldown_blocking ───────────────────────────────────────────────────
 
-def test_cooldown_blocking(db_path: Path) -> None:
+def test_cooldown_blocking() -> None:
     """Pre-insert future cooldown_until → verify channel is skipped."""
-    _seed_analysis_status(
-        db_path,
-        [
-            ("VID4", "pending", "https://youtube.com/channel/UC_X", "2025-01-01T00:00:00"),
-            ("VID5", "pending", "https://youtube.com/channel/UC_X", "2025-01-02T00:00:00"),
-            ("VID6", "pending", "https://youtube.com/channel/UC_X", "2025-01-03T00:00:00"),
-        ],
-    )
-    conn = sqlite3.connect(db_path)
+    _seed([
+        ("VID4", "pending", "https://youtube.com/channel/UC_X", "2025-01-01T00:00:00"),
+        ("VID5", "pending", "https://youtube.com/channel/UC_X", "2025-01-02T00:00:00"),
+        ("VID6", "pending", "https://youtube.com/channel/UC_X", "2025-01-03T00:00:00"),
+    ])
+    conn = sqlite3.connect(_TEST_DB)
     conn.execute(
         "INSERT OR REPLACE INTO channel_cooldown VALUES (?, ?, ?)",
         ("https://youtube.com/channel/UC_X", time.monotonic() + 300, 3),
@@ -193,23 +181,20 @@ def test_cooldown_blocking(db_path: Path) -> None:
     conn.commit()
     conn.close()
 
-    sched = _make_scheduler(db_path)
+    sched = BatchScheduler(db_path=_TEST_DB)
     results = list(sched.yield_next())
     assert results == []
 
 
 # ─── test_all_channels_in_cooldown ────────────────────────────────────────────
 
-def test_all_channels_in_cooldown(db_path: Path) -> None:
+def test_all_channels_in_cooldown() -> None:
     """All channels in cooldown → loop breaks gracefully."""
-    _seed_analysis_status(
-        db_path,
-        [
-            ("X1", "pending", "https://youtube.com/channel/UC_X", "2025-01-01T00:00:00"),
-            ("Y1", "pending", "https://youtube.com/channel/UC_Y", "2025-01-01T00:00:00"),
-        ],
-    )
-    conn = sqlite3.connect(db_path)
+    _seed([
+        ("X1", "pending", "https://youtube.com/channel/UC_X", "2025-01-01T00:00:00"),
+        ("Y1", "pending", "https://youtube.com/channel/UC_Y", "2025-01-01T00:00:00"),
+    ])
+    conn = sqlite3.connect(_TEST_DB)
     conn.execute(
         "INSERT OR REPLACE INTO channel_cooldown VALUES (?, ?, ?)",
         ("https://youtube.com/channel/UC_X", time.monotonic() + 300, 1),
@@ -221,23 +206,19 @@ def test_all_channels_in_cooldown(db_path: Path) -> None:
     conn.commit()
     conn.close()
 
-    sched = _make_scheduler(db_path)
+    sched = BatchScheduler(db_path=_TEST_DB)
     results = list(sched.yield_next())
     assert results == []
 
 
 # ─── test_stale_attempting_recovery ───────────────────────────────────────────
 
-def test_stale_attempting_recovery(db_path: Path) -> None:
+def test_stale_attempting_recovery() -> None:
     """Insert 30-min-old attempting → on init, verify it is promoted to failed."""
-    _seed_analysis_status(
-        db_path,
-        [
-            ("STALE1", "pending", "https://youtube.com/channel/UC_Z", "2025-01-01T00:00:00"),
-        ],
-    )
-    conn = sqlite3.connect(db_path)
-    # Insert stale attempting entry (older than _STALE_ATTEMPTING_SECONDS=1800)
+    _seed([
+        ("STALE1", "pending", "https://youtube.com/channel/UC_Z", "2025-01-01T00:00:00"),
+    ])
+    conn = sqlite3.connect(_TEST_DB)
     stale_time = time.time() - _STALE_ATTEMPTING_SECONDS - 10
     conn.execute(
         "INSERT OR REPLACE INTO download_archive VALUES (?, ?, ?, ?, ?)",
@@ -247,9 +228,9 @@ def test_stale_attempting_recovery(db_path: Path) -> None:
     conn.close()
 
     # Scheduler init should promote stale attempting → failed
-    _make_scheduler(db_path)
+    BatchScheduler(db_path=_TEST_DB)
 
-    conn2 = sqlite3.connect(db_path)
+    conn2 = sqlite3.connect(_TEST_DB)
     row = conn2.execute(
         "SELECT status FROM download_archive WHERE video_id=?", ("STALE1",)
     ).fetchone()
@@ -261,16 +242,13 @@ def test_stale_attempting_recovery(db_path: Path) -> None:
 
 # ─── test_jitter_range ────────────────────────────────────────────────────────
 
-def test_jitter_range(db_path: Path) -> None:
+def test_jitter_range() -> None:
     """Measure delay between consecutive yields → verify within JITTER bounds."""
-    _seed_analysis_status(
-        db_path,
-        [
-            ("J1", "pending", "https://youtube.com/channel/UC_J", "2025-01-01T00:00:00"),
-            ("J2", "pending", "https://youtube.com/channel/UC_J", "2025-01-02T00:00:00"),
-        ],
-    )
-    sched = _make_scheduler(db_path)
+    _seed([
+        ("J1", "pending", "https://youtube.com/channel/UC_J", "2025-01-01T00:00:00"),
+        ("J2", "pending", "https://youtube.com/channel/UC_J", "2025-01-02T00:00:00"),
+    ])
+    sched = BatchScheduler(db_path=_TEST_DB)
     gen = sched.yield_next()
 
     t0 = time.monotonic()
@@ -278,23 +256,21 @@ def test_jitter_range(db_path: Path) -> None:
     t1 = time.monotonic()
     delay = t1 - t0
 
+    # After jitter patch: delay should be ~0.001s
     assert _JITTER_MIN <= delay <= _JITTER_MAX + 0.5
 
 
 # ─── test_empty_channel_handling ──────────────────────────────────────────────
 
-def test_empty_channel_handling(db_path: Path) -> None:
+def test_empty_channel_handling() -> None:
     """Channel with 0 pending videos → scheduler skips it gracefully."""
     # Only one channel has pending videos
-    _seed_analysis_status(
-        db_path,
-        [
-            ("E1", "pending", "https://youtube.com/channel/UC_E", "2025-01-01T00:00:00"),
-            ("E2", "pending", "https://youtube.com/channel/UC_E", "2025-01-02T00:00:00"),
-            # No pending for this channel
-        ],
-    )
-    sched = _make_scheduler(db_path)
+    _seed([
+        ("E1", "pending", "https://youtube.com/channel/UC_E", "2025-01-01T00:00:00"),
+        ("E2", "pending", "https://youtube.com/channel/UC_E", "2025-01-02T00:00:00"),
+    ])
+
+    sched = BatchScheduler(db_path=_TEST_DB)
     results = list(sched.yield_next())
     assert len(results) == 2
     assert all(src == "https://youtube.com/channel/UC_E" for _, src in results)
@@ -302,14 +278,14 @@ def test_empty_channel_handling(db_path: Path) -> None:
 
 # ─── test_record_429_counter ──────────────────────────────────────────────────
 
-def test_record_429_counter(db_path: Path) -> None:
+def test_record_429_counter() -> None:
     """Call record_429 3× on same source → verify consecutive_429s=3 in DB."""
-    sched = _make_scheduler(db_path)
+    sched = BatchScheduler(db_path=_TEST_DB)
     sched.record_429("https://youtube.com/channel/UC_K")
     sched.record_429("https://youtube.com/channel/UC_K")
     sched.record_429("https://youtube.com/channel/UC_K")
 
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(_TEST_DB)
     row = conn.execute(
         "SELECT consecutive_429s FROM channel_cooldown WHERE source=?",
         ("https://youtube.com/channel/UC_K",),
@@ -322,12 +298,12 @@ def test_record_429_counter(db_path: Path) -> None:
 
 # ─── test_archive_finalize_success ─────────────────────────────────────────────
 
-def test_archive_finalize_success(db_path: Path) -> None:
+def test_archive_finalize_success() -> None:
     """Call archive_finalize(vid, 'success') → verify status='success' in archive."""
-    sched = _make_scheduler(db_path)
+    sched = BatchScheduler(db_path=_TEST_DB)
     sched.archive_finalize("VID_OK", "success", "https://youtube.com/channel/UC_L")
 
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(_TEST_DB)
     row = conn.execute(
         "SELECT status, source FROM download_archive WHERE video_id=?", ("VID_OK",)
     ).fetchone()
@@ -340,12 +316,12 @@ def test_archive_finalize_success(db_path: Path) -> None:
 
 # ─── test_archive_finalize_failed ─────────────────────────────────────────────
 
-def test_archive_finalize_failed(db_path: Path) -> None:
+def test_archive_finalize_failed() -> None:
     """Call archive_finalize(vid, 'failed') → verify status='failed' in archive."""
-    sched = _make_scheduler(db_path)
+    sched = BatchScheduler(db_path=_TEST_DB)
     sched.archive_finalize("VID_ERR", "failed", "https://youtube.com/channel/UC_M")
 
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(_TEST_DB)
     row = conn.execute(
         "SELECT status FROM download_archive WHERE video_id=?", ("VID_ERR",)
     ).fetchone()
@@ -355,18 +331,16 @@ def test_archive_finalize_failed(db_path: Path) -> None:
     assert row[0] == "failed"
 
 
-# ─── test_source_not_null_filter ──────────────────────────────────────────────
+# ─── test_source_not_null_filter ─────────────────────────────────────────────
 
-def test_source_not_null_filter(db_path: Path) -> None:
+def test_source_not_null_filter() -> None:
     """Entries with NULL source are skipped by scheduler."""
-    _seed_analysis_status(
-        db_path,
-        [
-            ("NULL1", "pending", None, "2025-01-01T00:00:00"),
-            ("GOOD1", "pending", "https://youtube.com/channel/UC_N", "2025-01-01T00:00:00"),
-        ],
-    )
-    sched = _make_scheduler(db_path)
+    _seed([
+        ("NULL1", "pending", None, "2025-01-01T00:00:00"),
+        ("GOOD1", "pending", "https://youtube.com/channel/UC_N", "2025-01-01T00:00:00"),
+    ])
+
+    sched = BatchScheduler(db_path=_TEST_DB)
     results = list(sched.yield_next())
     video_ids = [vid for vid, _ in results]
     assert "NULL1" not in video_ids

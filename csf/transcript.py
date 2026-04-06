@@ -196,8 +196,11 @@ def _is_source_rate_limited(source: str) -> bool:
     )
 
 
-def _record_source_429(source: str) -> None:
-    """Record a 429 for a source. Opens circuit after threshold."""
+def _record_source_429(source: str, video_id: str | None = None) -> None:
+    """Record a 429 for a source. Opens circuit after threshold.
+
+    Also writes cross-terminal cooldown state to BatchScheduler when video_id is provided.
+    """
     with _circuit_lock:
         _consecutive_429[source] = _consecutive_429.get(source, 0) + 1
         count = _consecutive_429[source]
@@ -210,6 +213,16 @@ def _record_source_429(source: str) -> None:
             f"[transcript] Circuit breaker OPEN for '{source}' "
             f"({count} consecutive 429s, cooldown={_COOLDOWN_SECONDS}s)"
         )
+    # Cross-terminal cooldown: resolve channel URL and record in shared SQLite.
+    # COMP-001: _record_source_429 is called with method tokens (e.g. _SOURCE_WHISPER='whisper')
+    # but BatchScheduler expects channel_url as PRIMARY KEY. Resolve via get_source(video_id).
+    if video_id is not None:
+        channel_url = _get_source_for_video(video_id)
+        if channel_url is not None:
+            try:
+                BatchScheduler().record_429(channel_url)
+            except Exception:
+                pass  # Non-fatal: cross-terminal sync is best-effort
 
 
 def _record_source_success(source: str) -> None:

@@ -8,6 +8,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import pytest
+from collections.abc import Generator
 
 from csf.batch_scheduler import (
     _COOLDOWN_SECONDS,

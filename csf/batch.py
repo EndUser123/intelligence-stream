@@ -174,3 +174,123 @@ def analyze_videos_parallel(
                 )
 
     return (successful_results, failed_video_ids)
+
+
+def analyze_videos_round_robin(
+    video_ids: list[str],
+    batch_config: BatchConfig | None = None,
+    max_workers: int = 4,
+    progress_callback: Callable[[int, int, int, int], None] | None = None,
+    force: bool = False,
+    channel_url: str | None = None,
+) -> tuple[dict[str, Any], list[str]]:
+    """Analyze multiple videos in round-robin order using BatchScheduler.
+
+    Yields one video at a time from all pending channels in round-robin order,
+    with jitter between dispatches to avoid thundering herd. Shares cooldown
+    state across all terminals via SQLite WAL.
+
+    Args:
+        video_ids: Ignored — pending videos come from analysis_status DB.
+        batch_config: Optional BatchConfig with max_workers and progress_callback.
+        max_workers: Maximum number of parallel workers.
+        progress_callback: Optional callback(pending, done, failed, cached).
+        force: If True, re-process videos even if already complete.
+        channel_url: Optional channel URL for failure-aware GAUC routing.
+
+    Returns:
+        Tuple of (successful_results: dict, failed_video_ids: list).
+    """
+    if batch_config is not None:
+        effective_max_workers = batch_config.max_workers
+        effective_force = batch_config.force
+        effective_callback = batch_config.progress_callback
+        effective_channel_url = getattr(batch_config, "channel_url", None)
+    else:
+        effective_max_workers = max_workers
+        effective_force = force
+        effective_callback = progress_callback
+        effective_channel_url = channel_url
+
+    effective_workers = min(os.cpu_count() or 4, 8, effective_max_workers)
+
+    from csf.batch_scheduler import BatchScheduler
+
+    scheduler = BatchScheduler()
+
+    successful_results: dict[str, Any] = {}
+    failed_video_ids: list[str] = []
+    completed = 0
+    total_estimate = sum(len(scheduler._get_pending_videos(ch)) for ch in scheduler._channels)
+
+    def _analyze_one(video_id: str, source: str) -> tuple[str, dict | None, bool, str | None]:
+        """Analyze a single video, returning (video_id, result or None, success, error_detail)."""
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+        try:
+            analyze_video = _get_analyze_video()
+            if has_cached_transcript(video_id):
+                result: dict = analyze_video(video_id, video_url, mode="transcript")
+            else:
+                result = analyze_video(
+                    video_id, video_url, mode="auto", channel_url=effective_channel_url
+                )
+            return (video_id, result, True, None)
+        except Exception as e:
+            log_action("batch_analyze_error", {"video_id": video_id, "error": repr(e)})
+            return (video_id, None, False, f"{type(e).__name__}: {e}")
+
+    with ThreadPoolExecutor(max_workers=effective_workers) as executor:
+        futures: dict = {}
+        # Submit initial batch of work — one per worker
+        for _ in range(effective_workers):
+            try:
+                video_id, source = next(scheduler.yield_next())
+            except StopIteration:
+                break
+            future = executor.submit(_analyze_one, video_id, source)
+            futures[future] = (video_id, source)
+
+        # Process results and submit replacements
+        while futures:
+            done, not_done = wait(
+                futures,
+                timeout=getattr(analyze_videos_round_robin, "_default_timeout", 7200),
+            )
+            for future in done:
+                video_id, source = futures.pop(future)
+                result_obj = future.result()
+                video_id, result, success, error_detail = result_obj
+
+                if success and result is not None:
+                    successful_results[video_id] = result
+                    mark_complete(video_id)
+                    scheduler.archive_finalize(video_id, "success", source)
+                else:
+                    failed_video_ids.append(video_id)
+                    mark_failed(video_id)
+                    scheduler.archive_finalize(video_id, "failed", source)
+
+                completed += 1
+                if effective_callback:
+                    pending = total_estimate - completed
+                    effective_callback(
+                        pending,
+                        len(successful_results),
+                        len(failed_video_ids),
+                        len(successful_results),
+                    )
+
+                # Submit next video if any remain
+                try:
+                    next_video_id, next_source = next(scheduler.yield_next())
+                except StopIteration:
+                    next_video_id = None
+                    next_source = None
+
+                if next_video_id is not None:
+                    new_future = executor.submit(_analyze_one, next_video_id, next_source)
+                    futures[new_future] = (next_video_id, next_source)
+
+            futures = dict(not_done)
+
+    return (successful_results, failed_video_ids)

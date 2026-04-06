@@ -5,7 +5,6 @@ from __future__ import annotations
 import random
 import sqlite3
 import time
-from itertools import cycle
 from pathlib import Path
 from typing import Iterator
 

@@ -26,7 +26,15 @@ _TEST_DB = _TEST_DB_DIR / "test_scheduler.sqlite"
 
 
 def _reset_test_db() -> None:
-    """Clear all tables in the test DB, creating them if they don't exist."""
+    """Delete and recreate the test DB to ensure clean state, avoiding Windows locks."""
+    import os as _os
+
+    for suffix in ("", "-wal", "-shm"):
+        p = str(_TEST_DB) + suffix
+        try:
+            _os.unlink(p)
+        except FileNotFoundError:
+            pass
     conn = sqlite3.connect(_TEST_DB)
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS analysis_status (
@@ -42,11 +50,8 @@ def _reset_test_db() -> None:
             source TEXT PRIMARY KEY, cooldown_until REAL NOT NULL,
             consecutive_429s INTEGER NOT NULL DEFAULT 0
         );
+        PRAGMA journal_mode=WAL;
     """)
-    conn.execute("DELETE FROM download_archive")
-    conn.execute("DELETE FROM channel_cooldown")
-    conn.execute("DELETE FROM analysis_status")
-    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     conn.close()
 
 

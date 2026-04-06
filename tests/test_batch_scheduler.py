@@ -236,7 +236,7 @@ def test_stale_attempting_recovery(db_path: Path) -> None:
     conn.close()
 
     # Scheduler init should promote stale attempting → failed
-    sched = _make_scheduler(db_path)
+    _make_scheduler(db_path)
 
     conn2 = sqlite3.connect(db_path)
     row = conn2.execute(

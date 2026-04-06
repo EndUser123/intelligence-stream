@@ -95,6 +95,25 @@ class _BatchStatusStorage:
         )
         # Checkpoint WAL to prevent unbounded WAL file growth (matches cache.py pattern)
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        # Migrate existing DBs that predate download_archive and channel_cooldown tables.
+        # Uses try/except on a column unique to channel_cooldown to detect absence.
+        try:
+            conn.execute("SELECT consecutive_429s FROM channel_cooldown LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS download_archive (
+                    video_id TEXT PRIMARY KEY,
+                    status TEXT NOT NULL CHECK(status IN ('success', 'failed', 'skipped', 'attempting')),
+                    source TEXT,
+                    attempted_at REAL NOT NULL,
+                    error TEXT
+                );
+                CREATE TABLE IF NOT EXISTS channel_cooldown (
+                    source TEXT PRIMARY KEY,
+                    cooldown_until REAL NOT NULL,
+                    consecutive_429s INTEGER NOT NULL DEFAULT 0
+                );
+            """)
         conn.close()
         self._ensure_nlm_export_state()
         self._ensure_channel_metadata()

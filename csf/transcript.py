@@ -847,7 +847,7 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
     if not _is_source_rate_limited(_SOURCE_SELENIUM):
         success, transcript, error = _fetch_via_selenium_chrome(video_id, prefer_lang)
         if success and transcript:
-            _record_source_success(_SOURCE_SELENIUM)
+            _record_source_success(_SOURCE_SELENIUM, video_id)
             set_cached_transcript(video_id, prefer_lang, _SOURCE_SELENIUM, transcript)
             return TranscriptResult(
                 video_id=video_id,

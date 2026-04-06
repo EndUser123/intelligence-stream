@@ -867,7 +867,7 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
     if not _is_source_rate_limited(_SOURCE_WHISPER):
         success, transcript, error = _fetch_via_whisper(video_id, prefer_lang)
         if success and transcript:
-            _record_source_success(_SOURCE_WHISPER)
+            _record_source_success(_SOURCE_WHISPER, video_id)
             set_cached_transcript(video_id, prefer_lang, _SOURCE_WHISPER, transcript)
             return TranscriptResult(
                 video_id=video_id,

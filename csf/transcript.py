@@ -883,7 +883,7 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
         if error and (
             "429" in str(error).lower() or "rate limited" in str(error).lower()
         ):
-            _record_source_429(_SOURCE_WHISPER)
+            _record_source_429(_SOURCE_WHISPER, video_id)
 
     # All methods failed — non-fatal
     return _none_result(last_error)

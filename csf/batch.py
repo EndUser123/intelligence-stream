@@ -280,7 +280,9 @@ def analyze_videos_round_robin(
 
                 # Submit next video if any remain
                 try:
-                    next_video_id, next_source = next(scheduler.yield_next())
+                    pair = next(scheduler.yield_next())
+                    next_video_id: str | None = pair[0]
+                    next_source: str | None = pair[1]
                 except StopIteration:
                     next_video_id = None
                     next_source = None

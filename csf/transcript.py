@@ -861,7 +861,7 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
             )
         last_error = error
         if error and ("429" in str(error).lower() or "rate limited" in str(error).lower()):
-            _record_source_429(_SOURCE_SELENIUM)
+            _record_source_429(_SOURCE_SELENIUM, video_id)
 
     # Step 4: Whisper as final fallback (slow — audio download + transcription)
     if not _is_source_rate_limited(_SOURCE_WHISPER):

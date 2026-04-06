@@ -814,7 +814,7 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
             continue  # skip circuit-open source
         success, transcript, error = fetch_fn(video_id, "en")
         if success and transcript:
-            _record_source_success(source)
+            _record_source_success(source, video_id)
             raw_lang = "en"
             detected_lang = "en"
             final_transcript = transcript

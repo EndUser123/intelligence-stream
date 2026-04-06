@@ -18,6 +18,14 @@ from csf.batch_scheduler import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _no_jitter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disable jitter sleeps for all tests so they run in <1s instead of ~50s."""
+    import csf.batch_scheduler as bs
+    monkeypatch.setattr(bs, "_JITTER_MIN", 0.001)
+    monkeypatch.setattr(bs, "_JITTER_MAX", 0.001)
+
+
 @pytest.fixture
 def db_path() -> Generator[Path, None, None]:
     with TemporaryDirectory() as tmpdir:

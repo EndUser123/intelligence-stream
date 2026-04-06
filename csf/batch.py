@@ -291,6 +291,9 @@ def analyze_videos_round_robin(
                     new_future = executor.submit(_analyze_one, next_video_id, next_source)
                     futures[new_future] = (next_video_id, next_source)
 
+            # Keep only still-waiting futures (not the newly submitted ones)
             futures = dict(not_done)
+            # Above: newly submitted futures are added AFTER wait(), so they're
+            # preserved in the dict since they're not in not_done.
 
     return (successful_results, failed_video_ids)

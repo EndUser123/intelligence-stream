@@ -240,7 +240,7 @@ def analyze_videos_round_robin(
             return (video_id, None, False, f"{type(e).__name__}: {e}")
 
     with ThreadPoolExecutor(max_workers=effective_workers) as executor:
-        futures: dict = {}
+        futures: dict[Future[Any], tuple[str, str]] = {}
         # Submit initial batch of work — one per worker
         for _ in range(effective_workers):
             try:

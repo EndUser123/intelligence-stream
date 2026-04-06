@@ -30,6 +30,10 @@ class BatchScheduler:
         self._iterators: dict[str, Iterator[str]] = {
             ch: iter(self._get_pending_videos(ch)) for ch in self._channels
         }
+        # Checkpoint WAL opened during init so connections are clean on Windows
+        conn = sqlite3.connect(self._db_path)
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        conn.close()
 
     def _ensure_tables(self) -> None:
         conn = sqlite3.connect(self._db_path)

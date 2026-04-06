@@ -225,10 +225,18 @@ def _record_source_429(source: str, video_id: str | None = None) -> None:
                 pass  # Non-fatal: cross-terminal sync is best-effort
 
 
-def _record_source_success(source: str) -> None:
-    """Reset 429 counter on any success."""
+def _record_source_success(source: str, video_id: str | None = None) -> None:
+    """Reset 429 counter on any success. Clears cross-terminal channel cooldown."""
     with _circuit_lock:
         _consecutive_429[source] = 0
+    # Cross-terminal cooldown clear: resolve channel URL and clear in shared SQLite.
+    if video_id is not None:
+        channel_url = _get_source_for_video(video_id)
+        if channel_url is not None:
+            try:
+                BatchScheduler().record_success(channel_url)
+            except Exception:
+                pass  # Non-fatal: cross-terminal sync is best-effort
 
 
 def _apply_jitter_with_backoff(source: str) -> None:

@@ -324,7 +324,7 @@ def cmd_sync(source_id_or_url: str) -> None:
 
         print(f"[source] Processing {len(pending_ids)} pending videos for {channel_url}...")
 
-        successful, failed = batch.analyze_videos_parallel(
+        successful, failed = batch.analyze_videos_round_robin(
             pending_ids, channel_url=channel_url
         )
     finally:

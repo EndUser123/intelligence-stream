@@ -203,12 +203,10 @@ def analyze_videos_round_robin(
     """
     if batch_config is not None:
         effective_max_workers = batch_config.max_workers
-        effective_force = batch_config.force
         effective_callback = batch_config.progress_callback
         effective_channel_url = getattr(batch_config, "channel_url", None)
     else:
         effective_max_workers = max_workers
-        effective_force = force
         effective_callback = progress_callback
         effective_channel_url = channel_url
 

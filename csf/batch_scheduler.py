@@ -120,6 +120,7 @@ class BatchScheduler:
     def record_429(self, source: str) -> None:
         """Record a 429 for this channel. Opens circuit after threshold."""
         conn = sqlite3.connect(self._db_path)
+        conn.execute("PRAGMA busy_timeout=5000")
         cursor = conn.execute(
             "SELECT consecutive_429s FROM channel_cooldown WHERE source=?", (source,)
         )
@@ -133,6 +134,7 @@ class BatchScheduler:
             "INSERT OR REPLACE INTO channel_cooldown (source, cooldown_until, consecutive_429s) VALUES (?, ?, ?)",
             (source, cooldown_until, consecutive),
         )
+        conn.commit()
         conn.close()
 
     def record_success(self, source: str) -> None:

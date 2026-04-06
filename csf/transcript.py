@@ -837,7 +837,7 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
             )
         last_error = error
         if error and ("429" in error.lower() or "rate limited" in error.lower()):
-            _record_source_429(source)
+            _record_source_429(source, video_id)
             _apply_jitter_with_backoff(source)
         else:
             _apply_jitter()

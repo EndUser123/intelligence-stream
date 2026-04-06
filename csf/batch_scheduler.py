@@ -63,6 +63,7 @@ class BatchScheduler:
             "UPDATE download_archive SET status='failed' WHERE status='attempting' AND attempted_at < ?",
             (cutoff,),
         )
+        conn.commit()
         conn.close()
 
     def _get_pending_channels(self) -> list[str]:

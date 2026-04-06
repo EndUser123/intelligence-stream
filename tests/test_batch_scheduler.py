@@ -20,7 +20,7 @@ from csf.batch_scheduler import (
 
 
 @pytest.fixture
-def db_path() -> Path:
+def db_path() -> Generator[Path, None, None]:
     with TemporaryDirectory() as tmpdir:
         yield Path(tmpdir) / "test.db"
 

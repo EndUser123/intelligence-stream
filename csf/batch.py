@@ -7,7 +7,7 @@ Each worker calls analyze_video for one video_id.
 from __future__ import annotations
 
 import os
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any

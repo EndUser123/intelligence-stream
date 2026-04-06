@@ -21,12 +21,14 @@ from csf.batch_scheduler import (
 @pytest.fixture
 def db_path() -> Generator[Path, None, None]:
     with TemporaryDirectory() as tmpdir:
-        yield Path(tmpdir) / "test.db"
-
-
-@pytest.fixture
-def scheduler(db_path: Path) -> BatchScheduler:
-    return BatchScheduler(db_path=db_path)
+        p = Path(tmpdir) / "test.db"
+        yield p
+        # Explicitly close any lingering connections before cleanup on Windows
+        try:
+            conn = sqlite3.connect(p)
+            conn.close()
+        except Exception:
+            pass
 
 
 def _make_scheduler(db_path: Path) -> BatchScheduler:

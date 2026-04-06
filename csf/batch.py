@@ -292,7 +292,7 @@ def analyze_videos_round_robin(
                     futures[new_future] = (next_video_id, next_source)
 
             # Keep only still-waiting futures (not the newly submitted ones)
-            futures = dict(not_done)
+            futures = {f: futures[f] for f in not_done}
             # Above: newly submitted futures are added AFTER wait(), so they're
             # preserved in the dict since they're not in not_done.
 

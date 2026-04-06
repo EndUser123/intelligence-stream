@@ -775,7 +775,7 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
             increment_cli_calls()
         success, transcript, error = fetch_fn(video_id, prefer_lang)
         if success and transcript:
-            _record_source_success(source)
+            _record_source_success(source, video_id)
             raw_lang = prefer_lang
             detected_lang = prefer_lang
             final_transcript = transcript

@@ -26,8 +26,23 @@ _TEST_DB = _TEST_DB_DIR / "test_scheduler.sqlite"
 
 
 def _reset_test_db() -> None:
-    """Clear all tables in the test DB."""
+    """Clear all tables in the test DB, creating them if they don't exist."""
     conn = sqlite3.connect(_TEST_DB)
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS analysis_status (
+            video_id TEXT PRIMARY KEY, status TEXT NOT NULL,
+            updated_at TEXT NOT NULL, source TEXT,
+            published_at TEXT, has_captions INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS download_archive (
+            video_id TEXT PRIMARY KEY, status TEXT NOT NULL,
+            source TEXT, attempted_at REAL NOT NULL, error TEXT
+        );
+        CREATE TABLE IF NOT EXISTS channel_cooldown (
+            source TEXT PRIMARY KEY, cooldown_until REAL NOT NULL,
+            consecutive_429s INTEGER NOT NULL DEFAULT 0
+        );
+    """)
     conn.execute("DELETE FROM download_archive")
     conn.execute("DELETE FROM channel_cooldown")
     conn.execute("DELETE FROM analysis_status")

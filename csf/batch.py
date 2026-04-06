@@ -285,7 +285,7 @@ def analyze_videos_round_robin(
                     next_video_id = None
                     next_source = None
 
-                if next_video_id is not None:
+                if next_video_id is not None and next_source is not None:
                     new_future = executor.submit(_analyze_one, next_video_id, next_source)
                     futures[new_future] = (next_video_id, next_source)
 

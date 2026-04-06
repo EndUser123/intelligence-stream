@@ -271,13 +271,15 @@ def test_jitter_range() -> None:
     sched = BatchScheduler(db_path=_TEST_DB)
     gen = sched.yield_next()
 
+    # Read jitter bounds directly from module (not cached at import time)
+    import csf.batch_scheduler as bs
+
     t0 = time.monotonic()
     next(gen)  # first yield
     t1 = time.monotonic()
     delay = t1 - t0
 
-    # After jitter patch: delay should be ~0.001s
-    assert _JITTER_MIN <= delay <= _JITTER_MAX + 0.5
+    assert bs._JITTER_MIN <= delay <= bs._JITTER_MAX + 0.5
 
 
 # ─── test_empty_channel_handling ──────────────────────────────────────────────

@@ -23,9 +23,10 @@ def db_path() -> Generator[Path, None, None]:
     with TemporaryDirectory() as tmpdir:
         p = Path(tmpdir) / "test.db"
         yield p
-        # Explicitly close any lingering connections before cleanup on Windows
+        # Explicitly close all connections and checkpoint WAL before cleanup on Windows
         try:
             conn = sqlite3.connect(p)
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             conn.close()
         except Exception:
             pass

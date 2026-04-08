@@ -1,8 +1,9 @@
 ---
 # ADR-20260404: Round-Robin Batch Scheduler for 429-Resilient Transcript Downloads
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-04-04
+**Accepted:** 2026-04-08
 **Deciders:** Bruce Thomson
 
 ---

@@ -49,10 +49,15 @@ class BatchScheduler:
             );
             CREATE TABLE IF NOT EXISTS channel_cooldown (
                 source TEXT PRIMARY KEY,
-                cooldown_until REAL NOT NULL,
-                consecutive_429s INTEGER NOT NULL DEFAULT 0
+                cooldown_until REAL NOT NULL
             );
         """)
+        # Remove consecutive_429s column from existing channel_cooldown tables.
+        # Wrapped in try/except for SQLite versions that don't support DROP COLUMN.
+        try:
+            conn.execute("ALTER TABLE channel_cooldown DROP COLUMN consecutive_429s")
+        except sqlite3.OperationalError:
+            pass  # Column already absent or SQLite doesn't support DROP COLUMN
         conn.close()
 
     def _recover_stale_attempting(self) -> None:
@@ -74,6 +79,16 @@ class BatchScheduler:
         channels = [row[0] for row in cursor.fetchall()]
         conn.close()
         return channels
+
+    def _count_pending(self) -> int:
+        """Return the count of all pending videos across all channels (runtime-accurate)."""
+        conn = sqlite3.connect(self._db_path)
+        cursor = conn.execute(
+            "SELECT COUNT(*) FROM analysis_status WHERE status='pending'"
+        )
+        row = cursor.fetchone()
+        conn.close()
+        return row[0] if row else 0
 
     def _get_pending_videos(self, source: str) -> list[str]:
         conn = sqlite3.connect(self._db_path)
@@ -118,21 +133,13 @@ class BatchScheduler:
         conn.close()
 
     def record_429(self, source: str) -> None:
-        """Record a 429 for this channel. Opens circuit after threshold."""
+        """Record a 429 for this channel. Sets cooldown until _COOLDOWN_SECONDS from now."""
         conn = sqlite3.connect(self._db_path)
         conn.execute("PRAGMA busy_timeout=5000")
-        cursor = conn.execute(
-            "SELECT consecutive_429s FROM channel_cooldown WHERE source=?", (source,)
-        )
-        row = cursor.fetchone()
-        if row:
-            consecutive = row[0] + 1
-        else:
-            consecutive = 1
         cooldown_until = time.monotonic() + _COOLDOWN_SECONDS
         conn.execute(
-            "INSERT OR REPLACE INTO channel_cooldown (source, cooldown_until, consecutive_429s) VALUES (?, ?, ?)",
-            (source, cooldown_until, consecutive),
+            "INSERT OR REPLACE INTO channel_cooldown (source, cooldown_until) VALUES (?, ?)",
+            (source, cooldown_until),
         )
         conn.commit()
         conn.close()
@@ -140,7 +147,9 @@ class BatchScheduler:
     def record_success(self, source: str) -> None:
         """Clear cooldown for this channel on successful fetch."""
         conn = sqlite3.connect(self._db_path)
+        conn.execute("PRAGMA busy_timeout=5000")
         conn.execute("DELETE FROM channel_cooldown WHERE source=?", (source,))
+        conn.commit()
         conn.close()
 
     def archive_finalize(self, video_id: str, status: str, source: str | None = None) -> None:
@@ -180,6 +189,10 @@ class BatchScheduler:
         if not self._channels:
             return
 
+        # Runtime stale recovery: promote any videos stuck in attempting state
+        # (e.g., worker crashed mid-processing) before each yield pass.
+        self._recover_stale_attempting()
+
         # Rebuild iterators for any channels that are exhausted
         active_channels = [ch for ch in self._channels if self._iterators[ch]]
 
@@ -193,26 +206,36 @@ class BatchScheduler:
                 if not self._iterators[channel]:
                     self._iterators[channel] = iter(self._get_pending_videos(channel))
 
-                try:
-                    video_id = next(self._iterators[channel])
-                except StopIteration:
-                    self._iterators[channel] = iter([])
-                    active_channels.remove(channel)
-                    continue
+                # Inner loop: pull videos from this channel until exhausted or yielded
+                skipped_this_channel = False
+                while not skipped_this_channel:
+                    try:
+                        video_id = next(self._iterators[channel])
+                    except StopIteration:
+                        self._iterators[channel] = iter([])
+                        if channel in active_channels:
+                            active_channels.remove(channel)
+                        break
 
-                # Archive check — skip if already attempted
-                arch_status = self._archive_status(video_id)
-                if arch_status in ("success", "failed", "attempting"):
-                    continue
+                    # Archive check — skip if already attempted
+                    arch_status = self._archive_status(video_id)
+                    if arch_status in ("success", "failed", "attempting", "skipped"):
+                        continue
 
-                # Mark attempting before yielding
-                self._record_attempting(video_id, channel)
+                    # Pre-check availability before yielding — skip permanently unavailable videos
+                    from csf.transcript import check_video_availability
 
-                yielded_this_pass.add(video_id)
-                yield video_id, channel
+                    available, reason = check_video_availability(video_id)
+                    if not available:
+                        self.archive_finalize(video_id, "skipped", channel)
+                        continue
 
-                # Jitter between dispatches
-                time.sleep(random.uniform(_JITTER_MIN, _JITTER_MAX))
+                    # Mark attempting before yielding
+                    self._record_attempting(video_id, channel)
+
+                    yielded_this_pass.add(video_id)
+                    skipped_this_channel = True  # yielded — exit inner loop to round-robin next channel
+                    yield video_id, channel
 
             # If we yielded nothing this pass, break to avoid infinite loop
             if not yielded_this_pass:

@@ -4,13 +4,19 @@ Fallback order: gemini CLI → youtube_transcript_api → youtubei → Gemini SD
 Each method returns: (success: bool, transcript: str | None, error: str | None).
 """
 
+import glob
+import json
+import logging
 import os
 import random
 import re
 import shutil
+import sqlite3
 import subprocess
 import tempfile
 import time
+import urllib.error
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +24,17 @@ from typing import Literal
 
 from csf.batch_status import get_source as _get_source_for_video
 from csf.batch_scheduler import BatchScheduler
+
+# Module-level singleton — avoids repeated _recover_stale_attempting() +
+# PRAGMA wal_checkpoint overhead when many 429s/successes fire under concurrency.
+_scheduler: BatchScheduler | None = None
+
+
+def _get_scheduler() -> BatchScheduler:
+    global _scheduler
+    if _scheduler is None:
+        _scheduler = BatchScheduler()
+    return _scheduler
 from csf.cache import set_cached_transcript
 from csf.quota_tracker import is_free_only_mode
 from csf.youtube_auth import get_browser_cookies
@@ -31,6 +48,7 @@ _SOURCE_YOUTUBE_TRANSCRIPT_API = "youtube_transcript_api"
 _SOURCE_YOUTUBEI = "youtubei"
 _SOURCE_SDK = "sdk"
 _SOURCE_YTDLP = "ytdlp"
+_SOURCE_YTDLP_EJS = "ytdlp_ejs"
 _SOURCE_WHISPER = "whisper"
 _SOURCE_SELENIUM = "selenium"
 
@@ -220,9 +238,9 @@ def _record_source_429(source: str, video_id: str | None = None) -> None:
         channel_url = _get_source_for_video(video_id)
         if channel_url is not None:
             try:
-                BatchScheduler().record_429(channel_url)
-            except Exception:
-                pass  # Non-fatal: cross-terminal sync is best-effort
+                _get_scheduler().record_429(channel_url)
+            except Exception as e:
+                logging.warning(f"[transcript] Cross-terminal sync failed: {e}")
 
 
 def _record_source_success(source: str, video_id: str | None = None) -> None:
@@ -234,9 +252,9 @@ def _record_source_success(source: str, video_id: str | None = None) -> None:
         channel_url = _get_source_for_video(video_id)
         if channel_url is not None:
             try:
-                BatchScheduler().record_success(channel_url)
-            except Exception:
-                pass  # Non-fatal: cross-terminal sync is best-effort
+                _get_scheduler().record_success(channel_url)
+            except Exception as e:
+                logging.warning(f"[transcript] Cross-terminal sync failed: {e}")
 
 
 def _apply_jitter_with_backoff(source: str) -> None:
@@ -280,6 +298,51 @@ def _fetch_via_gemini_cli(
         return (False, None, f"gemini CLI failed: {stderr.strip()}")
 
     return (True, stdout.strip(), None)
+
+
+def check_video_availability(video_id: str) -> tuple[bool, str | None]:
+    """Pre-check video availability using list_transcripts() — no quota consumed.
+
+    Returns:
+        (True, None) — video is available for transcript fetching
+        (False, "video_unavailable") — video is unavailable (permanent)
+        (False, "transcripts_disabled") — channel has disabled transcripts
+        (False, "no_transcript_found") — no transcript languages available
+        (False, str(e)) — unexpected error
+    """
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+    except ImportError:
+        return (False, "youtube_transcript_api not installed")
+
+    try:
+        from youtube_transcript_api._errors import (
+            TranscriptsDisabled,
+            NoTranscriptFound,
+            VideoUnavailable,
+        )
+
+        def _check() -> None:
+            api = YouTubeTranscriptApi()
+            api.list(video_id)
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_check)
+            try:
+                future.result(timeout=10)
+            except TimeoutError:
+                return (False, "video_unavailable")  # treat timeout as unavailable
+            except VideoUnavailable:
+                return (False, "video_unavailable")
+            except TranscriptsDisabled:
+                return (False, "transcripts_disabled")
+            except NoTranscriptFound:
+                return (False, "no_transcript_found")
+        return (True, None)
+    except ImportError:
+        return (False, "youtube_transcript_api not installed")
+    except Exception as e:
+        return (False, str(e))
 
 
 def _fetch_via_youtube_transcript_api(
@@ -357,19 +420,15 @@ def _fetch_via_youtubei(
 
 
 def _fetch_via_ytdlp(video_id: str, lang: str) -> tuple[bool, str | None, str | None]:
-    """Fetch transcript using yt-dlp Python API with Android impersonation.
+    """Fetch transcript using yt-dlp Python API with Chrome TLS impersonation.
 
-    Uses yt-dlp's Python API (not CLI subprocess) with --impersonate android,
-    which bypasses YouTube's JS challenge bot detection that hits CLI subprocesses.
-    Fetches subtitles directly from YouTube's timedtext endpoint via the android_vr
-    client, which is reliably accessible without triggering n-challenge-solver failures.
+    Uses yt-dlp's Python API (not CLI subprocess) with WEB client + curl-cffi
+    Chrome impersonation to bypass YouTube's TLS fingerprinting bot detection.
+    The "Sign in to confirm you're not a bot" error is a TLS handshake rejection —
+    curl-cffi makes the request look like Chrome, bypassing it.
 
-    Falls back to SDK on 429 rate-limit — this method bypasses BOT detection, not
-    rate-limits (both SDK and yt-dlp Android client share the same subtitle endpoint).
+    Falls back gracefully if curl-cffi is not installed.
     """
-    import json
-    import urllib.request
-
     video_url = f"https://www.youtube.com/watch?v={video_id}"
 
     ydl_opts: dict = {
@@ -378,14 +437,15 @@ def _fetch_via_ytdlp(video_id: str, lang: str) -> tuple[bool, str | None, str | 
         "writesubtitles": True,
         "subtitleslangs": [lang],
         "subtitlesformat": "json3",
-        # No explicit impersonate — yt-dlp auto-selects android_vr client when no
-        # JS runtime is found, which bypasses YouTube's JS-challenge bot detection.
-        # ImpersonateTarget('android') is Linux-only; on Windows this would raise
-        # YoutubeDLError. Letting android_vr auto-select achieves the same effect.
         "quiet": True,
         "no_warnings": True,
-        "http_headers": {
-            "User-Agent": "com.google.android.youtube/19.02.39 (Linux; U; Android 11; en_US; Build/KRT3M; gzip)",
+        # WEB client avoids bot-detection on public videos. No cookies needed.
+        # Age-restricted videos require auth — handled by second attempt below.
+        "extractor_args": {
+            "youtube": {
+                "client_name": "WEB",
+                "client_version": "2.20210721.01.00",
+            }
         },
     }
 
@@ -406,21 +466,46 @@ def _fetch_via_ytdlp(video_id: str, lang: str) -> tuple[bool, str | None, str | 
         if not subs or len(subs) == 0:
             return (False, None, "no subtitles available")
 
-        # Get the subtitle URL from the first entry
         sub_url = subs[0].get("url")
         if not sub_url:
             return (False, None, "no subtitle URL in yt-dlp response")
 
-        # Fetch and parse JSON3 timedtext
-        req = urllib.request.Request(
-            sub_url,
-            headers={
-                "User-Agent": "com.google.android.youtube/19.02.39 (Linux; U; Android 11; en_US; Build/KRT3M; gzip)",
-                "Accept": "application/json",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        # Fetch the timedtext JSON3 using curl-cffi with Chrome impersonation.
+        # This is the actual HTTP call — curl-cffi bypasses TLS fingerprinting.
+        try:
+            from curl_cffi import requests as curl_requests
+
+            resp = curl_requests.get(
+                sub_url,
+                impersonate="chrome",
+                timeout=30,
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    ),
+                    "Accept": "application/json",
+                },
+            )
+            data = json.loads(resp.content.decode("utf-8"))
+        except ImportError:
+            # Fall back to urllib — will likely get bot-checked
+            import urllib.request
+
+            req = urllib.request.Request(
+                sub_url,
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    ),
+                    "Accept": "application/json",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=30) as r:
+                data = json.loads(r.read().decode("utf-8"))
 
         # Parse timedtext JSON3 format into plain text
         # JSON3 format: {"events": [{"segs": [{"utf8": "text"}, ...]}, ...]}
@@ -452,7 +537,219 @@ def _fetch_via_ytdlp(video_id: str, lang: str) -> tuple[bool, str | None, str | 
             return (False, None, "rate limited (429)")
         if "no subtitles" in err_str or "does not have any subtitles" in err_str:
             return (False, None, "no subtitles available")
+        if "sign in to confirm" in err_str or "not a bot" in err_str:
+            # Bot-check triggered — try age-restricted approach with cookies + default extractor.
+            # This is a second attempt inside the same function rather than a separate method.
+            return _fetch_via_ytdlp_with_cookies(video_id, lang)
         return (False, None, f"yt-dlp error: {e}")
+
+
+def _fetch_via_ytdlp_with_cookies(
+    video_id: str, lang: str
+) -> tuple[bool, str | None, str | None]:
+    """Second-attempt transcript fetch with browser cookies for age-restricted videos.
+
+    Called by _fetch_via_ytdlp when bot-check fires on the WEB client approach.
+    Uses the default yt-dlp extractor (not WEB client) with Firefox browser cookies.
+    Falls back gracefully if cookies are unavailable or extraction fails.
+    """
+    video_url = f"https://www.youtube.com/watch?v={video_id}"
+
+    # Find Firefox cookies file — requires Firefox running to extract live cookies
+    cookie_file = _get_firefox_cookie_file()
+    if not cookie_file:
+        return (False, None, "no firefox cookie file")
+
+    ydl_opts: dict = {
+        "skip_download": True,
+        "writeautomaticsubs": True,
+        "writesubtitles": True,
+        "subtitleslangs": [lang],
+        "subtitlesformat": "json3",
+        "quiet": True,
+        "no_warnings": True,
+        "cookiefile": cookie_file,
+        # EJS github component resolves YouTube's JS challenge for age-restricted videos.
+        # Works alongside cookies to authenticate and extract transcripts.
+        "extractor_args": {
+            "youtube": {"external_downloader": "ejs:github"}
+        },
+    }
+
+    try:
+        import yt_dlp
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=False)
+
+        subs = (
+            info.get("automatic_captions", {}).get(lang)
+            or info.get("subtitles", {}).get(lang)
+            or info.get("automatic_captions", {}).get("en")
+            or info.get("subtitles", {}).get("en")
+        )
+
+        if not subs or len(subs) == 0:
+            os.unlink(cookie_file)
+            return (False, None, "no subtitles available")
+
+        sub_url = subs[0].get("url")
+        if not sub_url:
+            os.unlink(cookie_file)
+            return (False, None, "no subtitle URL in yt-dlp response")
+
+        # Fetch subtitle URL with curl_cffi Chrome impersonation
+        try:
+            from curl_cffi import requests as curl_requests
+
+            resp = curl_requests.get(
+                sub_url,
+                impersonate="chrome",
+                timeout=30,
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    ),
+                    "Accept": "application/json",
+                },
+            )
+            data = json.loads(resp.content.decode("utf-8"))
+        except ImportError:
+            req = urllib.request.Request(
+                sub_url,
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    ),
+                    "Accept": "application/json",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=30) as r:
+                data = json.loads(r.read().decode("utf-8"))
+
+        text_parts = []
+        for event in data.get("events", []):
+            for seg in event.get("segs", []):
+                t = seg.get("utf8", "").strip()
+                if t:
+                    text_parts.append(t)
+            if event.get("segs"):
+                text_parts.append("\n")
+
+        full_text = " ".join(t for t in text_parts if t != "\n")
+        os.unlink(cookie_file)
+        if not full_text.strip():
+            return (False, None, "subtitle file was empty")
+
+        return (True, full_text.strip(), None)
+
+    except urllib.error.HTTPError as e:
+        try:
+            os.unlink(cookie_file)
+        except Exception:
+            pass
+        if e.code == 429:
+            return (False, None, "rate limited (429)")
+        return (False, None, f"yt-dlp-with-cookies HTTP error: {e.code}")
+    except subprocess.TimeoutExpired:
+        try:
+            os.unlink(cookie_file)
+        except Exception:
+            pass
+        return (False, None, "yt-dlp-with-cookies timed out")
+    except Exception as e:
+        try:
+            os.unlink(cookie_file)
+        except Exception:
+            pass
+        err_str = str(e).lower()
+        if "429" in err_str or "too many requests" in err_str:
+            return (False, None, "rate limited (429)")
+        if "sign in" in err_str or "age" in err_str or "login" in err_str:
+            return (False, None, "age-restricted or requires login")
+        return (False, None, f"yt-dlp-with-cookies error: {e}")
+
+
+def _get_firefox_cookie_file() -> str | None:
+    """Export live Firefox YouTube cookies to a temp Netscape cookie file.
+
+    Copies cookies.sqlite from the live Firefox profile to bypass Windows
+    file locking, then exports YouTube/Google/Googlevideo cookies to
+    Netscape format. The caller is responsible for deleting the temp file.
+
+    Returns:
+        Path to temp cookie file, or None if Firefox is not running / no cookies found.
+    """
+    appdata = os.environ.get("APPDATA") or ""
+    profile_base = os.path.join(appdata, "Mozilla", "Firefox", "Profiles")
+    profiles = glob.glob(os.path.join(profile_base, "*.default*"))
+    if not profiles:
+        return None
+
+    # Prefer the release profile (has active YouTube session)
+    release = next((p for p in profiles if "release" in p), profiles[0])
+    cookie_db = os.path.join(release, "cookies.sqlite")
+    if not os.path.exists(cookie_db):
+        return None
+
+    tmp_db = tempfile.mktemp(suffix=".sqlite")
+    try:
+        shutil.copy2(cookie_db, tmp_db)
+    except Exception:
+        return None
+
+    try:
+        conn = sqlite3.connect(f"file:{tmp_db}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+        cur = conn.execute(
+            "SELECT host, name, value, path, expiry, isSecure FROM moz_cookies "
+            'WHERE host LIKE "%youtube.com" OR host LIKE "%google.com" OR host LIKE "%googlevideo.com"'
+        )
+        rows = cur.fetchall()
+        conn.close()
+    except Exception:
+        os.unlink(tmp_db)
+        return None
+
+    if not rows:
+        os.unlink(tmp_db)
+        return None
+
+    cookie_file = tempfile.mktemp(suffix=".txt")
+    try:
+        with open(cookie_file, "w", encoding="utf-8") as f:
+            f.write("# Netscape HTTP Cookie File\n")
+            for row in rows:
+                h, n, v, p, exp, sec = (
+                    row["host"],
+                    row["name"],
+                    row["value"],
+                    row["path"],
+                    row["expiry"],
+                    row["isSecure"],
+                )
+                flag = "TRUE" if h.startswith(".") else "FALSE"
+                p = p or "/"
+                sec_str = "TRUE" if sec else "FALSE"
+                v = v.replace("\n", "%0A")
+                f.write(f"{h}\t{flag}\t{p}\t{sec_str}\t{exp}\t{n}\t{v}\n")
+        return cookie_file
+    except Exception:
+        try:
+            os.unlink(cookie_file)
+        except Exception:
+            pass
+        os.unlink(tmp_db)
+        return None
+    finally:
+        try:
+            os.unlink(tmp_db)
+        except Exception:
+            pass
 
 
 def _parse_srt(srt_content: str) -> str:
@@ -595,18 +892,18 @@ def _fetch_via_whisper(video_id: str, lang: str) -> tuple[bool, str | None, str 
             pass
 
 
-def _fetch_via_selenium_chrome(
+def _fetch_via_selenium_firefox(
     video_id: str, lang: str
 ) -> tuple[bool, str | None, str | None]:
-    """Fetch transcript using Selenium-driven Chrome with real browser TLS.
+    """Fetch transcript using Selenium-driven Firefox with real browser TLS.
 
-    This is a last-resort fallback that bypasses YouTube's TLS fingerprinting
-    by running an actual Chrome browser. It is slow (~15-30s per video) but
-    reliable when youtube_transcript_api and yt-dlp both fail due to bot detection.
+    This is a fallback that bypasses YouTube's TLS fingerprinting bot detection
+    by running an actual Firefox browser with your real browser session (cookies).
+    It is slow (~15-30s per video) but reliable when yt-dlp fails due to bot detection.
 
     Args:
         video_id: YouTube video ID.
-        lang: BCP-47 language code (currently unused — Chrome always returns
+        lang: BCP-47 language code (currently unused — Firefox returns
             the transcript in whatever language YouTube provides, usually en).
 
     Returns:
@@ -614,26 +911,33 @@ def _fetch_via_selenium_chrome(
     """
     try:
         from selenium import webdriver
-        from selenium.webdriver.chrome.options import Options
-        from selenium.webdriver.chrome.service import Service
+        from selenium.webdriver.firefox.options import Options
+        from selenium.webdriver.firefox.service import Service
+        from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
         from selenium.webdriver.common.by import By
     except ImportError:
         return (False, None, "selenium not installed")
 
-    tmp_dir = None
+    firefox_profile_path = None
     try:
-        tmp_dir = tempfile.mkdtemp(prefix="selenium_transcript_")
+        # Use the default Firefox profile so cookies/session carry over
+        import glob as _glob
+
+        appdata = os.environ.get("APPDATA") or ""
+        profile_base = os.path.join(appdata, "Mozilla", "Firefox", "Profiles")
+        profiles = _glob.glob(os.path.join(profile_base, "*.default*"))
+        if profiles:
+            firefox_profile_path = profiles[0]
 
         opts = Options()
         opts.add_argument("--headless=new")
-        opts.add_argument("--no-sandbox")
-        opts.add_argument("--disable-dev-shm-usage")
-        opts.add_argument("--disable-gpu")
-        opts.add_argument(f"--user-data-dir={tmp_dir}")
-        opts.add_argument("--window-size=1920,1080")
 
         service = Service()
-        driver = webdriver.Chrome(service=service, options=opts)
+        if firefox_profile_path:
+            profile = FirefoxProfile(firefox_profile_path)
+            driver = webdriver.Firefox(service=service, options=opts, firefox_profile=profile)
+        else:
+            driver = webdriver.Firefox(service=service, options=opts)
 
         try:
             video_url = f"https://www.youtube.com/watch?v={video_id}"
@@ -674,30 +978,19 @@ def _fetch_via_selenium_chrome(
 
     except Exception as e:
         return (False, None, f"selenium error: {e}")
-    finally:
-        if tmp_dir:
-            import shutil as _shutil
-
-            try:
-                _shutil.rmtree(tmp_dir)
-            except Exception:
-                pass
 
 
 def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptResult:
     """Fetch transcript using full fallback chain with optional translation.
 
     Chain order:
-      1. yt-dlp subtitles (fastest, no API needed)
-      2. youtube_transcript_api with prefer_lang
-      3. youtubei → Gemini SDK → gemini CLI
-      4. youtube_transcript_api / youtubei / SDK with "en" (fallback language)
-      5. Selenium Chrome — real browser TLS bypasses YouTube IpBlocked (~15-30s)
+      1. yt-dlp Python API (WEB client, curl_cffi TLS) — public videos (~2s)
+         → bot-check triggers immediate cookie-based retry with browser cookies
+      2. youtube_transcript_api, youtubei, Gemini SDK, gemini CLI
+      3. Steps 1-2 with "en" fallback language
+      4. yt-dlp Python API with browser cookies — age-restricted videos (~5-10s)
+      5. Selenium Firefox — real browser TLS bypasses YouTube bot-check (~15-30s)
       6. Whisper audio transcription (last resort, ~30-90s)
-
-    Free sources first (TECH-01). CLI is skipped if quota exceeded (LOGIC-004).
-    Selenium Chrome is attempted only after all fast caption-based methods fail.
-    Whisper is attempted only after ALL other methods fail completely.
 
     Args:
         video_id: YouTube video ID (must be 11 chars)
@@ -751,8 +1044,10 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
             error=last_err,
         )
 
-    # Try free sources first (TECH-01), then paid CLI last
-    # LOGIC-004: Skip CLI if quota exceeded (free-only mode active)
+    # Fallback chain: yt-dlp → youtube_transcript_api → youtubei → SDK
+    # Bot-check on yt-dlp triggers Selenium Firefox immediately (Step 1b above).
+    # youtube_transcript_api is re-enabled — it uses browser cookies and may succeed
+    # where bare yt-dlp fails due to IP-level blocking.
     free_methods = [
         (_SOURCE_YTDLP, _fetch_via_ytdlp),
         (_SOURCE_YOUTUBE_TRANSCRIPT_API, _fetch_via_youtube_transcript_api),
@@ -808,6 +1103,24 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
         else:
             _apply_jitter()
 
+        # Bot-check from yt-dlp: try Selenium Firefox immediately, skip remaining methods
+        if source == _SOURCE_YTDLP and error == "yt-dlp bot_check":
+            success, transcript, error = _fetch_via_selenium_firefox(video_id, prefer_lang)
+            if success and transcript:
+                _record_source_success("selenium_firefox", video_id)
+                set_cached_transcript(video_id, prefer_lang, "selenium_firefox", transcript)
+                return TranscriptResult(
+                    video_id=video_id,
+                    lang=prefer_lang,
+                    raw_lang=prefer_lang,
+                    was_translated=False,
+                    transcript=transcript,
+                    source="selenium_firefox",
+                    detected_lang=prefer_lang,
+                    error=None,
+                )
+            # Selenium also failed — fall through to generic fallback
+
     # Step 2: Try any language
     for source, fetch_fn in free_methods:  # Only free methods for fallback
         if _is_source_rate_limited(source):
@@ -842,48 +1155,44 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
         else:
             _apply_jitter()
 
-    # Step 3: Selenium Chrome — bypass YouTube TLS fingerprinting via real browser.
-    #          Slow (~15-30s) but reliable when youtube_transcript_api gets IpBlocked.
-    if not _is_source_rate_limited(_SOURCE_SELENIUM):
-        success, transcript, error = _fetch_via_selenium_chrome(video_id, prefer_lang)
-        if success and transcript:
-            _record_source_success(_SOURCE_SELENIUM, video_id)
-            set_cached_transcript(video_id, prefer_lang, _SOURCE_SELENIUM, transcript)
-            return TranscriptResult(
-                video_id=video_id,
-                lang=prefer_lang,
-                raw_lang=prefer_lang,
-                was_translated=False,
-                transcript=transcript,
-                source=_SOURCE_SELENIUM,
-                detected_lang=prefer_lang,
-                error=None,
-            )
-        last_error = error
-        if error and ("429" in str(error).lower() or "rate limited" in str(error).lower()):
-            _record_source_429(_SOURCE_SELENIUM, video_id)
+    # Step 3: yt-dlp Python API with browser cookies — age-restricted videos
+    success, transcript, error = _fetch_via_ytdlp_with_cookies(video_id, prefer_lang)
+    if success and transcript:
+        _record_source_success(_SOURCE_YTDLP_EJS, video_id)
+        set_cached_transcript(video_id, prefer_lang, _SOURCE_YTDLP_EJS, transcript)
+        return TranscriptResult(
+            video_id=video_id,
+            lang=prefer_lang,
+            raw_lang=prefer_lang,
+            was_translated=False,
+            transcript=transcript,
+            source=_SOURCE_YTDLP_EJS,
+            detected_lang=prefer_lang,
+            error=None,
+        )
+    last_error = error or last_error
 
-    # Step 4: Whisper as final fallback (slow — audio download + transcription)
-    if not _is_source_rate_limited(_SOURCE_WHISPER):
-        success, transcript, error = _fetch_via_whisper(video_id, prefer_lang)
-        if success and transcript:
-            _record_source_success(_SOURCE_WHISPER, video_id)
-            set_cached_transcript(video_id, prefer_lang, _SOURCE_WHISPER, transcript)
-            return TranscriptResult(
-                video_id=video_id,
-                lang=prefer_lang,
-                raw_lang=prefer_lang,
-                was_translated=False,
-                transcript=transcript,
-                source=_SOURCE_WHISPER,
-                detected_lang=prefer_lang,
-                error=None,
-            )
-        last_error = error
-        if error and (
-            "429" in str(error).lower() or "rate limited" in str(error).lower()
-        ):
-            _record_source_429(_SOURCE_WHISPER, video_id)
+    # Step 4: Selenium Firefox (last resort before Whisper)
+    success, transcript, error = _fetch_via_selenium_firefox(video_id, prefer_lang)
+    if success and transcript:
+        _record_source_success("selenium_firefox", video_id)
+        set_cached_transcript(video_id, prefer_lang, "selenium_firefox", transcript)
+        return TranscriptResult(
+            video_id=video_id,
+            lang=prefer_lang,
+            raw_lang=prefer_lang,
+            was_translated=False,
+            transcript=transcript,
+            source="selenium_firefox",
+            detected_lang=prefer_lang,
+            error=None,
+        )
+    last_error = error or last_error
 
     # All methods failed — non-fatal
+    # Persist final state to shared archive so restart doesn't re-process this video.
+    try:
+        BatchScheduler().archive_finalize(video_id, "failed")
+    except Exception as e:
+        logging.warning(f"[transcript] Failed to archive final failure for {video_id}: {e}")
     return _none_result(last_error)

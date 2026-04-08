@@ -13,7 +13,7 @@ collecting ... collected 48 items
 tests/test_orchestrator.py::TestSelectProvider::test_select_provider_cached_transcript_returns_tier3 PASSED [  2%]
 tests/test_orchestrator.py::TestSelectProvider::test_select_provider_invalid_video_id_raises_valueerror PASSED [  4%]
 tests/test_orchestrator.py::TestSelectProvider::test_select_provider_invalid_url_raises_valueerror PASSED [  6%]
-tests/test_orchestrator.py::TestSelectProvider::test_select_provider_tier1_when_gemini_available PASSED [  8%]
+tests/test_orchestrator.py::TestSelectProvider::test_select_provider_tier1_when_local_model_available PASSED [  8%]
 tests/test_orchestrator.py::TestSelectProvider::test_select_provider_tier2_when_tier1_unavailable PASSED [ 10%]
 tests/test_orchestrator.py::TestSelectProvider::test_select_provider_tier3_fallback PASSED [ 12%]
 tests/test_orchestrator.py::TestMidnightReset::test_midnight_reset_flips_gemini_available PASSED [ 14%]
@@ -49,31 +49,256 @@ tests/test_ocr_clip_provider.py::TestOcrClipProvider::test_empty_transcript_rais
 tests/test_ocr_clip_provider.py::TestOcrClipProvider::test_valid_transcript_returns_video_analysis_result PASSED [ 77%]
 tests/test_ocr_clip_provider.py::TestOcrClipProvider::test_ocr_fails_raises_nonfatal PASSED [ 79%]
 tests/test_ocr_clip_provider.py::TestOcrClipProvider::test_clip_fails_returns_partial_with_empty_visual_tags PASSED [ 81%]
-tests/test_providers_integration.py::TestProviderSelection::test_select_provider_returns_transcript_when_gemini_unavailable PASSED [ 83%]
-tests/test_providers_integration.py::TestProviderSelection::test_select_provider_returns_ocr_clip_when_gemini_unavailable_and_ocr_available PASSED [ 85%]
-tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_gemini_nonfatal_propagates PASSED [ 87%]
-tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_ocr_nonfatal_propagates PASSED [ 89%]
-tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_transcript_provider_returns_result PASSED [ 91%]
+tests/test_providers_integration.py::TestProviderSelection::test_select_provider_returns_transcript_when_gemini_unavailable FAILED [ 83%]
+tests/test_providers_integration.py::TestProviderSelection::test_select_provider_returns_ocr_clip_when_gemini_unavailable_and_ocr_available FAILED [ 85%]
+tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_gemini_nonfatal_propagates FAILED [ 87%]
+tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_ocr_nonfatal_propagates FAILED [ 89%]
+tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_transcript_provider_returns_result FAILED [ 91%]
 tests/test_providers_integration.py::TestTierIntegration::test_ocr_clip_provider_empty_transcript_raises_nonfatal PASSED [ 93%]
 tests/test_batch_orchestrator.py::TestCachedTranscriptFastpath::test_cached_transcript_fastpath_no_orchestrator PASSED [ 95%]
-tests/test_batch_orchestrator.py::TestNonFatalIsolation::test_orchestrator_nonfatal_does_not_crash_batch FAILED [ 97%]
-tests/test_batch_orchestrator.py::TestConcurrentWorkers::test_4_worker_concurrent FAILED [100%]
+tests/test_batch_orchestrator.py::TestNonFatalIsolation::test_orchestrator_nonfatal_does_not_crash_batch PASSED [ 97%]
+tests/test_batch_orchestrator.py::TestConcurrentWorkers::test_4_worker_concurrent PASSED [100%]
 
 ================================== FAILURES ===================================
-____ TestNonFatalIsolation.test_orchestrator_nonfatal_does_not_crash_batch ____
-tests\test_batch_orchestrator.py:116: in test_orchestrator_nonfatal_does_not_crash_batch
-    assert len(call_log) == 3
-E   assert 0 == 3
-E    +  where 0 = len([])
-_______________ TestConcurrentWorkers.test_4_worker_concurrent ________________
-tests\test_batch_orchestrator.py:157: in test_4_worker_concurrent
-    assert len(successful) == 4
-E   assert 0 == 4
-E    +  where 0 = len({})
+_ TestProviderSelection.test_select_provider_returns_transcript_when_gemini_unavailable _
+tests\test_providers_integration.py:46: in test_select_provider_returns_transcript_when_gemini_unavailable
+    assert isinstance(provider, TranscriptProvider)
+E   assert False
+E    +  where False = isinstance(<csf.providers.lm_studio_provider.LocalModelProvider object at 0x000001EB32DCCB60>, TranscriptProvider)
+_ TestProviderSelection.test_select_provider_returns_ocr_clip_when_gemini_unavailable_and_ocr_available _
+tests\test_providers_integration.py:70: in test_select_provider_returns_ocr_clip_when_gemini_unavailable_and_ocr_available
+    assert isinstance(provider, OcrClipProvider)
+E   assert False
+E    +  where False = isinstance(<csf.providers.lm_studio_provider.LocalModelProvider object at 0x000001EB32DCCE80>, OcrClipProvider)
+___ TestTierIntegration.test_analyze_video_with_gemini_nonfatal_propagates ____
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_transports\default.py:101: in map_httpcore_exceptions
+    yield
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_transports\default.py:250: in handle_request
+    resp = self._pool.handle_request(req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_sync\connection_pool.py:256: in handle_request
+    raise exc from None
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_sync\connection_pool.py:236: in handle_request
+    response = connection.handle_request(
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_sync\connection.py:101: in handle_request
+    raise exc
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_sync\connection.py:78: in handle_request
+    stream = self._connect(request)
+             ^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_sync\connection.py:124: in _connect
+    stream = self._network_backend.connect_tcp(**kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_backends\sync.py:207: in connect_tcp
+    with map_exceptions(exc_map):
+         ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python314\Lib\contextlib.py:162: in __exit__
+    self.gen.throw(value)
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_exceptions.py:14: in map_exceptions
+    raise to_exc(exc) from exc
+E   httpcore.ConnectError: [WinError 10061] No connection could be made because the target machine actively refused it
+
+The above exception was the direct cause of the following exception:
+csf\providers\lm_studio_provider.py:49: in analyze
+    resp = client.post(f"{LM_STUDIO_URL}/chat/completions", json=payload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:1144: in post
+    return self.request(
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:914: in send
+    response = self._send_handling_auth(
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_transports\default.py:249: in handle_request
+    with map_httpcore_exceptions():
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python314\Lib\contextlib.py:162: in __exit__
+    self.gen.throw(value)
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_transports\default.py:118: in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+E   httpx.ConnectError: [WinError 10061] No connection could be made because the target machine actively refused it
+
+During handling of the above exception, another exception occurred:
+csf\orchestrator.py:321: in analyze_video
+    return provider.analyze(video_id, video_url)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+csf\providers\lm_studio_provider.py:53: in analyze
+    raise NonFatalAnalysisError(f"LocalModelProvider: LM Studio call failed: {e}")
+E   csf.providers.NonFatalAnalysisError: LocalModelProvider: LM Studio call failed: [WinError 10061] No connection could be made because the target machine actively refused it
+
+The above exception was the direct cause of the following exception:
+tests\test_providers_integration.py:96: in test_analyze_video_with_gemini_nonfatal_propagates
+    analyze_video(
+csf\orchestrator.py:325: in analyze_video
+    raise NonFatalAnalysisError(
+E   csf.providers.NonFatalAnalysisError: Provider LocalModelProvider raised unexpected error: LocalModelProvider: LM Studio call failed: [WinError 10061] No connection could be made because the target machine actively refused it
+
+During handling of the above exception, another exception occurred:
+tests\test_providers_integration.py:95: in test_analyze_video_with_gemini_nonfatal_propagates
+    with pytest.raises(NonFatalAnalysisError, match="Tier 1 quota error"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'Tier 1 quota error'
+E     Actual message: 'Provider LocalModelProvider raised unexpected error: LocalModelProvider: LM Studio call failed: [WinError 10061] No connection could be made because the target machine actively refused it'
+_____ TestTierIntegration.test_analyze_video_with_ocr_nonfatal_propagates _____
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_transports\default.py:101: in map_httpcore_exceptions
+    yield
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_transports\default.py:250: in handle_request
+    resp = self._pool.handle_request(req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_sync\connection_pool.py:256: in handle_request
+    raise exc from None
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_sync\connection_pool.py:236: in handle_request
+    response = connection.handle_request(
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_sync\connection.py:101: in handle_request
+    raise exc
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_sync\connection.py:78: in handle_request
+    stream = self._connect(request)
+             ^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_sync\connection.py:124: in _connect
+    stream = self._network_backend.connect_tcp(**kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_backends\sync.py:207: in connect_tcp
+    with map_exceptions(exc_map):
+         ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python314\Lib\contextlib.py:162: in __exit__
+    self.gen.throw(value)
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_exceptions.py:14: in map_exceptions
+    raise to_exc(exc) from exc
+E   httpcore.ConnectError: [WinError 10061] No connection could be made because the target machine actively refused it
+
+The above exception was the direct cause of the following exception:
+csf\providers\lm_studio_provider.py:49: in analyze
+    resp = client.post(f"{LM_STUDIO_URL}/chat/completions", json=payload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:1144: in post
+    return self.request(
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:914: in send
+    response = self._send_handling_auth(
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_transports\default.py:249: in handle_request
+    with map_httpcore_exceptions():
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python314\Lib\contextlib.py:162: in __exit__
+    self.gen.throw(value)
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_transports\default.py:118: in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+E   httpx.ConnectError: [WinError 10061] No connection could be made because the target machine actively refused it
+
+During handling of the above exception, another exception occurred:
+csf\orchestrator.py:321: in analyze_video
+    return provider.analyze(video_id, video_url)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+csf\providers\lm_studio_provider.py:53: in analyze
+    raise NonFatalAnalysisError(f"LocalModelProvider: LM Studio call failed: {e}")
+E   csf.providers.NonFatalAnalysisError: LocalModelProvider: LM Studio call failed: [WinError 10061] No connection could be made because the target machine actively refused it
+
+The above exception was the direct cause of the following exception:
+tests\test_providers_integration.py:128: in test_analyze_video_with_ocr_nonfatal_propagates
+    analyze_video(
+csf\orchestrator.py:325: in analyze_video
+    raise NonFatalAnalysisError(
+E   csf.providers.NonFatalAnalysisError: Provider LocalModelProvider raised unexpected error: LocalModelProvider: LM Studio call failed: [WinError 10061] No connection could be made because the target machine actively refused it
+
+During handling of the above exception, another exception occurred:
+tests\test_providers_integration.py:125: in test_analyze_video_with_ocr_nonfatal_propagates
+    with pytest.raises(
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'Tier 2 OCR unavailable'
+E     Actual message: 'Provider LocalModelProvider raised unexpected error: LocalModelProvider: LM Studio call failed: [WinError 10061] No connection could be made because the target machine actively refused it'
+_ TestTierIntegration.test_analyze_video_with_transcript_provider_returns_result _
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_transports\default.py:101: in map_httpcore_exceptions
+    yield
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_transports\default.py:250: in handle_request
+    resp = self._pool.handle_request(req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_sync\connection_pool.py:256: in handle_request
+    raise exc from None
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_sync\connection_pool.py:236: in handle_request
+    response = connection.handle_request(
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_sync\connection.py:101: in handle_request
+    raise exc
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_sync\connection.py:78: in handle_request
+    stream = self._connect(request)
+             ^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_sync\connection.py:124: in _connect
+    stream = self._network_backend.connect_tcp(**kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_backends\sync.py:207: in connect_tcp
+    with map_exceptions(exc_map):
+         ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python314\Lib\contextlib.py:162: in __exit__
+    self.gen.throw(value)
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpcore\_exceptions.py:14: in map_exceptions
+    raise to_exc(exc) from exc
+E   httpcore.ConnectError: [WinError 10061] No connection could be made because the target machine actively refused it
+
+The above exception was the direct cause of the following exception:
+csf\providers\lm_studio_provider.py:49: in analyze
+    resp = client.post(f"{LM_STUDIO_URL}/chat/completions", json=payload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:1144: in post
+    return self.request(
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:914: in send
+    response = self._send_handling_auth(
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_transports\default.py:249: in handle_request
+    with map_httpcore_exceptions():
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python314\Lib\contextlib.py:162: in __exit__
+    self.gen.throw(value)
+C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_transports\default.py:118: in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+E   httpx.ConnectError: [WinError 10061] No connection could be made because the target machine actively refused it
+
+During handling of the above exception, another exception occurred:
+csf\orchestrator.py:321: in analyze_video
+    return provider.analyze(video_id, video_url)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+csf\providers\lm_studio_provider.py:53: in analyze
+    raise NonFatalAnalysisError(f"LocalModelProvider: LM Studio call failed: {e}")
+E   csf.providers.NonFatalAnalysisError: LocalModelProvider: LM Studio call failed: [WinError 10061] No connection could be made because the target machine actively refused it
+
+The above exception was the direct cause of the following exception:
+tests\test_providers_integration.py:164: in test_analyze_video_with_transcript_provider_returns_result
+    result = analyze_video(
+csf\orchestrator.py:325: in analyze_video
+    raise NonFatalAnalysisError(
+E   csf.providers.NonFatalAnalysisError: Provider LocalModelProvider raised unexpected error: LocalModelProvider: LM Studio call failed: [WinError 10061] No connection could be made because the target machine actively refused it
 =========================== short test summary info ===========================
-FAILED tests/test_batch_orchestrator.py::TestNonFatalIsolation::test_orchestrator_nonfatal_does_not_crash_batch
-FAILED tests/test_batch_orchestrator.py::TestConcurrentWorkers::test_4_worker_concurrent
-=================== 2 failed, 42 passed, 4 skipped in 0.63s ===================
+FAILED tests/test_providers_integration.py::TestProviderSelection::test_select_provider_returns_transcript_when_gemini_unavailable
+FAILED tests/test_providers_integration.py::TestProviderSelection::test_select_provider_returns_ocr_clip_when_gemini_unavailable_and_ocr_available
+FAILED tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_gemini_nonfatal_propagates
+FAILED tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_ocr_nonfatal_propagates
+FAILED tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_transcript_provider_returns_result
+============ 5 failed, 39 passed, 4 skipped in 1697.47s (0:28:17) =============
 
 STDERR:
 

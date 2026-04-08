@@ -98,7 +98,7 @@ class _BatchStatusStorage:
         # Migrate existing DBs that predate download_archive and channel_cooldown tables.
         # Uses try/except on a column unique to channel_cooldown to detect absence.
         try:
-            conn.execute("SELECT consecutive_429s FROM channel_cooldown LIMIT 1")
+            conn.execute("SELECT cooldown_until FROM channel_cooldown LIMIT 1")
         except sqlite3.OperationalError:
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS download_archive (
@@ -110,10 +110,15 @@ class _BatchStatusStorage:
                 );
                 CREATE TABLE IF NOT EXISTS channel_cooldown (
                     source TEXT PRIMARY KEY,
-                    cooldown_until REAL NOT NULL,
-                    consecutive_429s INTEGER NOT NULL DEFAULT 0
+                    cooldown_until REAL NOT NULL
                 );
             """)
+        # Remove consecutive_429s column from existing channel_cooldown tables.
+        # Wrapped in try/except for SQLite versions that don't support DROP COLUMN.
+        try:
+            conn.execute("ALTER TABLE channel_cooldown DROP COLUMN consecutive_429s")
+        except sqlite3.OperationalError:
+            pass  # Column already absent or SQLite version doesn't support DROP COLUMN
         conn.close()
         self._ensure_nlm_export_state()
         self._ensure_channel_metadata()

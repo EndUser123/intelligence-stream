@@ -75,34 +75,11 @@ class TestFallbackChain:
     TECH-01: Free sources are tried before paid CLI to conserve API quota.
     """
 
-    def test_fallback_to_youtubei_when_api_blocked(self):
-        """When youtube_transcript_api is blocked, youtubei is attempted."""
-        with (
-            mock.patch("csf.transcript._fetch_via_gemini_cli") as mock_cli,
-            mock.patch(
-                "csf.transcript._fetch_via_youtube_transcript_api"
-            ) as mock_yt_api,
-            mock.patch("csf.transcript._fetch_via_youtubei") as mock_youtubei,
-            mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
-            mock.patch("csf.transcript.is_free_only_mode", return_value=False),
-            mock.patch("time.sleep"),
-        ):
-            mock_cli.return_value = (False, None, "CLI failed")
-            mock_yt_api.return_value = (False, None, "API failed")
-            mock_youtubei.return_value = (True, "transcript via youtubei", None)
-            mock_ytdlp.return_value = (False, None, "no captions")
+    def test_fallback_to_youtube_api_succeeds(self):
+        """yt-dlp fails, youtube_transcript_api succeeds as first fallback.
 
-            result = fetch_transcript_chain(
-                "dQw4w9WgXcQ", LanguageConfig(prefer_lang="en")
-            )
-
-            mock_yt_api.assert_called_once()
-            mock_youtubei.assert_called_once()
-            assert result.transcript == "transcript via youtubei"
-            assert result.source == "youtubei"
-
-    def test_fallback_to_sdk_when_all_blocked(self):
-        """When methods 1-3 are blocked, SDK fallback is attempted."""
+        Chain: yt-dlp (fail) → youtube_transcript_api (success) → returns transcript.
+        """
         with (
             mock.patch("csf.transcript._fetch_via_gemini_cli") as mock_cli,
             mock.patch(
@@ -111,21 +88,65 @@ class TestFallbackChain:
             mock.patch("csf.transcript._fetch_via_youtubei") as mock_youtubei,
             mock.patch("csf.transcript._fetch_via_sdk") as mock_sdk,
             mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
-            mock.patch("csf.transcript.is_free_only_mode", return_value=False),
+            mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
+            mock.patch("csf.transcript.is_free_only_mode", return_value=True),
             mock.patch("time.sleep"),
         ):
-            mock_cli.return_value = (False, None, "CLI failed")
-            mock_yt_api.return_value = (False, None, "API failed")
-            mock_youtubei.return_value = (False, None, "youtubei failed")
-            mock_sdk.return_value = (True, "transcript via SDK", None)
             mock_ytdlp.return_value = (False, None, "no captions")
+            mock_yt_api.return_value = (True, "transcript via yt_api", None)
+            # These should NOT be called (earlier method succeeded)
+            mock_youtubei.return_value = (True, "should not be called", None)
+            mock_sdk.return_value = (True, "should not be called", None)
+            mock_selenium.return_value = (True, "should not be called", None)
 
             result = fetch_transcript_chain(
                 "dQw4w9WgXcQ", LanguageConfig(prefer_lang="en")
             )
 
-            assert result.transcript == "transcript via SDK"
-            assert result.source == "sdk"
+            mock_ytdlp.assert_called_once()
+            mock_yt_api.assert_called_once()
+            mock_youtubei.assert_not_called()
+            mock_sdk.assert_not_called()
+            mock_selenium.assert_not_called()
+            assert result.transcript == "transcript via yt_api"
+            assert result.source == "youtube_transcript_api"
+
+    def test_bot_check_triggers_selenium_fallback(self):
+        """yt-dlp bot-check triggers Selenium Firefox fallback immediately.
+
+        Chain: yt-dlp (bot-check) → Selenium Firefox (success) → returns transcript.
+        youtube_transcript_api and others are NOT called after Selenium succeeds.
+        """
+        with (
+            mock.patch("csf.transcript._fetch_via_gemini_cli") as mock_cli,
+            mock.patch(
+                "csf.transcript._fetch_via_youtube_transcript_api"
+            ) as mock_yt_api,
+            mock.patch("csf.transcript._fetch_via_youtubei") as mock_youtubei,
+            mock.patch("csf.transcript._fetch_via_sdk") as mock_sdk,
+            mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
+            mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
+            mock.patch("csf.transcript.is_free_only_mode", return_value=True),
+            mock.patch("time.sleep"),
+        ):
+            mock_ytdlp.return_value = (False, None, "yt-dlp bot_check")
+            mock_selenium.return_value = (True, "transcript via selenium", None)
+            # Fallback methods should NOT be called after selenium succeeds
+            mock_yt_api.return_value = (True, "should not be called", None)
+            mock_youtubei.return_value = (True, "should not be called", None)
+            mock_sdk.return_value = (True, "should not be called", None)
+
+            result = fetch_transcript_chain(
+                "dQw4w9WgXcQ", LanguageConfig(prefer_lang="en")
+            )
+
+            mock_ytdlp.assert_called_once()
+            mock_selenium.assert_called_once()
+            mock_yt_api.assert_not_called()
+            mock_youtubei.assert_not_called()
+            mock_sdk.assert_not_called()
+            assert result.transcript == "transcript via selenium"
+            assert result.source == "selenium_firefox"
 
     def test_all_methods_fail_returns_empty_result(self):
         """When all methods fail, returns TranscriptResult with empty transcript."""
@@ -156,11 +177,10 @@ class TestFallbackChain:
             assert result.source == "none"
 
     def test_free_source_tried_before_paid_cli(self):
-        """Free sources (youtube_transcript_api) must be tried BEFORE paid CLI.
+        """Free source (yt-dlp) must be tried BEFORE paid CLI.
 
-        When both CLI and youtube_transcript_api succeed, the FREE source
-        result must be returned to conserve paid API quota.
-        TECH-01 fix: Fallback order must put free sources first.
+        When both CLI and yt-dlp succeed, the FREE source result must be
+        returned to conserve paid API quota. yt-dlp is now the sole free method.
         """
         with (
             mock.patch("csf.transcript._fetch_via_gemini_cli") as mock_cli,
@@ -173,23 +193,27 @@ class TestFallbackChain:
             mock.patch("csf.transcript.is_free_only_mode", return_value=False),
             mock.patch("time.sleep"),
         ):
-            # Both succeed — free source should win
-            mock_cli.return_value = (True, "paid transcript", None)
-            mock_yt_api.return_value = (True, "free transcript", None)
-            mock_youtubei.return_value = (True, "free transcript", None)
+            # yt-dlp (free) succeeds; CLI (paid) would also succeed
+            mock_ytdlp.return_value = (True, "free transcript via ytdlp", None)
+            mock_yt_api.return_value = (True, "should not be called", None)
+            mock_youtubei.return_value = (True, "should not be called", None)
             mock_sdk.return_value = (False, None, "unavailable")
-            mock_ytdlp.return_value = (False, None, "no captions")
+            mock_cli.return_value = (True, "paid transcript", None)
 
             result = fetch_transcript_chain(
                 "dQw4w9WgXcQ", LanguageConfig(prefer_lang="en")
             )
 
-            # Free source MUST be called and return free transcript
-            mock_yt_api.assert_called_once()
-            assert result.transcript == "free transcript"
-            assert result.source == "youtube_transcript_api"
+            # yt-dlp MUST be called and return free transcript
+            mock_ytdlp.assert_called_once()
+            assert result.transcript == "free transcript via ytdlp"
+            assert result.source == "ytdlp"
             # CLI must NOT be called when free source succeeds
             mock_cli.assert_not_called()
+            # Other disabled methods must NOT be called
+            mock_yt_api.assert_not_called()
+            mock_youtubei.assert_not_called()
+            mock_sdk.assert_not_called()
 
 
 class TestCacheIntegration:

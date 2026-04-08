@@ -326,15 +326,79 @@ def analyze_by_url_cli(video_id: str, video_url: str, model: str | None = None) 
 
 
 def analyze_by_file(video_id: str, file_path: Path) -> dict:
-    """Analyze a local video file using Gemini CLI.
+    """Analyze a local video file using Gemini SDK.
 
-    Gemini CLI doesn't support file uploads in -p mode.
-    This requires the google-genai SDK with GOOGLE_API_KEY.
+    Uses client.files.upload() to upload the file to Gemini's temporary storage,
+    waits for it to be processed, and then runs multimodal analysis.
     """
-    raise NotImplementedError(
-        "Local file analysis requires google-genai SDK with GOOGLE_API_KEY. "
-        "Install: pip install google-genai>=0.8.0"
+    try:
+        from google import genai
+    except ImportError:
+        raise RuntimeError(
+            "google-genai>=0.8.0 not installed. Run: pip install google-genai>=0.8.0"
+        )
+
+    if _API_KEYS[0][1] is None:
+        _load_key_pool()
+
+    prompt = (
+        "Analyze this video carefully.\n\n"
+        "Extract and return ONLY valid JSON with these exact keys:\n"
+        '  "title" (string - the video title),\n'
+        '  "summary" (2-3 sentence string),\n'
+        '  "key_topics" (list of 5 strings - main subjects covered),\n'
+        '  "key_points" (list of 3 strings - most important takeaways).\n\n'
+        "Return ONLY the JSON, no explanation or markdown formatting."
     )
+
+    last_error: Exception | None = None
+    while True:
+        key_pair = _working_key()
+        if key_pair is None:
+            raise RuntimeError(
+                f"All API keys exhausted for local file analysis. Last error: {last_error}"
+            )
+
+        key_name, api_key = key_pair
+        try:
+            client = genai.Client(api_key=api_key)
+
+            # 1. Upload
+            print(f"Uploading {file_path.name}...")
+            video_file = client.files.upload(path=file_path)
+
+            # 2. Wait for processing
+            print("Waiting for video processing...")
+            while video_file.state.name == "PROCESSING":
+                time.sleep(5)
+                video_file = client.files.get(name=video_file.name)
+
+            if video_file.state.name == "FAILED":
+                raise RuntimeError(f"Video processing failed: {video_file.name}")
+
+            # 3. Generate content
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[video_file, prompt],
+            )
+            text = response.text.strip()
+            break
+        except Exception as e:
+            if _is_quota_error(e):
+                _exhausted_keys.add(key_name)
+                last_error = e
+                continue
+            raise e
+
+    # Parse response
+    try:
+        # Strip markdown code blocks if present
+        json_text = re.sub(r"```(?:json)?\n?|```", "", text).strip()
+        parsed_response = json.loads(json_text)
+        parsed_response["raw_response"] = text
+        return parsed_response
+    except json.JSONDecodeError:
+        return {"content": text, "video_id": video_id, "raw_response": text}
 
 
 def gemini_video_analyze(video_id: str, video_url: str) -> dict:
@@ -784,11 +848,12 @@ def main() -> None:
         if video_url:
             result = analyze_video(video_id, video_url, mode=run_mode, model=run_model)
             source = _get_source_label(result)
+        elif input_file:
+            result = analyze_by_file(video_id, input_file)
+            source = "sdk_file"
         else:
-            raise RuntimeError(
-                "Local file analysis requires google-genai SDK with GOOGLE_API_KEY. "
-                "Use --url <youtube_url> with gemini CLI instead."
-            )
+            # Should be unreachable due to previous check
+            raise RuntimeError("Must provide --url or --input")
 
         result["video_id"] = video_id
 

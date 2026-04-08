@@ -7,6 +7,8 @@ Each worker calls analyze_video for one video_id.
 from __future__ import annotations
 
 import os
+import random
+import time
 from concurrent.futures import Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from pathlib import Path
@@ -212,14 +214,14 @@ def analyze_videos_round_robin(
 
     effective_workers = min(os.cpu_count() or 4, 8, effective_max_workers)
 
-    from csf.batch_scheduler import BatchScheduler
+    from csf.batch_scheduler import BatchScheduler, _JITTER_MAX, _JITTER_MIN
 
     scheduler = BatchScheduler()
 
     successful_results: dict[str, Any] = {}
     failed_video_ids: list[str] = []
     completed = 0
-    total_estimate = sum(len(scheduler._get_pending_videos(ch)) for ch in scheduler._channels)
+    total_estimate = scheduler._count_pending()
 
     def _analyze_one(video_id: str, source: str) -> tuple[str, dict | None, bool, str | None]:
         """Analyze a single video, returning (video_id, result or None, success, error_detail)."""
@@ -290,6 +292,9 @@ def analyze_videos_round_robin(
                 if next_video_id is not None and next_source is not None:
                     new_future = executor.submit(_analyze_one, next_video_id, next_source)
                     futures[new_future] = (next_video_id, next_source)
+                    # Per-worker jitter: stagger request timing across workers to avoid
+                    # thundering-herd on the same channel/source.
+                    time.sleep(random.uniform(_JITTER_MIN, _JITTER_MAX))
 
             # Keep only still-waiting futures (not the newly submitted ones)
             futures = {f: futures[f] for f in not_done}

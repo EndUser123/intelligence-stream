@@ -1360,7 +1360,8 @@ def _fetch_via_notebooklm_batch(
     """
     import subprocess
     import json
-    from concurrent.futures import ThreadPoolExecutor, Semaphore
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from threading import Semaphore
 
     result: dict[str, tuple[bool, str | None, str | None]] = {}
 

@@ -973,17 +973,20 @@ class TestDirectApiFallback:
 
     def test_direct_api_success_returns_transcript(self):
         """direct_api returns (True, transcript, None) on success."""
+        import sys
         mock_transcript = mock.Mock()
         mock_transcript.language_code = "en"
         mock_transcript.is_generated = False
         mock_transcript.fetch.return_value = [{"text": "Hello world"}]
 
         mock_api = mock.Mock()
-        mock_api.list_transcripts.return_value = [mock_transcript]
+        mock_api.list_transcripts.return_value = iter([mock_transcript])
 
-        with (
-            mock.patch("youtube_transcript_api.YouTubeTranscriptApi", return_value=mock_api),
-        ):
+        mock_ytapi = mock.Mock()
+        mock_ytapi.YouTubeTranscriptApi.return_value = mock_api
+
+        # sys.modules patch: intercepts the `import youtube_transcript_api` inside the function
+        with mock.patch.dict("sys.modules", {"youtube_transcript_api": mock_ytapi}):
             from csf.transcript import _fetch_via_direct_api
             success, transcript, error = _fetch_via_direct_api("dQw4w9WgXcQ")
             assert success is True

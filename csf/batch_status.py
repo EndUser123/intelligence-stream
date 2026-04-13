@@ -13,11 +13,48 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 from collections.abc import Sequence
+from dataclasses import dataclass, asdict
 
-# Type alias for batch entries: (video_id, status, source, published_at, has_captions)
-BatchEntry = tuple[
-    str, Literal["pending", "complete", "failed"], str | None, str | None, bool | None
-]
+# Type alias for batch entries - use dataclass for extensibility
+@dataclass
+class BatchEntry:
+    video_id: str
+    status: Literal["pending", "complete", "failed"]
+    source: str | None = None
+    published_at: str | None = None
+    has_captions: bool | None = None
+    title: str | None = None
+    description: str | None = None
+    channel_id: str | None = None
+    thumbnail: str | None = None
+    duration: int | None = None
+    privacy_status: str | None = None
+    upload_status: str | None = None
+    is_live_content: bool | None = None
+    unavailable_reason: str | None = None
+    last_stage: str | None = None  # Which fetch stage succeeded
+    failure_reason: str | None = None  # Why it failed
+
+    def to_tuple(self) -> tuple:
+        """Convert to tuple for backward compatibility."""
+        return (
+            self.video_id,
+            self.status,
+            self.source,
+            self.published_at,
+            self.has_captions,
+            self.title,
+            self.description,
+            self.channel_id,
+            self.thumbnail,
+            self.duration,
+            self.privacy_status,
+            self.upload_status,
+            self.is_live_content,
+            self.unavailable_reason,
+            self.last_stage,
+            self.failure_reason,
+        )
 
 # Status values
 _STATUS_PENDING = "pending"
@@ -25,7 +62,7 @@ _STATUS_COMPLETE = "complete"
 _STATUS_FAILED = "failed"
 
 # Default DB path — separate from transcript cache and quota DBs
-_DEFAULT_DB_DIR = Path("P:/__csf/.data/intelligence-stream/batch_status")
+_DEFAULT_DB_DIR = Path("P:/__csf/.data/yt-is")
 _DEFAULT_DB_PATH = _DEFAULT_DB_DIR / "batch_status.sqlite"
 
 _storage_lock = threading.Lock()
@@ -89,6 +126,53 @@ class _BatchStatusStorage:
             conn.execute("SELECT has_captions FROM analysis_status LIMIT 1")
         except sqlite3.OperationalError:
             conn.execute("ALTER TABLE analysis_status ADD COLUMN has_captions INTEGER")
+        # Migrate additional metadata columns
+        try:
+            conn.execute("SELECT title FROM analysis_status LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE analysis_status ADD COLUMN title TEXT")
+        try:
+            conn.execute("SELECT description FROM analysis_status LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE analysis_status ADD COLUMN description TEXT")
+        try:
+            conn.execute("SELECT channel_id FROM analysis_status LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE analysis_status ADD COLUMN channel_id TEXT")
+        try:
+            conn.execute("SELECT thumbnail FROM analysis_status LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE analysis_status ADD COLUMN thumbnail TEXT")
+        try:
+            conn.execute("SELECT duration FROM analysis_status LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE analysis_status ADD COLUMN duration INTEGER DEFAULT 0")
+        try:
+            conn.execute("SELECT privacy_status FROM analysis_status LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE analysis_status ADD COLUMN privacy_status TEXT DEFAULT 'public'")
+        try:
+            conn.execute("SELECT upload_status FROM analysis_status LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE analysis_status ADD COLUMN upload_status TEXT")
+        try:
+            conn.execute("SELECT is_live_content FROM analysis_status LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE analysis_status ADD COLUMN is_live_content INTEGER DEFAULT 0")
+        try:
+            conn.execute("SELECT unavailable_reason FROM analysis_status LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE analysis_status ADD COLUMN unavailable_reason TEXT")
+        # Migrate existing DBs that predate last_stage column (which stage succeeded)
+        try:
+            conn.execute("SELECT last_stage FROM analysis_status LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE analysis_status ADD COLUMN last_stage TEXT")
+        # Migrate existing DBs that predate failure_reason column (why it failed)
+        try:
+            conn.execute("SELECT failure_reason FROM analysis_status LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE analysis_status ADD COLUMN failure_reason TEXT")
         # Index for get_pending_by_source queries (source, status) — avoids full table scan
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_analysis_status_source_status ON analysis_status(source, status)"
@@ -160,7 +244,12 @@ class _BatchStatusStorage:
                 video_count_estimate INTEGER DEFAULT 0,
                 next_page_token TEXT,
                 quota_exhausted_at TEXT,
-                schema_version INTEGER DEFAULT 1
+                schema_version INTEGER DEFAULT 1,
+                -- Full metadata from channels.list API (contentDetails + statistics + snippet)
+                channel_title TEXT,
+                thumbnail_url TEXT,
+                subscriber_count INTEGER,
+                view_count INTEGER
             )
             """
         )
@@ -181,6 +270,17 @@ class _BatchStatusStorage:
             conn.execute(
                 "ALTER TABLE channel_metadata ADD COLUMN schema_version INTEGER DEFAULT 1"
             )
+        # Migration for full metadata columns (channel_title, thumbnail_url, subscriber_count, view_count)
+        for col, col_type in [
+            ("channel_title", "TEXT"),
+            ("thumbnail_url", "TEXT"),
+            ("subscriber_count", "INTEGER"),
+            ("view_count", "INTEGER"),
+        ]:
+            try:
+                conn.execute(f"SELECT {col} FROM channel_metadata LIMIT 1")
+            except sqlite3.OperationalError:
+                conn.execute(f"ALTER TABLE channel_metadata ADD COLUMN {col} {col_type}")
         conn.close()
 
     def _ensure_nlm_export_state(self) -> None:
@@ -483,20 +583,30 @@ class _BatchStatusStorage:
         status: Literal["pending", "complete", "failed"],
         source: str | None = None,
         published_at: str | None = None,
+        last_stage: str | None = None,
+        failure_reason: str | None = None,
     ) -> None:
         """Set status for a video_id with current timestamp and optional source/published_at.
 
         Uses BEGIN IMMEDIATE to acquire a write lock and prevent TOCTOU races
         between reading the existing source/published_at and writing the new row.
+
+        Args:
+            video_id: The YouTube video ID.
+            status: One of 'pending', 'complete', 'failed'.
+            source: Optional channel URL or source identifier.
+            published_at: Optional ISO timestamp of video publish date.
+            last_stage: Which fetch stage succeeded ('ytdlp', 'ytdlp_ejs', 'selenium', 'notebooklm').
+            failure_reason: Why the video failed ('region_block', 'no_transcript', 'quota_exceeded', etc.).
         """
         conn = self._get_conn()
         conn.execute("BEGIN IMMEDIATE")
         try:
             now = datetime.now(timezone.utc).isoformat()
-            # Preserve existing source and published_at if not provided
-            if source is None or published_at is None:
+            # Preserve existing source, published_at, last_stage, failure_reason if not provided
+            if source is None or published_at is None or last_stage is None or failure_reason is None:
                 cursor = conn.execute(
-                    "SELECT source, published_at FROM analysis_status WHERE video_id = ?",
+                    "SELECT source, published_at, last_stage, failure_reason FROM analysis_status WHERE video_id = ?",
                     (video_id,),
                 )
                 row = cursor.fetchone()
@@ -505,9 +615,13 @@ class _BatchStatusStorage:
                         source = row[0]
                     if published_at is None:
                         published_at = row[1]
+                    if last_stage is None:
+                        last_stage = row[2]
+                    if failure_reason is None:
+                        failure_reason = row[3]
             conn.execute(
-                "INSERT OR REPLACE INTO analysis_status (video_id, status, updated_at, source, published_at) VALUES (?, ?, ?, ?, ?)",
-                (video_id, status, now, source, published_at),
+                "INSERT OR REPLACE INTO analysis_status (video_id, status, updated_at, source, published_at, last_stage, failure_reason) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (video_id, status, now, source, published_at, last_stage, failure_reason),
             )
             conn.commit()
         except Exception:
@@ -566,13 +680,17 @@ class _BatchStatusStorage:
         video_count_estimate: int | None = None,
         next_page_token: str | None = None,
         quota_exhausted_at: str | None = None,
+        channel_title: str | None = None,
+        thumbnail_url: str | None = None,
+        subscriber_count: int | None = None,
+        view_count: int | None = None,
     ) -> None:
         """Set channel metadata for channel_url (insert or replace)."""
         self._ensure_channel_metadata()
         conn = self._get_conn()
         now = datetime.now(timezone.utc).isoformat()
         conn.execute(
-            "INSERT OR REPLACE INTO channel_metadata (channel_url, playlist_id, last_checked, last_full_enumeration, video_count_estimate, next_page_token, quota_exhausted_at, schema_version) VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
+            "INSERT OR REPLACE INTO channel_metadata (channel_url, playlist_id, last_checked, last_full_enumeration, video_count_estimate, next_page_token, quota_exhausted_at, schema_version, channel_title, thumbnail_url, subscriber_count, view_count) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)",
             (
                 channel_url,
                 playlist_id,
@@ -581,6 +699,10 @@ class _BatchStatusStorage:
                 video_count_estimate,
                 next_page_token,
                 quota_exhausted_at,
+                channel_title,
+                thumbnail_url,
+                subscriber_count,
+                view_count,
             ),
         )
         conn.commit()
@@ -712,6 +834,8 @@ class _BatchStatusStorage:
         Returns list of (video_id, status, has_captions) tuples.
         Used by csf-transcript-fetch to avoid re-enumerating via yt-dlp.
         """
+        # Normalize URL for query consistency
+        channel_url = _normalize_channel_url(channel_url)
         conn = self._get_conn()
         cursor = conn.execute(
             "SELECT video_id, status, has_captions FROM analysis_status WHERE source = ?",
@@ -721,7 +845,7 @@ class _BatchStatusStorage:
         conn.close()
         return [(r[0], r[1], r[2]) for r in rows]
 
-    def set_status_batch(self, entries: Sequence["BatchEntry"]) -> int:
+    def set_status_batch(self, entries: Sequence[BatchEntry]) -> int:
         """Bulk insert/update status for multiple videos — best-effort.
 
         Uses a regular BEGIN (not IMMEDIATE) so readers are not blocked.
@@ -729,7 +853,7 @@ class _BatchStatusStorage:
         succeed. Use busy_timeout PRAGMA to handle writer-writer contention.
 
         Args:
-            entries: List of (video_id, status, source, published_at) tuples.
+            entries: List of BatchEntry dataclass objects.
 
         Returns:
             Number of rows inserted/updated.
@@ -741,12 +865,46 @@ class _BatchStatusStorage:
         count = 0
         try:
             now = datetime.now(timezone.utc).isoformat()
-            for video_id, status, source, published_at, has_captions in entries:
+            for entry in entries:
                 try:
-                    # Preserve existing source/published_at/has_captions if not provided
-                    if source is None or published_at is None or has_captions is None:
+                    # Handle both tuple (backward compat) and dataclass
+                    if isinstance(entry, tuple):
+                        # Unpack tuple for backward compatibility
+                        video_id, status, source, published_at, has_captions, *rest = entry
+                        # Set optional fields from rest if available
+                        title = rest[0] if len(rest) > 0 else None
+                        description = rest[1] if len(rest) > 1 else None
+                        channel_id = rest[2] if len(rest) > 2 else None
+                        thumbnail = rest[3] if len(rest) > 3 else None
+                        duration = rest[4] if len(rest) > 4 else None
+                        privacy_status = rest[5] if len(rest) > 5 else None
+                        upload_status = rest[6] if len(rest) > 6 else None
+                        is_live_content = rest[7] if len(rest) > 7 else None
+                        unavailable_reason = rest[8] if len(rest) > 8 else None
+                    else:
+                        # Use dataclass fields
+                        video_id = entry.video_id
+                        status = entry.status
+                        source = entry.source
+                        published_at = entry.published_at
+                        has_captions = entry.has_captions
+                        title = entry.title
+                        description = entry.description
+                        channel_id = entry.channel_id
+                        thumbnail = entry.thumbnail
+                        duration = entry.duration
+                        privacy_status = entry.privacy_status
+                        upload_status = entry.upload_status
+                        is_live_content = entry.is_live_content
+                        unavailable_reason = entry.unavailable_reason
+                        last_stage = entry.last_stage
+                        failure_reason = entry.failure_reason
+
+                    # Preserve existing values if not provided
+                    if (source is None or published_at is None or has_captions is None
+                            or last_stage is None or failure_reason is None):
                         row = conn.execute(
-                            "SELECT source, published_at, has_captions FROM analysis_status WHERE video_id = ?",
+                            "SELECT source, published_at, has_captions, last_stage, failure_reason FROM analysis_status WHERE video_id = ?",
                             (video_id,),
                         ).fetchone()
                         if row:
@@ -756,10 +914,23 @@ class _BatchStatusStorage:
                                 published_at = row[1]
                             if has_captions is None:
                                 has_captions = row[2]
+                            if last_stage is None:
+                                last_stage = row[3]
+                            if failure_reason is None:
+                                failure_reason = row[4]
+
                     conn.execute(
                         "INSERT OR REPLACE INTO analysis_status "
-                        "(video_id, status, updated_at, source, published_at, has_captions) VALUES (?, ?, ?, ?, ?, ?)",
-                        (video_id, status, now, source, published_at, has_captions),
+                        "(video_id, status, updated_at, source, published_at, has_captions, "
+                        "title, description, channel_id, thumbnail, duration, privacy_status, upload_status, "
+                        "is_live_content, unavailable_reason, last_stage, failure_reason) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (
+                            video_id, status, now, source, published_at, has_captions,
+                            title, description, channel_id, thumbnail, duration,
+                            privacy_status, upload_status, is_live_content, unavailable_reason,
+                            last_stage, failure_reason,
+                        ),
                     )
                     count += 1
                 except Exception:
@@ -784,6 +955,8 @@ def set_status(
     status: Literal["pending", "complete", "failed"],
     source: str | None = None,
     published_at: str | None = None,
+    last_stage: str | None = None,
+    failure_reason: str | None = None,
     db_path: Path | None = None,
 ) -> None:
     """Set status for a video_id with current timestamp and optional source/published_at.
@@ -793,15 +966,19 @@ def set_status(
         status: One of 'pending', 'complete', 'failed'.
         source: Optional channel URL or source identifier for attribution.
         published_at: Optional ISO timestamp of video publish date (for gap detection).
+        last_stage: Which fetch stage succeeded ('ytdlp', 'ytdlp_ejs', 'selenium', 'notebooklm').
+        failure_reason: Why the video failed ('region_block', 'no_transcript', 'quota_exceeded', etc.).
         db_path: Optional path to a non-default batch_status DB.
     """
     if db_path is None:
         _get_batch_status_storage().set_status(
-            video_id, status, source=source, published_at=published_at
+            video_id, status, source=source, published_at=published_at,
+            last_stage=last_stage, failure_reason=failure_reason,
         )
     else:
         _BatchStatusStorage(db_path=db_path).set_status(
-            video_id, status, source=source, published_at=published_at
+            video_id, status, source=source, published_at=published_at,
+            last_stage=last_stage, failure_reason=failure_reason,
         )
 
 
@@ -862,6 +1039,7 @@ def mark_complete(
     video_id: str,
     source: str | None = None,
     published_at: str | None = None,
+    last_stage: str | None = None,
     db_path: Path | None = None,
 ) -> None:
     """Mark video_id as successfully analyzed, optionally attributing a source.
@@ -870,29 +1048,44 @@ def mark_complete(
         video_id: The YouTube video ID.
         source: Optional channel URL or source identifier for attribution.
         published_at: Optional ISO timestamp of video publish date (for gap detection).
+        last_stage: Which fetch stage succeeded ('ytdlp', 'ytdlp_ejs', 'selenium', 'notebooklm').
         db_path: Optional path to a non-default batch_status DB.
     """
     if db_path is None:
         _get_batch_status_storage().set_status(
-            video_id, _STATUS_COMPLETE, source=source, published_at=published_at
+            video_id, _STATUS_COMPLETE, source=source, published_at=published_at,
+            last_stage=last_stage,
         )
     else:
         _BatchStatusStorage(db_path=db_path).set_status(
-            video_id, _STATUS_COMPLETE, source=source, published_at=published_at
+            video_id, _STATUS_COMPLETE, source=source, published_at=published_at,
+            last_stage=last_stage,
         )
 
 
 def mark_failed(
-    video_id: str, published_at: str | None = None, db_path: Path | None = None
+    video_id: str,
+    published_at: str | None = None,
+    failure_reason: str | None = None,
+    db_path: Path | None = None,
 ) -> None:
-    """Mark video_id as failed (retry allowed on restart)."""
+    """Mark video_id as failed (retry allowed on restart).
+
+    Args:
+        video_id: The YouTube video ID.
+        published_at: Optional ISO timestamp of video publish date.
+        failure_reason: Why the video failed ('region_block', 'no_transcript', 'quota_exceeded', etc.).
+        db_path: Optional path to a non-default batch_status DB.
+    """
     if db_path is None:
         _get_batch_status_storage().set_status(
-            video_id, _STATUS_FAILED, published_at=published_at
+            video_id, _STATUS_FAILED, published_at=published_at,
+            failure_reason=failure_reason,
         )
     else:
         _BatchStatusStorage(db_path=db_path).set_status(
-            video_id, _STATUS_FAILED, published_at=published_at
+            video_id, _STATUS_FAILED, published_at=published_at,
+            failure_reason=failure_reason,
         )
 
 
@@ -935,6 +1128,10 @@ def set_channel_metadata(
     last_full_enumeration: str | None = None,
     video_count_estimate: int | None = None,
     db_path: Path | None = None,
+    channel_title: str | None = None,
+    thumbnail_url: str | None = None,
+    subscriber_count: int | None = None,
+    view_count: int | None = None,
 ) -> None:
     """Set channel metadata for channel_url (insert or replace)."""
     if db_path is None:
@@ -944,6 +1141,10 @@ def set_channel_metadata(
             last_checked=last_checked,
             last_full_enumeration=last_full_enumeration,
             video_count_estimate=video_count_estimate,
+            channel_title=channel_title,
+            thumbnail_url=thumbnail_url,
+            subscriber_count=subscriber_count,
+            view_count=view_count,
         )
     else:
         _BatchStatusStorage(db_path=db_path).set_channel_metadata(
@@ -952,13 +1153,30 @@ def set_channel_metadata(
             last_checked=last_checked,
             last_full_enumeration=last_full_enumeration,
             video_count_estimate=video_count_estimate,
+            channel_title=channel_title,
+            thumbnail_url=thumbnail_url,
+            subscriber_count=subscriber_count,
+            view_count=view_count,
         )
+
+
+def _normalize_channel_url(url: str) -> str:
+    """Normalize channel URL to remove /channel/ prefix for consistency.
+
+    Ensures @handle URLs are stored as https://www.youtube.com/@handle
+    without the /channel/ prefix.
+    """
+    if "/channel/@" in url:
+        return url.replace("/channel/@", "/@")
+    return url
 
 
 def upsert_channel(
     channel_url: str, db_path: Path | None = None, **kwargs: str | int | None
 ) -> None:
     """Upsert channel metadata, updating only provided fields."""
+    # Normalize URL before storing
+    channel_url = _normalize_channel_url(channel_url)
     if db_path is None:
         _get_batch_status_storage().upsert_channel(channel_url, **kwargs)
     else:

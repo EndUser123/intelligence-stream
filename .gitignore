@@ -18,6 +18,12 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
+# Data stores (local only - never push to GitHub)
+*.sqlite
+*.sqlite3
+history.json
+youtube_cookies.txt
+
 # Logs
 *.log
 logs/

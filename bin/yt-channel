@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+"""YouTube channel management — check for new videos and manage tracked channels.
+
+Usage:
+    yt-channel sync              # Check all tracked channels for new videos
+    yt-channel list              # List all tracked channels
+    yt-channel add <url>         # Add a new channel to track
+    yt-channel fetch             # Download pending transcripts (yt-dlp → Selenium)
+    yt-channel fetch --dry-run   # Preview what would be fetched
+"""
+
+import argparse
+import subprocess
+import sys
+from pathlib import Path
+
+CSF_SOURCE = Path(__file__).parent / "csf-source"
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="YouTube channel management — check for new videos and manage tracked channels."
+    )
+    subparsers = parser.add_subparsers(dest="command", help="Command to run")
+
+    # sync command: check all channels for new videos
+    sync_parser = subparsers.add_parser("sync", help="Check all tracked channels for new videos")
+    sync_parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Show detailed output"
+    )
+
+    # list command: list all tracked channels
+    list_parser = subparsers.add_parser("list", help="List all tracked channels")
+
+    # add command: add a new channel
+    add_parser = subparsers.add_parser("add", help="Add a new channel to track")
+    add_parser.add_argument("url", help="Channel URL or playlist URL")
+
+    # fetch command: download pending transcripts via escalation chain
+    fetch_parser = subparsers.add_parser("fetch", help="Download pending transcripts via escalation chain (yt-dlp → Selenium)")
+    fetch_parser.add_argument("--dry-run", action="store_true", help="Preview what would be fetched")
+    fetch_parser.add_argument("--source", type=str, help="Process only one channel (by URL)")
+    fetch_parser.add_argument("--workers", type=int, default=1, help="Number of parallel workers (default: 1)")
+
+    args = parser.parse_args()
+
+    # Default to sync if no command provided
+    if args.command is None:
+        args.command = "sync"
+        args.verbose = False
+
+    if args.command == "sync":
+        # Check all channels for new videos
+        result = subprocess.run(
+            [sys.executable, str(CSF_SOURCE), "check-all"] + (["--verbose"] if args.verbose else [])
+        )
+        sys.exit(result.returncode)
+
+    elif args.command == "list":
+        # List all tracked channels
+        result = subprocess.run([sys.executable, str(CSF_SOURCE), "list"])
+        sys.exit(result.returncode)
+
+    elif args.command == "add":
+        # Add a new channel
+        result = subprocess.run([sys.executable, str(CSF_SOURCE), "add", args.url])
+        sys.exit(result.returncode)
+
+    elif args.command == "fetch":
+        # Download pending transcripts via escalation chain
+        fetch_cmd = [sys.executable, str(CSF_SOURCE), "fetch"]
+        if args.dry_run:
+            fetch_cmd.append("--dry-run")
+        if args.source:
+            fetch_cmd.extend(["--source", args.source])
+        if args.workers != 1:
+            fetch_cmd.extend(["--workers", str(args.workers)])
+        result = subprocess.run(fetch_cmd)
+        sys.exit(result.returncode)
+
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
 
 from csf.cache import (
     TranscriptCache,
+    clear_all_storages,
     get_cached_transcript,
     set_cached_transcript,
 )
@@ -94,6 +95,40 @@ class TestCacheMiss:
             result = get_cached_transcript("nevercached123", "en", "cli")
         assert result is None
 
+    def test_empty_database_initialization(self):
+        """Empty database (no tables) initializes correctly on first query.
+
+        Regression test for bug where queries failed on empty databases.
+        Verifies _ensure_db_initialized() is called before read operations.
+        """
+        import sqlite3
+        from pathlib import Path
+
+        # Delete the database to simulate first run on empty DB
+        db_path = Path("P:/__csf/.data/intelligence-stream/transcripts/transcripts.sqlite")
+        if db_path.exists():
+            db_path.unlink()
+
+        # Clear in-memory cache storage to force re-initialization
+        clear_all_storages()
+
+        # Query on empty DB should not raise — tables are created automatically
+        with mock.patch.dict(os.environ, {"TERMINAL_ID": "test_term_empty"}):
+            result = get_cached_transcript("emptydbtest", "en", "cli")
+
+        # Should return None (cache miss), not raise an exception
+        assert result is None
+
+        # Verify table now exists
+        if db_path.exists():
+            conn = sqlite3.connect(str(db_path))
+            cursor = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='transcript_cache'"
+            )
+            table_exists = cursor.fetchone() is not None
+            conn.close()
+            assert table_exists, "transcript_cache table should exist after query"
+
 
 class TestSourceEnumeration:
     """Test source enumeration validation."""
@@ -152,27 +187,21 @@ class TestCacheIntegrationWithTranscriptChain:
         with mock.patch.dict(os.environ, {"TERMINAL_ID": terminal_id}):
             with (
                 mock.patch("csf.transcript.set_cached_transcript") as mock_cache_set,
-                mock.patch("csf.transcript._fetch_via_gemini_cli") as mock_cli,
-                mock.patch(
-                    "csf.transcript._fetch_via_youtube_transcript_api"
-                ) as mock_yt_api,
-                mock.patch("csf.transcript._fetch_via_youtubei") as mock_youtubei,
-                mock.patch("csf.transcript._fetch_via_sdk") as mock_sdk,
+                mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
+                mock.patch("csf.transcript._is_source_rate_limited", return_value=False),
             ):
-                mock_cli.return_value = (False, None, "CLI blocked")
-                mock_yt_api.return_value = (False, None, "API blocked")
-                mock_youtubei.return_value = (False, None, "youtubei blocked")
-                mock_sdk.return_value = (True, "transcript via SDK", None)
+                # First yt-dlp call succeeds
+                mock_ytdlp.return_value = (True, "transcript via yt-dlp", None)
 
                 result = fetch_transcript_chain(video_id, lang_config)
 
                 assert isinstance(result, TranscriptResult)
-                assert result.transcript == "transcript via SDK"
-                assert result.source == "sdk"
+                assert result.transcript == "transcript via yt-dlp"
+                assert result.source == "ytdlp"
                 assert result.lang == "en"
-                mock_sdk.assert_called_once_with(video_id, "en")
+                mock_ytdlp.assert_called_once_with(video_id, "en")
                 mock_cache_set.assert_called_once_with(
-                    video_id, "en", "sdk", "transcript via SDK"
+                    video_id, "en", "ytdlp", "transcript via yt-dlp"
                 )
 
     def test_fetch_transcript_chain_no_cache_call_on_all_fail(self):
@@ -191,20 +220,14 @@ class TestCacheIntegrationWithTranscriptChain:
             with (
                 mock.patch("csf.transcript.set_cached_transcript") as mock_cache_set,
                 mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
-                mock.patch("csf.transcript._fetch_via_gemini_cli") as mock_cli,
-                mock.patch(
-                    "csf.transcript._fetch_via_youtube_transcript_api"
-                ) as mock_yt_api,
-                mock.patch("csf.transcript._fetch_via_youtubei") as mock_youtubei,
-                mock.patch("csf.transcript._fetch_via_sdk") as mock_sdk,
-                mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
+                mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ytdlp_cookies,
+                mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
+                mock.patch("csf.transcript._is_source_rate_limited", return_value=False),
             ):
+                # All fetch methods fail
                 mock_ytdlp.return_value = (False, None, "ytdlp blocked")
-                mock_cli.return_value = (False, None, "CLI blocked")
-                mock_yt_api.return_value = (False, None, "API blocked")
-                mock_youtubei.return_value = (False, None, "youtubei blocked")
-                mock_sdk.return_value = (False, None, "SDK blocked")
-                mock_whisper.return_value = (False, None, "whisper blocked")
+                mock_ytdlp_cookies.return_value = (False, None, "cookies blocked")
+                mock_selenium.return_value = (False, None, "selenium blocked")
 
                 result = fetch_transcript_chain(video_id, lang_config)
 

@@ -18,7 +18,7 @@ _DEFAULT_DAILY_QUOTA = 1000
 _THRESHOLD_FRACTION = 0.5  # Trigger free-only at 50% of daily quota
 
 # Shared quota DB — separate from transcript/retry DBs (isolation blast radius)
-_SHARED_DB_PATH: Path = Path("P:/__csf/.data/intelligence-stream/quota/quota.sqlite")
+_SHARED_DB_PATH: Path = Path("P:/__csf/.data/yt-is/quota.sqlite")
 
 _storage_lock = threading.Lock()
 _quota_storage: "_QuotaStorage | None" = None

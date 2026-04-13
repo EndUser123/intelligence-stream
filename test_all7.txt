@@ -64,12 +64,12 @@ _ TestProviderSelection.test_select_provider_returns_transcript_when_gemini_unav
 tests\test_providers_integration.py:46: in test_select_provider_returns_transcript_when_gemini_unavailable
     assert isinstance(provider, TranscriptProvider)
 E   assert False
-E    +  where False = isinstance(<csf.providers.lm_studio_provider.LocalModelProvider object at 0x000001EB32DCCB60>, TranscriptProvider)
+E    +  where False = isinstance(<csf.providers.lm_studio_provider.LocalModelProvider object at 0x000002597F9C9340>, TranscriptProvider)
 _ TestProviderSelection.test_select_provider_returns_ocr_clip_when_gemini_unavailable_and_ocr_available _
 tests\test_providers_integration.py:70: in test_select_provider_returns_ocr_clip_when_gemini_unavailable_and_ocr_available
     assert isinstance(provider, OcrClipProvider)
 E   assert False
-E    +  where False = isinstance(<csf.providers.lm_studio_provider.LocalModelProvider object at 0x000001EB32DCCE80>, OcrClipProvider)
+E    +  where False = isinstance(<csf.providers.lm_studio_provider.LocalModelProvider object at 0x000002597F9C9740>, OcrClipProvider)
 ___ TestTierIntegration.test_analyze_video_with_gemini_nonfatal_propagates ____
 C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\httpx\_transports\default.py:101: in map_httpcore_exceptions
     yield
@@ -298,7 +298,7 @@ FAILED tests/test_providers_integration.py::TestProviderSelection::test_select_p
 FAILED tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_gemini_nonfatal_propagates
 FAILED tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_ocr_nonfatal_propagates
 FAILED tests/test_providers_integration.py::TestTierIntegration::test_analyze_video_with_transcript_provider_returns_result
-============ 5 failed, 39 passed, 4 skipped in 1697.47s (0:28:17) =============
+============ 5 failed, 39 passed, 4 skipped in 3671.60s (1:01:11) =============
 
 STDERR:
 

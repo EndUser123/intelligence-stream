@@ -1,4 +1,4 @@
-"""Transcript caching module for intelligence-stream package.
+"""Transcript caching module for yt-is package.
 
 Caches YouTube transcripts in a shared SQLite database.
 All terminals can read any cached transcript; writes go to a shared DB.
@@ -18,7 +18,7 @@ _VIDEO_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{11}$")
 # Shared transcript cache DB (all terminals share the same pool)
 # Stored in __csf/.data alongside other CSF runtime data
 _SHARED_DB_PATH = Path(
-    "P:/__csf/.data/intelligence-stream/transcripts/transcripts.sqlite"
+    "P:/__csf/.data/yt-is/transcripts.sqlite"
 )
 
 # Per-terminal in-memory index of what's cached locally (optional read cache)
@@ -70,6 +70,7 @@ class _CacheStorage:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_transcript_cache_video_id ON transcript_cache(video_id)"
         )
+        conn.commit()
         conn.close()
 
     def _write_entry(
@@ -105,6 +106,7 @@ class _CacheStorage:
             conn.commit()
             # Checkpoint WAL to prevent unbounded WAL file growth (SEC-004)
             conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            conn.commit()  # Commit checkpoint operation
         finally:
             conn.close()
 
@@ -246,16 +248,43 @@ def set_cached_transcript(
     )
 
 
+def _ensure_db_initialized() -> None:
+    """Ensure database tables exist (shared initialization for read/write paths)."""
+    _SHARED_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(_SHARED_DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS transcript_cache (
+            cache_key TEXT PRIMARY KEY,
+            video_id TEXT NOT NULL,
+            lang TEXT NOT NULL,
+            source TEXT NOT NULL,
+            transcript TEXT NOT NULL,
+            cached_at TEXT NOT NULL,
+            terminal_id TEXT NOT NULL
+        )
+        """
+    )
+    # Index on video_id for has_cached_transcript lookups (batch pre-check)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_transcript_cache_video_id ON transcript_cache(video_id)"
+    )
+    conn.close()
+
+
 def list_cached_transcripts(lang: str | None = None) -> list[TranscriptCache]:
     """List all cached transcripts, optionally filtered by language.
 
     Args:
-        lang: ISO 639-1 language code to filter by. None means all languages.
+        lang: ISO 649-1 language code to filter by. None means all languages.
 
     Returns:
         List of TranscriptCache entries.
     """
-    _SHARED_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    # FIX: Ensure tables exist before querying (prevents empty database bug)
+    _ensure_db_initialized()
+
     conn = sqlite3.connect(_SHARED_DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
     if lang:

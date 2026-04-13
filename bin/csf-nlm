@@ -34,7 +34,7 @@ import sys
 from pathlib import Path
 
 # Multi-terminal lock directory
-_LOCK_DIR = Path("P:/__csf/.data/intelligence-stream/locks")
+_LOCK_DIR = Path("P:/__csf/.data/yt-is/locks")
 _LOCK_DIR.mkdir(parents=True, exist_ok=True)
 
 # Add csf to path

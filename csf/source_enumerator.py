@@ -1,9 +1,8 @@
-"""YouTube source enumeration for intelligence-stream pipeline — Phase 2.
+"""YouTube source enumeration for yt-is pipeline — Phase 2.
 
-Three-tier enumeration strategy:
+Two-tier enumeration strategy:
 - Tier 1: RSS (daily monitoring, free, stateless)
 - Tier 2: YouTube Data API with publishedAfter cursor (gap resolution)
-- Tier 3: yt-dlp --flat-playlist (full enumeration fallback)
 
 Uses YOUTUBE_API_KEY from environment for API calls.
 """
@@ -13,21 +12,32 @@ import re
 import urllib.request
 import urllib.parse
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import NamedTuple
 
 # YouTube Data API endpoint
 _YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
+
+
+class ChannelInfo(NamedTuple):
+    """Full channel metadata from channels.list API response.
+
+    Returned by get_upload_playlist_id() so callers can capture
+    all available fields in a single API call.
+    """
+    playlist_id: str
+    video_count: int
+    channel_title: str
+    thumbnail_url: str
+    subscriber_count: int
+    view_count: int
 
 # RSS feed URL template
 _RSS_TEMPLATE = "https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
 
 # Channel ID pattern (UC...)
 _CHANNEL_ID_PATTERN = re.compile(r"^UC[a-zA-Z0-9_-]{22}$")
-
-# Threshold constants from ADR
-_GAP_TRIGGER_RSS_COUNT = 15  # Minimum RSS videos to trigger gap detection
-_GAP_TRIGGER_DAYS_OLD = 7  # Newest batch video must be > 7 days old
 
 
 @dataclass
@@ -75,15 +85,70 @@ def _get_api_keys() -> list[str]:
     return _YOUTUBE_API_KEYS
 
 
-def _api_request(endpoint: str, params: dict) -> dict | None:
-    """Make a YouTube Data API request with automatic key failover.
+@dataclass
+class _ApiResult:
+    """Structured result from an API call — tracks success, failure reason, and quota state."""
 
-    Tries each available key in order; on 403/429 (quota exceeded), tries next.
-    On 404, returns None immediately (resource genuinely not found).
+    success: bool
+    response: dict | None
+    key_index: int
+    units_consumed: int  # estimated YouTube API units for this call
+    failure_reason: str | None  # None if success, else 'quota_exceeded', 'invalid_key', 'not_found', 'network_error', 'other'
+
+
+# Module-level per-key quota state
+_key_state: dict[int, dict] = {}  # key_index -> {calls_made, units_consumed, exhausted, exhausted_at}
+_API_UNIT_ESTIMATE_PER_CALL = 5  # conservative estimate for channels.list with 3 parts
+
+
+def _init_key_state(num_keys: int) -> None:
+    """Initialize quota tracking state for each key."""
+    global _key_state
+    for i in range(num_keys):
+        if i not in _key_state:
+            _key_state[i] = {"calls_made": 0, "units_consumed": 0, "exhausted": False, "exhausted_at": None}
+
+
+def get_quota_status() -> dict[int, dict]:
+    """Return current quota state per key index.
+
+    Returns:
+        Dict of key_index -> {calls_made, units_consumed, exhausted, exhausted_at}
+    """
+    keys = _get_api_keys()
+    _init_key_state(len(keys))
+    return dict(_key_state)
+
+
+def can_proceed(units_needed: int) -> bool:
+    """Check whether enough total quota remains across all keys to proceed.
+
+    Args:
+        units_needed: Estimated units required for the operation.
+
+    Returns:
+        True if at least one non-exhausted key has enough remaining quota.
+    """
+    keys = _get_api_keys()
+    _init_key_state(len(keys))
+    total_exhausted = sum(1 for i in range(len(keys)) if _key_state.get(i, {}).get("exhausted", False))
+    if total_exhausted >= len(keys):
+        return False  # all keys exhausted
+    # Conservative: assume 10K units per key, subtract estimated consumption
+    per_key_estimate = 10000
+    available = sum(per_key_estimate - _key_state.get(i, {}).get("units_consumed", 0) for i in range(len(keys)))
+    return available >= units_needed
+
+
+def _api_request(endpoint: str, params: dict, record_quota: bool = True, unit_cost: int | None = None) -> dict | None:
+    """Make a YouTube Data API request with automatic key failover and quota tracking.
 
     Args:
         endpoint: API endpoint (e.g., 'channels', 'playlistItems')
         params: Query parameters including 'key' for API key
+        record_quota: If True, update per-key quota state on each call.
+        unit_cost: Override per-call unit cost. Defaults to _API_UNIT_ESTIMATE_PER_CALL.
+            Use 1 for lightweight calls (snippet only), 5 for full channel calls.
 
     Returns:
         JSON response dict or None on error.
@@ -92,32 +157,55 @@ def _api_request(endpoint: str, params: dict) -> dict | None:
     if not keys:
         return None
 
+    if record_quota:
+        _init_key_state(len(keys))
+
     url = f"{_YOUTUBE_API_BASE}/{endpoint}"
     last_error: str | None = None
+    cost = unit_cost if unit_cost is not None else _API_UNIT_ESTIMATE_PER_CALL
 
-    for api_key in keys:
+    for key_idx, api_key in enumerate(keys):
+        if record_quota and _key_state.get(key_idx, {}).get("exhausted", False):
+            continue  # skip exhausted keys
+
         all_params = {**params, "key": api_key}
         query = urllib.parse.urlencode(all_params)
 
         try:
             req = urllib.request.Request(f"{url}?{query}")
             with urllib.request.urlopen(req, timeout=30) as resp:
+                if record_quota:
+                    _key_state[key_idx]["calls_made"] += 1
+                    _key_state[key_idx]["units_consumed"] += cost
                 import json
 
                 return json.loads(resp.read().decode())
         except urllib.error.HTTPError as e:
             body = e.read().decode() if e.fp else ""
             if e.code == 404:
+                if record_quota:
+                    _key_state[key_idx]["calls_made"] += 1
+                    _key_state[key_idx]["units_consumed"] += cost
                 return None
-            # 400 with "expired" = bad key, try next key
             if e.code == 400 and "expired" in body.lower():
                 last_error = f"key expired (HTTP 400)"
-                continue  # try next key
+                continue
             if e.code == 403 or e.code == 429:
                 last_error = f"quota exceeded (HTTP {e.code})"
-                continue  # try next key
+                if record_quota:
+                    _key_state[key_idx]["exhausted"] = True
+                    from datetime import datetime, timezone
+
+                    _key_state[key_idx]["exhausted_at"] = datetime.now(timezone.utc).isoformat()
+                continue
+            if record_quota:
+                _key_state[key_idx]["calls_made"] += 1
+                _key_state[key_idx]["units_consumed"] += cost
             return None
         except Exception:
+            if record_quota:
+                _key_state[key_idx]["calls_made"] += 1
+                _key_state[key_idx]["units_consumed"] += cost
             return None
 
     import logging
@@ -253,28 +341,106 @@ def parse_video_url(url: str) -> str | None:
     return None
 
 
-def get_upload_playlist_id(channel_id: str) -> str | None:
-    """Get the uploads playlist ID for a channel using YouTube Data API.
+def get_upload_playlist_id(channel_id: str) -> ChannelInfo | None:
+    """Get the uploads playlist ID and full metadata for a channel using YouTube Data API.
 
-    Uses channels.list API with contentDetails projection.
+    Two-tier lookup strategy (quota-efficient):
+    - Tier 1: channels.list(part=snippet) — 1 unit. Validates handle and extracts
+      channel title, thumbnail, and customUrl.
+    - Tier 2: channels.list(part=contentDetails,statistics) — 5 units. Gets uploads
+      playlist ID and video counts. Only called if Tier 1 succeeds.
+
+    All available metadata is captured and returned as ChannelInfo.
 
     Args:
         channel_id: Channel identifier (UC..., @handle, c/name, user/name)
 
     Returns:
-        Upload playlist ID (starts with UU) or None if not found.
+        ChannelInfo (playlist_id, video_count, channel_title, thumbnail_url,
+        subscriber_count, view_count) or None if channel not found.
+    """
+    # Determine part and id-type based on channel_id format
+    if channel_id.startswith("UC"):
+        id_param_key = "id"
+        id_param_val = channel_id
+    elif channel_id.startswith("@"):
+        id_param_key = "forHandle"
+        id_param_val = channel_id
+    elif channel_id.startswith("c/") or channel_id.startswith("user/"):
+        name = channel_id.split("/", 1)[1]
+        id_param_key = "forUsername"
+        id_param_val = name
+    else:
+        return None
+
+    # Tier 1: lightweight snippet-only call (1 unit) — validates handle exists
+    tier1_params = {id_param_key: id_param_val, "part": "snippet"}
+    result_t1 = _api_request("channels", tier1_params, unit_cost=1)
+    if not result_t1 or "items" not in result_t1 or len(result_t1["items"]) == 0:
+        return None
+
+    try:
+        item_t1 = result_t1["items"][0]
+        snippet_t1 = item_t1.get("snippet", {})
+        thumbnails_t1 = snippet_t1.get("thumbnails", {})
+        tier1_custom_url = snippet_t1.get("customUrl", "")
+        tier1_title = snippet_t1.get("title", "")
+        tier1_thumbnail = (
+            thumbnails_t1.get("default", {}).get("url", "")
+            or thumbnails_t1.get("medium", {}).get("url", "")
+            or thumbnails_t1.get("high", {}).get("url", "")
+        )
+        # Extract channel ID from Tier 1 response (channel IDs always start with UC)
+        tier1_channel_id = item_t1.get("id", "") or snippet_t1.get("channelId", "")
+    except (KeyError, ValueError, TypeError):
+        return None
+
+    # Tier 2: full metadata call (5 units) — only if Tier 1 succeeded
+    tier2_params = {id_param_key: id_param_val, "part": "contentDetails,statistics"}
+    result_t2 = _api_request("channels", tier2_params, unit_cost=5)
+    if not result_t2 or "items" not in result_t2 or len(result_t2["items"]) == 0:
+        return None
+
+    try:
+        item_t2 = result_t2["items"][0]
+        playlist_id = item_t2["contentDetails"]["relatedPlaylists"]["uploads"]
+        stats = item_t2.get("statistics", {})
+        snippet_t2 = item_t2.get("snippet", {})
+
+        return ChannelInfo(
+            playlist_id=playlist_id,
+            video_count=int(stats.get("videoCount", 0) or 0),
+            channel_title=tier1_title or snippet_t2.get("title", ""),
+            thumbnail_url=tier1_thumbnail,
+            subscriber_count=int(stats.get("subscriberCount", 0) or 0),
+            view_count=int(stats.get("viewCount", 0) or 0),
+        )
+    except (KeyError, ValueError, TypeError):
+        return None
+
+
+def get_video_count(channel_id: str) -> int | None:
+    """Get the total video count for a channel using YouTube Data API.
+
+    Uses channels.list API with statistics projection.
+
+    Args:
+        channel_id: Channel identifier (UC..., @handle, c/name, user/name)
+
+    Returns:
+        Total video count or None if not found.
     """
     # Determine part and id-type based on channel_id format
     if channel_id.startswith("UC"):
         # Direct channel ID
-        params = {"part": "contentDetails", "id": channel_id}
+        params = {"part": "statistics", "id": channel_id}
     elif channel_id.startswith("@"):
         # Handle
-        params = {"part": "contentDetails", "forHandle": channel_id}
+        params = {"part": "statistics", "forHandle": channel_id}
     elif channel_id.startswith("c/") or channel_id.startswith("user/"):
         # Custom URL or user URL
         name = channel_id.split("/", 1)[1]
-        params = {"part": "contentDetails", "forUsername": name}
+        params = {"part": "statistics", "forUsername": name}
     else:
         return None
 
@@ -283,8 +449,48 @@ def get_upload_playlist_id(channel_id: str) -> str | None:
         return None
 
     try:
-        return result["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
-    except KeyError:
+        return int(result["items"][0]["statistics"].get("videoCount", 0))
+    except (KeyError, ValueError, TypeError):
+        return None
+
+
+def resolve_to_uc_channel_id(channel_identifier: str) -> str | None:
+    """Resolve a channel identifier (@handle, c/custom, user/name) to UC channel ID.
+
+    Uses YouTube Data API channels.list with id projection.
+
+    Args:
+        channel_identifier: Channel identifier (@handle, c/name, user/name, or UC...)
+
+    Returns:
+        UC channel ID (e.g., "UCxxxxxxxxxxxxxxxxxx") or None if not found.
+    """
+    # If already UC format, return as-is
+    if channel_identifier.startswith("UC"):
+        return channel_identifier
+
+    # Determine API parameters based on format
+    if channel_identifier.startswith("@"):
+        # Handle
+        params = {"part": "id", "forHandle": channel_identifier}
+    elif channel_identifier.startswith("c/"):
+        # Custom URL
+        name = channel_identifier.split("/", 1)[1]
+        params = {"part": "id", "forUsername": name}
+    elif channel_identifier.startswith("user/"):
+        # User URL
+        name = channel_identifier.split("/", 1)[1]
+        params = {"part": "id", "forUsername": name}
+    else:
+        return None
+
+    result = _api_request("channels", params)
+    if not result or "items" not in result or len(result["items"]) == 0:
+        return None
+
+    try:
+        return result["items"][0]["id"]
+    except (KeyError, IndexError):
         return None
 
 
@@ -335,19 +541,43 @@ def enumerate_videos_api(
             snippet = item["snippet"]
             status = item.get("status", {})
 
-            # Filter non-playable videos at enumeration time (fail-fast)
+            # Filter out truly non-playable videos
+            # Keep memberOnly videos - they should be tracked as unavailable
+            # Keep scheduled live streams - they'll become available later
             privacy = status.get("privacyStatus", "public")
             upload = status.get("uploadStatus", "")
-            if privacy in ("private", "memberOnly"):
+            if privacy == "private":
                 continue
-            if upload in ("deleted", "failed", "processing"):
+            if upload in ("deleted", "failed"):
                 continue
+
+            # Check if video is unavailable for transcript download
+            unavailable_reason = None
+            if privacy == "memberOnly":
+                unavailable_reason = "member_only"
+            elif upload == "scheduled":
+                unavailable_reason = "scheduled_live"
+            elif upload == "processing":
+                unavailable_reason = "processing"
+
+            # Capture additional metadata from API
+            content_details = item.get("contentDetails", {})
+            live_details = status.get("liveBroadcastDetails", {})
 
             video = {
                 "video_id": snippet["resourceId"]["videoId"],
                 "title": snippet.get("title", ""),
+                "description": snippet.get("description", ""),
+                "channel_id": snippet.get("channelId", ""),
                 "published_at": snippet.get("publishedAt", ""),
-                "has_captions": item.get("contentDetails", {}).get("caption", False),
+                "thumbnail": snippet.get("thumbnails", {}).get("default", {}).get("url", ""),
+                "duration": content_details.get("duration", 0),  # seconds
+                "has_captions": content_details.get("caption", False),
+                "caption": content_details.get("caption", ""),  # caption track info
+                "privacy_status": status.get("privacyStatus", "public"),
+                "upload_status": status.get("uploadStatus", ""),
+                "is_live_content": live_details.get("isLiveContent", False),
+                "unavailable_reason": unavailable_reason,
             }
             videos.append(video)
         except KeyError:
@@ -427,7 +657,7 @@ def enumerate_recent(
 def check_rss(channel_id: str) -> list[str]:
     """Check RSS feed for recent videos from a channel.
 
-    Returns up to ~15-20 most recent video IDs.
+    Returns exactly 15 most recent video IDs (YouTube RSS limit).
 
     Args:
         channel_id: YouTube channel ID (UC...)
@@ -450,10 +680,13 @@ def check_rss(channel_id: str) -> list[str]:
     # Parse YouTube RSS namespace
     try:
         root = ET.fromstring(xml_content)
-        ns = {"yt": "http://www.youtube.com/xml/schemas/2015"}
+        ns = {
+            "atom": "http://www.w3.org/2005/Atom",
+            "yt": "http://www.youtube.com/xml/schemas/2015"
+        }
 
         video_ids = []
-        for entry in root.findall(".//entry"):
+        for entry in root.findall(".//atom:entry", ns):
             # YouTube video ID is in the yt:videoId element
             video_id_elem = entry.find("yt:videoId", ns)
             if video_id_elem is not None and video_id_elem.text:
@@ -466,48 +699,32 @@ def check_rss(channel_id: str) -> list[str]:
 
 def detect_gap(
     rss_ids: list[str],
-    batch_status_ids: set[str],
-    newest_batch_published: datetime | None,
+    all_video_ids: set[str],
 ) -> bool:
     """Detect whether a channel has a gap requiring API gap resolution.
 
-    Gap is triggered when:
-    - RSS returns >= 15 non-overlapping video IDs
-    - AND newest batch video is > 7 days old
+    Gap is triggered when RSS shows videos that don't exist in local database.
+    This means we've missed videos and need to fill the gap via API.
 
     Args:
-        rss_ids: Video IDs from RSS feed
-        batch_status_ids: Video IDs already in batch_status for this channel
-        newest_batch_published: datetime of the newest video already processed
+        rss_ids: Video IDs from RSS feed (exactly 15 videos)
+        all_video_ids: ALL video IDs in database for this channel (pending, complete, failed)
 
     Returns:
         True if gap resolution is needed, False otherwise.
     """
-    if len(rss_ids) < _GAP_TRIGGER_RSS_COUNT:
+    if not rss_ids:
         return False
 
-    # Check for overlap
+    # Check for overlap between RSS and database
     rss_set = set(rss_ids)
-    overlap = rss_set & batch_status_ids
+    overlap = rss_set & all_video_ids
 
-    # No overlap = potential gap
+    # No overlap = gap detected (RSS videos don't exist in our database)
     if not overlap:
-        if newest_batch_published is None:
-            # No existing videos = this is initial import, not a gap
-            return False
+        return True
 
-        # Parse ISO string to datetime if needed (DB stores ISO strings)
-        if isinstance(newest_batch_published, str):
-            from datetime import datetime as dt
-            newest_batch_published = dt.fromisoformat(newest_batch_published.replace("Z", "+00:00"))
-
-        now = datetime.now(timezone.utc)
-        age = now - newest_batch_published
-
-        # Gap only if batch is stale
-        return age > timedelta(days=_GAP_TRIGGER_DAYS_OLD)
-
-    # Has overlap = normal processing
+    # Has overlap = up to date, no gap
     return False
 
 

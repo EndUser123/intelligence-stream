@@ -863,7 +863,7 @@ def main() -> None:
         sys.exit(1)
 
     # Save result - shared across terminals on P drive
-    output_dir = Path("P:/__csf/.data/intelligence-stream/analyses")
+    output_dir = Path("P:/__csf/.data/yt-is/analyses")
     output_dir.mkdir(parents=True, exist_ok=True)
     out_path = output_dir / f"{video_id}.json"
     out_path.write_text(json.dumps(result, indent=2))

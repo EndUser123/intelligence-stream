@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+"""YouTube transcript ingestion via NotebookLM — ephemeral notebook workflow.
+
+Usage:
+    yt-nlm-ingest                    # Dry run: show pending videos
+    yt-nlm-ingest --run              # Ingest pending videos via NotebookLM
+    yt-nlm-ingest --channel <url>    # Process specific channel only
+    yt-nlm-ingest --batch-size N     # Transcripts per combined source (default: 20)
+    yt-nlm-ingest --notebook-id <uuid>  # Target notebook for combined sources
+"""
+
+import argparse
+import subprocess
+import sys
+from pathlib import Path
+
+# Run csf/csf_nlm_ingest.py with same arguments
+script_path = Path(__file__).parent.parent / "csf" / "csf_nlm_ingest.py"
+result = subprocess.run([sys.executable, str(script_path)] + sys.argv[1:])
+sys.exit(result.returncode)

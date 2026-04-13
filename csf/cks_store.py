@@ -4,8 +4,8 @@ import sys
 from pathlib import Path
 
 # Add P:/packages/search-research/core to sys.path — APPEND not insert(0,) to avoid shadowing
-# cks_store.py at P:/packages/intelligence-stream/csf/cks_store.py
-# .parent = csf/, .parent.parent = intelligence-stream/, .parent.parent.parent = packages/
+# cks_store.py at P:/packages/yt-is/csf/cks_store.py
+# .parent = csf/, .parent.parent = yt-is/, .parent.parent.parent = packages/
 # Then /search-research/core to reach the CKS
 _src = Path(__file__).parent.parent.parent / "search-research" / "core"
 # Validate path exists before inserting
@@ -13,7 +13,7 @@ _cks_module_path = _src / "cks" / "unified.py"
 if not _cks_module_path.exists():
     raise RuntimeError(
         f"CKS module not found at {_cks_module_path}. "
-        f"Verify intelligence-stream/ directory structure matches path assumption."
+        f"Verify yt-is/ directory structure matches path assumption."
     )
 if str(_src) not in sys.path:
     sys.path.append(str(_src))  # append instead of insert(0,) — safe fallback if wrong

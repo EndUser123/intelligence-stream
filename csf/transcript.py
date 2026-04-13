@@ -17,7 +17,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -51,6 +51,41 @@ _SOURCE_YTDLP = "ytdlp"
 _SOURCE_YTDLP_EJS = "ytdlp_ejs"
 _SOURCE_WHISPER = "whisper"
 _SOURCE_SELENIUM = "selenium"
+_SOURCE_NLM = "notebooklm"
+_SOURCE_EXTERNAL = "external"
+_SOURCE_DIRECT_API = "direct_api"
+
+# Source-stage versioning for transcript provenance
+# When NotebookLM changes its JSON response structure, source_stage increments.
+# Re-fetches with higher source_stage win over stale lower-stage content.
+STAGE_VERSION_YTDLP = 1
+STAGE_VERSION_EJS = 1
+STAGE_VERSION_SELENIUM = 1
+STAGE_VERSION_NOTEBOOKLM = 1
+STAGE_VERSION_DIRECT_API = 2
+
+# Pluggable external transcript provider hook — called after all built-in
+# stages (yt-dlp → cookies → Selenium → NLM) have failed.
+# Set via register_external_transcript_provider().
+# Signature: (video_id: str, lang: str) -> tuple[bool, str | None, str | None]
+# Returns: (success, transcript_text, error)
+_external_provider: callable | None = None
+
+
+def register_external_transcript_provider(provider: callable) -> None:
+    """Register an external transcript provider as the final fallback.
+
+    The provider is called after all built-in stages fail.
+    It must have signature: (video_id: str, lang: str)
+    -> tuple[bool, str | None, str | None]  (success, transcript, error)
+
+    Args:
+        provider: A callable that takes (video_id, lang) and returns
+            (success: bool, transcript: str | None, error: str | None).
+            Return (False, None, error) on failure.
+    """
+    global _external_provider
+    _external_provider = provider
 
 # Jitter bounds for rate limit avoidance
 # PERF-006: Wider range (was 0.5-2.5) to prevent thundering herd.
@@ -72,6 +107,211 @@ _CIRCUIT_OPEN_THRESHOLD = 3  # consecutive 429s before skipping source
 _COOLDOWN_SECONDS = 300  # 5 minutes
 _BACKOFF_BASE = 2  # jitter multiplier per consecutive 429
 _MAX_BACKOFF_MULTIPLIER = 32  # cap jitter at 32x to prevent pathological sleeps
+
+# NLMConfig singleton — replaces module-level _NLM_MAX_SOURCES_PER_NOTEBOOK lazy env read
+_nlm_config_lock = threading.Lock()
+_nlm_config: "NLMConfig | None" = None
+
+
+@dataclass(frozen=True)
+class NLMConfig:
+    """Runtime configuration for NLM (NotebookLM) operations.
+
+    Attributes:
+        max_sources_per_notebook: Maximum YouTube sources per batch notebook.
+            Standard: ~50, Pro: ~300, Ultra: ~600. Default 300.
+        auth_check_interval: Seconds between auth check calls. Default 60.0.
+        auth_max_calls_per_window: Max auth calls per window before blocking.
+            Default 10.
+        auth_cooldown: Seconds to block after consecutive auth failures.
+            Default 300.0.
+    """
+
+    max_sources_per_notebook: int = 300
+    auth_check_interval: float = 60.0
+    auth_max_calls_per_window: int = 10
+    auth_cooldown: float = 300.0
+
+
+def get_nlm_config() -> NLMConfig:
+    """Return the NLMConfig singleton, initializing from env var on first access.
+
+    Thread-safe. Falls back to YTIS_NLM_MAX_SOURCES_PER_NOTEBOOK env var if
+    singleton is uninitialized.
+    """
+    global _nlm_config
+    with _nlm_config_lock:
+        if _nlm_config is None:
+            _nlm_config = NLMConfig(
+                max_sources_per_notebook=int(
+                    os.environ.get("YTIS_NLM_MAX_SOURCES_PER_NOTEBOOK", "300")
+                )
+            )
+        return _nlm_config
+
+
+def set_nlm_config(config: NLMConfig) -> None:
+    """Set the NLMConfig singleton (for testing override). Thread-safe."""
+    global _nlm_config
+    with _nlm_config_lock:
+        _nlm_config = config
+
+
+# Minimum transcript content length in characters (accepted at 21 chars, rejected below)
+_NLM_MIN_CONTENT_CHARS = 21
+
+# Whisper fallback — set YTIS_WHISPER_ENABLED=false to disable
+_WHISPER_ENABLED: bool | None = None  # lazily loaded from env
+
+# Cookie file cache - avoid repeated Firefox cookies.sqlite extraction per video
+_cookie_cache: dict[str, str | int | float] = {}  # {path: str, refcount: int, expiry: float}
+_cookie_lock = threading.Lock()
+COOKIE_CACHE_TTL = 300  # 5 minutes
+
+
+# AuthRateLimiter — per-process singleton for call-frequency tracking
+_auth_rate_limiter_lock = threading.Lock()
+_auth_rate_limiter: "AuthRateLimiter | None" = None
+
+
+class AuthRateLimiter:
+    """Tracks NLM auth call frequency and enforces cooldown on failures.
+
+    Thread-safe per-process singleton. Blocks after auth_max_calls_per_window
+    calls within auth_check_interval seconds. Triggers auth_cooldown seconds
+    cooldown after 3 consecutive --force login failures.
+
+    Fail-closed on lock error: if lock acquisition fails, is_allowed() returns
+    False and the call is blocked.
+    """
+
+    def __init__(self) -> None:
+        self._call_timestamps: list[float] = []
+        self._cooldown_until: float = 0.0
+        self._consecutive_failures: int = 0
+        self._lock = threading.Lock()
+
+    def _is_in_cooldown(self) -> bool:
+        """Return True if currently in cooldown period."""
+        return time.monotonic() < self._cooldown_until
+
+    def is_allowed(self) -> bool:
+        """Return True if auth call is allowed. Fail-closed on lock error."""
+        try:
+            acquired = self._lock.acquire(timeout=0.1)
+        except Exception:
+            # Fail-closed: block the call and log error
+            logging.error("[AuthRateLimiter] lock acquisition failed — blocking call")
+            return False
+        if not acquired:
+            logging.error("[AuthRateLimiter] could not acquire lock — blocking call")
+            return False
+        try:
+            if self._is_in_cooldown():
+                return False
+            config = get_nlm_config()
+            now = time.monotonic()
+            window_start = now - config.auth_check_interval
+            self._call_timestamps = [ts for ts in self._call_timestamps if ts > window_start]
+            if len(self._call_timestamps) >= config.auth_max_calls_per_window:
+                return False
+            return True
+        finally:
+            self._lock.release()
+
+    def record_call(self) -> None:
+        """Record an auth call timestamp. Thread-safe."""
+        with self._lock:
+            self._call_timestamps.append(time.monotonic())
+
+    def record_auth_failure(self) -> None:
+        """Record a --force login failure. Triggers cooldown after 3 consecutive."""
+        with self._lock:
+            self._consecutive_failures += 1
+            if self._consecutive_failures >= 3:
+                self._cooldown_until = time.monotonic() + get_nlm_config().auth_cooldown
+                logging.warning(
+                    f"[AuthRateLimiter] 3 consecutive auth failures — entering "
+                    f"{get_nlm_config().auth_cooldown}s cooldown"
+                )
+
+    def record_auth_success(self) -> None:
+        """Reset failure counter on successful --force login."""
+        with self._lock:
+            self._consecutive_failures = 0
+
+
+def _get_auth_rate_limiter() -> AuthRateLimiter:
+    """Return the AuthRateLimiter per-process singleton."""
+    global _auth_rate_limiter
+    with _auth_rate_limiter_lock:
+        if _auth_rate_limiter is None:
+            _auth_rate_limiter = AuthRateLimiter()
+        return _auth_rate_limiter
+
+
+# CookieFreshnessTracker — per-process singleton for active cookie probe
+_cookie_freshness_tracker_lock = threading.Lock()
+_cookie_freshness_tracker: "CookieFreshnessTracker | None" = None
+
+
+class CookieFreshnessTracker:
+    """Tracks cookie freshness using active probe, not just TTL.
+
+    TTL (300s) is a fast-path optimization. When TTL expires, an active
+    `nlm login --check` probe (30s timeout) is the authoritative check.
+    On probe timeout or failure, invalidate() is called to force re-auth.
+    """
+
+    def __init__(self) -> None:
+        self._last_check: float = 0.0
+        self._ttl: float = 300.0
+        self._lock = threading.Lock()
+
+    def is_fresh(self) -> bool:
+        """Return True if cookie is fresh (TTL not expired or active probe passes).
+
+        If TTL has expired, runs `nlm login --check` (30s timeout) as authoritative.
+        On probe failure or timeout, calls invalidate() and returns False.
+        """
+        with self._lock:
+            if time.monotonic() - self._last_check <= self._ttl:
+                return True
+
+        # TTL expired — run active probe
+        try:
+            check = subprocess.run(
+                ["nlm", "login", "--check"],
+                capture_output=True, timeout=30,
+            )
+            if check.returncode == 0:
+                with self._lock:
+                    self._last_check = time.monotonic()
+                return True
+            # Probe failed — invalidate and fall through
+            self.invalidate()
+            return False
+        except subprocess.TimeoutExpired:
+            logging.warning("[CookieFreshnessTracker] probe timed out after 30s — invalidating")
+            self.invalidate()
+            return False
+        except Exception:
+            self.invalidate()
+            return False
+
+    def invalidate(self) -> None:
+        """Force re-auth on next _ensure_nlm_auth call."""
+        with self._lock:
+            self._last_check = 0.0
+
+
+def _get_cookie_freshness_tracker() -> CookieFreshnessTracker:
+    """Return the CookieFreshnessTracker per-process singleton."""
+    global _cookie_freshness_tracker
+    with _cookie_freshness_tracker_lock:
+        if _cookie_freshness_tracker is None:
+            _cookie_freshness_tracker = CookieFreshnessTracker()
+        return _cookie_freshness_tracker
 
 
 @dataclass
@@ -107,12 +347,23 @@ class TranscriptResult:
             translation was performed.
         transcript: The transcript text, in prefer_lang (after translation
             if was_translated=True). Empty string if no transcript found.
-        source: Which fetch method succeeded ('cli', 'youtube_transcript_api',
-            'youtubei', 'sdk', 'whisper', 'none').
+        source: Which fetch method succeeded ('ytdlp', 'ytdlp_ejs', 'selenium',
+            'notebooklm', 'direct_api', 'none').
+        source_stage: Versioned provenance tag. None means pre-versioning era
+            (records from before this field existed). Higher values indicate
+            more recent source format versions. Stage versions: ytdlp/ejs/selenium/
+            notebooklm=1, direct_api=2.
         detected_lang: The detected language of the returned transcript,
             or None if language detection failed or no transcript available.
         error: The error message from the last failed source, or None if no
             error occurred or transcript was successfully fetched.
+        last_stage: Which stage in the chain was reached ('ytdlp', 'ytdlp_ejs',
+            'selenium', 'notebooklm', 'direct_api'). None on success — the
+            successful source is in the `source` field.
+        failure_reason: Classified reason for final failure ('region_block',
+            'no_transcript', 'quota_exceeded', 'auth_failed', 'captcha',
+            'unavailable', 'timeout', 'unknown'). None if not yet determined
+            or if transcript was successfully fetched.
     """
 
     video_id: str
@@ -121,8 +372,11 @@ class TranscriptResult:
     was_translated: bool
     transcript: str
     source: str
-    detected_lang: str | None
-    error: str | None
+    source_stage: int | None = None
+    detected_lang: str | None = None
+    error: str | None = None
+    last_stage: str | None = None
+    failure_reason: str | None = None
 
 
 def _validate_bcp47(lang: str) -> None:
@@ -300,51 +554,6 @@ def _fetch_via_gemini_cli(
     return (True, stdout.strip(), None)
 
 
-def check_video_availability(video_id: str) -> tuple[bool, str | None]:
-    """Pre-check video availability using list_transcripts() — no quota consumed.
-
-    Returns:
-        (True, None) — video is available for transcript fetching
-        (False, "video_unavailable") — video is unavailable (permanent)
-        (False, "transcripts_disabled") — channel has disabled transcripts
-        (False, "no_transcript_found") — no transcript languages available
-        (False, str(e)) — unexpected error
-    """
-    try:
-        from youtube_transcript_api import YouTubeTranscriptApi
-    except ImportError:
-        return (False, "youtube_transcript_api not installed")
-
-    try:
-        from youtube_transcript_api._errors import (
-            TranscriptsDisabled,
-            NoTranscriptFound,
-            VideoUnavailable,
-        )
-
-        def _check() -> None:
-            api = YouTubeTranscriptApi()
-            api.list(video_id)
-
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_check)
-            try:
-                future.result(timeout=10)
-            except TimeoutError:
-                return (False, "video_unavailable")  # treat timeout as unavailable
-            except VideoUnavailable:
-                return (False, "video_unavailable")
-            except TranscriptsDisabled:
-                return (False, "transcripts_disabled")
-            except NoTranscriptFound:
-                return (False, "no_transcript_found")
-        return (True, None)
-    except ImportError:
-        return (False, "youtube_transcript_api not installed")
-    except Exception as e:
-        return (False, str(e))
-
-
 def _fetch_via_youtube_transcript_api(
     video_id: str, lang: str
 ) -> tuple[bool, str | None, str | None]:
@@ -439,13 +648,28 @@ def _fetch_via_ytdlp(video_id: str, lang: str) -> tuple[bool, str | None, str | 
         "subtitlesformat": "json3",
         "quiet": True,
         "no_warnings": True,
+        # Rate limiting: humanize requests to avoid detection
+        "sleep_interval": 15,
+        "max_sleep_interval": 60,
+        # Retry logic with exponential backoff
+        "extractor_retries": 5,
+        "fragment_retries": 10,
+        "ignoreerrors": False,
         # WEB client avoids bot-detection on public videos. No cookies needed.
         # Age-restricted videos require auth — handled by second attempt below.
         "extractor_args": {
             "youtube": {
                 "client_name": "WEB",
                 "client_version": "2.20210721.01.00",
+                "player_client": "web",
+                # User region for geolocation context
+                "UACountry": "CA",
             }
+        },
+        # HTTP headers to mimic browser requests
+        "http_headers": {
+            "Referer": "https://www.youtube.com/",
+            "Accept-Language": "en-CA,en-US;q=0.9,en;q=0.8",
         },
     }
 
@@ -490,9 +714,7 @@ def _fetch_via_ytdlp(video_id: str, lang: str) -> tuple[bool, str | None, str | 
             )
             data = json.loads(resp.content.decode("utf-8"))
         except ImportError:
-            # Fall back to urllib — will likely get bot-checked
-            import urllib.request
-
+            # Fall back to urllib.request (module-level import) — will likely get bot-checked
             req = urllib.request.Request(
                 sub_url,
                 headers={
@@ -555,8 +777,8 @@ def _fetch_via_ytdlp_with_cookies(
     """
     video_url = f"https://www.youtube.com/watch?v={video_id}"
 
-    # Find Firefox cookies file — requires Firefox running to extract live cookies
-    cookie_file = _get_firefox_cookie_file()
+    # Get cached cookie file (or create new one) with reference counting
+    cookie_file = _get_cookie_file()
     if not cookie_file:
         return (False, None, "no firefox cookie file")
 
@@ -569,10 +791,27 @@ def _fetch_via_ytdlp_with_cookies(
         "quiet": True,
         "no_warnings": True,
         "cookiefile": cookie_file,
+        # Rate limiting: even more conservative with cookies (account-level risk)
+        "sleep_interval": 20,
+        "max_sleep_interval": 90,
+        # Retry logic with exponential backoff
+        "extractor_retries": 5,
+        "fragment_retries": 10,
+        "ignoreerrors": False,
         # EJS github component resolves YouTube's JS challenge for age-restricted videos.
         # Works alongside cookies to authenticate and extract transcripts.
         "extractor_args": {
-            "youtube": {"external_downloader": "ejs:github"}
+            "youtube": {
+                "external_downloader": "ejs:github",
+                "player_client": "web",
+                # User region for geolocation context
+                "UACountry": "CA",
+            }
+        },
+        # HTTP headers to mimic browser requests
+        "http_headers": {
+            "Referer": "https://www.youtube.com/",
+            "Accept-Language": "en-CA,en-US;q=0.9,en;q=0.8",
         },
     }
 
@@ -590,12 +829,12 @@ def _fetch_via_ytdlp_with_cookies(
         )
 
         if not subs or len(subs) == 0:
-            os.unlink(cookie_file)
+            _release_cookie_file(cookie_file)
             return (False, None, "no subtitles available")
 
         sub_url = subs[0].get("url")
         if not sub_url:
-            os.unlink(cookie_file)
+            _release_cookie_file(cookie_file)
             return (False, None, "no subtitle URL in yt-dlp response")
 
         # Fetch subtitle URL with curl_cffi Chrome impersonation
@@ -641,31 +880,22 @@ def _fetch_via_ytdlp_with_cookies(
                 text_parts.append("\n")
 
         full_text = " ".join(t for t in text_parts if t != "\n")
-        os.unlink(cookie_file)
+        _release_cookie_file(cookie_file)
         if not full_text.strip():
             return (False, None, "subtitle file was empty")
 
         return (True, full_text.strip(), None)
 
     except urllib.error.HTTPError as e:
-        try:
-            os.unlink(cookie_file)
-        except Exception:
-            pass
+        _release_cookie_file(cookie_file)
         if e.code == 429:
             return (False, None, "rate limited (429)")
         return (False, None, f"yt-dlp-with-cookies HTTP error: {e.code}")
     except subprocess.TimeoutExpired:
-        try:
-            os.unlink(cookie_file)
-        except Exception:
-            pass
+        _release_cookie_file(cookie_file)
         return (False, None, "yt-dlp-with-cookies timed out")
     except Exception as e:
-        try:
-            os.unlink(cookie_file)
-        except Exception:
-            pass
+        _release_cookie_file(cookie_file)
         err_str = str(e).lower()
         if "429" in err_str or "too many requests" in err_str:
             return (False, None, "rate limited (429)")
@@ -750,6 +980,75 @@ def _get_firefox_cookie_file() -> str | None:
             os.unlink(tmp_db)
         except Exception:
             pass
+
+
+def _get_cookie_file() -> str | None:
+    """Get cached cookie file with reference counting.
+
+    Returns cached cookie file if available and valid, otherwise generates
+    a new one. Uses reference counting to ensure the file is not deleted
+    while still in use by concurrent requests.
+
+    Returns:
+        Cookie file path, or None if unavailable.
+    """
+    global _cookie_cache
+
+    with _cookie_lock:
+        # Check cache validity
+        if _cookie_cache:
+            path = _cookie_cache.get("path")
+            expiry = _cookie_cache.get("expiry", 0)
+            if path and os.path.exists(path) and time.time() < expiry:
+                _cookie_cache["refcount"] = _cookie_cache.get("refcount", 0) + 1
+                return path
+            else:
+                # Cleanup stale cache
+                _cleanup_cookie_cache()
+
+        # Generate new cookie file using existing function
+        cookie_file = _get_firefox_cookie_file()
+        if cookie_file:
+            _cookie_cache = {
+                "path": cookie_file,
+                "refcount": 1,
+                "expiry": time.time() + COOKIE_CACHE_TTL
+            }
+        return cookie_file
+
+
+def _release_cookie_file(cookie_file: str) -> None:
+    """Release reference to cached cookie file.
+
+    Decrements reference count; cleans up cookie file when refcount reaches zero.
+
+    Args:
+        cookie_file: Path to the cookie file being released.
+    """
+    global _cookie_cache
+
+    with _cookie_lock:
+        if _cookie_cache.get("path") == cookie_file:
+            _cookie_cache["refcount"] = _cookie_cache.get("refcount", 1) - 1
+            if _cookie_cache["refcount"] <= 0:
+                _cleanup_cookie_cache()
+
+
+def _cleanup_cookie_cache() -> None:
+    """Cleanup cached cookie file and reset cache.
+
+    Deletes the cookie file if it exists and resets the module-level cache.
+    Logs a warning if deletion fails (instead of silently ignoring).
+    """
+    global _cookie_cache
+
+    path = _cookie_cache.get("path")
+    if path and os.path.exists(path):
+        try:
+            os.unlink(path)
+        except Exception as e:
+            logging.warning(f"Failed to cleanup cookie file {path}: {e}")
+    _cookie_cache = {}
 
 
 def _parse_srt(srt_content: str) -> str:
@@ -920,24 +1219,23 @@ def _fetch_via_selenium_firefox(
 
     firefox_profile_path = None
     try:
-        # Use the default Firefox profile so cookies/session carry over
+        # Use dedicated download profile (ProfileForDownloading) with YouTube login
         import glob as _glob
 
         appdata = os.environ.get("APPDATA") or ""
         profile_base = os.path.join(appdata, "Mozilla", "Firefox", "Profiles")
-        profiles = _glob.glob(os.path.join(profile_base, "*.default*"))
-        if profiles:
-            firefox_profile_path = profiles[0]
-
+        # Prefer dedicated download profile, fall back to first non-default profile
+        profiles = _glob.glob(os.path.join(profile_base, "*.Profile 1*"))
+        if not profiles:
+            # Fallback: use any profile that's not the default/release
+            all_profiles = _glob.glob(os.path.join(profile_base, "*"))
+            profiles = [p for p in all_profiles if ".default" not in os.path.basename(p)]
         opts = Options()
         opts.add_argument("--headless=new")
 
-        service = Service()
-        if firefox_profile_path:
-            profile = FirefoxProfile(firefox_profile_path)
-            driver = webdriver.Firefox(service=service, options=opts, firefox_profile=profile)
-        else:
-            driver = webdriver.Firefox(service=service, options=opts)
+        # Don't use existing profile - it conflicts with Selenium's preference setting
+        # For age-restricted videos requiring cookies, use yt-dlp with cookies instead
+        driver = webdriver.Firefox(service=Service(), options=opts)
 
         try:
             video_url = f"https://www.youtube.com/watch?v={video_id}"
@@ -980,17 +1278,281 @@ def _fetch_via_selenium_firefox(
         return (False, None, f"selenium error: {e}")
 
 
+def _ensure_nlm_auth() -> bool:
+    """Check NLM auth and auto-recover if expired.
+
+    Integration: AuthRateLimiter gate + CookieFreshnessTracker probe + nlm login.
+    Cooldown trigger is split: only --force login failures count toward the
+    3-failure cooldown. A --check probe failure followed by successful --force
+    recovery does NOT count as a failure.
+    """
+    rate_limiter = _get_auth_rate_limiter()
+
+    # 1. AuthRateLimiter gate — block if rate limit exceeded or in cooldown
+    if not rate_limiter.is_allowed():
+        logging.warning("[_ensure_nlm_auth] blocked by AuthRateLimiter")
+        return False
+
+    freshness = _get_cookie_freshness_tracker()
+
+    # 2. CookieFreshnessTracker — if stale, force re-auth
+    if not freshness.is_fresh():
+        logging.info("[_ensure_nlm_auth] cookie stale, forcing re-auth")
+
+    # 3. Run --check probe (for freshness tracker to record success)
+    try:
+        check = subprocess.run(
+            ["nlm", "login", "--check"],
+            capture_output=True, timeout=30,
+        )
+        if check.returncode == 0:
+            rate_limiter.record_call()
+            return True
+    except Exception:
+        pass
+
+    # 4. Auth expired — auto-recover with force login
+    try:
+        rate_limiter.record_call()
+        login = subprocess.run(
+            ["nlm", "login", "--force"],
+            capture_output=True, timeout=120,
+        )
+        if login.returncode == 0:
+            rate_limiter.record_auth_success()
+            return True
+        # Only --force failures count toward cooldown trigger
+        rate_limiter.record_auth_failure()
+        return False
+    except Exception:
+        rate_limiter.record_auth_failure()
+        return False
+
+
+def _parse_notebook_id(output: str) -> str | None:
+    """Parse notebook ID from nlm notebook create output."""
+    for line in output.strip().split("\n"):
+        if "ID:" in line:
+            return line.split("ID: ")[-1].strip()
+    return None
+
+
+def _extract_video_id_from_url(url: str) -> str | None:
+    """Extract video ID from YouTube URL."""
+    import re
+    match = re.search(r'[?&]v=([a-zA-Z0-9_-]{11})', url)
+    return match.group(1) if match else None
+
+
+def _fetch_via_notebooklm_batch(
+    video_ids: list[str],
+) -> dict[str, tuple[bool, str | None, str | None]]:
+    """Fetch transcripts for multiple videos using a single batch notebook.
+
+    Adds up to 300 YouTube sources per notebook, then extracts raw content.
+    Much faster than per-video notebooks when processing many videos.
+
+    Args:
+        video_ids: List of YouTube video IDs (11 chars each)
+
+    Returns:
+        dict mapping video_id -> (success, transcript_text, error)
+    """
+    import subprocess
+    import json
+    from concurrent.futures import ThreadPoolExecutor, Semaphore
+
+    result: dict[str, tuple[bool, str | None, str | None]] = {}
+
+    if not _ensure_nlm_auth():
+        return {vid: (False, None, "nlm auth failed") for vid in video_ids}
+
+    # Cap at configured limit (env: YTIS_NLM_MAX_SOURCES_PER_NOTEBOOK, default 300)
+    batch_ids = video_ids[:get_nlm_config().max_sources_per_notebook]
+    if not batch_ids:
+        return result
+    nb_name = f"batch_transcript_{batch_ids[0][:8]}"
+    create = subprocess.run(
+        ["nlm", "notebook", "create", nb_name],
+        capture_output=True, text=True, timeout=30
+    )
+    if create.returncode != 0:
+        return {vid: (False, None, f"create failed: {create.stderr[:100]}") for vid in batch_ids}
+
+    nb_id = _parse_notebook_id(create.stdout)
+    if not nb_id:
+        return {vid: (False, None, "parse notebook ID failed") for vid in batch_ids}
+
+    try:
+        # 2. Add all YouTube sources at once (--youtube flag is repeatable)
+        add_cmd = ["nlm", "source", "add", nb_id, "--wait", "--wait-timeout", "600"]
+        for vid in batch_ids:
+            add_cmd.extend(["--youtube", f"https://www.youtube.com/watch?v={vid}"])
+
+        add = subprocess.run(add_cmd, capture_output=True, text=True, timeout=900)
+        if add.returncode != 0:
+            return {vid: (False, None, f"add source failed: {add.stderr[:100]}") for vid in batch_ids}
+
+        # 3. List sources to get source_id -> video_id mapping
+        list_out = subprocess.run(
+            ["nlm", "source", "list", nb_id, "--json"],
+            capture_output=True, text=True, timeout=30
+        )
+        if list_out.returncode != 0:
+            return {vid: (False, None, "source list failed") for vid in batch_ids}
+
+        vid_to_source: dict[str, str] = {}  # video_id -> source_id
+        try:
+            sources_data = json.loads(list_out.stdout)
+            # Handle both array format and {"sources": [...]} dict format
+            if isinstance(sources_data, list):
+                source_list = sources_data
+            else:
+                source_list = sources_data.get("sources", [])
+
+            for idx, src in enumerate(source_list):
+                src_id = src.get("id", "")
+                src_url = src.get("url") or ""
+                src_title = src.get("title", "")
+
+                # Try to extract video ID from URL first, then from title
+                # Only use title if it contains a youtube.com/watch URL — titles
+                # may contain plain-text references to other videos that match the
+                # 11-char pattern without being actual URLs.
+                vid = _extract_video_id_from_url(src_url)
+                if not vid and "youtube.com/watch" in src_title:
+                    vid = _extract_video_id_from_url(src_title)
+
+                if vid:
+                    vid_to_source[vid] = src_id
+                else:
+                    # Fallback: assume sources are in same order as video_ids
+                    if idx < len(batch_ids):
+                        vid_to_source[batch_ids[idx]] = src_id
+        except (json.JSONDecodeError, AttributeError, TypeError) as e:
+            # Propagate parse failures clearly instead of silently proceeding
+            # with empty vid_to_source, which causes all videos to fail with
+            # "source not found in notebook" — a misleading error.
+            return {vid: (False, None, f"source list parse failed: {e}") for vid in batch_ids}
+
+        # 4. Get content for each source in parallel (raw text, not LLM query)
+        # Rate-limit to 5 concurrent content fetches to avoid overwhelming NLM API
+        _content_semaphore = Semaphore(5)
+
+        def _fetch_content_for_vid(vid: str, source_id: str) -> tuple[str, bool, str | None, str | None]:
+            with _content_semaphore:
+                content = subprocess.run(
+                    ["nlm", "source", "content", source_id],
+                    capture_output=True, text=True, timeout=60
+                )
+            if content.returncode == 0 and len(content.stdout.strip()) >= _NLM_MIN_CONTENT_CHARS:
+                return (vid, True, content.stdout.strip(), None)
+            return (vid, False, None, "source content empty or failed")
+
+        # Populate "not found" for sources we couldn't map
+        for vid in batch_ids:
+            if vid not in vid_to_source:
+                result[vid] = (False, None, "source not found in notebook")
+
+        # Parallel fetch for mapped sources
+        with ThreadPoolExecutor(max_workers=15) as executor:
+            futures = {
+                executor.submit(_fetch_content_for_vid, vid, vid_to_source[vid]): vid
+                for vid in batch_ids
+                if vid in vid_to_source
+            }
+            for future in as_completed(futures):
+                vid, success, text, error = future.result()
+                result[vid] = (success, text, error)
+
+        return result
+
+    finally:
+        # 5. Cleanup ephemeral notebook
+        subprocess.run(
+            ["nlm", "notebook", "delete", nb_id, "--confirm"],
+            capture_output=True, timeout=15
+        )
+
+
+def _fetch_via_notebooklm(
+    video_id: str, lang: str
+) -> tuple[bool, str | None, str | None]:
+    """Fetch transcript using NotebookLM batch workflow (single-video delegation).
+
+    Delegates to _fetch_via_notebooklm_batch for efficiency — the batch
+    function creates one notebook per session (vs per-video), adds all
+    sources at once, and uses NotebookLM's parallel processing infrastructure.
+
+    Args:
+        video_id: YouTube video ID.
+        lang: BCP-47 language code (no-op — kept for API compatibility with
+            the fetch_fn signature; NotebookLM always returns English content
+            extracted from the YouTube source regardless of this value).
+
+    Returns:
+        (success, transcript_text, error)
+    """
+    results = _fetch_via_notebooklm_batch([video_id])
+    success, transcript, error = results.get(video_id, (False, None, "batch returned no result"))
+    return (success, transcript, error)
+
+
+def _fetch_via_direct_api(video_id: str) -> tuple[bool, str | None, str | None]:
+    """Fetch transcript using youtube-transcript-api directly (non-Google fallback).
+
+    This is the final fallback after all Google-adjacent sources (yt-dlp,
+    Selenium, NotebookLM) have failed. youtube-transcript-api scrapes YouTube
+    captions directly and may succeed where Google's ecosystem fails.
+
+    Returns:
+        (success, transcript_text, error)
+    """
+    try:
+        import youtube_transcript_api
+    except ImportError:
+        logging.warning("[_fetch_via_direct_api] youtube_transcript_api not installed")
+        return (False, None, "no_transcript")
+
+    try:
+        api = youtube_transcript_api.YouTubeTranscriptApi()
+        # List available transcripts to find a non-generated English one first
+        transcripts = api.list_transcripts(video_id)
+        for transcript in transcripts:
+            # Prefer English, non-generated
+            if transcript.language_code == "en" and not transcript.is_generated:
+                text_parts = []
+                for segment in transcript.fetch():
+                    text_parts.append(segment["text"])
+                transcript_text = " ".join(text_parts)
+                if len(transcript_text) >= _NLM_MIN_CONTENT_CHARS:
+                    return (True, transcript_text, None)
+        # Fallback: any available non-generated transcript
+        for transcript in transcripts:
+            if not transcript.is_generated:
+                text_parts = []
+                for segment in transcript.fetch():
+                    text_parts.append(segment["text"])
+                transcript_text = " ".join(text_parts)
+                if len(transcript_text) >= _NLM_MIN_CONTENT_CHARS:
+                    return (True, transcript_text, None)
+        return (False, None, "no_transcript")
+    except Exception as e:
+        return (False, None, f"direct_api error: {e}")
+
+
 def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptResult:
-    """Fetch transcript using full fallback chain with optional translation.
+    """Fetch transcript using yt-dlp → Selenium → NotebookLM fallback chain.
 
     Chain order:
-      1. yt-dlp Python API (WEB client, curl_cffi TLS) — public videos (~2s)
-         → bot-check triggers immediate cookie-based retry with browser cookies
-      2. youtube_transcript_api, youtubei, Gemini SDK, gemini CLI
-      3. Steps 1-2 with "en" fallback language
-      4. yt-dlp Python API with browser cookies — age-restricted videos (~5-10s)
-      5. Selenium Firefox — real browser TLS bypasses YouTube bot-check (~15-30s)
-      6. Whisper audio transcription (last resort, ~30-90s)
+      1. yt-dlp (WEB client, curl_cffi TLS) with prefer_lang (default "en")
+      2. yt-dlp with English fallback (if prefer_lang not available)
+      3. yt-dlp with any available language (for translation)
+      4. yt-dlp with cookies (age-restricted / NSFW)
+      5. Selenium Firefox with prefer_lang
+      6. Selenium Firefox with English fallback
+      7. Selenium Firefox with any available language
+      8. NotebookLM (Google infrastructure, different access path)
 
     Args:
         video_id: YouTube video ID (must be 11 chars)
@@ -1012,6 +1574,7 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
             was_translated=False,
             transcript="",
             source="none",
+            source_stage=None,
             detected_lang=None,
             error="invalid video_id format",
         )
@@ -1027,12 +1590,38 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
             was_translated=False,
             transcript="",
             source="none",
+            source_stage=None,
             detected_lang=None,
             error=f"invalid BCP-47 language code: {prefer_lang!r}",
+            last_stage=None,
+            failure_reason="invalid_config",
         )
 
+    def _classify_failure(error: str | None, stage: str) -> str:
+        """Classify error string into structured failure reason."""
+        if not error:
+            return "unknown"
+        err_lower = error.lower()
+        if "429" in err_lower or "rate limit" in err_lower or "quota" in err_lower:
+            return "quota_exceeded"
+        if "region" in err_lower or "not available" in err_lower or "geo" in err_lower:
+            return "region_block"
+        if "auth" in err_lower or "login" in err_lower or "credential" in err_lower:
+            return "auth_failed"
+        if "captcha" in err_lower or "bot detection" in err_lower:
+            return "captcha"
+        if "timeout" in err_lower or "timed out" in err_lower:
+            return "timeout"
+        if "no transcript" in err_lower or "transcript unavailable" in err_lower:
+            return "no_transcript"
+        if "unavailable" in err_lower or "deleted" in err_lower or "private" in err_lower:
+            return "unavailable"
+        if "not found" in err_lower or "404" in err_lower:
+            return "unavailable"
+        return "unknown"
+
     # Helper to build a "no transcript" result
-    def _none_result(last_err: str | None = None) -> TranscriptResult:
+    def _none_result(last_err: str | None = None, last_stage: str | None = None) -> TranscriptResult:
         return TranscriptResult(
             video_id=video_id,
             lang=prefer_lang,
@@ -1040,159 +1629,183 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
             was_translated=False,
             transcript="",
             source="none",
+            source_stage=None,
             detected_lang=None,
             error=last_err,
+            last_stage=last_stage,
+            failure_reason=_classify_failure(last_err, last_stage or ""),
         )
 
-    # Fallback chain: yt-dlp → youtube_transcript_api → youtubei → SDK
-    # Bot-check on yt-dlp triggers Selenium Firefox immediately (Step 1b above).
-    # youtube_transcript_api is re-enabled — it uses browser cookies and may succeed
-    # where bare yt-dlp fails due to IP-level blocking.
-    free_methods = [
-        (_SOURCE_YTDLP, _fetch_via_ytdlp),
-        (_SOURCE_YOUTUBE_TRANSCRIPT_API, _fetch_via_youtube_transcript_api),
-        (_SOURCE_YOUTUBEI, _fetch_via_youtubei),
-        (_SOURCE_SDK, _fetch_via_sdk),
-    ]
-    all_methods = list(free_methods)
-    if not is_free_only_mode():
-        all_methods.append((_SOURCE_CLI, _fetch_via_gemini_cli))
+    # Language fallback order: prefer_lang → en → None (any available)
+    lang_fallbacks: list[str | None] = [prefer_lang]
+    if prefer_lang != "en":
+        lang_fallbacks.append("en")
+    lang_fallbacks.append(None)  # Any available language
 
     last_error: str | None = None
+    last_stage_reached: str | None = None
 
-    # Step 1: Try prefer_lang
-    for source, fetch_fn in all_methods:
+    # Methods to try: yt-dlp (WEB) → yt-dlp with cookies → Selenium → NotebookLM → Whisper → direct_api
+    methods_to_try = [
+        (_SOURCE_YTDLP, _fetch_via_ytdlp, STAGE_VERSION_YTDLP),
+        (_SOURCE_YTDLP_EJS, _fetch_via_ytdlp_with_cookies, STAGE_VERSION_EJS),
+        (_SOURCE_SELENIUM, _fetch_via_selenium_firefox, STAGE_VERSION_SELENIUM),
+        (_SOURCE_NLM, _fetch_via_notebooklm, STAGE_VERSION_NOTEBOOKLM),
+        (_SOURCE_WHISPER, _fetch_via_whisper, None),  # audio fallback — no captions needed
+        (_SOURCE_DIRECT_API, _fetch_via_direct_api, STAGE_VERSION_DIRECT_API),
+    ]
+
+    for source, fetch_fn, stage in methods_to_try:
         if _is_source_rate_limited(source):
             continue  # skip circuit-open source
-        if source == _SOURCE_CLI:
-            from csf.quota_tracker import increment_cli_calls
+        # Skip whisper if disabled via env var
+        if source == _SOURCE_WHISPER:
+            global _WHISPER_ENABLED
+            if _WHISPER_ENABLED is None:
+                _WHISPER_ENABLED = os.getenv("YTIS_WHISPER_ENABLED", "true").lower() == "true"
+            if not _WHISPER_ENABLED:
+                continue
 
-            increment_cli_calls()
-        success, transcript, error = fetch_fn(video_id, prefer_lang)
-        if success and transcript:
-            _record_source_success(source, video_id)
-            raw_lang = prefer_lang
-            detected_lang = prefer_lang
-            final_transcript = transcript
-            was_translated = False
-            # Translate if not actually in prefer_lang
-            if source == _SOURCE_SDK and prefer_lang not in ("en",):
-                # SDK may not respect lang; check by looking at transcript
-                # Simple heuristic: if transcript looks like it might not be prefer_lang, translate
-                pass
-            if raw_lang != prefer_lang and config.allow_translation:
-                final_transcript = _translate_text(
-                    transcript, raw_lang, prefer_lang, config.translation_provider
-                )
-                was_translated = True
-            set_cached_transcript(video_id, prefer_lang, source, transcript)
-            return TranscriptResult(
-                video_id=video_id,
-                lang=prefer_lang,
-                raw_lang=raw_lang,
-                was_translated=was_translated,
-                transcript=final_transcript,
-                source=source,
-                detected_lang=detected_lang,
-                error=None,
-            )
-        last_error = error
-        if error and ("429" in error.lower() or "rate limited" in error.lower()):
-            _record_source_429(source, video_id)
-            _apply_jitter_with_backoff(source)
-        else:
-            _apply_jitter()
+        last_stage_reached = source  # Track the last stage we actually tried
 
-        # Bot-check from yt-dlp: try Selenium Firefox immediately, skip remaining methods
-        if source == _SOURCE_YTDLP and error == "yt-dlp bot_check":
-            success, transcript, error = _fetch_via_selenium_firefox(video_id, prefer_lang)
+        # NLM ignores lang — call once without lang iteration (no language filtering)
+        if source == _SOURCE_NLM:
+            success, transcript, error = fetch_fn(video_id, "en")
             if success and transcript:
-                _record_source_success("selenium_firefox", video_id)
-                set_cached_transcript(video_id, prefer_lang, "selenium_firefox", transcript)
+                _record_source_success(source, video_id)
+                # NLM always returns English (NotebookLM extracts from YouTube source)
+                raw_lang = "en"
+                detected_lang = raw_lang
+                final_transcript = transcript
+                was_translated = False
+
+                # Translate if prefer_lang is not English and translation is enabled
+                if raw_lang != prefer_lang and config.allow_translation:
+                    final_transcript = _translate_text(
+                        transcript, raw_lang, prefer_lang, config.translation_provider
+                    )
+                    was_translated = True
+
+                set_cached_transcript(video_id, prefer_lang, source, final_transcript)
+                return TranscriptResult(
+                    video_id=video_id,
+                    lang=prefer_lang,
+                    raw_lang=raw_lang,
+                    was_translated=was_translated,
+                    transcript=final_transcript,
+                    source=source,
+                    source_stage=stage,
+                    detected_lang=detected_lang,
+                    error=None,
+                    last_stage=source,
+                    failure_reason=None,
+                )
+            last_error = error
+        # direct_api uses different signature (no lang arg)
+        elif source == _SOURCE_DIRECT_API:
+            success, transcript, error = fetch_fn(video_id)
+            if success and transcript:
+                _record_source_success(source, video_id)
+                set_cached_transcript(video_id, prefer_lang, source, transcript)
                 return TranscriptResult(
                     video_id=video_id,
                     lang=prefer_lang,
                     raw_lang=prefer_lang,
                     was_translated=False,
                     transcript=transcript,
-                    source="selenium_firefox",
+                    source=source,
+                    source_stage=stage,
                     detected_lang=prefer_lang,
                     error=None,
+                    last_stage=source,
+                    failure_reason=None,
                 )
-            # Selenium also failed — fall through to generic fallback
+            last_error = error
+        else:
+            for lang in lang_fallbacks:
+                # Use "en" as placeholder when lang is None (yt-dlp will use its default)
+                try_lang = lang if lang is not None else "en"
 
-    # Step 2: Try any language
-    for source, fetch_fn in free_methods:  # Only free methods for fallback
-        if _is_source_rate_limited(source):
-            continue  # skip circuit-open source
-        success, transcript, error = fetch_fn(video_id, "en")
+                success, transcript, error = fetch_fn(video_id, try_lang)
+                if success and transcript:
+                    _record_source_success(source, video_id)
+
+                    # Determine actual language and whether translation is needed
+                    raw_lang = lang if lang is not None else "en"
+                    detected_lang = raw_lang
+                    final_transcript = transcript
+                    was_translated = False
+
+                    # Translate if raw_lang != prefer_lang and translation is enabled
+                    if raw_lang != prefer_lang and config.allow_translation:
+                        final_transcript = _translate_text(
+                            transcript, raw_lang, prefer_lang, config.translation_provider
+                        )
+                        was_translated = True
+
+                    set_cached_transcript(video_id, prefer_lang, source, transcript)
+                    return TranscriptResult(
+                        video_id=video_id,
+                        lang=prefer_lang,
+                        raw_lang=raw_lang,
+                        was_translated=was_translated,
+                        transcript=final_transcript,
+                        source=source,
+                        source_stage=stage,
+                        detected_lang=detected_lang,
+                        error=None,
+                        last_stage=source,
+                        failure_reason=None,
+                    )
+
+                last_error = error
+                if error and ("429" in error.lower() or "rate limited" in error.lower()):
+                    _record_source_429(source, video_id)
+                    _apply_jitter_with_backoff(source)
+                    # Break out of lang loop on rate limit, try next method
+                    break
+                else:
+                    _apply_jitter()
+                    # Try next language fallback
+
+    # External provider hook — last chance before giving up
+    if _external_provider is not None:
+        last_stage_reached = _SOURCE_EXTERNAL
+        success, transcript, error = _external_provider(video_id, prefer_lang)
         if success and transcript:
-            _record_source_success(source, video_id)
-            raw_lang = "en"
-            detected_lang = "en"
-            final_transcript = transcript
-            was_translated = False
-            if config.allow_translation and prefer_lang != "en":
-                final_transcript = _translate_text(
-                    transcript, "en", prefer_lang, config.translation_provider
-                )
-                was_translated = True
-            set_cached_transcript(video_id, prefer_lang, source, transcript)
+            set_cached_transcript(video_id, prefer_lang, _SOURCE_EXTERNAL, transcript)
             return TranscriptResult(
                 video_id=video_id,
                 lang=prefer_lang,
-                raw_lang=raw_lang,
-                was_translated=was_translated,
-                transcript=final_transcript,
-                source=source,
-                detected_lang=detected_lang,
+                raw_lang=prefer_lang,
+                was_translated=False,
+                transcript=transcript,
+                source=_SOURCE_EXTERNAL,
+                source_stage=None,
+                detected_lang=prefer_lang,
                 error=None,
+                last_stage=_SOURCE_EXTERNAL,
+                failure_reason=None,
             )
         last_error = error
-        if error and ("429" in error.lower() or "rate limited" in error.lower()):
-            _record_source_429(source, video_id)
-            _apply_jitter_with_backoff(source)
-        else:
-            _apply_jitter()
-
-    # Step 3: yt-dlp Python API with browser cookies — age-restricted videos
-    success, transcript, error = _fetch_via_ytdlp_with_cookies(video_id, prefer_lang)
-    if success and transcript:
-        _record_source_success(_SOURCE_YTDLP_EJS, video_id)
-        set_cached_transcript(video_id, prefer_lang, _SOURCE_YTDLP_EJS, transcript)
-        return TranscriptResult(
-            video_id=video_id,
-            lang=prefer_lang,
-            raw_lang=prefer_lang,
-            was_translated=False,
-            transcript=transcript,
-            source=_SOURCE_YTDLP_EJS,
-            detected_lang=prefer_lang,
-            error=None,
-        )
-    last_error = error or last_error
-
-    # Step 4: Selenium Firefox (last resort before Whisper)
-    success, transcript, error = _fetch_via_selenium_firefox(video_id, prefer_lang)
-    if success and transcript:
-        _record_source_success("selenium_firefox", video_id)
-        set_cached_transcript(video_id, prefer_lang, "selenium_firefox", transcript)
-        return TranscriptResult(
-            video_id=video_id,
-            lang=prefer_lang,
-            raw_lang=prefer_lang,
-            was_translated=False,
-            transcript=transcript,
-            source="selenium_firefox",
-            detected_lang=prefer_lang,
-            error=None,
-        )
-    last_error = error or last_error
 
     # All methods failed — non-fatal
+    failure_reason = _classify_failure(last_error, last_stage_reached or "")
     # Persist final state to shared archive so restart doesn't re-process this video.
     try:
-        BatchScheduler().archive_finalize(video_id, "failed")
+        _get_scheduler().archive_finalize(video_id, "failed", None, last_error)
     except Exception as e:
         logging.warning(f"[transcript] Failed to archive final failure for {video_id}: {e}")
-    return _none_result(last_error)
+    return TranscriptResult(
+        video_id=video_id,
+        lang=prefer_lang,
+        raw_lang=None,
+        was_translated=False,
+        transcript="",
+        source="none",
+        source_stage=None,
+        detected_lang=None,
+        error=last_error,
+        last_stage=last_stage_reached,
+        failure_reason=failure_reason,
+    )

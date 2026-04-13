@@ -268,7 +268,7 @@ def analyze_videos_round_robin(
                 else:
                     failed_video_ids.append(video_id)
                     mark_failed(video_id)
-                    scheduler.archive_finalize(video_id, "failed", source)
+                    scheduler.archive_finalize(video_id, "failed", source, error_detail)
 
                 completed += 1
                 if effective_callback:

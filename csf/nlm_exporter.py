@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # Default exports directory
-_DEFAULT_EXPORTS_DIR = Path("P:/__csf/.data/intelligence-stream/nlm_exports/composites")
+_DEFAULT_EXPORTS_DIR = Path("P:/__csf/.data/yt-is/nlm_exports")
 
 # Hard limits (NotebookLM constraints)
 _MAX_WORDS_PER_COMPOSITE = 500_000

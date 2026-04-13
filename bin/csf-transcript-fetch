@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Download missing transcripts for all tracked channels.
+"""Download missing transcripts for all tracked channels using round-robin scheduling.
 
-Uses the batch DB (populated by csf-source add/check) to get video list
-and has_captions data, then parallel-fetches missing transcripts using the
-youtube-transcript-api.
+Uses BatchScheduler to process videos from all channels in rotation (A→B→C→A...),
+with per-channel cooldown handling and cross-terminal state sharing via SQLite.
 
 Usage:
     csf-transcript-fetch                  # Dry run: show missing counts
-    csf-transcript-fetch --run            # Actually download transcripts
+    csf-transcript-fetch --run            # Actually download transcripts (round-robin)
     csf-transcript-fetch --channel <url>  # Process specific channel only
-    csf-transcript-fetch --workers N      # Parallel workers (default: 4)
+    csf-transcript-fetch --workers N      # Parallel workers (default: 1)
 """
 
 import argparse
@@ -25,18 +24,23 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from csf.batch_status import _get_batch_status_storage, get_entries_for_source
 from csf.cache import has_cached_transcript, set_cached_transcript
 from csf.transcript import fetch_transcript_chain, LanguageConfig
+from csf.batch_scheduler import BatchScheduler
 
 
 def _fetch_one_transcript(
-    video_id: str, lang: str = "en"
+    video_id: str, source: str, lang: str = "en"
 ) -> tuple[str, bool, str, str]:
     """Fetch transcript for a single video, cache it, return (video_id, success, source, error).
+
+    Args:
+        video_id: YouTube video ID
+        source: Channel URL (for tracking)
+        lang: Preferred language code
 
     Returns:
         video_id: The video ID
         ok: True if transcript was fetched, False otherwise
-        source: Which source provided the transcript ('ytdlp', 'youtube_transcript_api',
-                'youtubei', 'sdk', 'cli', 'whisper', 'none')
+        source: Which source provided the transcript
         error: Error message if failed, empty string if succeeded
     """
     config = LanguageConfig(prefer_lang=lang, allow_translation=False)
@@ -53,19 +57,19 @@ def _fetch_one_transcript(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Download missing transcripts for tracked YouTube channels."
+        description="Download missing transcripts for tracked YouTube channels (round-robin by default)."
     )
     parser.add_argument(
-        "--run",
+        "--dry-run",
         action="store_true",
-        help="Actually download transcripts (default is dry-run).",
+        help="Show what would be downloaded without actually downloading.",
     )
     parser.add_argument("--channel", help="Process only this channel URL.")
     parser.add_argument(
         "--workers",
         type=int,
-        default=4,
-        help="Number of parallel workers (default: 4).",
+        default=1,
+        help="Number of parallel workers (default: 1).",
     )
     parser.add_argument(
         "--lang", default="en", help="Preferred language code (default: en)."
@@ -91,30 +95,23 @@ def main() -> None:
 
     print("=== Transcript Fetcher ===")
     print(f"Channels: {len(channels)}")
-    print(f"Mode: {'DRY RUN (use --run to download)' if not args.run else 'LIVE'}")
+    print(f"Mode: {'DRY RUN (no downloads)' if args.dry_run else 'LIVE'}")
     print(f"Workers: {args.workers}")
+    print(f"Pattern: ROUND-ROBIN")
     print()
 
-    grand_total = 0
-    grand_missing = 0
+    # Dry run mode
+    if args.dry_run:
+        grand_total = 0
+        grand_missing = 0
 
-    for channel_url, playlist_id in channels:
-        if not playlist_id:
-            print(f"  [SKIP] {channel_url} — no playlist_id")
-            continue
+        for channel_url, playlist_id in channels:
+            if not playlist_id:
+                print(f"  [SKIP] {channel_url} — no playlist_id")
+                continue
 
-        print(f"Channel: {channel_url}")
-
-        # Use batch DB for has_captions from YouTube Data API.
-        #
-        # IMPORTANT: contentDetails.caption=false from YouTube API only means no MANUAL
-        # captions — auto-generated captions exist independently and youtube-transcript-api
-        # can fetch them. So we attempt ALL pending videos regardless of has_captions.
-        # The has_captions field is stored for visibility/analytics only.
-        entries = get_entries_for_source(channel_url)
-
-        if not args.run:
-            # Dry run: count missing from DB
+            print(f"Channel: {channel_url}")
+            entries = get_entries_for_source(channel_url)
             missing = sum(1 for vid, _, _ in entries if not has_cached_transcript(vid))
             print(
                 f"  Videos: {len(entries)}, Attempt fetch: {len(entries)}, "
@@ -122,63 +119,88 @@ def main() -> None:
             )
             grand_total += len(entries)
             grand_missing += missing
-        else:
-            # Live run: download missing transcripts for all pending videos
-            missing_ids = [vid for vid, _, _ in entries if not has_cached_transcript(vid)]
-            print(
-                f"  Videos: {len(entries)}, Attempt fetch: {len(entries)}, "
-                f"Already cached: {len(entries)-len(missing_ids)}, Missing: {len(missing_ids)}"
-            )
 
-            if not missing_ids:
-                print("  All transcripts already cached.")
-                grand_total += len(entries)
-                grand_missing += 0
-                continue
+        print()
+        print("=== Summary ===")
+        print(f"Total videos: {grand_total}")
+        print(f"Missing transcripts: {grand_missing}")
+        return
 
-            print(
-                f"  Downloading {len(missing_ids)} transcripts with {args.workers} workers..."
-            )
+    # Live run mode: round-robin processing
+    print("Starting round-robin download across all channels...\n")
 
-            # Jitter to avoid thundering herd
-            time.sleep(random.uniform(1.0, 3.0))
+    scheduler = BatchScheduler()
+    total_estimate = scheduler._count_pending()
 
-            success_count = 0
-            fail_count = 0
+    if total_estimate == 0:
+        print("No pending videos to process.")
+        return
 
-            def progress(done: int, ok: int, fail: int) -> None:
-                print(
-                    f"    progress: done={done}/{len(missing_ids)}, ok={ok}, fail={fail}",
-                    flush=True,
-                )
+    print(f"Total pending videos: {total_estimate}\n")
 
-            with ThreadPoolExecutor(max_workers=args.workers) as executor:
-                futures = {
-                    executor.submit(_fetch_one_transcript, vid, args.lang): vid
-                    for vid in missing_ids
-                }
-                done = 0
-                for future in as_completed(futures):
+    effective_workers = min(args.workers, total_estimate)
+    success_count = 0
+    fail_count = 0
+    completed = 0
+
+    def progress(done: int, ok: int, fail: int, pending: int) -> None:
+        print(
+            f"progress: done={done}/{total_estimate}, ok={ok}, fail={fail}, pending={pending}",
+            flush=True,
+        )
+
+    with ThreadPoolExecutor(max_workers=effective_workers) as executor:
+        futures = {}
+
+        # Submit initial batch
+        for _ in range(effective_workers):
+            try:
+                video_id, source = next(scheduler.yield_next())
+                future = executor.submit(_fetch_one_transcript, video_id, source, args.lang)
+                futures[future] = (video_id, source)
+            except StopIteration:
+                break
+
+        # Process and replace
+        while futures:
+            from concurrent.futures import wait
+
+            done, not_done = wait(futures, timeout=30)
+
+            for future in done:
+                video_id, source = futures.pop(future)
+                try:
                     vid, ok, src, err = future.result()
-                    done += 1
+
                     if ok:
                         success_count += 1
+                        scheduler.archive_finalize(vid, "success", source, None)
                     else:
                         fail_count += 1
-                        print(f"    [FAIL] {vid}: {err}")
-                    if done % 20 == 0 or done == len(missing_ids):
-                        progress(done, success_count, fail_count)
+                        scheduler.archive_finalize(vid, "failed", source, err)
+                        print(f"[FAIL] {vid}: {err}")
 
-            print(f"  Downloaded: {success_count} ok, {fail_count} failed")
-            grand_total += len(entries)
-            grand_missing += len(missing_ids)
+                    completed += 1
+                    pending = total_estimate - completed
+                    progress(completed, success_count, fail_count, pending)
 
-    print()
-    print("=== Summary ===")
-    print(f"Total videos: {grand_total}")
-    print(f"Missing transcripts: {grand_missing}")
-    if args.run:
-        print("(Transcripts are cached; re-running will show 0 missing)")
+                    # Submit next video
+                    try:
+                        next_vid, next_source = next(scheduler.yield_next())
+                        new_future = executor.submit(_fetch_one_transcript, next_vid, next_source, args.lang)
+                        futures[new_future] = (next_vid, next_source)
+                        time.sleep(random.uniform(2.0, 10.0))
+                    except StopIteration:
+                        pass
+
+                except Exception as e:
+                    print(f"[ERROR] Exception processing {video_id}: {e}")
+                    fail_count += 1
+                    scheduler.archive_finalize(video_id, "failed", source)
+
+    print("\n=== Summary ===")
+    print(f"Total processed: {completed}")
+    print(f"Downloaded: {success_count} ok, {fail_count} failed")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+"""Quick alias for csf_selenium — extract transcripts via Selenium Firefox.
+
+Usage:
+    yt-selenium                      # Dry run: show pending videos
+    yt-selenium --run                # Extract transcripts via Selenium
+    yt-selenium --channel <url>      # Process specific channel only
+    yt-selenium --workers N          # Parallel workers (default: 1)
+"""
+
+import subprocess
+import sys
+from pathlib import Path
+
+# Run csf_selenium module with same arguments
+script_path = Path(__file__).parent.parent / "csf" / "csf_selenium.py"
+result = subprocess.run([sys.executable, str(script_path)] + sys.argv[1:])
+sys.exit(result.returncode)

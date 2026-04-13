@@ -37,7 +37,7 @@ def ingest_playlist(
     playlist_url: str, browser: str = "brave", auto_analyze: bool = False
 ) -> None:
     """Ingest all videos from a playlist."""
-    output_dir = Path("~/Downloads/intelligence-stream").expanduser()
+    output_dir = Path("~/Downloads/yt-is").expanduser()
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Build yt-dlp command

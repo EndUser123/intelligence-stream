@@ -6,6 +6,7 @@ Usage:
     csf-source list                               # List all tracked sources
     csf-source check <source_id>                  # Daily check: RSS → gap detection → API if needed
     csf-source sync <source_id>                   # Process all pending videos via batch
+    csf-source fetch [--source <url>]             # ESCALATION: fetch transcripts (yt-dlp → Selenium)
 
 Commands:
     add       Add a new channel or playlist source. For channels, resolves the uploads
@@ -23,6 +24,13 @@ Commands:
 
     sync      Process all pending videos for a source via batch.analyze_videos_parallel().
               Does NOT check for new videos — use 'check' first.
+
+    fetch     ESCALATION BATCH PROCESS: Fetch transcripts for pending videos using
+              yt-dlp → Selenium fallback chain. This is the RECOMMENDED way to download
+              transcripts in bulk. Handles retries, caching, and status updates automatically.
+              --source <url>   Process only this channel URL (default: all channels)
+              --dry-run        Show what would be fetched without fetching
+              --workers <n>    Number of parallel workers (default: 1)
 """
 
 import argparse
@@ -32,34 +40,43 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Multi-terminal lock directory for sync operations
-_LOCK_DIR = Path("P:/__csf/.data/intelligence-stream/locks")
+_LOCK_DIR = Path("P:/__csf/.data/yt-is/locks")
 _LOCK_DIR.mkdir(parents=True, exist_ok=True)
 
 # Add csf to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from csf import batch
+from csf.logging import log_user_message, log_action
+from csf.cache import has_cached_transcript, set_cached_transcript
+from csf.transcript import fetch_transcript_chain, LanguageConfig
 from csf.batch_status import (
     get_channel_metadata,
     set_channel_metadata,
     upsert_channel,
-    get_pending_by_source,
-    get_newest_published_for_source,
+    get_entries_for_source,
     mark_complete,
     set_status,
     set_status_batch,
     get_status_batch,
+    _get_batch_status_storage,
+    BatchEntry,
 )
 from csf.source_enumerator import (
     parse_channel_url,
     parse_playlist_url,
     parse_video_url,
     get_upload_playlist_id,
+    get_video_count,
+    resolve_to_uc_channel_id,
     enumerate_full,
     enumerate_recent,
     check_rss,
-    detect_gap,
+    get_quota_status,
+    can_proceed,
+    _get_api_keys,
 )
+from csf.display import format_sync_results
 
 
 def _mark_videos_pending(
@@ -73,7 +90,22 @@ def _mark_videos_pending(
     status_map = get_status_batch(video_ids)
     complete_ids = {vid for vid, status in status_map.items() if status == "complete"}
     entries = [
-        (video["video_id"], "pending", canonical_url, video.get("published_at"), video.get("has_captions"))
+        BatchEntry(
+            video_id=video["video_id"],
+            status="pending",
+            source=canonical_url,
+            published_at=video.get("published_at"),
+            has_captions=video.get("has_captions"),
+            title=video.get("title"),
+            description=video.get("description"),
+            channel_id=video.get("channel_id"),
+            thumbnail=video.get("thumbnail"),
+            duration=video.get("duration"),
+            privacy_status=video.get("privacy_status"),
+            upload_status=video.get("upload_status"),
+            is_live_content=video.get("is_live_content"),
+            unavailable_reason=video.get("unavailable_reason"),
+        )
         for video in videos
         if video["video_id"] not in complete_ids
     ]
@@ -86,6 +118,20 @@ def cmd_add(url: str) -> None:
     """Add a new channel or playlist source with full enumeration."""
     print(f"[source] Adding source: {url}")
 
+    # Check quota state before making API calls
+    quota = get_quota_status()
+    total_units = sum(v["units_consumed"] for v in quota.values())
+    total_calls = sum(v["calls_made"] for v in quota.values())
+    exhausted_count = sum(1 for v in quota.values() if v.get("exhausted", False))
+    print(f"[source] Quota state: {total_calls} calls, ~{total_units} units consumed, {exhausted_count}/{len(quota)} keys exhausted")
+
+    if not can_proceed(units_needed=500):
+        print(f"[source] Warning: Quota may be insufficient. YouTube API may reject calls.")
+        print(f"[source] Consider waiting for quota to reset (daily limit is 10,000 units/key).")
+        print(f"[source] Current state:")
+        for idx, state in quota.items():
+            print(f"  Key {idx}: {state['calls_made']} calls, ~{state['units_consumed']} units, exhausted={state['exhausted']}")
+
     # Check if this is a channel or playlist
     channel_id = parse_channel_url(url)
     playlist_id = parse_playlist_url(url)
@@ -93,16 +139,32 @@ def cmd_add(url: str) -> None:
     if channel_id:
         print(f"[source] Detected channel: {channel_id}")
 
-        # Get uploads playlist ID
-        uploads_playlist_id = get_upload_playlist_id(channel_id)
-        if not uploads_playlist_id:
+        # Get uploads playlist ID and full metadata from API (two-tier: snippet=1 unit, full=5 units)
+        channel_info = get_upload_playlist_id(channel_id)
+        if not channel_info:
             print(f"[source] Error: Could not resolve uploads playlist for {channel_id}", file=sys.stderr)
-            print(f"[source] Check that YOUTUBE_API_KEY is set and channel exists.", file=sys.stderr)
+            print(f"[source] The channel handle does not exist on YouTube (forHandle returned 0 items).", file=sys.stderr)
+            print(f"[source] The handle in history.jsonl may be a mention/reference, not a valid @username.", file=sys.stderr)
             sys.exit(1)
 
+        uploads_playlist_id = channel_info.playlist_id
+        real_video_count = channel_info.video_count
+        channel_title = channel_info.channel_title
+        thumbnail_url = channel_info.thumbnail_url
+        subscriber_count = channel_info.subscriber_count
+        view_count = channel_info.view_count
+
         print(f"[source] Uploads playlist: {uploads_playlist_id}")
+        if real_video_count:
+            print(f"[source] Channel has {real_video_count} total videos (from YouTube API)")
+            if channel_title:
+                print(f"[source] Title: {channel_title}")
         playlist_id = uploads_playlist_id
-        canonical_url = f"https://www.youtube.com/channel/{channel_id}"
+        # Construct correct URL based on channel ID type
+        if channel_id.startswith("@"):
+            canonical_url = f"https://www.youtube.com/{channel_id}"
+        else:
+            canonical_url = f"https://www.youtube.com/channel/{channel_id}"
 
     elif playlist_id:
         print(f"[source] Detected playlist: {playlist_id}")
@@ -138,29 +200,37 @@ def cmd_add(url: str) -> None:
     videos = enumerate_full(playlist_id)
     print(f"[source] Found {len(videos)} videos")
 
-    if not videos:
-        print(f"[source] Warning: No videos found in playlist {playlist_id}")
+    if len(videos) <= 1:
+        print(f"[source] Warning: Channel has {len(videos)} video(s) — rejecting channels with fewer than 2 videos")
         sys.exit(1)
 
     new_count = _mark_videos_pending(canonical_url, videos)
     print(f"[source] Marked {new_count} new videos as pending")
 
-    # Update channel metadata
+    # Update channel metadata with real video count and full API metadata
     now = datetime.now(timezone.utc).isoformat()
+    video_count_to_store = real_video_count if real_video_count else len(videos)
     set_channel_metadata(
         canonical_url,
         playlist_id=playlist_id,
         last_checked=now,
         last_full_enumeration=now,
-        video_count_estimate=len(videos),
+        video_count_estimate=video_count_to_store,
+        channel_title=channel_title or None,
+        thumbnail_url=thumbnail_url or None,
+        subscriber_count=subscriber_count or None,
+        view_count=view_count or None,
     )
 
     print(f"[source] Done. {len(videos)} total videos, {new_count} new pending.")
 
 
 def cmd_list() -> None:
-    """List all tracked sources."""
+    """List all tracked sources with comprehensive statistics."""
     from csf.batch_status import _get_batch_status_storage
+    from csf.cache import _SHARED_DB_PATH
+    from csf.display import ChannelStats, format_channel_list, format_sync_results
+    import sqlite3
 
     storage = _get_batch_status_storage()
     storage._ensure_channel_metadata()
@@ -175,15 +245,171 @@ def cmd_list() -> None:
         print("[source] No sources tracked. Use 'add' to add a channel or playlist.")
         return
 
-    print(f"[source] Tracked sources:")
-    print(f"{'Channel URL':<45} {'Playlist':<25} {'Videos':>6} {'Last Checked':<20} {'Full Enum'}")
-    print("-" * 120)
+    # Build video_id sets per channel for accurate counting
+    batch_conn = storage._get_conn()
+    batch_cursor = batch_conn.execute(
+        "SELECT video_id, source, status, has_captions FROM analysis_status WHERE source IS NOT NULL"
+    )
+
+    # Structure: channel_url -> {pending: set(), complete: set(), failed: set(), has_subs: set(), no_subs: set()}
+    channel_videos: dict[str, dict[str, set[str]]] = {}
+    for vid, src, status, has_captions in batch_cursor.fetchall():
+        if src not in channel_videos:
+            channel_videos[src] = {
+                "pending": set(),
+                "complete": set(),
+                "failed": set(),
+                "has_subs": set(),
+                "no_subs": set(),
+            }
+
+        # Add to status set
+        if status in ("pending", "complete", "failed"):
+            channel_videos[src][status].add(vid)
+
+        # Add to captions set
+        if has_captions == 1:
+            channel_videos[src]["has_subs"].add(vid)
+        elif has_captions == 0:
+            channel_videos[src]["no_subs"].add(vid)
+
+    batch_conn.close()
+
+    # Query transcript cache for detailed metrics per channel
+    transcript_stats: dict[str, dict] = {}
+    try:
+        _SHARED_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        cache_conn = sqlite3.connect(_SHARED_DB_PATH)
+        cache_conn.execute("PRAGMA journal_mode=WAL")
+
+        for channel_url, status_sets in channel_videos.items():
+            # Flatten all status sets into one combined set of video_ids for this channel
+            all_video_ids = status_sets["pending"] | status_sets["complete"] | status_sets["failed"]
+            if not all_video_ids:
+                continue
+
+            video_ids = list(all_video_ids)
+            placeholders = ",".join("?" * len(video_ids))
+            # Count cached transcripts
+            count_cursor = cache_conn.execute(
+                f"SELECT COUNT(DISTINCT video_id) FROM transcript_cache WHERE video_id IN ({placeholders})",
+                video_ids
+            )
+            cached_count = count_cursor.fetchone()[0]
+
+            # Last download timestamp
+            last_dl_cursor = cache_conn.execute(
+                f"SELECT MAX(cached_at) FROM transcript_cache WHERE video_id IN ({placeholders})",
+                video_ids
+            )
+            last_download = last_dl_cursor.fetchone()[0]
+
+            # Languages available
+            lang_cursor = cache_conn.execute(
+                f"SELECT DISTINCT lang FROM transcript_cache WHERE video_id IN ({placeholders}) ORDER BY lang",
+                video_ids
+            )
+            langs = [row[0] for row in lang_cursor.fetchall()]
+            languages_str = ",".join(langs[:3]) + ("..." if len(langs) > 3 else "") if langs else ""
+
+            # Storage size (total characters in transcripts)
+            size_cursor = cache_conn.execute(
+                f"SELECT SUM(LENGTH(transcript)) FROM transcript_cache WHERE video_id IN ({placeholders})",
+                video_ids
+            )
+            total_chars = size_cursor.fetchone()[0] or 0
+            size_mb = total_chars / (1024 * 1024)  # Convert to MB
+
+            transcript_stats[channel_url] = {
+                "cached": cached_count,
+                "last_download": last_download,
+                "languages": languages_str,
+                "size_mb": size_mb,
+            }
+
+        cache_conn.close()
+    except Exception:
+        # If transcript query fails, use defaults
+        pass
+
+    # Build ChannelStats objects with all metrics in the new summary format
+    channels = []
     for row in rows:
-        channel_url, playlist_id, video_count, last_checked, last_full_enum = row
-        last_checked_str = last_checked[:19] if last_checked else "Never"
-        last_enum_str = last_full_enum[:19] if last_full_enum else "Never"
-        playlist_short = (playlist_id[:22] + "...") if playlist_id and len(playlist_id) > 25 else (playlist_id or "")
-        print(f"{channel_url:<45} {playlist_short:<25} {video_count or 0:>6} {last_checked_str:<20} {last_enum_str}")
+        channel_url = row[0]
+
+        # Get video sets for this channel
+        video_sets = channel_videos.get(channel_url, {
+            "pending": set(), "complete": set(), "failed": set(),
+            "has_subs": set(), "no_subs": set(),
+        })
+
+        pending_set = video_sets["pending"]
+        complete_set = video_sets["complete"]
+        failed_set = video_sets["failed"]
+        has_subs_set = video_sets["has_subs"]
+        no_subs_set = video_sets["no_subs"]
+
+        # Calculate actual total from database (not stale estimate)
+        total = len(pending_set | complete_set | failed_set)
+
+        # Counts
+        pending = len(pending_set)
+        complete = len(complete_set)
+        failed = len(failed_set)
+        has_subs = len(has_subs_set)
+        no_subs = len(no_subs_set)
+
+        # Transcript stats from cache
+        cache_data = transcript_stats.get(channel_url, {})
+        downloaded = cache_data.get("cached", 0)  # dt - actually cached
+        last_download = cache_data.get("last_download", None)
+        languages = cache_data.get("languages", "")
+        size_mb = cache_data.get("size_mb", 0.0)
+
+        # Calculate derived metrics using set operations to avoid double-counting
+        # available (vt) = pending videos that have subs (not tried yet, known to have subs)
+        available = len(pending_set & has_subs_set)
+        # unavailable (nt) = no_subs (known to not have subs) + failed (tried and failed)
+        unavailable = no_subs + failed
+        # main_trackable (mt) = total - unavailable (assuming no shorts data)
+        main_trackable = max(0, total - unavailable)
+        # shorts = 0 (no duration data available)
+        shorts = 0
+        # playlists/subscribers = not available
+        playlists = 0
+        subscribers = None
+
+        # Calculate success rate using complete/failed counts from sets
+        total_attempted = complete + failed
+        if total_attempted > 0:
+            if complete > 0:
+                success_rate = f"{int(complete / total_attempted * 100)}%"
+            else:
+                success_rate = "0%"
+        else:
+            success_rate = "-"
+
+        channels.append(
+            ChannelStats(
+                channel_url=channel_url,
+                total=total,
+                main_trackable=main_trackable,
+                downloaded=downloaded,
+                available=available,
+                unavailable=unavailable,
+                shorts=shorts,
+                playlists=playlists,
+                subscribers=subscribers,
+                last_checked=row[3],
+                last_full_enumeration=row[4],
+                last_download=last_download,
+                success_rate=success_rate,
+                languages=languages,
+                storage_size_mb=size_mb,
+            )
+        )
+
+    print(format_channel_list(channels))
 
 
 def cmd_check(source_id_or_url: str) -> None:
@@ -214,12 +440,21 @@ def cmd_check(source_id_or_url: str) -> None:
 
     print(f"[source] Checking {channel_url}")
 
-    # Step 1: RSS check
+    # Step 1: Resolve to UC channel ID if needed
     channel_id = parse_channel_url(channel_url)
-    if not channel_id or not channel_id.startswith("UC"):
-        print(f"[source] Error: Cannot run RSS check on non-UC channel {channel_id}", file=sys.stderr)
+    if not channel_id:
+        print(f"[source] Error: Could not parse channel ID from {channel_url}", file=sys.stderr)
         sys.exit(1)
 
+    # Resolve @handle, c/custom, user/ URLs to UC channel ID
+    if not channel_id.startswith("UC"):
+        uc_channel_id = resolve_to_uc_channel_id(channel_id)
+        if not uc_channel_id:
+            print(f"[source] Error: Could not resolve {channel_id} to UC channel ID", file=sys.stderr)
+            sys.exit(1)
+        channel_id = uc_channel_id
+
+    # Step 2: RSS check (now with UC channel ID)
     rss_ids = check_rss(channel_id)
     print(f"[source] RSS returned {len(rss_ids)} recent videos")
 
@@ -228,36 +463,68 @@ def cmd_check(source_id_or_url: str) -> None:
         # Still try API
         rss_ids = []
 
-    # Get existing pending videos for this source
-    pending_ids = set(get_pending_by_source(channel_url))
-    print(f"[source] {len(pending_ids)} pending videos in batch_status")
+    # Get ALL existing videos for this source (pending, complete, failed)
+    all_entries = get_entries_for_source(channel_url)
+    all_video_ids = {vid for vid, _, _ in all_entries}
+    print(f"[source] {len(all_video_ids)} total videos in database")
 
     # Step 2: Gap detection
-    from csf.batch_status import get_newest_published_for_source
-
-    # Get newest processed video's publishedAt for gap detection
-    newest_published = get_newest_published_for_source(channel_url)
     last_enum = existing.get("last_full_enumeration")
 
-    # For gap detection: if RSS has >= 15 non-overlapping with pending
-    # AND newest_batch is stale
+    # Gap detection: if RSS shows videos that don't exist in our database
     gap_detected = False
     if rss_ids:
-        gap_detected = detect_gap(rss_ids, pending_ids, newest_published)
+        gap_detected = detect_gap(rss_ids, all_video_ids)
+        # Log gap detection result
+        log_action("gap_detection", {
+            "channel_url": channel_url,
+            "rss_count": len(rss_ids),
+            "db_count": len(all_video_ids),
+            "gap_detected": gap_detected,
+        })
 
     if gap_detected:
-        print(f"[source] Gap detected. Running API gap resolution...")
+        log_user_message(f"Gap detected. Running API gap resolution...")
         # Use publishedAfter = last_full_enumeration or epoch
         published_after = last_enum if last_enum else "1970-01-01T00:00:00Z"
         gap_videos = enumerate_recent(playlist_id, published_after=published_after)
+        log_action("api_gap_resolution", {
+            "channel_url": channel_url,
+            "videos_found": len(gap_videos),
+            "published_after": published_after,
+        })
         print(f"[source] API gap resolution found {len(gap_videos)} videos")
+
+        # Fetch real video count from API since we're making API calls anyway
+        real_video_count = get_video_count(channel_id)
+        if real_video_count:
+            log_action("api_video_count", {
+                "channel_url": channel_url,
+                "real_count": real_video_count,
+            })
+            print(f"[source] Real video count from API: {real_video_count}")
 
         # O(1) batch insert + O(1) batch pre-filter (avoids N individual is_complete calls)
         gap_video_ids = [v["video_id"] for v in gap_videos]
         gap_status_map = get_status_batch(gap_video_ids)
         complete_ids = {vid for vid, status in gap_status_map.items() if status == "complete"}
         entries = [
-            (video["video_id"], "pending", channel_url, video.get("published_at"), video.get("has_captions"))
+            BatchEntry(
+                video_id=video["video_id"],
+                status="pending",
+                source=channel_url,
+                published_at=video.get("published_at"),
+                has_captions=video.get("has_captions"),
+                title=video.get("title"),
+                description=video.get("description"),
+                channel_id=video.get("channel_id"),
+                thumbnail=video.get("thumbnail"),
+                duration=video.get("duration"),
+                privacy_status=video.get("privacy_status"),
+                upload_status=video.get("upload_status"),
+                is_live_content=video.get("is_live_content"),
+                unavailable_reason=video.get("unavailable_reason"),
+            )
             for video in gap_videos
             if video["video_id"] not in complete_ids
         ]
@@ -265,27 +532,320 @@ def cmd_check(source_id_or_url: str) -> None:
             set_status_batch(entries)
         new_count = len(entries)
 
+        log_action("gap_resolution_complete", {
+            "channel_url": channel_url,
+            "new_videos": new_count,
+            "real_video_count": real_video_count,
+        })
         print(f"[source] Marked {new_count} new videos as pending")
 
     elif rss_ids:
-        # Normal RSS processing - O(1) batch pre-filter
-        rss_status_map = get_status_batch(rss_ids)
-        complete_ids = {vid for vid, status in rss_status_map.items() if status == "complete"}
+        # Normal RSS processing - only add videos that aren't in database at all
+        rss_ids_set = set(rss_ids)
+        new_videos = rss_ids_set - all_video_ids  # Only truly new videos
         entries = [
-            (vid, "pending", channel_url, None, None)
-            for vid in rss_ids
-            if vid not in complete_ids
+            BatchEntry(
+                video_id=vid,
+                status="pending",
+                source=channel_url,
+                published_at=None,
+                has_captions=None,
+            )
+            for vid in new_videos
         ]
         if entries:
             set_status_batch(entries)
         new_count = len(entries)
+
+        log_action("rss_processing", {
+            "channel_url": channel_url,
+            "rss_returned": len(rss_ids),
+            "db_videos": len(all_video_ids),
+            "new_videos": new_count,
+        })
         print(f"[source] Marked {new_count} new RSS videos as pending")
 
-    # Update last_checked
+        # Increment video_count_estimate by the number of new videos found
+        current_count = existing.get("video_count_estimate", 0)
+        if new_count > 0 and current_count is not None:
+            upsert_channel(channel_url, video_count_estimate=current_count + new_count)
+
+    # Update last_checked and optionally real video count from API
     now = datetime.now(timezone.utc).isoformat()
-    upsert_channel(channel_url, last_checked=now)
+    if 'real_video_count' in locals() and real_video_count:
+        upsert_channel(channel_url, last_checked=now, video_count_estimate=real_video_count)
+    else:
+        upsert_channel(channel_url, last_checked=now)
 
     print(f"[source] Check complete.")
+
+
+def cmd_check_all(verbose: bool = False) -> None:
+    """Run RSS + gap detection check on ALL tracked channels.
+
+    Iterates through all channels in channel_metadata table, runs check
+    on each one. Marks new videos as pending.
+    """
+    import sqlite3
+    from csf.batch_status import _get_batch_status_storage
+    from csf.cache import _SHARED_DB_PATH
+
+    storage = _get_batch_status_storage()
+    storage._ensure_channel_metadata()
+    conn = storage._get_conn()
+    cursor = conn.execute(
+        "SELECT channel_url, playlist_id, video_count_estimate, last_checked FROM channel_metadata ORDER BY last_checked ASC"
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    if not rows:
+        print("[source] No tracked channels. Use 'add' to add channels first.")
+        return
+
+    print(f"[source] Checking {len(rows)} tracked channels...\n")
+
+    # Collect results per channel
+    total_new_videos = 0
+    total_videos_all = 0
+
+    for channel_url, playlist_id, video_count, last_checked in rows:
+        if not playlist_id:
+            if verbose:
+                print(f"[source] Skipping {channel_url} — no playlist_id")
+            continue
+
+        # Step 1: Resolve to UC channel ID if needed
+        channel_id = parse_channel_url(channel_url)
+        if not channel_id:
+            if verbose:
+                print(f"[source] Skipping {channel_url} — could not parse channel ID")
+            continue
+
+        # Resolve @handle, c/custom, user/ URLs to UC channel ID
+        if not channel_id.startswith("UC"):
+            uc_channel_id = resolve_to_uc_channel_id(channel_id)
+            if not uc_channel_id:
+                if verbose:
+                    print(f"[source] Skipping {channel_url} — could not resolve to UC channel ID")
+                continue
+            channel_id = uc_channel_id
+
+        # Step 2: RSS check (now with UC channel ID)
+        rss_ids = check_rss(channel_id)
+        if verbose:
+            print(f"[source] RSS returned {len(rss_ids)} recent videos")
+
+        # Get ALL existing videos for this source (pending, complete, failed)
+        all_entries = get_entries_for_source(channel_url)
+        all_video_ids = {vid for vid, _, _ in all_entries}
+
+        # Step 3: Gap detection
+        gap_detected = False
+        if rss_ids:
+            gap_detected = detect_gap(rss_ids, all_video_ids)
+            # Log gap detection result for troubleshooting
+            log_action("gap_detection", {
+                "channel_url": channel_url,
+                "rss_count": len(rss_ids),
+                "db_count": len(all_video_ids),
+                "gap_detected": gap_detected,
+            })
+
+        new_count = 0
+        real_video_count = None
+        if gap_detected:
+            log_user_message(f"Gap detected for {channel_url}. Running API gap resolution...")
+            published_after = last_checked if last_checked else "1970-01-01T00:00:00Z"
+            gap_videos = enumerate_recent(playlist_id, published_after=published_after)
+            log_action("api_gap_resolution", {
+                "channel_url": channel_url,
+                "videos_found": len(gap_videos),
+                "published_after": published_after,
+            })
+
+            # Fetch real video count from API since we're making API calls anyway
+            channel_id_for_count = parse_channel_url(channel_url)
+            if channel_id_for_count:
+                real_video_count = get_video_count(channel_id_for_count)
+                if real_video_count:
+                    log_action("api_video_count", {
+                        "channel_url": channel_url,
+                        "real_count": real_video_count,
+                    })
+                    if verbose:
+                        print(f"[source] Real video count from API: {real_video_count}")
+
+            gap_video_ids = [v["video_id"] for v in gap_videos]
+            gap_status_map = get_status_batch(gap_video_ids)
+            complete_ids = {vid for vid, status in gap_status_map.items() if status == "complete"}
+            entries = [
+                BatchEntry(
+                    video_id=video["video_id"],
+                    status="pending",
+                    source=channel_url,
+                    published_at=video.get("published_at"),
+                    has_captions=video.get("has_captions"),
+                    title=video.get("title"),
+                    description=video.get("description"),
+                    channel_id=video.get("channel_id"),
+                    thumbnail=video.get("thumbnail"),
+                    duration=video.get("duration"),
+                    privacy_status=video.get("privacy_status"),
+                    upload_status=video.get("upload_status"),
+                    is_live_content=video.get("is_live_content"),
+                    unavailable_reason=video.get("unavailable_reason"),
+                )
+                for video in gap_videos
+                if video["video_id"] not in complete_ids
+            ]
+            if entries:
+                set_status_batch(entries)
+            new_count = len(entries)
+
+            log_action("gap_resolution_complete", {
+                "channel_url": channel_url,
+                "new_videos": new_count,
+                "real_video_count": real_video_count,
+            })
+
+        elif rss_ids:
+            # Normal RSS processing - only add videos that aren't in database at all
+            # Videos already in database (pending/complete/failed) should not be re-added
+            rss_ids_set = set(rss_ids)
+            new_videos = rss_ids_set - all_video_ids  # Only truly new videos
+            entries = [
+                BatchEntry(
+                    video_id=vid,
+                    status="pending",
+                    source=channel_url,
+                    published_at=None,
+                    has_captions=None,
+                )
+                for vid in new_videos
+            ]
+            if entries:
+                set_status_batch(entries)
+            new_count = len(entries)
+
+            log_action("rss_processing", {
+                "channel_url": channel_url,
+                "rss_returned": len(rss_ids),
+                "db_videos": len(all_video_ids),
+                "new_videos": new_count,
+            })
+
+            # Increment video_count_estimate by the number of new videos found
+            if new_count > 0 and video_count is not None:
+                upsert_channel(channel_url, video_count_estimate=video_count + new_count)
+
+        # Update last_checked and optionally real video count from API
+        now = datetime.now(timezone.utc).isoformat()
+        if real_video_count:
+            upsert_channel(channel_url, last_checked=now, video_count_estimate=real_video_count)
+        else:
+            upsert_channel(channel_url, last_checked=now)
+
+        if verbose:
+            print(f"[source] {new_count} new videos marked as pending")
+        total_new_videos += new_count
+
+    # Print legend and channel statistics in yt-fts format
+    print("")  # blank line before results
+
+    # Print legend
+    print("Legend:")
+    print("  total  = all videos tracked")
+    print("  valid  = videos with captions (downloadable)")
+    print("  mt     = main trackable (could have transcripts)")
+    print("  dt     = downloaded (cached transcripts)")
+    print("  vt     = available for download (has captions, not cached)")
+    print("  na     = unavailable (no captions or failed)")
+    print("")
+
+    # Re-query to get updated statistics
+    conn = storage._get_conn()
+    cursor = conn.execute(
+        "SELECT channel_url, video_count_estimate FROM channel_metadata ORDER BY last_checked ASC"
+    )
+    channels_meta = cursor.fetchall()
+    conn.close()
+
+    total_videos_all = 0
+
+    # Query transcript cache
+    try:
+        from csf.cache import has_cached_transcript
+
+        for channel_url, video_count in channels_meta:
+            # Get video status counts including unavailable_reason
+            batch_conn = storage._get_conn()
+            batch_cursor = batch_conn.execute(
+                """SELECT status, has_captions, unavailable_reason, COUNT(*)
+                   FROM analysis_status WHERE source=?
+                   GROUP BY status, has_captions, unavailable_reason""",
+                (channel_url,)
+            )
+            status_counts = batch_cursor.fetchall()
+            batch_conn.close()
+
+            complete = sum(count for status, has_capt, _, count in status_counts if status == "complete")
+            pending = sum(count for status, has_capt, _, count in status_counts if status == "pending")
+            failed = sum(count for status, has_capt, _, count in status_counts if status == "failed")
+            # has_subs = videos where has_captions is set (1 or True), regardless of value
+            has_subs = sum(count for status, has_capt, _, count in status_counts if has_capt is not None)
+            no_subs = sum(count for status, has_capt, _, count in status_counts if has_capt is None)
+
+            # Count cached transcripts using has_cached_transcript
+            all_video_ids = [vid for vid, _, _ in get_entries_for_source(channel_url)]
+            cached = sum(1 for vid in all_video_ids if has_cached_transcript(vid))
+
+            # Use actual database count instead of stale estimate
+            total = len(all_video_ids)
+            total_videos_all += total
+            dt = cached  # downloaded transcripts
+
+            # valid = potentially downloadable (total - unavailable - pending)
+            # Use set-based total to avoid double-counting from GROUP BY
+            # (a video with has_capt=0 AND unavailable_reason='member_only' would
+            # appear in multiple groups, inflating the count if summed directly)
+            unavailable = failed
+            valid = max(0, total - unavailable)
+
+            # vt = videos available on YouTube (has subs) but not yet downloaded
+            # Include: pending with known subs (has_capt=1) + never checked (has_capt=NULL)
+            pending_with_subs = sum(count for status, has_capt, _, count in status_counts if status == "pending" and has_capt == 1)
+            pending_unknown = sum(count for status, has_capt, _, count in status_counts if status == "pending" and has_capt is None)
+            vt = pending_with_subs + pending_unknown  # available to try
+
+            # na = unavailable = failed videos (attempted and no captions)
+            na = failed
+
+            # mt = main trackable = total - unavailable
+            mt = valid
+
+            stats_line = f"{total:>4} total, {valid:>4} valid, {mt:>4} mt, {dt:>3} dt | +{vt:>3} vt, +{na:>3} na"
+
+            # Fix URL format for @handles (remove /channel/ if present)
+            display_url = channel_url
+            if "/channel/@" in display_url:
+                display_url = display_url.replace("/channel/@", "/@")
+
+            # Print channel URL and stats on same line
+            print(f"{display_url}  {stats_line}")
+            print("")
+
+    except Exception as e:
+        # If transcript cache query fails, show simpler format
+        print(f"[source] Error querying transcript cache: {e}")
+        for channel_url, video_count in channels_meta:
+            print(f"Channel: {channel_url}")
+            print(f"  {video_count or 0} total")
+            print("")
+
+    # Print summary (total_videos_all is calculated above from actual database counts)
+    print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    print(f"Summary: {len(channels_meta)} channels | {total_new_videos} new | {total_videos_all} total videos")
 
 
 def cmd_sync(source_id_or_url: str) -> None:
@@ -335,6 +895,177 @@ def cmd_sync(source_id_or_url: str) -> None:
         print(f"[source] Failed video IDs: {', '.join(failed)}")
 
 
+def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: int = 1) -> None:
+    """Fetch transcripts for pending videos using escalation chain (yt-dlp → Selenium).
+
+    This is the ESCALATION BATCH PROCESS - tries fastest methods first, falls back
+    to slower but more reliable methods.
+
+    Args:
+        source_filter: Optional channel URL to process only that source.
+        dry_run: If True, show what would be fetched without actually fetching.
+        workers: Number of parallel workers (default: 1).
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from csf.transcript import fetch_transcript_chain, LanguageConfig
+
+    storage = _get_batch_status_storage()
+
+    # Get all channels or specific channel
+    if source_filter:
+        existing = get_channel_metadata(source_filter)
+        if not existing:
+            print(f"[source] Error: {source_filter} is not a tracked source.", file=sys.stderr)
+            sys.exit(1)
+        channels = [(source_filter, existing.get("playlist_id"))]
+    else:
+        conn = storage._get_conn()
+        cursor = conn.execute("SELECT channel_url, playlist_id FROM channel_metadata")
+        channels = cursor.fetchall()
+        conn.close()
+
+    if not channels:
+        print("[source] No tracked channels found.")
+        return
+
+    # Collect all pending videos across channels
+    all_pending: list[tuple[str, str]] = []  # (video_id, source_url)
+    cached_count = 0
+
+    for channel_url, playlist_id in channels:
+        if not playlist_id:
+            continue
+
+        entries = get_entries_for_source(channel_url)
+        for entry in entries:
+            video_id, status, has_captions = entry
+            if status != "pending":
+                continue
+
+            if has_cached_transcript(video_id):
+                cached_count += 1
+            else:
+                all_pending.append((video_id, channel_url))
+
+    total_pending = len(all_pending)
+    print(f"[source] Escalation Batch Process")
+    print(f"[source] Channels: {len(channels)}")
+    print(f"[source] Already cached: {cached_count}")
+    print(f"[source] Pending extraction: {total_pending}")
+    print(f"[source] Mode: {'DRY RUN' if dry_run else 'LIVE'}")
+    print(f"[source] Workers: {workers}")
+    print()
+
+    if not all_pending:
+        print("[source] All transcripts already cached. Nothing to do.")
+        return
+
+    if dry_run:
+        print("[source] Dry run complete. Use without --dry-run to fetch transcripts.")
+        return
+
+    # Process videos with progress tracking
+    success_count = 0
+    fail_count = 0
+    skip_count = 0
+    results = []
+
+    def _process_video(video_id: str, source_url: str) -> tuple[str, bool, str, str]:
+        """Process a single video using the escalation chain.
+
+        Returns:
+            (video_id, success, source_used, error)
+        """
+        # Check cache again (may have been cached by another worker)
+        if has_cached_transcript(video_id):
+            return (video_id, True, "cache", "")
+
+        # Use escalation chain: yt-dlp → Selenium
+        config = LanguageConfig(prefer_lang="en", allow_translation=False)
+        result = fetch_transcript_chain(video_id, config)
+
+        if result.transcript:
+            set_cached_transcript(video_id, result.lang or "en", result.source, result.transcript)
+            mark_complete(video_id)
+            return (video_id, True, result.source, "")
+        else:
+            # Mark as failed
+            set_status(video_id, "failed")
+            return (video_id, False, "", result.error or "No transcript available")
+
+    print(f"[source] Fetching {total_pending} transcripts via escalation chain...")
+    print()
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {
+            executor.submit(_process_video, vid, src): (idx, vid)
+            for idx, (vid, src) in enumerate(all_pending, 1)
+        }
+
+        for future in as_completed(futures):
+            idx, video_id = futures[future]
+            try:
+                video_id, success, source_used, error = future.result()
+                if success:
+                    if source_used == "cache":
+                        skip_count += 1
+                    else:
+                        success_count += 1
+                        print(f"[{idx}/{total_pending}] ✓ {video_id} ({source_used})")
+                else:
+                    fail_count += 1
+                    print(f"[{idx}/{total_pending}] ✗ {video_id}: {error[:80]}")
+            except Exception as e:
+                fail_count += 1
+                print(f"[{idx}/{total_pending}] ✗ Error: {e}")
+
+    # Summary
+    print()
+    print("[source] === Escalation Batch Complete ===")
+    print(f"[source] Successfully extracted: {success_count}")
+    print(f"[source] Failed: {fail_count}")
+    print(f"[source] Skipped (cached): {skip_count}")
+    print(f"[source] Total processed: {total_pending}")
+
+
+def cmd_quota() -> None:
+    """Print current per-key quota state and recommend workers."""
+    quota = get_quota_status()
+    if not quota:
+        print("[source] No API keys configured.")
+        return
+
+    keys = _get_api_keys()
+    print(f"API Keys: {len(keys)}")
+    print(f"{'Key':<8} {'Calls':>6} {'Units':>8} {'Exhausted':>10} {'Since':<30}")
+    print("-" * 70)
+    for idx in sorted(quota.keys()):
+        state = quota[idx]
+        exhausted = "YES" if state["exhausted"] else "no"
+        since = state.get("exhausted_at", "-")
+        print(f"Key {idx:<3} {state['calls_made']:>6} {state['units_consumed']:>8} {exhausted:>10} {since or '-'}")
+
+    total_exhausted = sum(1 for v in quota.values() if v.get("exhausted", False))
+    total_units = sum(v["units_consumed"] for v in quota.values())
+    remaining_per_key = 10000 - total_units // max(len(keys), 1)
+    available = sum(10000 - v["units_consumed"] for v in quota.values() if not v.get("exhausted", False))
+
+    # Recommend workers based on remaining non-exhausted keys
+    non_exhausted = len(keys) - total_exhausted
+    if total_exhausted >= len(keys):
+        recommended_workers = 0
+    elif non_exhausted == 1:
+        recommended_workers = 1  # only one key alive, serial to avoid contention
+    else:
+        recommended_workers = min(non_exhausted, 8)
+
+    print()
+    print(f"Total consumed: ~{total_units} units across {len(keys)} keys")
+    print(f"Non-exhausted keys: {non_exhausted}")
+    print(f"Recommended max workers: {recommended_workers}")
+    print(f"[source] Can proceed for ~{available // 5} more channel additions")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="YouTube source management CLI — Phase 2."
@@ -352,9 +1083,22 @@ def main() -> None:
     check_parser = subparsers.add_parser("check", help="Daily check for a source")
     check_parser.add_argument("source", help="Source ID (channel URL or bare channel ID)")
 
+    # check-all command
+    check_all_parser = subparsers.add_parser("check-all", help="Check all tracked channels for new videos")
+    check_all_parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
+
     # sync command
     sync_parser = subparsers.add_parser("sync", help="Process pending videos for a source")
     sync_parser.add_argument("source", help="Source ID (channel URL or bare channel ID)")
+
+    # quota command
+    subparsers.add_parser("quota", help="Show per-key quota state and recommended workers")
+
+    # fetch command (escalation batch process)
+    fetch_parser = subparsers.add_parser("fetch", help="Fetch transcripts using escalation chain (yt-dlp → Selenium)")
+    fetch_parser.add_argument("--source", help="Process only this channel URL")
+    fetch_parser.add_argument("--dry-run", action="store_true", help="Show what would be fetched without fetching")
+    fetch_parser.add_argument("--workers", type=int, default=1, help="Number of parallel workers (default: 1)")
 
     args = parser.parse_args()
 
@@ -364,8 +1108,14 @@ def main() -> None:
         cmd_list()
     elif args.command == "check":
         cmd_check(args.source)
+    elif args.command == "check-all":
+        cmd_check_all(verbose=args.verbose)
     elif args.command == "sync":
         cmd_sync(args.source)
+    elif args.command == "quota":
+        cmd_quota()
+    elif args.command == "fetch":
+        cmd_fetch(source_filter=args.source, dry_run=args.dry_run, workers=args.workers)
     else:
         parser.print_help()
         sys.exit(1)

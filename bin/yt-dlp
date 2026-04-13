@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+"""Quick alias for csf-transcript-fetch — download transcripts from YouTube.
+
+Usage:
+    yt-batch-fetch                  # Dry run: show missing counts
+    yt-batch-fetch --run            # Actually download transcripts
+    yt-batch-fetch --channel <url>  # Process specific channel only
+    yt-batch-fetch --workers N      # Parallel workers (default: 1)
+"""
+
+import subprocess
+import sys
+from pathlib import Path
+
+# Run csf-transcript-fetch with same arguments
+script_path = Path(__file__).parent / "csf-transcript-fetch"
+result = subprocess.run([sys.executable, str(script_path)] + sys.argv[1:])
+sys.exit(result.returncode)

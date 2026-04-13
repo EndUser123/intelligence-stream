@@ -27,9 +27,6 @@ class BatchScheduler:
         self._ensure_tables()
         self._recover_stale_attempting()
         self._channels = self._get_pending_channels()
-        self._iterators: dict[str, Iterator[str]] = {
-            ch: iter(self._get_pending_videos(ch)) for ch in self._channels
-        }
         # Checkpoint WAL opened during init so connections are clean on Windows
         conn = sqlite3.connect(self._db_path)
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
@@ -90,15 +87,19 @@ class BatchScheduler:
         conn.close()
         return row[0] if row else 0
 
-    def _get_pending_videos(self, source: str) -> list[str]:
+    def _get_pending_videos(self, source: str) -> Iterator[str]:
+        """Yield pending video IDs for a source, excluding archived videos (always fresh iterator)."""
         conn = sqlite3.connect(self._db_path)
         cursor = conn.execute(
-            "SELECT video_id FROM analysis_status WHERE source=? AND status='pending' ORDER BY published_at ASC",
+            """SELECT video_id FROM analysis_status
+               WHERE source=? AND status='pending'
+               AND video_id NOT IN (SELECT video_id FROM download_archive)
+               ORDER BY published_at ASC""",
             (source,),
         )
-        videos = [row[0] for row in cursor.fetchall()]
+        for row in cursor:
+            yield row[0]
         conn.close()
-        return videos
 
     def _is_in_cooldown(self, source: str) -> bool:
         conn = sqlite3.connect(self._db_path)
@@ -152,7 +153,7 @@ class BatchScheduler:
         conn.commit()
         conn.close()
 
-    def archive_finalize(self, video_id: str, status: str, source: str | None = None) -> None:
+    def archive_finalize(self, video_id: str, status: str, source: str | None = None, error: str | None = None) -> None:
         """Write final status to download_archive after worker completes.
 
         Must be called by batch.py workers after mark_complete/mark_failed.
@@ -164,9 +165,9 @@ class BatchScheduler:
         conn.execute("PRAGMA busy_timeout=5000")
         conn.execute("BEGIN EXCLUSIVE")
         conn.execute(
-            "INSERT OR REPLACE INTO download_archive (video_id, status, source, attempted_at) "
-            "VALUES (?, ?, ?, ?)",
-            (video_id, status, source, time.time()),
+            "INSERT OR REPLACE INTO download_archive (video_id, status, source, attempted_at, error) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (video_id, status, source, time.time(), error),
         )
         conn.commit()
         conn.close()
@@ -183,61 +184,54 @@ class BatchScheduler:
     def yield_next(self) -> Iterator[tuple[str, str]]:
         """Yield (video_id, source) pairs in round-robin order, skipping archived/cooldown videos.
 
-        Yields one video at a time, cycling through all pending channels. Applies jitter between
-        yields to diffuse request timing. Skips channels that are in cooldown.
+        Yields one video at a time, cycling through all pending channels. Skips channels in cooldown.
         """
         if not self._channels:
             return
 
-        # Runtime stale recovery: promote any videos stuck in attempting state
-        # (e.g., worker crashed mid-processing) before each yield pass.
+        # Recover stale attempting entries on startup
         self._recover_stale_attempting()
 
-        # Rebuild iterators for any channels that are exhausted
-        active_channels = [ch for ch in self._channels if self._iterators[ch]]
+        channel_idx = 0  # Track position for round-robin
 
-        yielded_this_pass: set[str] = set()
-        while active_channels:
-            for channel in list(active_channels):
+        while True:
+            yielded_any = False
+            start_idx = channel_idx
+
+            while True:
+                channel = self._channels[channel_idx]
+                channel_idx = (channel_idx + 1) % len(self._channels)
+
                 if self._is_in_cooldown(channel):
+                    if channel_idx == start_idx:
+                        break  # All channels in cooldown
                     continue
 
-                # Refresh iterator if exhausted
-                if not self._iterators[channel]:
-                    self._iterators[channel] = iter(self._get_pending_videos(channel))
+                # Get one pending video from this channel
+                conn = sqlite3.connect(self._db_path)
+                cursor = conn.execute(
+                    """SELECT video_id FROM analysis_status
+                       WHERE source=? AND status='pending'
+                       AND video_id NOT IN (SELECT video_id FROM download_archive)
+                       ORDER BY published_at ASC LIMIT 1""",
+                    (channel,),
+                )
+                row = cursor.fetchone()
+                conn.close()
 
-                # Inner loop: pull videos from this channel until exhausted or yielded
-                skipped_this_channel = False
-                while not skipped_this_channel:
-                    try:
-                        video_id = next(self._iterators[channel])
-                    except StopIteration:
-                        self._iterators[channel] = iter([])
-                        if channel in active_channels:
-                            active_channels.remove(channel)
-                        break
+                if not row:
+                    if channel_idx == start_idx:
+                        break  # Checked all channels, none have pending videos
+                    continue  # No pending videos for this channel
 
-                    # Archive check — skip if already attempted
-                    arch_status = self._archive_status(video_id)
-                    if arch_status in ("success", "failed", "attempting", "skipped"):
-                        continue
+                video_id = row[0]
 
-                    # Pre-check availability before yielding — skip permanently unavailable videos
-                    from csf.transcript import check_video_availability
+                # Mark as attempting before yielding
+                self._record_attempting(video_id, channel)
 
-                    available, reason = check_video_availability(video_id)
-                    if not available:
-                        self.archive_finalize(video_id, "skipped", channel)
-                        continue
+                yielded_any = True
+                yield video_id, channel
+                break  # Yielded one video, next call continues from next channel
 
-                    # Mark attempting before yielding
-                    self._record_attempting(video_id, channel)
-
-                    yielded_this_pass.add(video_id)
-                    skipped_this_channel = True  # yielded — exit inner loop to round-robin next channel
-                    yield video_id, channel
-
-            # If we yielded nothing this pass, break to avoid infinite loop
-            if not yielded_this_pass:
-                break
-            yielded_this_pass.clear()
+            if not yielded_any:
+                break  # All channels exhausted

@@ -93,18 +93,6 @@ def _clean_db() -> Generator[None, None, None]:
     _reset_test_db()
 
 
-@pytest.fixture(autouse=True)
-def _pass_through_precheck(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make check_video_availability a pass-through for tests that don't explicitly mock it.
-
-    The pre-check makes real YouTube API calls which would fail in tests.
-    Tests that explicitly test pre-check behavior (test_precheck_*, test_skipped_*) do
-    their own monkeypatch.setattr which overrides this fixture's mock.
-    """
-    import csf.transcript as tx
-
-    monkeypatch.setattr(tx, "check_video_availability", lambda vid: (True, None))
-
 
 # ─── test_round_robin_interleaving ───────────────────────────────────────────
 
@@ -625,43 +613,11 @@ def test_skipped_status_not_yielded(monkeypatch: pytest.MonkeyPatch) -> None:
     conn.commit()
     conn.close()
 
-    # Mock pre-check to always succeed so we isolate the skipped-filter behavior
-    import csf.transcript as tx
-    monkeypatch.setattr(tx, "check_video_availability", lambda vid: (True, None))
-
+    # No pre-check anymore - test archive filter directly
     sched = BatchScheduler(db_path=_TEST_DB)
     results = list(sched.yield_next())
     video_ids = [vid for vid, _ in results]
     assert "SKIP1" not in video_ids
-
-
-# ─── test_precheck_skipped_writes_archive ──────────────────────────────────────
-
-def test_precheck_skipped_writes_archive(monkeypatch: pytest.MonkeyPatch) -> None:
-    """When pre-check returns unavailable, archive_finalize writes 'skipped' status."""
-    _seed([
-        ("PRECHECK1", "pending", "https://youtube.com/channel/UC_P", "2025-01-01T00:00:00"),
-    ])
-
-    # Mock pre-check to return permanently unavailable
-    import csf.transcript as tx
-    monkeypatch.setattr(tx, "check_video_availability", lambda vid: (False, "video_unavailable"))
-
-    sched = BatchScheduler(db_path=_TEST_DB)
-    results = list(sched.yield_next())
-
-    # Video should NOT be yielded (pre-check failed)
-    video_ids = [vid for vid, _ in results]
-    assert "PRECHECK1" not in video_ids
-
-    # archive_finalize should have written 'skipped'
-    conn = sqlite3.connect(_TEST_DB)
-    row = conn.execute(
-        "SELECT status FROM download_archive WHERE video_id=?", ("PRECHECK1",)
-    ).fetchone()
-    conn.close()
-    assert row is not None, "PRECHECK1 should have an archive entry"
-    assert row[0] == "skipped", f"Expected 'skipped', got {row[0]!r}"
 
 
 # ─── test_schema_no_consecutive_429s ───────────────────────────────────────────
@@ -679,73 +635,6 @@ def test_schema_no_consecutive_429s() -> None:
     )
     assert len(columns) == 2, f"Expected 2 columns, got {len(columns)}: {col_names}"
 
-
-# ─── test_precheck_writes_skipped_and_skips_yield ───────────────────────────────
-
-def test_precheck_writes_skipped_and_skips_yield(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Permanent pre-check failure writes 'skipped' and yields nothing for that video."""
-    _seed([
-        ("PERM_FAIL_1", "pending", "https://youtube.com/channel/UC_F", "2025-01-01T00:00:00"),
-        ("PERM_FAIL_2", "pending", "https://youtube.com/channel/UC_F", "2025-01-02T00:00:00"),
-    ])
-
-    import csf.transcript as tx
-
-    def fake_check(vid: str) -> tuple[bool, str | None]:
-        if vid == "PERM_FAIL_1":
-            return (False, "video_unavailable")
-        return (True, None)
-
-    monkeypatch.setattr(tx, "check_video_availability", fake_check)
-
-    sched = BatchScheduler(db_path=_TEST_DB)
-    results = list(sched.yield_next())
-    video_ids = [vid for vid, _ in results]
-
-    # PERM_FAIL_1 was skipped due to pre-check; PERM_FAIL_2 should be yielded
-    assert "PERM_FAIL_1" not in video_ids, "Pre-check-failed video should not be yielded"
-    assert "PERM_FAIL_2" in video_ids, "Healthy video should still be yielded"
-
-    # Verify archive state
-    conn = sqlite3.connect(_TEST_DB)
-    row1 = conn.execute(
-        "SELECT status FROM download_archive WHERE video_id=?", ("PERM_FAIL_1",)
-    ).fetchone()
-    row2 = conn.execute(
-        "SELECT status FROM download_archive WHERE video_id=?", ("PERM_FAIL_2",)
-    ).fetchone()
-    conn.close()
-    assert row1 is not None and row1[0] == "skipped"
-    assert row2 is not None and row2[0] == "attempting"
-
-
-# ─── test_precheck_timeout_yields_normally ─────────────────────────────────────
-
-def test_precheck_timeout_yields_normally(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pre-check timeout (transient) falls back to normal yield — video is still processed."""
-    _seed([
-        ("TIMEOUT_VID", "pending", "https://youtube.com/channel/UC_T", "2025-01-01T00:00:00"),
-    ])
-
-    import csf.transcript as tx
-
-    def fake_check_timeout(vid: str) -> tuple[bool, str | None]:
-        return (False, "video_unavailable")  # simulates timeout / unavailable
-
-    monkeypatch.setattr(tx, "check_video_availability", fake_check_timeout)
-
-    sched = BatchScheduler(db_path=_TEST_DB)
-    results = list(sched.yield_next())
-    video_ids = [vid for vid, _ in results]
-
-    # With current implementation, unavailable → skipped, so video is NOT yielded.
-    # This test documents current behavior (pre-check failure skips the yield).
-    # The distinction "transient vs permanent" is made by the check function itself.
-    assert "TIMEOUT_VID" in video_ids or all(
-        r[0] != "TIMEOUT_VID" for r in results
-    ), "Timeout video behavior should be deterministic"
 
 
 # ─── test_skipped_video_not_yielded_on_recovery ────────────────────────────────
@@ -768,11 +657,7 @@ def test_skipped_video_not_yielded_on_recovery(
     conn.commit()
     conn.close()
 
-    import csf.transcript as tx
-
-    # Make pre-check return available (so the only reason to skip is the 'skipped' archive status)
-    monkeypatch.setattr(tx, "check_video_availability", lambda vid: (True, None))
-
+    # No pre-check anymore - test that 'skipped' archive status blocks re-yield
     sched = BatchScheduler(db_path=_TEST_DB)
     results = list(sched.yield_next())
     video_ids = [vid for vid, _ in results]

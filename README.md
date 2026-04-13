@@ -1,19 +1,22 @@
-# intelligence-stream
+# yt-is — YouTube Intelligence System
 
 ![Status](https://img.shields.io/badge/status-active-success)
 ![Platform](https://img.shields.io/badge/platform-Windows%2011-blue)
 ![Claude Code](https://img.shields.io/badge/Claude%20Code-Compatible-green)
 
-YouTube playlist analysis pipeline — ingest videos and analyze content with Gemini, storing results in CKS (Constitutional Knowledge System).
+YouTube transcript ingestion and analysis pipeline — discover new videos, download transcripts with automatic escalation (yt-dlp → NotebookLM), and store results in CKS.
 
 ## Quick Start
 
 ```powershell
-# Ingest a playlist
-/cs-ingest https://www.youtube.com/playlist?list=...
+# Check tracked channels for new videos
+/yt-channel
 
-# Analyze a single video
-/cs-analyze https://www.youtube.com/watch?v=...
+# Download pending transcripts (yt-dlp → Selenium fallback)
+/yt-channel fetch
+
+# Extract transcripts via NotebookLM (batch workflow)
+/yt-nlm
 ```
 
 ## Installation
@@ -29,37 +32,30 @@ YouTube playlist analysis pipeline — ingest videos and analyze content with Ge
 **Setup:**
 ```powershell
 # Windows (Junction - No admin required)
-# Junction each skill to the skills subdirectory
-New-Item -ItemType Junction -Path "P:\.claude\skills\intelligence-stream-analyze" -Target "P:\packages\intelligence-stream\skills\analyze"
-New-Item -ItemType Junction -Path "P:\.claude\skills\intelligence-stream-ingest" -Target "P:\packages\intelligence-stream\skills\ingest"
-
-# macOS/Linux (Symlink)
-ln -s /path/to/packages/intelligence-stream/skills/analyze ~/.claude/skills/intelligence-stream-analyze
-ln -s /path/to/packages/intelligence-stream/skills/ingest ~/.claude/skills/intelligence-stream-ingest
+New-Item -ItemType Junction -Path "P:\.claude\skills\yt-channel" -Target "P:\.claude\skills\yt-channel"
+New-Item -ItemType Junction -Path "P:\.claude\skills\yt-nlm" -Target "P:\.claude\skills\yt-nlm"
 ```
 
 **Key points:**
-- Edit in `P:/packages/intelligence-stream/`, changes work immediately
-- No reinstallation required - skills auto-discover from `P:/.claude/skills/`
-- Perfect for active development
+- Skills are in `P:/.claude/skills/yt-channel/` and `P:/.claude/skills/yt-nlm/`
+- Changes to skill files take effect immediately
+- No reinstallation required
 
-#### 2. HOOKS (Dev Deployment - Hook Files Only)
+#### 2. SYMLINK (CLI Tools)
 
-**For**: When this package has hook files (`.py` files) you want to test.
+**For**: When you want `yt-channel` and `csf-source` commands available in your terminal.
 
 **Setup:**
 ```powershell
-# Symlink individual hook files to P:/.claude/hooks/
-cd P:/.claude/hooks
-
-# Example: Symlink a specific hook file
-cmd /c "mklink HookName.py P:/packages/intelligence-stream/core/hooks/HookName.py"
+# Symlink bin tools to a directory in your PATH
+cmd /c "mklink P:\bin\yt-channel P:\packages\yt-is\bin\yt-channel"
+cmd /c "mklink P:\bin\csf-source P:\packages\yt-is\bin\csf-source"
 ```
 
 **Key points:**
-- Symlink individual `.py` hook files only (NOT the entire directory)
-- Symlinks go in `P:/.claude/hooks/` (NOT `~/.claude/plugins/`)
-- These are dev-only symlinks for working directly on source code
+- `yt-channel` — channel management (sync, list, add, fetch)
+- `csf-source` — backend for channel and transcript operations
+- Both commands share the same SQLite database
 
 #### 3. PLUGINS (End User Deployment)
 
@@ -68,155 +64,168 @@ cmd /c "mklink HookName.py P:/packages/intelligence-stream/core/hooks/HookName.p
 **Setup:**
 ```bash
 # End users install via /plugin command
-/plugin P:/packages/intelligence-stream
+/plugin P:/packages/yt-is
 
 # Or from marketplace (when published)
-/plugin install intelligence-stream
+/plugin install yt-is
 ```
 
-**Key points:**
-- Plugin copied to `~/.claude/plugins/cache/`
-- Registered in `~/.claude/plugins/installed_plugins.json`
-- NOT for local development - requires reinstall on every change
-- Use for distributing finished packages to users
+## Skills
 
-### Which Model Should You Use?
+### `/yt-channel` — YouTube Channel Management
 
-| Your Situation | Use This Model | Why |
-|----------------|----------------|-----|
-| Actively developing this package | **SKILLS** (junction) | Instant feedback, no reinstall |
-| Testing hook file changes | **HOOKS** (symlinks) | Direct hook testing |
-| Distributing to end users | **PLUGINS** (/plugin) | Proper distribution format |
+Check all tracked YouTube channels for new videos and manage your channel list.
 
-### Common Mistakes to Avoid
+**Commands:**
+- `sync` — Check all tracked channels for new videos
+- `list` — List all tracked channels with metadata
+- `add <url>` — Add a new channel or playlist to track
+- `fetch` — Download transcripts for all pending videos using escalation chain
 
-- Don't use `/plugin` command for local development (requires reinstall on every change)
-- Don't symlink entire directories to `P:/.claude/hooks/` (only symlink `.py` files)
-- Don't confuse skills (`P:/.claude/skills/`) with plugins (`~/.claude/plugins/`)
+**Escalation Chain (per video):**
+1. **yt-dlp (WEB client)** — Fastest (~5 seconds), works for most public videos
+2. **yt-dlp with cookies** — For age-restricted videos
+3. **Selenium Firefox** — Fallback for bot-check failures (~15-30 seconds)
 
-## What intelligence-stream Does
+### `/yt-nlm` — NotebookLM Transcript Extraction
 
-### Capabilities
+Extract YouTube transcripts using NotebookLM's batch notebook workflow.
 
-- **Playlist Ingestion**: Download and process entire YouTube playlists using `yt-dlp`
-- **Video Analysis**: Analyze video content using Gemini with true video passthrough
-- **Transcript Fallback**: Extract and analyze YouTube transcripts when video passthrough fails
-- **CKS Integration**: Store all analysis results in the Constitutional Knowledge System
+**Recommended approach:** Batch notebooks (up to 300 YouTube sources per notebook) — reuses a single notebook, uses `nlm source content` (raw text), has auth auto-recovery built in.
 
-### Pipeline Overview
+**Old approach (deprecated):** Ephemeral notebooks — one notebook per video, slow, wastes NotebookLM slots.
 
-```
-YouTube URL → Playlist Ingest (yt-dlp) → Video Metadata → CKS
-                                      ↓
-                              Auto-Analyze (optional)
-                                      ↓
-                           Gemini Analysis → CKS Memory
-```
+## CLI Tools
 
-### Skills
+### `yt-channel`
 
-#### `/csf-analyze`
-
-Analyze video content using Gemini and store results in CKS.
+Channel management CLI wrapping `csf-source`.
 
 ```powershell
-/cs-analyze <video_id_or_url>
+yt-channel sync             # Check all tracked channels for new videos
+yt-channel list             # List all tracked channels
+yt-channel add <url>        # Add a new channel to track
+yt-channel fetch            # Download pending transcripts (escalation chain)
+yt-channel fetch --dry-run   # Preview what would be fetched
+yt-channel fetch --source <url>  # Process only one channel
+yt-channel fetch --workers 2  # Use 2 parallel workers
 ```
 
-Uses three-tier analysis:
-1. **SDK Passthrough** (requires `GOOGLE_API_KEY`): True video URL passthrough to `gemini-2.0-flash`
-2. **Transcript Fallback**: Analyzes via `youtube-transcript-api` + Gemini CLI
-3. **CLI Fallback**: Legacy URL-as-text analysis
+### `csf-source`
 
-#### `/csf-ingest`
-
-Ingest YouTube playlist videos and store metadata in CKS.
+Backend implementation for channel and transcript operations.
 
 ```powershell
-/cs-ingest <playlist_url> [--browser=<browser>] [--analyze]
+csf-source list              # List all tracked sources
+csf-source add <url>         # Add a new source
+csf-source check <source>    # Check one source for new videos
+csf-source check-all         # Check all sources for new videos
+csf-source sync <source>     # Process pending videos for a source
+csf-source fetch             # Download pending transcripts
+csf-source fetch --dry-run   # Preview what would be fetched
 ```
 
-Options:
-- `--browser=<browser>`: Browser to extract cookies from (default: brave)
-- `--analyze`: Auto-run analysis on each new video
-
-## What Gets Created
+## Pipeline Overview
 
 ```
-intelligence-stream/
-├── .claude-plugin/
-│   └── plugin.json           # Plugin manifest
-├── skills/
-│   ├── analyze/
-│   │   └── SKILL.md          # /csf-analyze skill
-│   └── ingest/
-│       └── SKILL.md          # /csf-ingest skill
-├── bin/
-│   ├── csf-analyze           # Video analysis CLI
-│   └── csf-ingest            # Playlist ingest CLI
-├── csf/
-│   ├── __init__.py
-│   ├── cks_store.py           # CKS integration
-│   ├── logging.py             # Action logging
-│   ├── terminal_context.py    # Terminal ID resolution
-│   └── youtube_auth.py        # YouTube auth helpers
-├── config/
-│   └── intelligence_stream.yaml
-└── requirements.txt
+/yt-channel sync
+    ↓
+RSS check → Gap detection → API resolution
+    ↓
+batch_status.sqlite (pending videos)
+    ↓
+/yt-channel fetch (yt-dlp → Selenium)
+    ↓ OR
+/yt-nlm (NotebookLM batch)
+    ↓
+transcripts.sqlite (cached transcripts)
+    ↓
+Combined markdown batches → CKS / Obsidian / analysis tools
 ```
 
-## Development and Deployment
+## Data Flow
+
+```
+channel_metadata table (SQLite)
+    │
+    ├─► yt-channel sync ──► RSS check ──► Gap detection ──► API resolution
+    │                                                │
+    │                                                ▼
+    │                                       batch_status table (pending)
+    │
+    ├─► yt-channel fetch ──► ESCALATION CHAIN (yt-dlp → Selenium) ──► transcripts.sqlite
+    │
+    └─► /yt-nlm ──► Batch notebooks ──► nlm source content ──► transcripts.sqlite
+```
+
+## Storage
+
+- **batch_status.sqlite** — Channel metadata and video tracking
+  - `channel_metadata` — tracked channels with playlist IDs
+  - `analysis_status` — video status (pending/complete/failed), last_stage, failure_reason
+- **transcripts.sqlite** — Cached transcripts keyed by video_id
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `YOUTUBE_API_KEY` | For gap resolution | YouTube Data API v3 key for filling RSS gaps |
+| `NLM_AUTH_TOKEN` | For NotebookLM | NotebookLM session token |
+| `NLM_PROJECT_ID` | For NotebookLM | GCP project ID for NotebookLM |
+
+## Development
 
 ### Requirements
 
 - Python 3.12+
 - `yt-dlp>=2024.0.0`
-- `google-genai>=0.8.0` (for SDK video passthrough)
-- `youtube-transcript-api>=0.6.0`
-- `gemini` CLI (for CLI fallback mode)
+- `nlm` CLI (NotebookLM command-line interface)
+- Firefox (for Selenium fallback)
 
-### Environment Variables
+### Key Files
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `GOOGLE_API_KEY` | No | Enables SDK video passthrough for true video analysis |
+```
+yt-is/
+├── bin/
+│   ├── yt-channel          # Channel management CLI
+│   └── csf-source          # Backend implementation
+├── csf/
+│   ├── transcript.py        # Transcript fetching (yt-dlp, NLM)
+│   ├── batch_status.py      # SQLite storage for video tracking
+│   ├── source_enumerator.py  # RSS + API enumeration
+│   └── cache.py             # Transcript caching
+└── skills/
+    ├── yt-channel/SKILL.md
+    └── yt-nlm/SKILL.md
+```
 
-### Configuration
-
-Edit `config/intelligence_stream.yaml` to customize:
-- Download format for videos
-- Logging level
-- Timeout values
-
-## Additional Media Assets
-
-### Architecture Flowchart
+## Architecture
 
 ```mermaid
 graph TB
-    User[/"User: /cs-analyze or /cs-ingest"/] --> Detect[Detect Skill Invoked]
-    Detect -->|csf-analyze| AnalyzeSkill[Analyze Skill]
-    Detect -->|csf-ingest| IngestSkill[Ingest Skill]
-    AnalyzeSkill --> CheckKey{GOOGLE_API_KEY?}
-    CheckKey -->|Yes| SDK[SDK Video Passthrough]
-    CheckKey -->|No| CheckCLI{CLI Available?}
-    CheckKey -->|No| Transcript[Transcript Fallback]
-    CheckCLI -->|Yes| CLI[Gemini CLI]
-    CheckCLI -->|No| Transcript
-    SDK --> CKS[Store in CKS]
-    CLI --> CKS
-    Transcript --> CKS
-    IngestSkill --> ytDLP[yt-dlp Download]
-    ytDLP --> Metadata[Extract Metadata]
-    Metadata --> CKS
-    Metadata --> AnalyzeOpt[Optional: Auto-Analyze]
-    AnalyzeOpt --> AnalyzeSkill
+    User[/"User: /yt-channel or /yt-nlm"/] --> Detect[Detect Skill Invoked]
+    Detect -->|yt-channel| ChannelSkill[yt-channel Skill]
+    Detect -->|yt-nlm| NLMSkill[yt-nlm Skill]
+    ChannelSkill --> CSFSource[csf-source backend]
+    NLMSkill --> TranscriptPy[transcript.py]
+    CSFSource --> RSS[RSS Check]
+    CSFSource --> Gap[Gap Detection]
+    CSFSource --> API[API Resolution]
+    RSS --> DB[(batch_status.sqlite)]
+    Gap --> DB
+    API --> DB
+    TranscriptPy --> YTDLP[yt-dlp]
+    TranscriptPy --> NLM[NotebookLM]
+    YTDLP --> Cache[(transcripts.sqlite)]
+    NLM --> Cache
 ```
 
 ---
 
-**Key features**:
-- True video passthrough via Gemini SDK (when API key available)
-- Automatic fallback chain: SDK → Transcript → CLI
-- Idempotent playlist ingestion (skips already-ingested videos)
-- Constitutional Knowledge System integration for persistent storage
+**Key features:**
+- Automatic escalation chain for transcript download
+- Batch NotebookLM workflow (300 sources per notebook)
+- Auth auto-recovery for NotebookLM sessions
+- Configurable NLM batch size via `YTIS_NLM_MAX_SOURCES_PER_NOTEBOOK`
+- External transcript provider hook for custom sources
+- Multi-terminal safe batch processing with InterProcessLock

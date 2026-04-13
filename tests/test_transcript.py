@@ -894,6 +894,32 @@ class TestAuthRateLimiter:
         finally:
             csf.transcript._auth_rate_limiter = None
 
+    def test_auth_rate_limiter_remaining_returns_count(self):
+        """remaining() returns the number of calls left in the current window."""
+        import csf.transcript
+        csf.transcript._auth_rate_limiter = None
+        try:
+            csf.transcript.set_nlm_config(
+                csf.transcript.NLMConfig(
+                    max_sources_per_notebook=300,
+                    auth_check_interval=60.0,
+                    auth_max_calls_per_window=3,
+                    auth_cooldown=300.0,
+                )
+            )
+            limiter = csf.transcript._get_auth_rate_limiter()
+            assert limiter.remaining() == 3
+            limiter.record_call()
+            assert limiter.remaining() == 2
+            limiter.record_call()
+            assert limiter.remaining() == 1
+            limiter.record_call()
+            assert limiter.remaining() == 0
+            # Next is_allowed should be False
+            assert limiter.is_allowed() is False
+        finally:
+            csf.transcript._auth_rate_limiter = None
+
 
 class TestCookieFreshnessTracker:
     """Tests for CookieFreshnessTracker."""

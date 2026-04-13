@@ -240,6 +240,21 @@ class AuthRateLimiter:
         with self._lock:
             self._consecutive_failures = 0
 
+    def remaining(self) -> int:
+        """Return the number of auth calls remaining in the current window.
+
+        Returns 0 if in cooldown or if the window is exhausted.
+        Thread-safe.
+        """
+        with self._lock:
+            if self._is_in_cooldown():
+                return 0
+            config = get_nlm_config()
+            now = time.monotonic()
+            window_start = now - config.auth_check_interval
+            active = [ts for ts in self._call_timestamps if ts > window_start]
+            return max(0, config.auth_max_calls_per_window - len(active))
+
 
 def _get_auth_rate_limiter() -> AuthRateLimiter:
     """Return the AuthRateLimiter per-process singleton."""

@@ -71,7 +71,7 @@ Run `csf-source list` to see current channel data. The backend output will inclu
 
 ## How It Works
 
-**`yt-channel sync`** runs the daily check workflow on ALL tracked channels:
+**`yt-is sync`** runs the daily check workflow on ALL tracked channels:
 
 1. **RSS Check** - Fetches exactly 15 most recent videos per channel via RSS feed
 2. **Gap Detection** - If RSS shows videos that don't exist in local database (no overlap), triggers gap resolution
@@ -118,7 +118,7 @@ csf-source fetch --workers 2
 ```
 channel_metadata table (SQLite)
   │
-  ├─► yt-channel sync ──► RSS check ──► Gap detection ──► API resolution
+  ├─► yt-is sync ──► RSS check ──► Gap detection ──► API resolution
   │                                                │
   │                                                ▼
   │                                       batch_status table (pending)
@@ -134,7 +134,7 @@ All data is stored in `batch_status.sqlite`:
 
 ## Files
 
-- `bin/yt-channel` — CLI entry point
+- `bin/yt-is` — CLI entry point
 - `bin/csf-source` — Backend implementation
 - `csf/source_enumerator.py` — RSS + API enumeration
 - `csf/batch_status.py` — SQLite storage

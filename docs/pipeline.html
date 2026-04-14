@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>yt-is — Pipeline</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --card: #f3f4f6;
+      --border: #d1d5db;
+      --text: #111827;
+      --muted: #6b7280;
+      --accent: #2563eb;
+      --green: #16a34a;
+      --amber: #d97706;
+      --red: #dc2626;
+      --purple: #7c3aed;
+      --cyan: #0891b2;
+      --link: #2563eb;
+    }
+    [data-theme="dark"] {
+      --bg: #0f1117;
+      --card: #1a1d27;
+      --border: #2a2d3a;
+      --text: #e4e4e7;
+      --muted: #71717a;
+      --accent: #60a5fa;
+      --green: #4ade80;
+      --amber: #fbbf24;
+      --red: #f87171;
+      --purple: #c084fc;
+      --cyan: #22d3ee;
+      --link: #60a5fa;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem;
+      line-height: 1.6;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 0.25rem; color: var(--accent); }
+    h2 { font-size: 1.1rem; margin-bottom: 1rem; color: var(--muted); font-weight: 400; }
+
+    /* Toggle */
+    .toggle-wrap {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      z-index: 100;
+    }
+    .toggle-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .toggle {
+      width: 44px;
+      height: 24px;
+      background: var(--border);
+      border-radius: 12px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle::after {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      background: white;
+      border-radius: 50%;
+      top: 3px;
+      left: 3px;
+      transition: transform 0.2s;
+    }
+    [data-theme="dark"] .toggle { background: var(--accent); }
+    [data-theme="dark"] .toggle::after { transform: translateX(20px); }
+
+    .pipeline {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      max-width: 900px;
+    }
+
+    .stage {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+    }
+
+    .stage-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .stage-num {
+      background: var(--accent);
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 700;
+      width: 1.5rem;
+      height: 1.5rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .stage-name { font-weight: 600; font-size: 1rem; }
+    .stage-skill {
+      margin-left: auto;
+      background: var(--accent);
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+    }
+    .stage-skill .path-link {
+      color: white;
+      text-decoration: none;
+    }
+    .stage-skill .path-link:hover {
+      text-decoration: underline;
+    }
+
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-bottom: 0.75rem;
+    }
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+    }
+    .step::before {
+      content: '›';
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .data-flow {
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-family: 'Fira Code', 'Cascadia Code', monospace;
+      background: var(--bg);
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      margin-top: 0.5rem;
+    }
+    .data-flow::before { content: '→ '; color: var(--accent); }
+    a.path-link {
+      color: var(--link);
+      text-decoration: none;
+      cursor: pointer;
+    }
+    a.path-link:hover { text-decoration: underline; }
+
+    .arrow {
+      text-align: center;
+      color: var(--border);
+      font-size: 1.5rem;
+      padding: 0.25rem 0;
+    }
+
+    /* Legend */
+    .legend {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+      font-size: 0.8rem;
+    }
+    .legend-item { display: flex; align-items: center; gap: 0.4rem; }
+    .legend-dot {
+      width: 0.6rem; height: 0.6rem;
+      border-radius: 50%;
+    }
+    .dot-purple { background: var(--purple); }
+    .dot-cyan { background: var(--cyan); }
+    .dot-green { background: var(--green); }
+    .dot-amber { background: var(--amber); }
+
+    /* Storage boxes */
+    .storage-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+    .storage-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+    }
+    .storage-box .label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+    .storage-box .path {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.75rem;
+    }
+    .storage-box .path a {
+      color: var(--link);
+      text-decoration: none;
+    }
+    .storage-box .path a:hover { text-decoration: underline; }
+
+    /* Method cards */
+    .methods {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+    .method {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+    }
+    .method-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+    }
+    .method-title .tag {
+      font-size: 0.65rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      margin-left: 0.4rem;
+    }
+    .tag-fast { background: var(--green); color: white; }
+    .tag-medium { background: var(--amber); color: white; }
+    .tag-slow { background: var(--red); color: white; }
+    .method p { font-size: 0.775rem; color: var(--muted); }
+    .method code { color: var(--cyan); font-size: 0.75rem; }
+
+    /* Escalation chain */
+    .escalation-chain {
+        display: flex;
+        align-items: stretch;
+        gap: 0;
+        overflow-x: auto;
+        padding: 0.5rem 0;
+    }
+    .escalation-step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.6rem 0.5rem;
+        min-width: 90px;
+        flex: 1;
+        text-align: center;
+    }
+    .step-num {
+        width: 1.2rem;
+        height: 1.2rem;
+        background: var(--accent);
+        color: white;
+        border-radius: 50%;
+        font-size: 0.65rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 0.35rem;
+    }
+    .step-title {
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-bottom: 0.2rem;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .step-desc {
+        font-size: 0.65rem;
+        color: var(--muted);
+        line-height: 1.3;
+    }
+    .chain-arrow {
+        color: var(--accent);
+        font-size: 1.5rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        padding: 0 0.1rem;
+        flex-shrink: 0;
+    }
+
+    /* Note box */
+    .note {
+      margin-top: 1rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      padding: 0.75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    .note strong { color: var(--amber); }
+    .note code {
+      background: var(--card);
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+      font-size: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+
+<div class="toggle-wrap">
+  <span class="toggle-label">☀</span>
+  <div class="toggle" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'"></div>
+  <span class="toggle-label">☾</span>
+</div>
+
+<h1>yt-is — YouTube Intelligence Pipeline</h1>
+<h2>NotebookLM batch transcript ingestion + yt-dlp escalation chain</h2>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot dot-purple"></div> Skill / entry point</div>
+  <div class="legend-item"><div class="legend-dot dot-cyan"></div> Data store</div>
+  <div class="legend-item"><div class="legend-dot dot-green"></div> Primary method</div>
+  <div class="legend-item"><div class="legend-dot dot-amber"></div> Fallback method</div>
+</div>
+
+<div class="pipeline">
+
+  <!-- STAGE 1: Discovery -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-num">1</div>
+      <div class="stage-name">Discover new videos</div>
+      <div class="stage-skill"><a class="path-link" href="vscode://file/P:/packages/yt-is/skills/yt-is/SKILL.md">/yt-is</a></div>
+    </div>
+    <div class="steps">
+      <div class="step">RSS feed check for each tracked channel</div>
+      <div class="step">Gap detection — find missing videos in sequence</div>
+      <div class="step">YouTube Data API resolution for RSS blind spots</div>
+    </div>
+    <div class="data-flow"><a class="path-link" href="vscode://file/P:/packages/yt-is/csf/batch_status.py">batch_status.sqlite</a> — pending videos written</div>
+  </div>
+
+  <div class="arrow">▼</div>
+
+  <!-- STAGE 2: Transcript Fetch -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-num">2</div>
+      <div class="stage-name">Fetch transcripts — escalation chain</div>
+      <div class="stage-skill"><a class="path-link" href="vscode://file/P:/packages/yt-is/skills/yt-dlp/SKILL.md">/yt-is fetch</a></div>
+    </div>
+    <div class="escalation-chain">
+      <div class="escalation-step">
+        <div class="step-num">1</div>
+        <div class="step-title">yt-dlp (WEB)<span class="tag tag-fast">~5s</span></div>
+        <div class="step-desc">Chrome TLS, public videos</div>
+      </div>
+      <div class="chain-arrow">›</div>
+      <div class="escalation-step">
+        <div class="step-num">2</div>
+        <div class="step-title">+ English<span class="tag tag-fast">~6s</span></div>
+        <div class="step-desc">Fallback to English captions</div>
+      </div>
+      <div class="chain-arrow">›</div>
+      <div class="escalation-step">
+        <div class="step-num">3</div>
+        <div class="step-title">+ any lang<span class="tag tag-fast">~7s</span></div>
+        <div class="step-desc">Accept any caption track</div>
+      </div>
+      <div class="chain-arrow">›</div>
+      <div class="escalation-step">
+        <div class="step-num">4</div>
+        <div class="step-title">+ cookies<span class="tag tag-medium">~10s</span></div>
+        <div class="step-desc">Firefox, age-restricted</div>
+      </div>
+      <div class="chain-arrow">›</div>
+      <div class="escalation-step">
+        <div class="step-num">5</div>
+        <div class="step-title">Selenium<span class="tag tag-medium">~20s</span></div>
+        <div class="step-desc">Full browser, bot-blocked</div>
+      </div>
+      <div class="chain-arrow">›</div>
+      <div class="escalation-step">
+        <div class="step-num">6</div>
+        <div class="step-title">NotebookLM<span class="tag tag-medium">~30s</span></div>
+        <div class="step-desc">300 sources/batch</div>
+      </div>
+      <div class="chain-arrow">›</div>
+      <div class="escalation-step">
+        <div class="step-num">7</div>
+        <div class="step-title">faster-whisper<span class="tag tag-slow">~60s</span></div>
+        <div class="step-desc">Audio transcription</div>
+      </div>
+    </div>
+    <div class="data-flow"><a class="path-link" href="vscode://file/P:/packages/yt-is/csf/cache.py">transcripts.sqlite</a> — cached transcripts keyed by video_id</div>
+  </div>
+
+  <div class="arrow">▼</div>
+
+  <!-- STAGE 3: NLM Batch -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-num">3</div>
+      <div class="stage-name">NotebookLM batch extraction</div>
+      <div class="stage-skill"><a class="path-link" href="vscode://file/P:/packages/yt-is/skills/yt-nlm/SKILL.md">/yt-nlm</a></div>
+    </div>
+    <div class="steps">
+      <div class="step">nlm login --check — verify auth</div>
+      <div class="step">nlm login --force — auto-recover if expired (no prompt)</div>
+      <div class="step">nlm notebook create "batch_transcript_{id}" — one notebook, up to 300 sources</div>
+      <div class="step">nlm source add --youtube url1 --youtube url2 ... --wait — add all sources at once</div>
+      <div class="step">nlm source content {source-id} — parallel fetch, raw JSON {value: {content: "..."}}</div>
+      <div class="step">nlm notebook delete --confirm — cleanup notebook</div>
+    </div>
+    <div class="data-flow"><a class="path-link" href="vscode://file/P:/packages/yt-is/csf/transcript.py">transcripts.sqlite</a> — results written; <a class="path-link" href="vscode://file/P:/__csf/.data/yt-is/">combined_batch_N.md</a></div>
+  </div>
+
+  <div class="arrow">▼</div>
+
+  <!-- STAGE 4: Storage -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-num">4</div>
+      <div class="stage-name">Storage &amp; outputs</div>
+    </div>
+    <div class="storage-grid">
+      <div class="storage-box">
+        <div class="label">Video tracking</div>
+        <div class="path"><a href="vscode://file/P:/packages/yt-is/csf/batch_status.py">batch_status.sqlite</a></div>
+        <p style="font-size:0.75rem; color: var(--muted); margin-top:0.25rem">channel_metadata + analysis_status tables. Pending/complete/failed per video.</p>
+      </div>
+      <div class="storage-box">
+        <div class="label">Transcript cache</div>
+        <div class="path"><a href="vscode://file/P:/packages/yt-is/csf/cache.py">transcripts.sqlite</a></div>
+        <p style="font-size:0.75rem; color: var(--muted); margin-top:0.25rem">Cached transcripts keyed by video_id. Shared by yt-dlp and NLM paths.</p>
+      </div>
+      <div class="storage-box">
+        <div class="label">Combined batches</div>
+        <div class="path"><a href="vscode://file/P:/__csf/.data/yt-is/">P:/__csf/.data/yt-is/</a></div>
+        <p style="font-size:0.75rem; color: var(--muted); margin-top:0.25rem">combined_batch_N.md — structured markdown with video ID headers.</p>
+      </div>
+      <div class="storage-box">
+        <div class="label">Batch scheduler state</div>
+        <div class="path"><a href="vscode://file/P:/packages/yt-is/csf/batch_scheduler.py">batch_status.db (WAL)</a></div>
+        <p style="font-size:0.75rem; color: var(--muted); margin-top:0.25rem">download_archive + channel_cooldown for multi-terminal round-robin.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow">▼</div>
+
+  <!-- STAGE 5: ADR Status -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-num">5</div>
+      <div class="stage-name">ADR implementation status</div>
+    </div>
+    <div class="methods">
+      <div class="method">
+        <div class="method-title"><a class="path-link" href="vscode://file/P:/packages/yt-is/.claude/arch_decisions/ADR-20260403-gemma-vision-provider.md">ADR-20260403</a> — LocalModelProvider <span class="tag tag-fast">✓ Done</span></div>
+        <p><a class="path-link" href="vscode://file/P:/packages/yt-is/csf/providers/lm_studio_provider.py">csf/providers/lm_studio_provider.py</a> — Gemma 4 via LM Studio, wired into orchestrator. 6/6 tests pass.</p>
+      </div>
+      <div class="method">
+        <div class="method-title"><a class="path-link" href="vscode://file/P:/packages/yt-is/.claude/arch_decisions/ADR-20260404-round-robin-batch-scheduler.md">ADR-20260404</a> — Round-Robin Scheduler <span class="tag tag-fast">✓ Done</span></div>
+        <p><a class="path-link" href="vscode://file/P:/packages/yt-is/csf/batch_scheduler.py">csf/batch_scheduler.py</a> — SQLite WAL, stale attempting recovery, 23/23 tests pass. All gaps closed.</p>
+      </div>
+      <div class="method">
+        <div class="method-title"><a class="path-link" href="vscode://file/P:/packages/yt-is/.claude/arch_decisions/ADR-20260410-phase2-task003-deferred.md">ADR-20260410</a> — Phase 2 Overflow Handling <span class="tag tag-fast">✓ Done</span></div>
+        <p><a class="path-link" href="vscode://file/P:/packages/yt-is/csf/transcript_phase2.py">csf/transcript_phase2.py</a> — handle_overflow() integrated in fetch_with_circuit_breaker(). 21/21 tests pass.</p>
+      </div>
+    </div>
+    <div class="note">
+      <strong>Note:</strong> SKILL.md at line 157 references non-existent ADR <code>ADR-20260410-notebooklm-ephemeral-notebooks.md</code> — broken link.
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

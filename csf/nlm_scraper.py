@@ -1,0 +1,547 @@
+#!/usr/bin/env python3
+"""NotebookLM High-Fidelity Industrial Scraper via Selenium.
+
+This module provides a high-throughput, data-efficient method for retrieving
+full, word-for-word transcripts from NotebookLM by automating the web UI.
+
+Strategy:
+1. Add sources using CLI (preserving input order).
+2. Map source IDs to video IDs by order (source list returns them in add order).
+3. Open the NotebookLM web interface once per notebook (up to 300 sources).
+4. Loop through the sidebar clicking each source and scraping the preview pane.
+5. Save directly to the transcript cache.
+
+Clears a 140k backlog in ~8-12 hours when run in parallel across terminals.
+"""
+
+import os
+import sys
+import time
+import json
+import subprocess
+from pathlib import Path
+from typing import Optional, Dict, List, Tuple
+
+# Ensure csf is in path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# cache write done by caller after scraper returns
+
+try:
+    from selenium import webdriver
+    from selenium.webdriver.firefox.options import Options as FxOptions
+    from selenium.webdriver.chrome.options import Options as ChOptions
+    from selenium.webdriver.common.by import By
+except ImportError:
+    print("Error: Selenium not installed. Run 'pip install selenium'.")
+    sys.exit(1)
+
+
+class NLMIndustrialScraper:
+    # NotebookLM Plus limit — used to detect when to clear and reuse
+    MAX_SOURCES_PER_NOTEBOOK = 300
+
+    def __init__(self, headless: bool = True):
+        self.headless = headless
+        self._driver = None
+        self._staging_nb_id: str | None = None
+        self._source_count: int = 0
+
+    def _init_driver(self):
+        if self._driver:
+            return
+
+        appdata = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or ""
+
+        # Try ms-playwright Chrome first (nlm MCP auth lives here)
+        playwright_chrome_base = os.path.join(
+            appdata, "ms-playwright", "mcp-chrome-9050243"
+        )
+        if os.path.isdir(playwright_chrome_base):
+            chrome_profile_base = playwright_chrome_base
+            profile_name = "Default"
+        else:
+            chrome_profile_base = os.path.join(appdata, "Google", "Chrome", "User Data")
+            profile_name = "default"
+
+        try:
+            opts = ChOptions()
+            if self.headless:
+                opts.add_argument("--headless=new")
+            opts.add_argument(f"--user-data-dir={chrome_profile_base}")
+            opts.add_argument(f"--profile-directory={profile_name}")
+            opts.add_argument("--no-first-run")
+            opts.add_argument("--no-default-browser-check")
+            opts.add_argument("--disable-dev-shm-usage")
+            opts.add_argument("--disable-blink-features=AutomationControlled")
+            opts.add_argument("--no-sandbox")
+            opts.add_experimental_option("excludeSwitches", ["enable-automation"])
+
+            print(f"[Industrial] Using Chrome profile: {chrome_profile_base}/{profile_name}")
+            self._driver = webdriver.Chrome(options=opts)
+        except Exception as e:
+            print(f"[Industrial] Chrome init failed ({e}), falling back to Firefox...")
+            try:
+                import glob as _glob
+                opts = FxOptions()
+                if self.headless:
+                    opts.add_argument("--headless")
+                ff_profile_base = os.path.join(appdata, "Mozilla", "Firefox", "Profiles")
+                profiles = _glob.glob(os.path.join(ff_profile_base, "*.Profile 1*"))
+                if not profiles:
+                    all_profiles = _glob.glob(os.path.join(ff_profile_base, "*"))
+                    profiles = [p for p in all_profiles if ".default" not in os.path.basename(p)]
+                if profiles:
+                    profile_path = profiles[0]
+                    print(f"[Industrial] Using Firefox profile: {Path(profile_path).name}")
+                    opts.add_argument("-profile")
+                    opts.add_argument(profile_path)
+                self._driver = webdriver.Firefox(options=opts)
+            except Exception as e2:
+                print(f"[Industrial] Firefox fallback also failed: {e2}")
+                raise RuntimeError("Could not initialize any browser driver")
+
+        self._driver.set_page_load_timeout(90)
+
+    def get_source_ids(self, notebook_id: str) -> List[str]:
+        """Get source IDs from notebook, in the same order they were added."""
+        res = subprocess.run(
+            ["nlm", "source", "list", notebook_id, "--json"],
+            capture_output=True, text=True
+        )
+        if res.returncode != 0:
+            print(f"[Industrial] CLI Error: {res.stderr}")
+            return []
+
+        try:
+            sources = json.loads(res.stdout)
+            if isinstance(sources, dict):
+                sources = sources.get("sources", [])
+            return [s["id"] for s in sources]
+        except Exception as e:
+            print(f"[Industrial] Parse Error: {e}")
+            return []
+
+    def _wait_for_transcript_ready(self, timeout: float = 20.0) -> Optional[str]:
+        """Poll for transcript content to load after clicking a source.
+
+        Returns body text when at least 200 chars of content are present
+        (indicating transcript loaded), or None on timeout.
+        """
+        waited = 0.0
+        interval = 0.5
+        while waited < timeout:
+            body = self._driver.find_element(By.TAG_NAME, "body")
+            text = body.text
+            # Check if we have substantial content (transcript loaded)
+            long_lines = [ln for ln in text.split("\n") if len(ln) > 50]
+            if sum(len(ln) for ln in long_lines) > 200:
+                return text
+            time.sleep(interval)
+            waited += interval
+        # Timeout — return whatever we have (may be empty or partial)
+        return self._driver.find_element(By.TAG_NAME, "body").text
+
+    def _extract_transcript_from_body(self, body_text: str) -> Optional[str]:
+        """Extract clean transcript text from NotebookLM source preview body text."""
+        if len(body_text) < 200:
+            return None
+        lines = body_text.split("\n")
+        transcript_lines = []
+        capture = False
+        for line in lines:
+            # Skip short lines (UI chrome)
+            if len(line) > 50:
+                capture = True
+            if capture:
+                transcript_lines.append(line)
+        transcript = "\n".join(transcript_lines)
+        # Clean trailing UI elements
+        for ui_marker in ["Save to note", "Add to note", "View source"]:
+            if ui_marker in transcript:
+                transcript = transcript.split(ui_marker)[0].strip()
+        if len(transcript) > 100:
+            return transcript
+        return None
+
+    # --- Staging notebook management (terminal-local reuse) ---
+
+    def _run_nlm(self, args: List[str], timeout: int = 300) -> subprocess.CompletedProcess:
+        """Run an nlm CLI command. Uses the system PATH."""
+        return subprocess.run(
+            ["nlm"] + args,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+
+    def _create_staging_notebook(self) -> str | None:
+        """Create a new staging notebook and return its ID."""
+        name = f"staging_{int(time.time())}"
+        res = self._run_nlm(["notebook", "create", name])
+        if res.returncode != 0:
+            print(f"[Industrial] Notebook create failed: {res.stderr}")
+            return None
+        # Parse "ID: <uuid>" from stdout
+        for line in res.stdout.split("\n"):
+            if "ID:" in line:
+                return line.split("ID:")[-1].strip()
+        # Fallback: last line if format is unexpected
+        return res.stdout.strip() or None
+
+    def _add_sources_to_staging(self, video_ids: List[str]) -> List[str] | None:
+        """Add YouTube sources to the staging notebook. Returns source IDs in add order."""
+        if not self._staging_nb_id:
+            return None
+        add_cmd = ["source", "add", self._staging_nb_id, "--wait", "--wait-timeout", "600"]
+        for vid in video_ids:
+            add_cmd.extend(["--url", f"https://www.youtube.com/watch?v={vid}"])
+        res = self._run_nlm(add_cmd, timeout=900)
+        if res.returncode != 0:
+            print(f"[Industrial] Source add failed: {res.stderr}")
+            return None
+        # Fetch source list to get IDs in order
+        return self.get_source_ids(self._staging_nb_id)
+
+    def _clear_staging_notebook(self) -> bool:
+        """Delete all sources from the staging notebook by deleting and recreating it."""
+        if not self._staging_nb_id:
+            return True
+        res = self._run_nlm(["notebook", "delete", self._staging_nb_id, "--confirm"])
+        self._staging_nb_id = None
+        self._source_count = 0
+        return res.returncode == 0
+
+    def _ensure_staging_notebook(self) -> bool:
+        """Ensure a staging notebook exists, creating one if needed or if at capacity."""
+        if self._staging_nb_id and self._source_count < self.MAX_SOURCES_PER_NOTEBOOK:
+            return True
+        if self._staging_nb_id:
+            print(f"[Industrial] Staging notebook at capacity ({self._source_count}), clearing...")
+            self._clear_staging_notebook()
+        nb_id = self._create_staging_notebook()
+        if not nb_id:
+            return False
+        self._staging_nb_id = nb_id
+        self._source_count = 0
+        print(f"[Industrial] Staging notebook ready: {nb_id}")
+        return True
+
+    def scrape_with_staging(
+        self,
+        video_ids: List[str],
+    ) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
+        """Scrape transcripts using a terminal-local staging notebook.
+
+        Reuses a single staging notebook across calls, adding sources until
+        approaching the 300-limit, then clearing and recreating.
+
+        Args:
+            video_ids: YouTube video IDs in the order they should be added.
+
+        Returns:
+            dict mapping video_id -> (success, transcript_text, error)
+        """
+        if not self._ensure_staging_notebook():
+            return {vid: (False, None, "staging notebook unavailable") for vid in video_ids}
+
+        # Check how many we can add before hitting the limit
+        remaining = self.MAX_SOURCES_PER_NOTEBOOK - self._source_count
+        if len(video_ids) > remaining:
+            # Add as many as will fit, then recursively handle the rest
+            batch_ids = video_ids[:remaining] if remaining > 0 else []
+            rest = video_ids if remaining == 0 else video_ids[remaining:]
+        else:
+            batch_ids = video_ids
+            rest = []
+
+        # Add sources to staging notebook
+        source_ids = self._add_sources_to_staging(batch_ids)
+        if not source_ids:
+            return {vid: (False, None, "source add failed") for vid in batch_ids}
+
+        self._source_count += len(batch_ids)
+
+        # Map video_ids -> source_ids by position
+        vid_to_src: Dict[str, str] = {}
+        for i, vid in enumerate(batch_ids):
+            if i < len(source_ids):
+                vid_to_src[vid] = source_ids[i]
+
+        # Scrape the newly added sources
+        results = self._scrape_sources(vid_to_src)
+
+        # Iteratively process any remaining videos (overflow into next notebook)
+        while rest:
+            if not self._ensure_staging_notebook():
+                # Record failures for all remaining videos
+                for vid in rest:
+                    results[vid] = (False, None, "staging notebook unavailable")
+                break
+            remaining = self.MAX_SOURCES_PER_NOTEBOOK
+            batch_ids = rest[:remaining]
+            rest = rest[remaining:]
+            source_ids = self._add_sources_to_staging(batch_ids)
+            if not source_ids:
+                for vid in batch_ids:
+                    results[vid] = (False, None, "source add failed")
+                continue
+            self._source_count += len(batch_ids)
+            vid_to_src = {vid: sid for vid, sid in zip(batch_ids, source_ids) if len(source_ids) > batch_ids.index(vid)}
+            results.update(self._scrape_sources(vid_to_src))
+
+        return results
+
+    def _scrape_sources(
+        self,
+        vid_to_src: Dict[str, str],
+    ) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
+        """Scrape a set of already-mapped video_id -> source_id pairs from the open notebook."""
+        if not self._staging_nb_id:
+            return {vid: (False, None, "no staging notebook") for vid in vid_to_src}
+
+        url = f"https://notebooklm.google.com/notebook/{self._staging_nb_id}"
+        self._driver.get(url)
+        time.sleep(15)
+
+        # Click Sources tab
+        try:
+            tabs = self._driver.find_elements(By.CSS_SELECTOR, '[role="tab"]')
+            for tab in tabs:
+                if tab.text.strip() == "Sources":
+                    self._driver.execute_script(
+                        "arguments[0].scrollIntoView({block:'center'});", tab
+                    )
+                    time.sleep(0.3)
+                    self._driver.execute_script("arguments[0].click();", tab)
+                    time.sleep(1)
+                    print("[Industrial] Switched to Sources tab")
+                    break
+        except Exception as e:
+            print(f"[Industrial] Could not click Sources tab: {e}")
+
+        results: Dict[str, Tuple[bool, Optional[str], Optional[str]]] = {}
+
+        for idx, (vid, source_id) in enumerate(vid_to_src.items(), 1):
+            print(f"[{idx}/{len(vid_to_src)}] Scraping: {vid[:20]}...", end=" ", flush=True)
+
+            try:
+                buttons = self._driver.find_elements(By.TAG_NAME, "button")
+                source_buttons = [
+                    btn
+                    for btn in buttons
+                    if btn.get_attribute("aria-label")
+                    and len(btn.get_attribute("aria-label") or "") > 20
+                    and not btn.text.strip()
+                ]
+
+                if idx <= len(source_buttons):
+                    target_btn = source_buttons[idx - 1]
+                    self._driver.execute_script(
+                        "arguments[0].scrollIntoView({block:'center'});", target_btn
+                    )
+                    time.sleep(0.3)
+                    self._driver.execute_script("arguments[0].click();", target_btn)
+                    print("✓ ", end="", flush=True)
+                    body_text = self._wait_for_transcript_ready(timeout=20.0)
+                    transcript = self._extract_transcript_from_body(body_text)
+
+                    if transcript:
+                        results[vid] = (True, transcript, None)
+                        print(f"{len(transcript)} chars")
+                    else:
+                        results[vid] = (False, None, "content too short or empty")
+                        print("✗ too short")
+
+                    # Navigate back for next iteration
+                    try:
+                        back_btn = None
+                        for b in self._driver.find_elements(By.TAG_NAME, "button"):
+                            if b.get_attribute("aria-label") == "Back":
+                                back_btn = b
+                                break
+                        if back_btn:
+                            self._driver.execute_script("arguments[0].click();", back_btn)
+                            time.sleep(1.5)
+                    except Exception:
+                        pass
+
+                else:
+                    results[vid] = (False, None, "source button not found")
+                    print("✗ button not found")
+
+            except Exception as e:
+                results[vid] = (False, None, str(e))
+                print(f"✗ {e}")
+
+        return results
+
+    # --- Original per-notebook scrape (kept for explicit --notebook usage) ---
+
+    def scrape_notebook(
+        self,
+        notebook_id: str,
+        video_ids: List[str],
+    ) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
+        """Scrape transcripts from all sources in a notebook.
+
+        Args:
+            notebook_id: The NotebookLM notebook ID. Pass "staging" (or any falsy
+                         value when used via scrape_with_staging) to use the
+                         terminal-local staging notebook instead.
+            video_ids: The input video IDs in the SAME ORDER they were added.
+                       Source IDs are mapped to video IDs by position.
+
+        Returns:
+            dict mapping video_id -> (success, transcript_text, error)
+        """
+        # Auto-use staging notebook when called without an explicit notebook
+        # (e.g. from batch.py which doesn't pass notebook_id directly)
+        if not notebook_id or notebook_id == "staging":
+            return self.scrape_with_staging(video_ids)
+
+        source_ids = self.get_source_ids(notebook_id)
+        if not source_ids:
+            return {vid: (False, None, "no sources found") for vid in video_ids}
+
+        vid_to_src: Dict[str, str] = {}
+        for i, vid in enumerate(video_ids):
+            if i < len(source_ids):
+                vid_to_src[vid] = source_ids[i]
+
+        missing = [v for v in video_ids if v not in vid_to_src]
+        if missing:
+            print(f"[Industrial] Warning: {len(missing)} video IDs have no source mapping")
+
+        self._init_driver()
+        url = f"https://notebooklm.google.com/notebook/{notebook_id}"
+        print(f"[Industrial] Opening {url}...")
+        self._driver.get(url)
+
+        # Initial wait for heavy UI load
+        time.sleep(15)
+
+        # Click the Sources tab to reveal the source list
+        try:
+            tabs = self._driver.find_elements(By.CSS_SELECTOR, '[role="tab"]')
+            for tab in tabs:
+                if tab.text.strip() == 'Sources':
+                    self._driver.execute_script("arguments[0].scrollIntoView({block:'center'});", tab)
+                    time.sleep(0.3)
+                    self._driver.execute_script("arguments[0].click();", tab)
+                    # Wait for tab content to render (not transcript — just UI switch)
+                    time.sleep(1)
+                    print("[Industrial] Switched to Sources tab")
+                    break
+        except Exception as e:
+            print(f"[Industrial] Could not click Sources tab: {e}")
+
+        results: Dict[str, Tuple[bool, Optional[str], Optional[str]]] = {}
+
+        for idx, (vid, source_id) in enumerate(vid_to_src.items(), 1):
+            print(f"[{idx}/{len(vid_to_src)}] Scraping: {vid[:20]}...", end=" ", flush=True)
+
+            try:
+                # Refresh button list after each back-navigation
+                buttons = self._driver.find_elements(By.TAG_NAME, "button")
+                source_buttons = [
+                    btn for btn in buttons
+                    if btn.get_attribute("aria-label")
+                    and len(btn.get_attribute("aria-label") or "") > 20
+                    and not btn.text.strip()
+                ]
+
+                if idx <= len(source_buttons):
+                    target_btn = source_buttons[idx - 1]
+                    self._driver.execute_script("arguments[0].scrollIntoView({block:'center'});", target_btn)
+                    time.sleep(0.3)
+                    self._driver.execute_script("arguments[0].click();", target_btn)
+                    print("✓ ", end="", flush=True)
+                    # Dynamically wait for transcript content (poll every 0.5s, up to 20s)
+                    body_text = self._wait_for_transcript_ready(timeout=20.0)
+                    transcript = self._extract_transcript_from_body(body_text)
+
+                    if transcript:
+                        results[vid] = (True, transcript, None)
+                        print(f"{len(transcript)} chars")
+                    else:
+                        results[vid] = (False, None, "content too short or empty")
+                        print("✗ too short")
+
+                    # Go back to source list for next iteration
+                    try:
+                        back_btn = None
+                        for b in self._driver.find_elements(By.TAG_NAME, "button"):
+                            if b.get_attribute("aria-label") == "Back":
+                                back_btn = b
+                                break
+                        if back_btn:
+                            self._driver.execute_script("arguments[0].click();", back_btn)
+                            time.sleep(1.5)
+                    except Exception:
+                        pass  # Back button may not exist if we're already in list view
+
+                else:
+                    results[vid] = (False, None, "source button not found")
+                    print("✗ button not found")
+
+            except Exception as e:
+                results[vid] = (False, None, str(e))
+                print(f"✗ {e}")
+
+        return results
+
+    def close(self):
+        if self._driver:
+            self._driver.quit()
+            self._driver = None
+        if self._staging_nb_id:
+            self._clear_staging_notebook()
+        self._staging_nb_id = None
+        self._source_count = 0
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="NotebookLM Industrial Scraper")
+    parser.add_argument(
+        "--notebook",
+        help="Notebook ID (omit to use terminal-local staging notebook)",
+    )
+    parser.add_argument(
+        "--video-ids",
+        help="Comma-separated video IDs in add order (required)",
+    )
+    parser.add_argument("--no-headless", action="store_true", help="Run with visible browser")
+    parser.add_argument(
+        "--staging",
+        action="store_true",
+        help="Force use of terminal-local staging notebook (default when no --notebook)",
+    )
+    args = parser.parse_args()
+
+    video_ids: List[str] = []
+    if args.video_ids:
+        video_ids = args.video_ids.split(",")
+    else:
+        print("Error: --video-ids is required")
+        sys.exit(1)
+
+    scraper = NLMIndustrialScraper(headless=not args.no_headless)
+    try:
+        if args.staging or not args.notebook:
+            # Staging mode: uses persistent per-terminal staging notebook
+            results = scraper.scrape_with_staging(video_ids)
+        else:
+            # Explicit notebook mode
+            results = scraper.scrape_notebook(args.notebook, video_ids)
+        print("\nResults:")
+        for vid, (ok, text, err) in results.items():
+            status = f"OK {len(text) if text else 0} chars" if ok else f"FAIL: {err}"
+            print(f"  {vid}: {status}")
+    finally:
+        scraper.close()
+
+
+if __name__ == "__main__":
+    main()

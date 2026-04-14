@@ -15,6 +15,7 @@ _JITTER_MIN = 2.0
 _JITTER_MAX = 10.0
 _COOLDOWN_SECONDS = 300  # 5 minutes per ADR
 _STALE_ATTEMPTING_SECONDS = 1800  # 30 minutes
+_RETRY_FAILED_SECONDS = 86400  # 24 hours
 
 
 class BatchScheduler:
@@ -208,13 +209,20 @@ class BatchScheduler:
                     continue
 
                 # Get one pending video from this channel
+                # RETRY LOGIC: Allow videos that failed more than 24 hours ago to be retried
+                # by excluding only success/attempting/recent-failed from the pending pool.
+                retry_cutoff = time.time() - _RETRY_FAILED_SECONDS
                 conn = sqlite3.connect(self._db_path)
                 cursor = conn.execute(
                     """SELECT video_id FROM analysis_status
                        WHERE source=? AND status='pending'
-                       AND video_id NOT IN (SELECT video_id FROM download_archive)
+                       AND video_id NOT IN (
+                           SELECT video_id FROM download_archive 
+                           WHERE status IN ('success', 'attempting')
+                           OR (status='failed' AND attempted_at > ?)
+                       )
                        ORDER BY published_at ASC LIMIT 1""",
-                    (channel,),
+                    (channel, retry_cutoff),
                 )
                 row = cursor.fetchone()
                 conn.close()

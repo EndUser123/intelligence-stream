@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>yt-is — Intelligence Pipeline v3.4 (Final)</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --card: #f3f4f6;
+      --border: #d1d5db;
+      --text: #111827;
+      --muted: #6b7280;
+      --accent: #2563eb;
+      --green: #16a34a;
+      --amber: #d97706;
+      --red: #dc2626;
+      --purple: #7c3aed;
+      --cyan: #0891b2;
+      --link: #2563eb;
+      --toc-width: 240px;
+    }
+    [data-theme="dark"] {
+      --bg: #0f1117;
+      --card: #1a1d27;
+      --border: #2a2d3a;
+      --text: #e4e4e7;
+      --muted: #71717a;
+      --accent: #60a5fa;
+      --green: #4ade80;
+      --amber: #fbbf24;
+      --red: #f87171;
+      --purple: #c084fc;
+      --cyan: #22d3ee;
+      --link: #60a5fa;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+      display: flex;
+    }
+
+    /* ── TOC sidebar ─────────────────────────────────────────── */
+    .toc {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: var(--toc-width);
+      height: 100vh;
+      overflow-y: auto;
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      padding: 2rem 1rem;
+      z-index: 200;
+      font-size: 0.8rem;
+      transition: transform 0.25s ease;
+    }
+    .toc.collapsed {
+      transform: translateX(calc(-1 * var(--toc-width)));
+    }
+    .toc-toggle-btn {
+      position: fixed;
+      left: calc(var(--toc-width) - 16px);
+      top: 0.75rem;
+      width: 24px;
+      height: 28px;
+      background: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 201;
+      transition: left 0.25s ease, opacity 0.15s;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.3);
+    }
+    body.toc-hidden .toc-toggle-btn {
+      left: 0;
+    }
+    .toc-toggle-btn:hover {
+      opacity: 0.85;
+    }
+    .toc h3 {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+    .toc a {
+      display: block;
+      color: var(--text);
+      text-decoration: none;
+      padding: 0.3rem 0.6rem;
+      border-radius: 6px;
+      margin-bottom: 0.15rem;
+      transition: background 0.15s;
+      border-left: 2px solid transparent;
+    }
+    .toc a:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+    .toc a.active {
+      background: var(--accent);
+      color: #fff;
+      border-left-color: #fff;
+    }
+
+    /* ── Main content ────────────────────────────────────────── */
+    .content {
+      margin-left: var(--toc-width);
+      padding: 2rem 2.5rem 4rem;
+      width: calc(100% - var(--toc-width));
+      max-width: 900px;
+      transition: margin-left 0.25s ease, max-width 0.25s ease, width 0.25s ease;
+    }
+    body.toc-hidden .content {
+      margin-left: 0;
+      width: 100%;
+      max-width: none;
+    }
+
+    /* ── Header ──────────────────────────────────────────────── */
+    .header {
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 {
+      font-size: 1.75rem;
+      margin-bottom: 0.25rem;
+      color: var(--accent);
+    }
+    h2 {
+      font-size: 1.1rem;
+      margin-bottom: 0;
+      color: var(--muted);
+      font-weight: 400;
+    }
+    .highlight {
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    /* ── Theme toggle ────────────────────────────────────────── */
+    .toggle-wrap {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      z-index: 300;
+    }
+    .toggle-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .toggle {
+      width: 44px;
+      height: 24px;
+      background: var(--border);
+      border-radius: 12px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle::after {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      background: white;
+      border-radius: 50%;
+      top: 3px;
+      left: 3px;
+      transition: transform 0.2s;
+    }
+    [data-theme="dark"] .toggle { background: var(--accent); }
+    [data-theme="dark"] .toggle::after { transform: translateX(20px); }
+
+    /* ── Mermaid container ───────────────────────────────────── */
+    .mermaid-container {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      overflow-x: auto;
+    }
+    .mermaid-container svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* ── Legend ──────────────────────────────────────────────── */
+    .legend {
+      display: flex;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+      margin-bottom: 2rem;
+      font-size: 0.75rem;
+      padding: 0.5rem 0;
+    }
+    .legend-item { display: flex; align-items: center; gap: 0.35rem; }
+    .legend-dot {
+      width: 0.65rem; height: 0.65rem;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── Section headers ─────────────────────────────────────── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 2.5rem 0 1.25rem;
+    }
+    .section-header h3 {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .section-header .line {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Stage cards (collapsible) ───────────────────────────── */
+    .stages {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .stage {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: box-shadow 0.2s;
+    }
+    .stage:hover {
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    }
+    .stage-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem 1.5rem;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+    }
+    .stage-header:hover {
+      background: var(--bg);
+    }
+    .stage-num {
+      background: var(--accent);
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 700;
+      width: 1.5rem;
+      height: 1.5rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .stage-name { font-weight: 600; font-size: 1rem; }
+    .stage-skill {
+      margin-left: auto;
+      background: var(--accent);
+      color: white;
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+    }
+    .stage-skill a.path-link { color: white; text-decoration: none; }
+    .stage-skill a.path-link:hover { text-decoration: underline; }
+
+    /* Collapse chevron */
+    .stage-chevron {
+      color: var(--muted);
+      font-size: 0.7rem;
+      transition: transform 0.25s ease;
+      flex-shrink: 0;
+      margin-left: 0.5rem;
+    }
+    .stage.collapsed .stage-chevron {
+      transform: rotate(-90deg);
+    }
+
+    /* Collapsible body */
+    .stage-body {
+      padding: 0 1.5rem 1.25rem;
+      max-height: 800px;
+      overflow: hidden;
+      transition: max-height 0.35s ease, padding 0.35s ease, opacity 0.25s ease;
+      opacity: 1;
+    }
+    .stage.collapsed .stage-body {
+      max-height: 0;
+      padding-top: 0;
+      opacity: 0;
+    }
+
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin-bottom: 0.6rem;
+    }
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+    .step::before {
+      content: '\203A';
+      color: var(--accent);
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .data-flow {
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-family: 'Fira Code', 'Cascadia Code', monospace;
+      background: var(--bg);
+      padding: 0.4rem 0.7rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .data-flow::before { content: '\2192 '; color: var(--accent); }
+
+    /* ── Escalation ladder visual ────────────────────────────── */
+    .ladder {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin: 0.75rem 0;
+    }
+    .rung {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      position: relative;
+    }
+    .rung:nth-child(odd) { background: var(--bg); }
+    .rung-label {
+      background: var(--green);
+      color: #fff;
+      font-size: 0.6rem;
+      font-weight: 700;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      flex-shrink: 0;
+      min-width: 3.5rem;
+      text-align: center;
+    }
+    .rung-name { font-weight: 600; }
+    .rung-desc {
+      color: var(--muted);
+      font-size: 0.775rem;
+      display: block;
+      margin-top: 0.1rem;
+    }
+    .rung-arrow {
+      text-align: center;
+      color: var(--border);
+      font-size: 0.85rem;
+      padding: 0.05rem 0 0.05rem 3.5rem;
+    }
+
+    /* ── Provider cards grid ─────────────────────────────────── */
+    .provider-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.6rem;
+      margin: 0.75rem 0;
+    }
+    .provider-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+    }
+    .provider-card .pname {
+      font-weight: 600;
+      font-size: 0.85rem;
+      margin-bottom: 0.3rem;
+    }
+    .provider-card .pdesc {
+      font-size: 0.75rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    /* ── Storage boxes ───────────────────────────────────────── */
+    .storage-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 0.6rem;
+      margin-top: 0.75rem;
+    }
+    .storage-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+    }
+    .storage-box .label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 0.2rem;
+      font-weight: 600;
+    }
+    .storage-box .path {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.7rem;
+    }
+    .storage-box .path a {
+      color: var(--link);
+      text-decoration: none;
+    }
+    .storage-box .path a:hover { text-decoration: underline; }
+    .storage-box .detail {
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-top: 0.2rem;
+    }
+
+    /* ── Note box ────────────────────────────────────────────── */
+    .note {
+      font-size: 0.8rem;
+      color: var(--muted);
+      padding: 0.75rem 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-top: 1rem;
+      line-height: 1.6;
+    }
+    .note strong { color: var(--amber); }
+    .note code {
+      background: var(--card);
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      font-size: 0.75rem;
+      font-family: 'Fira Code', monospace;
+    }
+
+    /* ── Stat badges (with tooltips) ─────────────────────────── */
+    .stats {
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+    .stat {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      text-align: center;
+      flex: 1;
+      min-width: 120px;
+      position: relative;
+      cursor: default;
+    }
+    .stat:hover {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .stat-value {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .stat-label {
+      font-size: 0.65rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 0.15rem;
+    }
+    /* Tooltip */
+    .stat .tooltip-box {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.725rem;
+      color: var(--text);
+      line-height: 1.4;
+      width: max-content;
+      max-width: 220px;
+      text-align: left;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      z-index: 10;
+      pointer-events: none;
+    }
+    .stat:hover .tooltip-box {
+      display: block;
+    }
+    .stat .tooltip-box::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 6px solid transparent;
+      border-top-color: var(--border);
+    }
+
+    /* ── Arrow between sections ──────────────────────────────── */
+    .arrow-down {
+      text-align: center;
+      color: var(--border);
+      font-size: 1.25rem;
+      padding: 0.25rem 0;
+    }
+
+    /* ── Footer ──────────────────────────────────────────────── */
+    .footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    .footer a {
+      color: var(--link);
+      text-decoration: none;
+    }
+    .footer a:hover { text-decoration: underline; }
+
+    /* ── Responsive ──────────────────────────────────────────── */
+    @media (max-width: 800px) {
+      .toc { transform: translateX(calc(-1 * var(--toc-width))); }
+      .toc.collapsed { transform: translateX(0); }
+      .content { margin-left: 0; padding: 1.5rem; }
+    }
+
+    /* ── Misc ────────────────────────────────────────────────── */
+    code {
+      font-family: 'Fira Code', monospace;
+      background: var(--card);
+      padding: 0.05rem 0.3rem;
+      border-radius: 3px;
+      font-size: 0.8em;
+    }
+  </style>
+</head>
+<body>
+
+<!-- TOC toggle button -->
+<button class="toc-toggle-btn" id="tocToggle" title="Toggle sidebar">&#9776;</button>
+
+<!-- TOC sidebar -->
+<nav class="toc" id="toc">
+  <h3>Pipeline v3.4</h3>
+  <a href="#diagram" data-section="diagram">Diagram</a>
+  <a href="#discovery" data-section="discovery">Discovery</a>
+  <a href="#ingest" data-section="ingest">Ingest</a>
+  <a href="#ingest-escalation" data-section="ingest-escalation">Escalation Chain</a>
+  <a href="#cache" data-section="cache">Transcript Cache</a>
+  <a href="#analysis" data-section="analysis">Analysis</a>
+  <a href="#storage" data-section="storage">Storage</a>
+</nav>
+
+<!-- Theme toggle -->
+<div class="toggle-wrap">
+  <span class="toggle-label">&#9728;&#65039;</span>
+  <div class="toggle" id="themeToggle"></div>
+  <span class="toggle-label">&#127769;</span>
+</div>
+
+<!-- Main content -->
+<div class="content">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>yt-is \u2014 YouTube Intelligence Pipeline</h1>
+    <h2>Industrial Suite: <span class="highlight">Escalation Chain + Provider Selection</span></h2>
+  </div>
+
+  <!-- Key stats with tooltips -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value">18K/hr</div>
+      <div class="stat-label">Industrial throughput</div>
+      <div class="tooltip-box"><code>nlm_batch.py</code> creates notebooks with 300 sources, fetches via <code>nlm source content</code> (no credits)</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">99%</div>
+      <div class="stat-label">NLM batch SNR</div>
+      <div class="tooltip-box">Google Cloud RAG provides clean transcripts with minimal page noise</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">6</div>
+      <div class="stat-label">Escalation stages</div>
+      <div class="tooltip-box">yt-dlp \u2192 cookies \u2192 NLM batch \u2192 Selenium \u2192 Whisper \u2192 direct API</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">4</div>
+      <div class="stat-label">Analysis providers</div>
+      <div class="tooltip-box">local_model \u2192 gemini_sdk \u2192 ocr_clip \u2192 transcript, failure-aware routing</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">5</div>
+      <div class="stat-label">Max retries</div>
+      <div class="tooltip-box">Exponential backoff in <code>retry_queue.sqlite</code>, 24hr cap</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- DIAGRAM                                                -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="diagram" class="section-header">
+    <h3>Architecture Diagram</h3>
+    <div class="line"></div>
+  </div>
+
+  <div class="mermaid-container">
+    <pre class="mermaid" id="pipelineDiagram">
+flowchart TD
+    RSS["RSS Feeds"] --> Gap{"Gap Detection"}
+    Gap -->|Gaps| YDAPI["YouTube Data API"]
+    Gap -->|OK| BatchDB[("batch_status.sqlite")]
+    YDAPI --> BatchDB
+
+    BatchDB --> Triage{"Triage Mode"}
+    Triage -->|Single / Targeted| YTDLPTLS["yt-dlp + TLS"]
+    Triage -->|Backlog| NLMBatch["nlm_batch.py"]
+
+    YTDLPTLS -->|Success| E1[("transcripts.sqlite")]
+    YTDLPTLS -->|Bot blocked| YTDLPCookie["yt-dlp + cookies"]
+    YTDLPCookie -->|Success| E1
+    YTDLPCookie -->|Cloud reject| NLMBatch
+
+    NLMBatch -->|Success| E1
+    NLMBatch -->|CLI reject| NLMScraper["nlm_scraper.py"]
+    NLMScraper -->|Success| E1
+    NLMScraper -->|UI block| Selenium["Selenium Firefox"]
+    Selenium -->|Success| E1
+    Selenium -->|No captions| Whisper["faster-whisper"]
+    Whisper -->|Success| E1
+    Whisper -->|No audio| DirectAPI["youtube-transcript-api"]
+    DirectAPI -->|Success| E1
+
+    E1 --> Cached{"Cached?"}
+    Cached --> ProvSel{"Select Provider"}
+
+    ProvSel --> PLocal["local_model"]
+    ProvSel --> PGemini["gemini_sdk"]
+    ProvSel --> POCR["ocr_clip"]
+    ProvSel --> PTrans["transcript"]
+
+    PLocal --> Result["VideoAnalysisResult"]
+    PGemini --> Result
+    POCR --> Result
+    PTrans --> Result
+    PTrans -.->|fetch chain| YTDLPTLS
+
+    Result --> Done["Mark complete"]
+    Done --> BatchDB
+
+    RetryQ[("retry_queue")] -.->|on fail| Done
+    ProvSel -.->|failure history| PScore[("provider_score")]
+    </pre>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div> Discovery</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div> Entry (Surgical / Industrial)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Success paths</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> Fallback paths</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--cyan)"></div> Analysis</div>
+    <div class="legend-item"><span style="color:var(--muted);font-style:italic;font-size:0.7rem">- - →</span> Side system</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- DISCOVERY                                              -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="discovery" class="section-header">
+    <h3>Discovery</h3>
+    <div class="line"></div>
+  </div>
+
+  <div class="stages">
+    <div class="stage" id="discovery-gap">
+      <div class="stage-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <div class="stage-num">1</div>
+        <span class="stage-name">RSS Polling &amp; Gap Detection</span>
+        <span class="stage-skill"><a class="path-link" href="../csf/source_enumerator.py">source_enumerator.py</a></span>
+        <span class="stage-chevron">&#9660;</span>
+      </div>
+      <div class="stage-body">
+        <div class="steps">
+          <div class="step">Poll RSS feeds — 15 most recent videos per tracked channel (free, no auth)</div>
+          <div class="step">Compare RSS IDs against <code>analysis_status</code> table. No overlap = gap detected</div>
+          <div class="step">Backfill via YouTube Data API v3 <code>publishedAfter</code> cursor (50/page, max 1000 videos)</div>
+          <div class="step">Write new entries to <code>batch_status.sqlite</code> as <code>status='pending'</code></div>
+        </div>
+        <div class="data-flow">RSS → Gap Detection → YouTube Data API → batch_status.sqlite</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down">&#8595;</div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- INGEST                                                 -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="ingest" class="section-header">
+    <h3>Ingest</h3>
+    <div class="line"></div>
+  </div>
+
+  <div class="stages">
+    <div class="stage" id="ingest-entry">
+      <div class="stage-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <div class="stage-num">2</div>
+        <span class="stage-name">Entry Points</span>
+        <span class="stage-chevron">&#9660;</span>
+      </div>
+      <div class="stage-body">
+        <div class="steps">
+          <div class="step"><strong>Industrial (<code>/yt-nlm</code>)</strong> — <code>nlm_batch.py</code> creates notebooks with up to 300 sources, fetches raw transcripts via <code>nlm source content</code> (no credits consumed). ~18K videos/hr, 99% SNR.</div>
+          <div class="step"><strong>Surgical (<code>/yt-channel fetch</code>)</strong> — <code>transcript.py</code> single-video fetch for targeted requests. ~720 videos/hr, lower SNR.</div>
+          <div class="step">Both paths feed the same <code>fetch_transcript_chain()</code> escalation ladder</div>
+        </div>
+        <div class="data-flow">batch_status.sqlite → /yt-nlm | /yt-channel fetch → escalation chain</div>
+      </div>
+    </div>
+
+    <div class="stage" id="ingest-escalation">
+      <div class="stage-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <div class="stage-num">3</div>
+        <span class="stage-name">Escalation Chain</span>
+        <span class="stage-skill"><a class="path-link" href="../csf/transcript.py">transcript.py</a></span>
+        <span class="stage-chevron">&#9660;</span>
+      </div>
+      <div class="stage-body">
+        <div class="ladder">
+          <div class="rung">
+            <span class="rung-label">Stage 1</span>
+            <div><span class="rung-name">yt-dlp + curl-cffi</span><span class="rung-desc">WEB client, TLS impersonation, ~5s</span></div>
+          </div>
+          <div class="rung-arrow">&#8600;</div>
+          <div class="rung">
+            <span class="rung-label">Stage 2</span>
+            <div><span class="rung-name">yt-dlp + Firefox cookies</span><span class="rung-desc">EJS challenge resolver for bot-checked / age-restricted videos</span></div>
+          </div>
+          <div class="rung-arrow">&#8600;</div>
+          <div class="rung">
+            <span class="rung-label">Stage 3</span>
+            <div><span class="rung-name">NotebookLM Industrial Batch</span><span class="rung-desc">Up to 300 src/notebook, 15 parallel workers, AuthRateLimiter + CookieFreshnessTracker</span></div>
+          </div>
+          <div class="rung-arrow">&#8600;</div>
+          <div class="rung">
+            <span class="rung-label">Stage 4</span>
+            <div><span class="rung-name">Selenium Firefox</span><span class="rung-desc">Headless browser, dirty output (~40% SNR from page noise)</span></div>
+          </div>
+          <div class="rung-arrow">&#8600;</div>
+          <div class="rung">
+            <span class="rung-label">Stage 5</span>
+            <div><span class="rung-name">faster-whisper</span><span class="rung-desc">Audio transcription, medium model, CPU, int8 quantization</span></div>
+          </div>
+          <div class="rung-arrow">&#8600;</div>
+          <div class="rung">
+            <span class="rung-label">Stage 6</span>
+            <div><span class="rung-name">youtube-transcript-api</span><span class="rung-desc">Direct captions API, prefers non-generated English</span></div>
+          </div>
+        </div>
+        <div class="note">
+          <strong>Circuit breaker:</strong> 3 consecutive 429s → 5-minute source cooldown.
+          Jitter: <code>random.uniform(2.0, 10.0) * min(2^count, 32)</code>.
+          <code>YTIS_WHISPER_ENABLED</code> env var controls Stage 5 (default: <code>true</code>).
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down">&#8595;</div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- CACHE                                                  -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="cache" class="section-header">
+    <h3>Cache</h3>
+    <div class="line"></div>
+  </div>
+
+  <div class="stages">
+    <div class="stage">
+      <div class="stage-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <div class="stage-num">4</div>
+        <span class="stage-name">Transcript Cache</span>
+        <span class="stage-chevron">&#9660;</span>
+      </div>
+      <div class="stage-body">
+        <div class="steps">
+          <div class="step">Every successful escalation stage writes to <code>transcripts.sqlite</code></div>
+          <div class="step">Keyed by <code>video_id : lang : source</code>, WAL mode — shared across all terminals</div>
+          <div class="step">Analysis layer checks <code>has_cached_transcript()</code> before selecting a provider</div>
+        </div>
+        <div class="data-flow">Escalation → transcripts.sqlite → cache lookup on analysis</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down">&#8595;</div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- ANALYSIS                                               -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="analysis" class="section-header">
+    <h3>Analysis</h3>
+    <div class="line"></div>
+  </div>
+
+  <div class="stages">
+    <div class="stage" id="analysis-select">
+      <div class="stage-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <div class="stage-num">5</div>
+        <span class="stage-name">Provider Selection</span>
+        <span class="stage-skill"><a class="path-link" href="../csf/orchestrator.py">orchestrator.py</a></span>
+        <span class="stage-chevron">&#9660;</span>
+      </div>
+      <div class="stage-body">
+        <div class="steps">
+          <div class="step"><strong>Cache first:</strong> if transcript already cached, route directly to <code>TranscriptProvider</code> (zero API cost)</div>
+          <div class="step"><strong>Build candidates:</strong> <code>local_model → gemini_sdk → ocr_clip → transcript</code></div>
+          <div class="step"><strong>Failure-aware reorder:</strong> per-channel <code>provider_score</code> table adjusts priority based on historical success rate</div>
+          <div class="step"><strong>Instantiate</strong> the first available provider — not hardcoded, adapts per channel</div>
+        </div>
+        <div class="data-flow">transcripts.sqlite → cache check → select_provider() → failure-aware routing</div>
+      </div>
+    </div>
+
+    <div class="stage" id="analysis-run">
+      <div class="stage-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <div class="stage-num">6</div>
+        <span class="stage-name">Provider Execution</span>
+        <span class="stage-chevron">&#9660;</span>
+      </div>
+      <div class="stage-body">
+        <div class="provider-grid">
+          <div class="provider-card">
+            <div class="pname">&#128187; local_model</div>
+            <div class="pdesc">LM Studio local inference. No API cost, no network required.</div>
+          </div>
+          <div class="provider-card">
+            <div class="pname">&#129302; gemini_sdk</div>
+            <div class="pdesc">Full multi-modal analysis via <code>bin/csf-analyze</code>. Quota-tracked.</div>
+          </div>
+          <div class="provider-card">
+            <div class="pname">&#128065; ocr_clip</div>
+            <div class="pdesc">Captures frames, runs OCR for code snippets + CLIP for visual tags, then summarizes.</div>
+          </div>
+          <div class="provider-card">
+            <div class="pname">&#128196; transcript</div>
+            <div class="pdesc">Calls <code>fetch_transcript_chain()</code> then <code>summarize()</code> via Gemini CLI LLM.</div>
+          </div>
+        </div>
+        <div class="data-flow">Provider → VideoAnalysisResult → mark complete in batch_status</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down">&#8595;</div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- STORAGE                                                -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="storage" class="section-header">
+    <h3>Storage</h3>
+    <div class="line"></div>
+  </div>
+
+  <div class="stages">
+    <div class="stage">
+      <div class="stage-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <div class="stage-num">&#128451;</div>
+        <span class="stage-name">Persistent Storage</span>
+        <span class="stage-chevron">&#9660;</span>
+      </div>
+      <div class="stage-body">
+        <div class="storage-grid">
+          <div class="storage-box">
+            <div class="label">Batch Status</div>
+            <div class="path"><a href="../data/batch_status.sqlite">data/batch_status.sqlite</a></div>
+            <div class="detail">analysis_status, download_archive, channel_cooldown, provider_score, nlm_export_state</div>
+          </div>
+          <div class="storage-box">
+            <div class="label">Transcript Cache</div>
+            <div class="path"><a href="../data/transcripts.sqlite">data/transcripts.sqlite</a></div>
+            <div class="detail">Keyed by video_id : lang : source, WAL mode</div>
+          </div>
+          <div class="storage-box">
+            <div class="label">Retry Queue</div>
+            <div class="path"><a href="../data/retry_queue.sqlite">data/retry_queue.sqlite</a></div>
+            <div class="detail">5 retries max, exponential backoff, 24hr cap</div>
+          </div>
+          <div class="storage-box">
+            <div class="label">Quota Tracker</div>
+            <div class="path"><a href="../data/quota.sqlite">data/quota.sqlite</a></div>
+            <div class="detail">Gemini API calls, auto-switches at 50% daily quota</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    Based on code audit of <code>csf/</code> — orchestrator.py, transcript.py, source_enumerator.py, batch.py<br>
+    <a href="pipeline_v2.html">View original diagram →</a> &middot;
+    <a href="pipeline_v2_enhanced.html">View enhanced (no extras) →</a>
+  </div>
+
+</div>
+
+<!-- ── Scripts ──────────────────────────────────────────── -->
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+  let currentTheme = 'dark';
+
+  // Resolved hex colors (CSS vars don't work in SVG setAttribute)
+  const COLORS = {
+    dark: {
+      success: '#4ade80',
+      fallback: '#f87171',
+      discovery: '#c084fc',
+      entry: '#60a5fa',
+      analysis: '#22d3ee',
+      other: '#71717a',
+      labelBg: '#1a1d27'
+    },
+    light: {
+      success: '#16a34a',
+      fallback: '#dc2626',
+      discovery: '#7c3aed',
+      entry: '#2563eb',
+      analysis: '#0891b2',
+      other: '#6b7280',
+      labelBg: '#f3f4f6'
+    }
+  };
+
+  function getColors() {
+    return COLORS[currentTheme] || COLORS.dark;
+  }
+
+  function initMermaid() {
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: currentTheme === 'dark' ? 'dark' : 'default',
+      flowchart: {
+        htmlLabels: true,
+        curve: 'basis',
+        padding: 15,
+        nodeSpacing: 30,
+        rankSpacing: 40,
+        useMaxWidth: true
+      }
+    });
+    // Cache source for theme re-render
+    const pre = document.getElementById('pipelineDiagram');
+    if (pre) mermaidSource = pre.textContent;
+    setTimeout(colorLinks, 600);
+  }
+
+  function colorLinks() {
+    const svg = document.querySelector('.mermaid-container svg');
+    if (!svg) return;
+    const c = getColors();
+
+    // Map label text -> color
+    const colorMap = {
+      'Success': c.success,
+      'Gaps': c.discovery,
+      'OK': c.discovery,
+      'Single / Targeted': c.entry,
+      'Backlog': c.entry,
+      'Bot blocked': c.fallback,
+      'Cloud reject': c.fallback,
+      'CLI reject': c.fallback,
+      'UI block': c.fallback,
+      'No captions': c.fallback,
+      'No audio': c.fallback,
+      'on fail': c.fallback,
+      'fetch chain': c.analysis,
+      'failure history': c.analysis,
+    };
+
+    const labels = svg.querySelectorAll('.edge-label');
+    labels.forEach((label) => {
+      const text = label.textContent.trim();
+      const strokeColor = colorMap[text] || c.other;
+      if (strokeColor === c.other) return;
+
+      // Walk up to find the path group (sibling or parent)
+      const edgeGroup = label.closest('g');
+      if (!edgeGroup) return;
+
+      // The path is typically a sibling in the same parent group
+      const parent = edgeGroup.parentElement;
+      if (!parent) return;
+
+      const path = parent.querySelector('path');
+      if (path) {
+        path.setAttribute('stroke', strokeColor);
+        path.setAttribute('stroke-width', '2.5');
+      }
+    });
+  }
+
+  // ── Theme toggle ────────────────────────────────────────
+  let mermaidSource = '';
+
+  function setTheme(theme) {
+    currentTheme = theme;
+    document.documentElement.dataset.theme = theme;
+
+    const pre = document.getElementById('pipelineDiagram');
+    if (pre && !mermaidSource) {
+      mermaidSource = pre.textContent;
+    }
+    if (!mermaidSource) return;
+
+    const container = document.querySelector('.mermaid-container');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: theme === 'dark' ? 'dark' : 'default',
+      flowchart: {
+        htmlLabels: true,
+        curve: 'basis',
+        padding: 15,
+        nodeSpacing: 30,
+        rankSpacing: 40,
+        useMaxWidth: true
+      }
+    });
+
+    const newPre = document.createElement('pre');
+    newPre.className = 'mermaid';
+    newPre.id = 'pipelineDiagram';
+    newPre.textContent = mermaidSource;
+    container.appendChild(newPre);
+
+    setTimeout(() => {
+      mermaid.run({ nodes: [newPre] }).then(() => colorLinks());
+    }, 100);
+  }
+
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+  });
+
+  // ── TOC sidebar toggle + scroll-spy ─────────────────────
+  window.addEventListener('DOMContentLoaded', () => {
+    const toc = document.getElementById('toc');
+    const btn = document.getElementById('tocToggle');
+    if (toc && btn) {
+      btn.addEventListener('click', () => {
+        toc.classList.toggle('collapsed');
+        document.body.classList.toggle('toc-hidden');
+        const hidden = toc.classList.contains('collapsed');
+        btn.innerHTML = hidden ? '&#9654;' : '&#9776;';
+      });
+    }
+
+    // Scroll-spy for TOC active link
+    const sections = document.querySelectorAll('[id]');
+    const tocLinks = document.querySelectorAll('.toc a[data-section]');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          tocLinks.forEach(l => l.classList.remove('active'));
+          const link = document.querySelector(`.toc a[data-section="${entry.target.id}"]`);
+          if (link) link.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    sections.forEach(s => observer.observe(s));
+
+    initMermaid();
+  });
+</script>
+</body>
+</html>

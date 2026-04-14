@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>yt-is — Intelligence Pipeline v3.8</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --card: #f3f4f6;
+      --border: #d1d5db;
+      --text: #111827;
+      --muted: #6b7280;
+      --accent: #2563eb;
+      --green: #16a34a;
+      --amber: #d97706;
+      --red: #dc2626;
+      --purple: #7c3aed;
+      --cyan: #0891b2;
+      --link: #2563eb;
+    }
+    [data-theme="dark"] {
+      --bg: #0f1117;
+      --card: #1a1d27;
+      --border: #2a2d3a;
+      --text: #e4e4e7;
+      --muted: #71717a;
+      --accent: #60a5fa;
+      --green: #4ade80;
+      --amber: #fbbf24;
+      --red: #f87171;
+      --purple: #c084fc;
+      --cyan: #22d3ee;
+      --link: #60a5fa;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem;
+      line-height: 1.6;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 0.25rem; color: var(--accent); }
+    h2 { font-size: 1.1rem; margin-bottom: 1.5rem; color: var(--muted); font-weight: 400; }
+
+    /* Toggle */
+    .toggle-wrap {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      z-index: 100;
+    }
+    .toggle-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .toggle {
+      width: 44px;
+      height: 24px;
+      background: var(--border);
+      border-radius: 12px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle::after {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      background: white;
+      border-radius: 50%;
+      top: 3px;
+      left: 3px;
+      transition: transform 0.2s;
+    }
+    [data-theme="dark"] .toggle { background: var(--accent); }
+    [data-theme="dark"] .toggle::after { transform: translateX(20px); }
+
+    .pipeline {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      max-width: 1200px;
+    }
+
+    .stage {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+    }
+
+    .stage-header {
+      display: flex;
+      align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; flex-wrap: wrap;
+    }
+    .stage-num {
+      background: var(--accent); color: white; font-size: 0.7rem; font-weight: 700;
+      width: 1.5rem; height: 1.5rem; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .stage-name { font-weight: 600; font-size: 1rem; }
+    .stage-skill {
+      margin-left: auto; background: var(--accent); color: white;
+      font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 999px;
+    }
+    .stage-skill .path-link { color: white; text-decoration: none; }
+
+    .steps { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.75rem; }
+    .step { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.875rem; }
+    .step::before { content: '›'; color: var(--accent); font-weight: 700; }
+
+    .data-flow {
+      font-size: 0.8rem; color: var(--muted); font-family: 'Fira Code', monospace;
+      background: var(--bg); padding: 0.5rem 0.75rem; border-radius: 6px; margin-top: 0.5rem;
+    }
+    .data-flow::before { content: '→ '; color: var(--accent); }
+    a.path-link { color: var(--link); text-decoration: none; }
+
+    .arrow { text-align: center; color: var(--border); font-size: 1.5rem; padding: 0.25rem 0; }
+
+    .legend { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; font-size: 0.8rem; }
+    .legend-item { display: flex; align-items: center; gap: 0.4rem; }
+    .legend-dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; }
+    .dot-purple { background: var(--purple); }
+    .dot-cyan { background: var(--cyan); }
+    .dot-green { background: var(--green); }
+    .dot-amber { background: var(--amber); }
+
+    .storage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0.75rem; margin-top: 1rem; }
+    .storage-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; }
+    .storage-box .label { font-size: 0.7rem; text-transform: uppercase; color: var(--muted); margin-bottom: 0.25rem; }
+    .storage-box .path { font-family: 'Fira Code', monospace; font-size: 0.75rem; }
+
+    .tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.75rem; margin-top: 1rem; }
+    .tier { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; position: relative; }
+    .tier-label { font-size: 0.65rem; font-weight: 700; color: var(--accent); text-transform: uppercase; margin-bottom: 0.25rem; }
+    .tier-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem; }
+    .tier p { font-size: 0.775rem; color: var(--muted); }
+
+    .mermaid-container { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; overflow-x: auto; }
+
+    .note { margin-top: 1rem; font-size: 0.8rem; color: var(--muted); padding: 0.75rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+    .note strong { color: var(--amber); }
+    .highlight { color: var(--green); font-weight: 700; }
+    .velocity-tag { background: var(--purple); color: white; font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 4px; float: right; }
+    .snr-badge { background: var(--green); color: white; font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: 0.5rem; }
+  </style>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+  </script>
+</head>
+<body>
+
+<div class="toggle-wrap">
+  <span class="toggle-label">☀️</span>
+  <div class="toggle" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'"></div>
+  <span class="toggle-label">🌙</span>
+</div>
+
+<h1>yt-is — YouTube Intelligence Pipeline v3.8</h1>
+<h2>Industrial Suite: <span class="highlight">Caption Triage & Multi-Path Ingest</span></h2>
+
+<div class="mermaid-container">
+  <pre class="mermaid">
+graph TD
+    %% DISCOVERY PHASE
+    RSS["RSS Feeds"] --> Gap["Gap Detection"]
+    Gap -->|"Gaps Found"| API["YouTube Data API"]
+    Gap -->|"Fast Sync"| StatusDB["batch_status.sqlite"]
+    API --> StatusDB
+    
+    StatusDB --> Triage{"Triage Mode"}
+    
+    %% SURGICAL PATH (THE TRIAGE DETECTOR)
+    Triage -->|"Single Sync"| YTDLPTLS["yt-dlp TLS"]
+    
+    %% THE LOGICAL BRANCHING
+    YTDLPTLS -->|"Success"| E1[transcripts.sqlite]
+    YTDLPTLS -->|"No CC Tracks"| Whisper["faster-whisper"]
+    YTDLPTLS -->|"Blocked/Bot"| YTDLPCookies["yt-dlp Cookies"]
+    
+    YTDLPCookies -->|"Success"| E1
+    YTDLPCookies -->|"Still Blocked"| NLMBatch["nlm_batch.py"]
+    
+    %% INDUSTRIAL PATH
+    Triage -->|"Backlog Mode"| NLMBatch
+    
+    NLMBatch -->|"Success"| E1
+    NLMBatch -->|"CLI Reject"| NLMScraper["nlm_scraper.py"]
+    
+    NLMScraper -->|"Success"| E1
+    NLMScraper -->|"UI Block"| Selenium["Selenium YouTube"]
+    
+    Selenium -->|"Success"| E1
+    Whisper -->|"Success"| E1
+    
+    %% ANALYSIS PHASE
+    E1 --> Orch["Orchestrator"]
+    Orch --> Models["Analysis Models"]
+    Models --> Store["Knowledge Store"]
+  </pre>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot dot-cyan" style="background:#3b82f6"></div> Blue: Surgical Ingest (The Detector)</div>
+  <div class="legend-item"><div class="legend-dot dot-green" style="background:#22c55e"></div> Green: Industrial Cloud Path (CC Found)</div>
+  <div class="legend-item"><div class="legend-dot dot-purple" style="background:#c084fc"></div> Purple: Audio Path (No CC Found)</div>
+  <div class="legend-item"><div class="legend-dot dot-amber" style="background:#ef4444"></div> Red: Fallback Suite (Failover)</div>
+</div>
+
+<div class="pipeline">
+
+  <!-- STAGE 1: Discovery & Triage -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-num">1</div>
+      <div class="stage-name">Discovery &amp; Caption Triage</div>
+    </div>
+    <div class="steps">
+      <div class="step"><strong>The Detector:</strong> <code>yt-dlp</code> identifies the state of the video metadata.</div>
+      <div class="step"><strong>Logical Split:</strong> If text tracks are missing, bypasses all Cloud/UI scrapers and goes straight to Whisper.</div>
+    </div>
+  </div>
+
+  <div class="arrow">▼</div>
+
+  <!-- STAGE 2: Industrial Path -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-num">2</div>
+      <div class="stage-name">Industrial Cloud Path (High-Signal CC)</div>
+      <span class="snr-badge">99% SNR</span>
+    </div>
+    <div class="steps">
+      <div class="step"><strong>Trigger:</strong> Massive backlog OR confirmed blocked local fetch.</div>
+      <div class="step"><strong>Benefit:</strong> 18,000 v/hr throughput using Google's Cloud RAG.</div>
+    </div>
+  </div>
+
+  <div class="arrow">▼</div>
+
+  <!-- STAGE 3: Audio Path -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-num">3</div>
+      <div class="stage-name">Audio-to-Text Path (No CC Fallback)</div>
+      <span class="velocity-tag">~120 v/hr</span>
+    </div>
+    <div class="steps">
+      <div class="step"><strong>Trigger:</strong> Confirmation that NO human or auto-generated captions exist.</div>
+      <div class="step"><strong>Engine:</strong> <code>faster-whisper</code> inference on downloaded audio.</div>
+    </div>
+  </div>
+
+  <div class="arrow">▼</div>
+
+  <!-- STAGE 4: Analysis -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-num">4</div>
+      <div class="stage-name">One-Time Ingest, Perpetual Analysis</div>
+    </div>
+    <div class="storage-grid">
+      <div class="storage-box">
+        <div class="label">Ground Truth</div>
+        <div class="path">transcripts.sqlite</div>
+        <p style="font-size:0.75rem; color: var(--green); margin-top:0.25rem">✓ Audio and Text paths unified.</p>
+      </div>
+      <div class="storage-box">
+        <div class="label">Analysis Cost</div>
+        <p style="font-size:0.75rem; color: var(--purple); margin-top:0.25rem">40% lower downstream cost due to High-SNR data.</p>
+      </div>
+      <div class="storage-box">
+        <div class="label">Backlog Speed</div>
+        <p style="font-size:0.75rem; color: var(--amber); margin-top:0.25rem">8.2 Hours for 140k (Cloud Path).</p>  
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

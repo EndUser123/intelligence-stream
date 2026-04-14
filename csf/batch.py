@@ -17,7 +17,7 @@ from collections.abc import Callable
 
 from csf.batch_status import is_complete, mark_complete, mark_failed
 from csf.cache import has_cached_transcript
-from csf.logging import log_action
+from csf.csf_logging import log_action
 
 # Lazy-loaded reference to analyze_video (set once, can be mocked)
 _analyze_video_ref: Callable[..., Any] | None = None

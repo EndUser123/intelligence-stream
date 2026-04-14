@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Literal
 from collections.abc import Callable
 
-from .terminal_context import resolve_tid
+from csf.terminal_context import resolve_tid
 
 _logger = logging.getLogger(__name__)
 

@@ -697,6 +697,38 @@ def check_rss(channel_id: str) -> list[str]:
         return []
 
 
+def enumerate_full_playlist(playlist_id: str, max_videos: int = 20000) -> list[dict]:
+    """Fully enumerate all videos in a playlist using nextPageToken pagination.
+
+    Used for deep discovery fallback (Phase 2). Unlike RSS (limit 15), this
+    walks the entire playlist (up to max_videos) to ensure no videos were missed
+    during downtime.
+
+    Args:
+        playlist_id: Playlist ID to enumerate (usually UU... for uploads)
+        max_videos: Safety cap to prevent runaway API usage (default 20,000)
+
+    Returns:
+        List of video dicts with id, title, published_at, has_captions, etc.
+    """
+    all_videos = []
+    page_token = None
+
+    while True:
+        videos, next_token = enumerate_videos_api(playlist_id, page_token=page_token)
+        if not videos:
+            break
+
+        all_videos.extend(videos)
+
+        if not next_token or len(all_videos) >= max_videos:
+            break
+
+        page_token = next_token
+
+    return all_videos
+
+
 def detect_gap(
     rss_ids: list[str],
     all_video_ids: set[str],

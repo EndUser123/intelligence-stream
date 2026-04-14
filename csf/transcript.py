@@ -35,7 +35,24 @@ def _get_scheduler() -> BatchScheduler:
     if _scheduler is None:
         _scheduler = BatchScheduler()
     return _scheduler
+
+
+# Module-level NLM scraper singleton — one terminal-local staging notebook
+# reused across all _fetch_via_notebooklm calls within this process.
+_nlm_scraper: "NLMIndustrialScraper | None" = None
+
+
+def _get_nlm_scraper() -> "NLMIndustrialScraper":
+    global _nlm_scraper
+    if _nlm_scraper is None:
+        _nlm_scraper = NLMIndustrialScraper(headless=True)
+    return _nlm_scraper
 from csf.cache import set_cached_transcript
+
+try:
+    from csf.nlm_scraper import NLMIndustrialScraper
+except ImportError:
+    NLMIndustrialScraper = None  # type: ignore
 from csf.quota_tracker import is_free_only_mode
 from csf.youtube_auth import get_browser_cookies
 
@@ -1362,10 +1379,10 @@ def _extract_video_id_from_url(url: str) -> str | None:
 def _fetch_via_notebooklm_batch(
     video_ids: list[str],
 ) -> dict[str, tuple[bool, str | None, str | None]]:
-    """Fetch transcripts for multiple videos using a single batch notebook.
+    """Fetch transcripts for multiple videos using Industrial NLM staging logic.
 
-    Adds up to 300 YouTube sources per notebook, then extracts raw content.
-    Much faster than per-video notebooks when processing many videos.
+    Adds up to 300 YouTube sources per staging notebook, then scrapes raw
+    content. Reuses the staging notebook across calls within the same process.
 
     Args:
         video_ids: List of YouTube video IDs (11 chars each)
@@ -1373,144 +1390,24 @@ def _fetch_via_notebooklm_batch(
     Returns:
         dict mapping video_id -> (success, transcript_text, error)
     """
-    import subprocess
-    import json
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-    from threading import Semaphore
-
-    result: dict[str, tuple[bool, str | None, str | None]] = {}
-
-    if not _ensure_nlm_auth():
-        return {vid: (False, None, "nlm auth failed") for vid in video_ids}
-
-    # Cap at configured limit (env: YTIS_NLM_MAX_SOURCES_PER_NOTEBOOK, default 300)
-    batch_ids = video_ids[:get_nlm_config().max_sources_per_notebook]
-    if not batch_ids:
-        return result
-    nb_name = f"batch_transcript_{batch_ids[0][:8]}"
-    create = subprocess.run(
-        ["nlm", "notebook", "create", nb_name],
-        capture_output=True, text=True, timeout=30
-    )
-    if create.returncode != 0:
-        return {vid: (False, None, f"create failed: {create.stderr[:100]}") for vid in batch_ids}
-
-    nb_id = _parse_notebook_id(create.stdout)
-    if not nb_id:
-        return {vid: (False, None, "parse notebook ID failed") for vid in batch_ids}
-
-    try:
-        # 2. Add all YouTube sources at once (--youtube flag is repeatable)
-        add_cmd = ["nlm", "source", "add", nb_id, "--wait", "--wait-timeout", "600"]
-        for vid in batch_ids:
-            add_cmd.extend(["--youtube", f"https://www.youtube.com/watch?v={vid}"])
-
-        add = subprocess.run(add_cmd, capture_output=True, text=True, timeout=900)
-        if add.returncode != 0:
-            return {vid: (False, None, f"add source failed: {add.stderr[:100]}") for vid in batch_ids}
-
-        # 3. List sources to get source_id -> video_id mapping
-        list_out = subprocess.run(
-            ["nlm", "source", "list", nb_id, "--json"],
-            capture_output=True, text=True, timeout=30
-        )
-        if list_out.returncode != 0:
-            return {vid: (False, None, "source list failed") for vid in batch_ids}
-
-        vid_to_source: dict[str, str] = {}  # video_id -> source_id
-        try:
-            sources_data = json.loads(list_out.stdout)
-            # Handle both array format and {"sources": [...]} dict format
-            if isinstance(sources_data, list):
-                source_list = sources_data
-            else:
-                source_list = sources_data.get("sources", [])
-
-            for idx, src in enumerate(source_list):
-                src_id = src.get("id", "")
-                src_url = src.get("url") or ""
-                src_title = src.get("title", "")
-
-                # Try to extract video ID from URL first, then from title
-                # Only use title if it contains a youtube.com/watch URL — titles
-                # may contain plain-text references to other videos that match the
-                # 11-char pattern without being actual URLs.
-                vid = _extract_video_id_from_url(src_url)
-                if not vid and "youtube.com/watch" in src_title:
-                    vid = _extract_video_id_from_url(src_title)
-
-                if vid:
-                    vid_to_source[vid] = src_id
-                else:
-                    # Fallback: assume sources are in same order as video_ids
-                    if idx < len(batch_ids):
-                        vid_to_source[batch_ids[idx]] = src_id
-        except (json.JSONDecodeError, AttributeError, TypeError) as e:
-            # Propagate parse failures clearly instead of silently proceeding
-            # with empty vid_to_source, which causes all videos to fail with
-            # "source not found in notebook" — a misleading error.
-            return {vid: (False, None, f"source list parse failed: {e}") for vid in batch_ids}
-
-        # 4. Get content for each source in parallel (raw text, not LLM query)
-        # Rate-limit to 5 concurrent content fetches to avoid overwhelming NLM API
-        _content_semaphore = Semaphore(5)
-
-        def _fetch_content_for_vid(vid: str, source_id: str) -> tuple[str, bool, str | None, str | None]:
-            with _content_semaphore:
-                content = subprocess.run(
-                    ["nlm", "source", "content", source_id],
-                    capture_output=True, text=True, timeout=60
-                )
-            if content.returncode == 0 and len(content.stdout.strip()) >= _NLM_MIN_CONTENT_CHARS:
-                return (vid, True, content.stdout.strip(), None)
-            return (vid, False, None, "source content empty or failed")
-
-        # Populate "not found" for sources we couldn't map
-        for vid in batch_ids:
-            if vid not in vid_to_source:
-                result[vid] = (False, None, "source not found in notebook")
-
-        # Parallel fetch for mapped sources
-        with ThreadPoolExecutor(max_workers=15) as executor:
-            futures = {
-                executor.submit(_fetch_content_for_vid, vid, vid_to_source[vid]): vid
-                for vid in batch_ids
-                if vid in vid_to_source
-            }
-            for future in as_completed(futures):
-                vid, success, text, error = future.result()
-                result[vid] = (success, text, error)
-
-        return result
-
-    finally:
-        # 5. Cleanup ephemeral notebook
-        subprocess.run(
-            ["nlm", "notebook", "delete", nb_id, "--confirm"],
-            capture_output=True, timeout=15
-        )
+    scraper = _get_nlm_scraper()
+    return scraper.scrape_with_staging(video_ids)
 
 
 def _fetch_via_notebooklm(
     video_id: str, lang: str
 ) -> tuple[bool, str | None, str | None]:
-    """Fetch transcript using NotebookLM batch workflow (single-video delegation).
+    """Fetch transcript using terminal-local staging notebook.
 
-    Delegates to _fetch_via_notebooklm_batch for efficiency — the batch
-    function creates one notebook per session (vs per-video), adds all
-    sources at once, and uses NotebookLM's parallel processing infrastructure.
-
-    Args:
-        video_id: YouTube video ID.
-        lang: BCP-47 language code (no-op — kept for API compatibility with
-            the fetch_fn signature; NotebookLM always returns English content
-            extracted from the YouTube source regardless of this value).
-
-    Returns:
-        (success, transcript_text, error)
+    Reuses a single persistent staging notebook across calls within the
+    same process, clearing and recreating when the 300-source limit is
+    approached.
     """
-    results = _fetch_via_notebooklm_batch([video_id])
-    success, transcript, error = results.get(video_id, (False, None, "batch returned no result"))
+    scraper = _get_nlm_scraper()
+    results = scraper.scrape_with_staging([video_id])
+    success, transcript, error = results.get(
+        video_id, (False, None, "scraper returned no result")
+    )
     return (success, transcript, error)
 
 
@@ -1561,14 +1458,10 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
     """Fetch transcript using yt-dlp → Selenium → NotebookLM fallback chain.
 
     Chain order:
-      1. yt-dlp (WEB client, curl_cffi TLS) with prefer_lang (default "en")
-      2. yt-dlp with English fallback (if prefer_lang not available)
-      3. yt-dlp with any available language (for translation)
-      4. yt-dlp with cookies (age-restricted / NSFW)
-      5. Selenium Firefox with prefer_lang
-      6. Selenium Firefox with English fallback
-      7. Selenium Firefox with any available language
-      8. NotebookLM (Google infrastructure, different access path)
+      1. yt-dlp (WEB client, curl_cffi TLS) — High Fidelity, Fastest Local
+      2. NotebookLM Industrial (Cloud) — High Fidelity, Cleanest Data, Best for Backlog
+      3. Selenium Firefox — Dirty Scraper (Polluted with page noise), Slow
+      4. Whisper — Audio Fallback
 
     Args:
         video_id: YouTube video ID (must be 11 chars)
@@ -1661,12 +1554,12 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
     last_error: str | None = None
     last_stage_reached: str | None = None
 
-    # Methods to try: yt-dlp (WEB) → yt-dlp with cookies → Selenium → NotebookLM → Whisper → direct_api
+    # Methods to try: yt-dlp (WEB) → yt-dlp with cookies → NotebookLM → Selenium → Whisper → direct_api
     methods_to_try = [
         (_SOURCE_YTDLP, _fetch_via_ytdlp, STAGE_VERSION_YTDLP),
         (_SOURCE_YTDLP_EJS, _fetch_via_ytdlp_with_cookies, STAGE_VERSION_EJS),
-        (_SOURCE_SELENIUM, _fetch_via_selenium_firefox, STAGE_VERSION_SELENIUM),
         (_SOURCE_NLM, _fetch_via_notebooklm, STAGE_VERSION_NOTEBOOKLM),
+        (_SOURCE_SELENIUM, _fetch_via_selenium_firefox, STAGE_VERSION_SELENIUM),
         (_SOURCE_WHISPER, _fetch_via_whisper, None),  # audio fallback — no captions needed
         (_SOURCE_DIRECT_API, _fetch_via_direct_api, STAGE_VERSION_DIRECT_API),
     ]

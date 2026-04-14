@@ -10,13 +10,13 @@ YouTube transcript ingestion and analysis pipeline — discover new videos, down
 
 ```powershell
 # Check tracked channels for new videos
-/yt-channel
+/yt-channel sync
 
-# Download pending transcripts (yt-dlp → Selenium fallback)
-/yt-channel fetch
-
-# Extract transcripts via NotebookLM (batch workflow)
+# Industrial Ingest (NLM Batch) - BEST FOR BACKLOG (18,000 v/hr)
 /yt-nlm
+
+# Surgical Fetch (yt-dlp -> Selenium fallback)
+/yt-channel fetch
 ```
 
 ## Installation
@@ -134,11 +134,11 @@ RSS check → Gap detection → API resolution
     ↓
 batch_status.sqlite (pending videos)
     ↓
-/yt-channel fetch (yt-dlp → Selenium)
+/yt-nlm (Industrial Cloud Ingest) —— [PRIMARY: 99% Signal SNR]
     ↓ OR
-/yt-nlm (NotebookLM batch)
+/yt-channel fetch (Surgical Local) —— [FALLBACK: 40% Signal SNR]
     ↓
-transcripts.sqlite (cached transcripts)
+transcripts.sqlite (Provenance-tracked Clean Store)
     ↓
 Combined markdown batches → CKS / Obsidian / analysis tools
 ```
@@ -195,8 +195,9 @@ yt-is/
 │   ├── source_enumerator.py  # RSS + API enumeration
 │   └── cache.py             # Transcript caching
 └── skills/
-    ├── yt-channel/SKILL.md
-    └── yt-nlm/SKILL.md
+    ├── yt-is/SKILL.md        # Channel management (renamed from yt-channel)
+    ├── yt-nlm/SKILL.md       # NotebookLM batch extraction
+    └── yt-dlp/SKILL.md       # Local yt-dlp transcript fetching
 ```
 
 ## Architecture
@@ -207,17 +208,14 @@ graph TB
     Detect -->|yt-channel| ChannelSkill[yt-channel Skill]
     Detect -->|yt-nlm| NLMSkill[yt-nlm Skill]
     ChannelSkill --> CSFSource[csf-source backend]
-    NLMSkill --> TranscriptPy[transcript.py]
+    NLMSkill --> NLMBatch[csf/nlm_batch.py]
     CSFSource --> RSS[RSS Check]
     CSFSource --> Gap[Gap Detection]
-    CSFSource --> API[API Resolution]
     RSS --> DB[(batch_status.sqlite)]
     Gap --> DB
-    API --> DB
-    TranscriptPy --> YTDLP[yt-dlp]
-    TranscriptPy --> NLM[NotebookLM]
-    YTDLP --> Cache[(transcripts.sqlite)]
-    NLM --> Cache
+    NLMBatch --> NLM[NotebookLM Cloud]
+    NLM --> Cache[(transcripts.sqlite)]
+    DB --> NLMBatch
 ```
 
 ---

@@ -580,15 +580,146 @@ def cmd_check(source_id_or_url: str) -> None:
     print(f"[source] Check complete.")
 
 
+def _process_channel_check(
+    channel_url: str,
+    playlist_id: str | None,
+    video_count: int | None,
+    last_checked: str | None,
+    verbose: bool = False,
+) -> tuple[int, int]:
+    """Helper for parallel channel checks. Returns (new_videos_count, total_videos_count)."""
+    if not playlist_id:
+        if verbose:
+            print(f"[source] Skipping {channel_url} — no playlist_id")
+        return 0, 0
+
+    # Step 1: Resolve to UC channel ID if needed
+    channel_id = parse_channel_url(channel_url)
+    if not channel_id:
+        if verbose:
+            print(f"[source] Skipping {channel_url} — could not parse channel ID")
+        return 0, 0
+
+    # Resolve @handle, c/custom, user/ URLs to UC channel ID
+    if not channel_id.startswith("UC"):
+        uc_channel_id = resolve_to_uc_channel_id(channel_id)
+        if not uc_channel_id:
+            if verbose:
+                print(f"[source] Skipping {channel_url} — could not resolve to UC channel ID")
+            return 0, 0
+        channel_id = uc_channel_id
+
+    # Step 2: RSS check
+    rss_ids = check_rss(channel_id)
+    if verbose:
+        print(f"[source] RSS for {channel_url} returned {len(rss_ids)} recent videos")
+
+    # Get ALL existing videos for this source
+    all_entries = get_entries_for_source(channel_url)
+    all_video_ids = {vid for vid, _, _ in all_entries}
+
+    # Step 3: Gap detection
+    gap_detected = False
+    if rss_ids:
+        gap_detected = detect_gap(rss_ids, all_video_ids)
+    else:
+        # If RSS is empty, trigger a "Deep Discovery" check via playlistItems API
+        # as a safety fallback. This prevents missing videos when RSS is disabled/broken.
+        gap_detected = True
+        if verbose:
+            print(f"[source] RSS empty for {channel_url} — triggering Deep Discovery fallback")
+
+    new_count = 0
+    real_video_count = None
+    if gap_detected:
+        if verbose:
+            print(f"[source] Gap detected for {channel_url}. Running API gap resolution...")
+
+        published_after = last_checked if last_checked else "1970-01-01T00:00:00Z"
+        # Phase 2 Optimization: Use enumerate_full_playlist for "Deep Discovery"
+        # if the last check was more than 7 days ago, ensuring no "Deep Gaps".
+        is_deep_check = False
+        if last_checked:
+            last_dt = datetime.fromisoformat(last_checked.replace("Z", "+00:00"))
+            if (datetime.now(timezone.utc) - last_dt).days > 7:
+                is_deep_check = True
+
+        if is_deep_check:
+            if verbose:
+                print(f"[source] Deep check (>7 days) — enumerating full playlist for {channel_url}")
+            gap_videos = enumerate_full_playlist(playlist_id)
+        else:
+            gap_videos = enumerate_recent(playlist_id, published_after=published_after)
+
+        # Fetch real video count from API
+        channel_id_for_count = parse_channel_url(channel_url)
+        if channel_id_for_count:
+            real_video_count = get_video_count(channel_id_for_count)
+
+        gap_video_ids = [v["video_id"] for v in gap_videos]
+        gap_status_map = get_status_batch(gap_video_ids)
+        complete_ids = {vid for vid, status in gap_status_map.items() if status == "complete"}
+        entries = [
+            BatchEntry(
+                video_id=video["video_id"],
+                status="pending",
+                source=channel_url,
+                published_at=video.get("published_at"),
+                has_captions=video.get("has_captions"),
+                title=video.get("title"),
+                description=video.get("description"),
+                channel_id=video.get("channel_id"),
+                thumbnail=video.get("thumbnail"),
+                duration=video.get("duration"),
+                privacy_status=video.get("privacy_status"),
+                upload_status=video.get("upload_status"),
+                is_live_content=video.get("is_live_content"),
+                unavailable_reason=video.get("unavailable_reason"),
+            )
+            for video in gap_videos
+            if video["video_id"] not in complete_ids
+        ]
+        if entries:
+            set_status_batch(entries)
+        new_count = len(entries)
+
+    elif rss_ids:
+        # Normal RSS processing
+        rss_ids_set = set(rss_ids)
+        new_videos = rss_ids_set - all_video_ids
+        entries = [
+            BatchEntry(
+                video_id=vid,
+                status="pending",
+                source=channel_url,
+                published_at=None,
+                has_captions=None,
+            )
+            for vid in new_videos
+        ]
+        if entries:
+            set_status_batch(entries)
+        new_count = len(entries)
+
+    # Update last_checked
+    now = datetime.now(timezone.utc).isoformat()
+    if real_video_count:
+        upsert_channel(channel_url, last_checked=now, video_count_estimate=real_video_count)
+    else:
+        upsert_channel(channel_url, last_checked=now)
+
+    total_current = len(all_video_ids) + new_count
+    return new_count, total_current
+
+
 def cmd_check_all(verbose: bool = False) -> None:
-    """Run RSS + gap detection check on ALL tracked channels.
+    """Run RSS + gap detection check on ALL tracked channels in parallel.
 
     Iterates through all channels in channel_metadata table, runs check
-    on each one. Marks new videos as pending.
+    on each one in parallel using ThreadPoolExecutor.
     """
-    import sqlite3
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     from csf.batch_status import _get_batch_status_storage
-    from csf.cache import _SHARED_DB_PATH
 
     storage = _get_batch_status_storage()
     storage._ensure_channel_metadata()
@@ -603,141 +734,29 @@ def cmd_check_all(verbose: bool = False) -> None:
         print("[source] No tracked channels. Use 'add' to add channels first.")
         return
 
-    print(f"[source] Checking {len(rows)} tracked channels...\n")
+    print(f"[source] Checking {len(rows)} tracked channels (Parallel Discovery)...")
 
-    # Collect results per channel
     total_new_videos = 0
     total_videos_all = 0
 
-    for channel_url, playlist_id, video_count, last_checked in rows:
-        if not playlist_id:
-            if verbose:
-                print(f"[source] Skipping {channel_url} — no playlist_id")
-            continue
+    # Parallel discovery using 5 workers (conservative to avoid YouTube API thundering herd)
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {
+            executor.submit(_process_channel_check, url, pl, count, last, verbose): url
+            for url, pl, count, last in rows
+        }
 
-        # Step 1: Resolve to UC channel ID if needed
-        channel_id = parse_channel_url(channel_url)
-        if not channel_id:
-            if verbose:
-                print(f"[source] Skipping {channel_url} — could not parse channel ID")
-            continue
+        for future in as_completed(futures):
+            try:
+                new_vids, total_vids = future.result()
+                total_new_videos += new_vids
+                total_videos_all += total_vids
+            except Exception as e:
+                url = futures[future]
+                print(f"[source] Error checking {url}: {e}")
 
-        # Resolve @handle, c/custom, user/ URLs to UC channel ID
-        if not channel_id.startswith("UC"):
-            uc_channel_id = resolve_to_uc_channel_id(channel_id)
-            if not uc_channel_id:
-                if verbose:
-                    print(f"[source] Skipping {channel_url} — could not resolve to UC channel ID")
-                continue
-            channel_id = uc_channel_id
-
-        # Step 2: RSS check (now with UC channel ID)
-        rss_ids = check_rss(channel_id)
-        if verbose:
-            print(f"[source] RSS returned {len(rss_ids)} recent videos")
-
-        # Get ALL existing videos for this source (pending, complete, failed)
-        all_entries = get_entries_for_source(channel_url)
-        all_video_ids = {vid for vid, _, _ in all_entries}
-
-        # Step 3: Gap detection
-        gap_detected = False
-        if rss_ids:
-            gap_detected = detect_gap(rss_ids, all_video_ids)
-            # Log gap detection result for troubleshooting
-            log_action("gap_detection", {
-                "channel_url": channel_url,
-                "rss_count": len(rss_ids),
-                "db_count": len(all_video_ids),
-                "gap_detected": gap_detected,
-            })
-
-        new_count = 0
-        real_video_count = None
-        if gap_detected:
-            log_user_message(f"Gap detected for {channel_url}. Running API gap resolution...")
-            published_after = last_checked if last_checked else "1970-01-01T00:00:00Z"
-            gap_videos = enumerate_recent(playlist_id, published_after=published_after)
-            log_action("api_gap_resolution", {
-                "channel_url": channel_url,
-                "videos_found": len(gap_videos),
-                "published_after": published_after,
-            })
-
-            # Fetch real video count from API since we're making API calls anyway
-            channel_id_for_count = parse_channel_url(channel_url)
-            if channel_id_for_count:
-                real_video_count = get_video_count(channel_id_for_count)
-                if real_video_count:
-                    log_action("api_video_count", {
-                        "channel_url": channel_url,
-                        "real_count": real_video_count,
-                    })
-                    if verbose:
-                        print(f"[source] Real video count from API: {real_video_count}")
-
-            gap_video_ids = [v["video_id"] for v in gap_videos]
-            gap_status_map = get_status_batch(gap_video_ids)
-            complete_ids = {vid for vid, status in gap_status_map.items() if status == "complete"}
-            entries = [
-                BatchEntry(
-                    video_id=video["video_id"],
-                    status="pending",
-                    source=channel_url,
-                    published_at=video.get("published_at"),
-                    has_captions=video.get("has_captions"),
-                    title=video.get("title"),
-                    description=video.get("description"),
-                    channel_id=video.get("channel_id"),
-                    thumbnail=video.get("thumbnail"),
-                    duration=video.get("duration"),
-                    privacy_status=video.get("privacy_status"),
-                    upload_status=video.get("upload_status"),
-                    is_live_content=video.get("is_live_content"),
-                    unavailable_reason=video.get("unavailable_reason"),
-                )
-                for video in gap_videos
-                if video["video_id"] not in complete_ids
-            ]
-            if entries:
-                set_status_batch(entries)
-            new_count = len(entries)
-
-            log_action("gap_resolution_complete", {
-                "channel_url": channel_url,
-                "new_videos": new_count,
-                "real_video_count": real_video_count,
-            })
-
-        elif rss_ids:
-            # Normal RSS processing - only add videos that aren't in database at all
-            # Videos already in database (pending/complete/failed) should not be re-added
-            rss_ids_set = set(rss_ids)
-            new_videos = rss_ids_set - all_video_ids  # Only truly new videos
-            entries = [
-                BatchEntry(
-                    video_id=vid,
-                    status="pending",
-                    source=channel_url,
-                    published_at=None,
-                    has_captions=None,
-                )
-                for vid in new_videos
-            ]
-            if entries:
-                set_status_batch(entries)
-            new_count = len(entries)
-
-            log_action("rss_processing", {
-                "channel_url": channel_url,
-                "rss_returned": len(rss_ids),
-                "db_videos": len(all_video_ids),
-                "new_videos": new_count,
-            })
-
-            # Increment video_count_estimate by the number of new videos found
-            if new_count > 0 and video_count is not None:
-                upsert_channel(channel_url, video_count_estimate=video_count + new_count)
+    # Print summary and stats
+    print(f"\n[source] Discovery complete. Found {total_new_videos} new videos across {len(rows)} channels.")
 
         # Update last_checked and optionally real video count from API
         now = datetime.now(timezone.utc).isoformat()
@@ -948,11 +967,18 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
                 all_pending.append((video_id, channel_url))
 
     total_pending = len(all_pending)
+    # Automated Triage Decision
+    # If backlog >= 50, use Industrial (Batch NLM) path to maximize throughput.
+    # Otherwise use Surgical (Escalation Chain) for immediate results.
+    BACKLOG_THRESHOLD = 50
+    use_industrial = total_pending >= BACKLOG_THRESHOLD
+
     print(f"[source] Escalation Batch Process")
     print(f"[source] Channels: {len(channels)}")
     print(f"[source] Already cached: {cached_count}")
     print(f"[source] Pending extraction: {total_pending}")
     print(f"[source] Mode: {'DRY RUN' if dry_run else 'LIVE'}")
+    print(f"[source] Strategy: {'Industrial (Batch NLM)' if use_industrial else 'Surgical (Chain)'}")
     print(f"[source] Workers: {workers}")
     print()
 
@@ -964,60 +990,74 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
         print("[source] Dry run complete. Use without --dry-run to fetch transcripts.")
         return
 
-    # Process videos with progress tracking
+    # Process videos
     success_count = 0
     fail_count = 0
     skip_count = 0
-    results = []
 
-    def _process_video(video_id: str, source_url: str) -> tuple[str, bool, str, str]:
-        """Process a single video using the escalation chain.
+    if use_industrial:
+        # --- INDUSTRIAL PATH: Group into batches of 300 for NLM ---
+        from csf.transcript import _fetch_via_notebooklm_batch
 
-        Returns:
-            (video_id, success, source_used, error)
-        """
-        # Check cache again (may have been cached by another worker)
-        if has_cached_transcript(video_id):
-            return (video_id, True, "cache", "")
+        print(f"[source] Starting Industrial Ingest (300 v/batch)...")
+        batch_size = 300
+        for i in range(0, len(all_pending), batch_size):
+            batch = [vid for vid, src in all_pending[i : i + batch_size]]
+            print(f"[source] Processing batch {i//batch_size + 1} ({len(batch)} videos)...")
 
-        # Use escalation chain: yt-dlp → Selenium
-        config = LanguageConfig(prefer_lang="en", allow_translation=False)
-        result = fetch_transcript_chain(video_id, config)
+            # Batch call directly to NotebookLM (skips local yt-dlp/Selenium)
+            results = _fetch_via_notebooklm_batch(batch)
 
-        if result.transcript:
-            set_cached_transcript(video_id, result.lang or "en", result.source, result.transcript)
-            mark_complete(video_id)
-            return (video_id, True, result.source, "")
-        else:
-            # Mark as failed
-            set_status(video_id, "failed")
-            return (video_id, False, "", result.error or "No transcript available")
-
-    print(f"[source] Fetching {total_pending} transcripts via escalation chain...")
-    print()
-
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = {
-            executor.submit(_process_video, vid, src): (idx, vid)
-            for idx, (vid, src) in enumerate(all_pending, 1)
-        }
-
-        for future in as_completed(futures):
-            idx, video_id = futures[future]
-            try:
-                video_id, success, source_used, error = future.result()
-                if success:
-                    if source_used == "cache":
-                        skip_count += 1
-                    else:
-                        success_count += 1
-                        print(f"[{idx}/{total_pending}] ✓ {video_id} ({source_used})")
+            for vid, (success, transcript, error) in results.items():
+                if success and transcript:
+                    set_cached_transcript(vid, "en", "notebooklm", transcript)
+                    mark_complete(vid)
+                    success_count += 1
+                    print(f"  ✓ {vid} (notebooklm)")
                 else:
                     fail_count += 1
-                    print(f"[{idx}/{total_pending}] ✗ {video_id}: {error[:80]}")
-            except Exception as e:
-                fail_count += 1
-                print(f"[{idx}/{total_pending}] ✗ Error: {e}")
+                    print(f"  ✗ {vid}: {error[:80]}")
+
+    else:
+        # --- SURGICAL PATH: Sequential Escalation Chain ---
+        def _process_video(video_id: str, source_url: str) -> tuple[str, bool, str, str]:
+            """Process a single video using the escalation chain."""
+            if has_cached_transcript(video_id):
+                return (video_id, True, "cache", "")
+
+            config = LanguageConfig(prefer_lang="en", allow_translation=False)
+            result = fetch_transcript_chain(video_id, config)
+
+            if result.transcript:
+                set_cached_transcript(video_id, result.lang or "en", result.source, result.transcript)
+                mark_complete(video_id)
+                return (video_id, True, result.source, "")
+            else:
+                set_status(video_id, "failed")
+                return (video_id, False, "", result.error or "No transcript available")
+
+        print(f"[source] Starting Surgical Ingest (Sequential Escalation)...")
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(_process_video, vid, src): (idx, vid)
+                for idx, (vid, src) in enumerate(all_pending, 1)
+            }
+            for future in as_completed(futures):
+                idx, video_id = futures[future]
+                try:
+                    video_id, success, source_used, error = future.result()
+                    if success:
+                        if source_used == "cache":
+                            skip_count += 1
+                        else:
+                            success_count += 1
+                            print(f"[{idx}/{total_pending}] ✓ {video_id} ({source_used})")
+                    else:
+                        fail_count += 1
+                        print(f"[{idx}/{total_pending}] ✗ {video_id}: {error[:80]}")
+                except Exception as e:
+                    fail_count += 1
+                    print(f"[{idx}/{total_pending}] ✗ Error: {e}")
 
     # Summary
     print()

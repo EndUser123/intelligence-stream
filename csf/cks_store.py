@@ -36,7 +36,7 @@ def append_to_cks(artifact: dict[str, object]) -> None:
     VALID_TYPES = {"memory", "pattern", "learning"}
     if entry_type not in VALID_TYPES:
         # Log unknown type but fall back to memory
-        from .logging import log_action
+        from .csf_logging import log_action
 
         log_action("cks_store_unknown_type", {"type": entry_type, "title": title})
         entry_type = "memory"
@@ -57,7 +57,7 @@ def append_to_cks(artifact: dict[str, object]) -> None:
                     raise AttributeError("cks.ingest_learning method not found")
                 cks.ingest_learning(title=title, content=content)
     except Exception as e:
-        from .logging import log_action
+        from .csf_logging import log_action
 
         log_action("cks_store_error", {"title": title, "error": str(e)})
         raise  # Re-raise so caller knows the operation failed

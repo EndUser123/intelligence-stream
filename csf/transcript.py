@@ -20,10 +20,15 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, TYPE_CHECKING
 
 from csf.batch_status import get_source as _get_source_for_video
 from csf.batch_scheduler import BatchScheduler
+from csf.cache import set_cached_transcript
+
+if TYPE_CHECKING:
+    from csf.nlm_scraper import NLMIndustrialScraper
+
 
 # Module-level singleton — avoids repeated _recover_stale_attempting() +
 # PRAGMA wal_checkpoint overhead when many 429s/successes fire under concurrency.
@@ -45,16 +50,11 @@ _nlm_scraper: "NLMIndustrialScraper | None" = None
 def _get_nlm_scraper() -> "NLMIndustrialScraper":
     global _nlm_scraper
     if _nlm_scraper is None:
+        from csf.nlm_scraper import NLMIndustrialScraper
+
         _nlm_scraper = NLMIndustrialScraper(headless=True)
     return _nlm_scraper
-from csf.cache import set_cached_transcript
 
-try:
-    from csf.nlm_scraper import NLMIndustrialScraper
-except ImportError:
-    NLMIndustrialScraper = None  # type: ignore
-from csf.quota_tracker import is_free_only_mode
-from csf.youtube_auth import get_browser_cookies
 
 # Validation
 _VIDEO_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{11}$")

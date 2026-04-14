@@ -154,7 +154,33 @@ class BatchScheduler:
         conn.commit()
         conn.close()
 
-    def archive_finalize(self, video_id: str, status: str, source: str | None = None, error: str | None = None) -> None:
+    def reset_failed_videos(self, source: str | None = None) -> int:
+        """Manual Reset: Promote failed videos back to the pending pool.
+
+        Deletes 'failed' entries from download_archive, allowing the scheduler
+        to pick them up again immediately (bypassing the 24-hour retry window).
+
+        Args:
+            source: Optional channel URL to reset only that source.
+
+        Returns:
+            Number of videos promoted.
+        """
+        conn = sqlite3.connect(self._db_path)
+        conn.execute("PRAGMA busy_timeout=5000")
+        if source:
+            cursor = conn.execute(
+                "DELETE FROM download_archive WHERE status='failed' AND source=?", (source,)
+            )
+        else:
+            cursor = conn.execute("DELETE FROM download_archive WHERE status='failed'")
+        count = cursor.rowcount
+        conn.commit()
+        conn.close()
+        return count
+
+    def archive_finalize(
+self, video_id: str, status: str, source: str | None = None, error: str | None = None) -> None:
         """Write final status to download_archive after worker completes.
 
         Must be called by batch.py workers after mark_complete/mark_failed.

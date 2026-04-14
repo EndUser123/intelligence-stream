@@ -2,10 +2,14 @@
 
 ## Overview
 
-`yt-is` (YouTube Intelligence System) is a transcript ingestion and analysis pipeline that integrates with Claude Code through skills. It provides two main capabilities:
+`yt-is` (YouTube Intelligence System) is a high-throughput transcript ingestion pipeline. It has recently transitioned to an **Industrial Architecture** to handle a 140,000-video backlog.
 
-1. **Channel Management**: Discover new YouTube videos via RSS + API gap resolution
-2. **Transcript Ingestion**: Download transcripts via yt-dlp, Selenium, or NotebookLM
+### The Industrial Transition (April 2026)
+As of commit `bea672f`, the pipeline has been optimized for scale:
+- **Persistent Staging:** Uses `NLMIndustrialScraper` with a module-level singleton. A staging notebook is reused for up to 300 videos, reducing setup overhead by 99.7%.
+- **Automated Triage:** `bin/csf-source fetch` now automatically chooses between **Industrial (Batch)** and **Surgical (Sequential)** paths based on the `BACKLOG_THRESHOLD = 50`.
+- **Deep Discovery:** `source_enumerator.py` now includes a Full Playlist Enumeration fallback to bypass the 15-video RSS limit and catch "Deep Gaps".
+- **Self-Healing:** `BatchScheduler` now implements a **24-hour Retry Window** for transient failures (429s, timeouts).
 
 ## Architecture
 

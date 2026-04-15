@@ -10,13 +10,13 @@ YouTube transcript ingestion and analysis pipeline — discover new videos, down
 
 ```powershell
 # Check tracked channels for new videos
-/yt-channel sync
+/yt-is sync
 
 # Industrial Ingest (NLM Batch) - BEST FOR BACKLOG (18,000 v/hr)
 /yt-nlm
 
 # Surgical Fetch (yt-dlp -> Selenium fallback)
-/yt-channel fetch
+/yt-is fetch
 ```
 
 ## Installation
@@ -32,28 +32,28 @@ YouTube transcript ingestion and analysis pipeline — discover new videos, down
 **Setup:**
 ```powershell
 # Windows (Junction - No admin required)
-New-Item -ItemType Junction -Path "P:\.claude\skills\yt-channel" -Target "P:\.claude\skills\yt-channel"
+New-Item -ItemType Junction -Path "P:\.claude\skills\yt-is" -Target "P:\.claude\skills\yt-is"
 New-Item -ItemType Junction -Path "P:\.claude\skills\yt-nlm" -Target "P:\.claude\skills\yt-nlm"
 ```
 
 **Key points:**
-- Skills are in `P:/.claude/skills/yt-channel/` and `P:/.claude/skills/yt-nlm/`
+- Skills are in `P:/.claude/skills/yt-is/` and `P:/.claude/skills/yt-nlm/`
 - Changes to skill files take effect immediately
 - No reinstallation required
 
 #### 2. SYMLINK (CLI Tools)
 
-**For**: When you want `yt-channel` and `csf-source` commands available in your terminal.
+**For**: When you want `yt-is` and `csf-source` commands available in your terminal.
 
 **Setup:**
 ```powershell
 # Symlink bin tools to a directory in your PATH
-cmd /c "mklink P:\bin\yt-channel P:\packages\yt-is\bin\yt-channel"
+cmd /c "mklink P:\bin\yt-is P:\packages\yt-is\bin\yt-is"
 cmd /c "mklink P:\bin\csf-source P:\packages\yt-is\bin\csf-source"
 ```
 
 **Key points:**
-- `yt-channel` — channel management (sync, list, add, fetch)
+- `yt-is` — channel management (sync, list, add, fetch)
 - `csf-source` — backend for channel and transcript operations
 - Both commands share the same SQLite database
 
@@ -72,7 +72,7 @@ cmd /c "mklink P:\bin\csf-source P:\packages\yt-is\bin\csf-source"
 
 ## Skills
 
-### `/yt-channel` — YouTube Channel Management
+### `/yt-is` — YouTube Channel Management
 
 Check all tracked YouTube channels for new videos and manage your channel list.
 
@@ -97,18 +97,18 @@ Extract YouTube transcripts using NotebookLM's batch notebook workflow.
 
 ## CLI Tools
 
-### `yt-channel`
+### `yt-is`
 
 Channel management CLI wrapping `csf-source`.
 
 ```powershell
-yt-channel sync             # Check all tracked channels for new videos
-yt-channel list             # List all tracked channels
-yt-channel add <url>        # Add a new channel to track
-yt-channel fetch            # Download pending transcripts (escalation chain)
-yt-channel fetch --dry-run   # Preview what would be fetched
-yt-channel fetch --source <url>  # Process only one channel
-yt-channel fetch --workers 2  # Use 2 parallel workers
+yt-is sync                  # Check all tracked channels for new videos
+yt-is list                  # List all tracked channels
+yt-is add <url>             # Add a new channel to track
+yt-is fetch                 # Download pending transcripts (escalation chain)
+yt-is fetch --dry-run       # Preview what would be fetched
+yt-is fetch --source <url>  # Process only one channel
+yt-is fetch --workers 2     # Use 2 parallel workers
 ```
 
 ### `csf-source`
@@ -128,7 +128,7 @@ csf-source fetch --dry-run   # Preview what would be fetched
 ## Pipeline Overview
 
 ```
-/yt-channel sync
+/yt-is sync
     ↓
 RSS check → Gap detection → API resolution
     ↓
@@ -136,7 +136,7 @@ batch_status.sqlite (pending videos)
     ↓
 /yt-nlm (Industrial Cloud Ingest) —— [PRIMARY: 99% Signal SNR]
     ↓ OR
-/yt-channel fetch (Surgical Local) —— [FALLBACK: 40% Signal SNR]
+/yt-is fetch (Surgical Local) —— [FALLBACK: 40% Signal SNR]
     ↓
 transcripts.sqlite (Provenance-tracked Clean Store)
     ↓
@@ -148,12 +148,12 @@ Combined markdown batches → CKS / Obsidian / analysis tools
 ```
 channel_metadata table (SQLite)
     │
-    ├─► yt-channel sync ──► RSS check ──► Gap detection ──► API resolution
+    ├─► yt-is sync ──► RSS check ──► Gap detection ──► API resolution
     │                                                │
     │                                                ▼
     │                                       batch_status table (pending)
     │
-    ├─► yt-channel fetch ──► ESCALATION CHAIN (yt-dlp → Selenium) ──► transcripts.sqlite
+    ├─► yt-is fetch ──► ESCALATION CHAIN (yt-dlp → Selenium) ──► transcripts.sqlite
     │
     └─► /yt-nlm ──► Batch notebooks ──► nlm source content ──► transcripts.sqlite
 ```
@@ -187,7 +187,7 @@ channel_metadata table (SQLite)
 ```
 yt-is/
 ├── bin/
-│   ├── yt-channel          # Channel management CLI
+│   ├── yt-is               # Channel management CLI
 │   └── csf-source          # Backend implementation
 ├── csf/
 │   ├── transcript.py        # Transcript fetching (yt-dlp, NLM)
@@ -195,7 +195,7 @@ yt-is/
 │   ├── source_enumerator.py  # RSS + API enumeration
 │   └── cache.py             # Transcript caching
 └── skills/
-    ├── yt-is/SKILL.md        # Channel management (renamed from yt-channel)
+    ├── yt-is/SKILL.md        # Channel management
     ├── yt-nlm/SKILL.md       # NotebookLM batch extraction
     └── yt-dlp/SKILL.md       # Local yt-dlp transcript fetching
 ```
@@ -204,8 +204,8 @@ yt-is/
 
 ```mermaid
 graph TB
-    User[/"User: /yt-channel or /yt-nlm"/] --> Detect[Detect Skill Invoked]
-    Detect -->|yt-channel| ChannelSkill[yt-channel Skill]
+    User[/"User: /yt-is or /yt-nlm"/] --> Detect[Detect Skill Invoked]
+    Detect -->|yt-is| ChannelSkill[yt-is Skill]
     Detect -->|yt-nlm| NLMSkill[yt-nlm Skill]
     ChannelSkill --> CSFSource[csf-source backend]
     NLMSkill --> NLMBatch[csf/nlm_batch.py]

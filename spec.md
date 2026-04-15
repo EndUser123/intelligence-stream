@@ -17,7 +17,7 @@ The system now features two entry points based on data volume:
 - **Throughput:** ~720 videos/hour.
 - **Methods:** `yt-dlp` (TLS impersonation) -> `nlm_batch` -> `nlm_scraper` (Sidebar loop).
 - **Fidelity:** High fidelity local scrape.
-- **Entry Point:** `/yt-channel fetch` command.
+- **Entry Point:** `/yt-is fetch` command.
 
 ## Critical Discovery: SNR (Signal-to-Noise Ratio)
 - **Clean Ingest (NLM):** Returns ~9,000 chars for a 10m video. Matches spoken words.

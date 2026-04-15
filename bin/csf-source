@@ -47,7 +47,7 @@ _LOCK_DIR.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from csf import batch
-from csf.logging import log_user_message, log_action
+from csf.csf_logging import log_user_message, log_action
 from csf.cache import has_cached_transcript, set_cached_transcript
 from csf.transcript import fetch_transcript_chain, LanguageConfig
 from csf.batch_status import (
@@ -61,6 +61,11 @@ from csf.batch_status import (
     get_status_batch,
     _get_batch_status_storage,
     BatchEntry,
+    block_channel,
+    unblock_channel,
+    is_channel_blocked,
+    get_all_blocked_channels,
+    delete_channel,
 )
 from csf.source_enumerator import (
     parse_channel_url,
@@ -72,6 +77,7 @@ from csf.source_enumerator import (
     enumerate_full,
     enumerate_recent,
     check_rss,
+    detect_gap,
     get_quota_status,
     can_proceed,
     _get_api_keys,
@@ -177,6 +183,11 @@ def cmd_add(url: str) -> None:
             print(f"[source] Detected video: {video_id}")
             # Single-video entry: use watch URL as the source identifier
             canonical_url = url
+            # Check blocklist for videos too
+            if is_channel_blocked(canonical_url):
+                print(f"[source] Blocked: {canonical_url} is on the blocklist.")
+                print(f"[source] Use 'unblock {url}' to remove from blocklist first.")
+                sys.exit(1)
             new_count = _mark_videos_pending(canonical_url, [
                 {"video_id": video_id, "title": None, "published_at": None}
             ])
@@ -187,6 +198,12 @@ def cmd_add(url: str) -> None:
             return
 
         print(f"[source] Error: Could not parse {url} as channel, playlist, or video URL", file=sys.stderr)
+        sys.exit(1)
+
+    # Check blocklist before any API calls or enumeration
+    if is_channel_blocked(canonical_url):
+        print(f"[source] Blocked: {canonical_url} is on the blocklist.")
+        print(f"[source] Use 'unblock {url}' to remove from blocklist first.")
         sys.exit(1)
 
     # Check if already tracked
@@ -758,18 +775,7 @@ def cmd_check_all(verbose: bool = False) -> None:
     # Print summary and stats
     print(f"\n[source] Discovery complete. Found {total_new_videos} new videos across {len(rows)} channels.")
 
-        # Update last_checked and optionally real video count from API
-        now = datetime.now(timezone.utc).isoformat()
-        if real_video_count:
-            upsert_channel(channel_url, last_checked=now, video_count_estimate=real_video_count)
-        else:
-            upsert_channel(channel_url, last_checked=now)
-
-        if verbose:
-            print(f"[source] {new_count} new videos marked as pending")
-        total_new_videos += new_count
-
-    # Print legend and channel statistics in yt-fts format
+    # Print summary stats
     print("")  # blank line before results
 
     # Print legend
@@ -1106,6 +1112,69 @@ def cmd_quota() -> None:
     print(f"[source] Can proceed for ~{available // 5} more channel additions")
 
 
+def cmd_block(url: str) -> None:
+    """Add a channel to the blocklist."""
+    # Normalize the URL
+    channel_id = parse_channel_url(url)
+    if channel_id:
+        if channel_id.startswith("@"):
+            canonical_url = f"https://www.youtube.com/{channel_id}"
+        else:
+            canonical_url = f"https://www.youtube.com/channel/{channel_id}"
+    else:
+        canonical_url = url
+
+    block_channel(canonical_url)
+    print(f"[source] Blocked: {canonical_url}")
+
+
+def cmd_unblock(url: str) -> None:
+    """Remove a channel from the blocklist."""
+    channel_id = parse_channel_url(url)
+    if channel_id:
+        if channel_id.startswith("@"):
+            canonical_url = f"https://www.youtube.com/{channel_id}"
+        else:
+            canonical_url = f"https://www.youtube.com/channel/{channel_id}"
+    else:
+        canonical_url = url
+
+    was_blocked = unblock_channel(canonical_url)
+    if was_blocked:
+        print(f"[source] Unblocked: {canonical_url}")
+    else:
+        print(f"[source] Not on blocklist: {canonical_url}")
+
+
+def cmd_list_blocked() -> None:
+    """List all blocked channels."""
+    blocked = get_all_blocked_channels()
+    if not blocked:
+        print("[source] No blocked channels.")
+        return
+    print("[source] Blocked channels:")
+    for channel_url, blocked_at in blocked:
+        print(f"  {channel_url}  (blocked {blocked_at[:19].replace('T', ' ')})")
+
+
+def cmd_remove(url: str) -> None:
+    """Remove a channel and all its video entries from the database."""
+    channel_id = parse_channel_url(url)
+    if channel_id:
+        if channel_id.startswith("@"):
+            canonical_url = f"https://www.youtube.com/{channel_id}"
+        else:
+            canonical_url = f"https://www.youtube.com/channel/{channel_id}"
+    else:
+        canonical_url = url
+
+    deleted = delete_channel(canonical_url)
+    if deleted:
+        print(f"[source] Removed: {canonical_url}")
+    else:
+        print(f"[source] Not found in database: {canonical_url}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="YouTube source management CLI — Phase 2."
@@ -1140,6 +1209,21 @@ def main() -> None:
     fetch_parser.add_argument("--dry-run", action="store_true", help="Show what would be fetched without fetching")
     fetch_parser.add_argument("--workers", type=int, default=1, help="Number of parallel workers (default: 1)")
 
+    # block command
+    block_parser = subparsers.add_parser("block", help="Add a channel to the blocklist")
+    block_parser.add_argument("url", help="Channel URL or @handle")
+
+    # unblock command
+    unblock_parser = subparsers.add_parser("unblock", help="Remove a channel from the blocklist")
+    unblock_parser.add_argument("url", help="Channel URL or @handle")
+
+    # remove command
+    remove_parser = subparsers.add_parser("remove", help="Remove a channel and all its videos from the database")
+    remove_parser.add_argument("url", help="Channel URL or @handle")
+
+    # list-blocked command
+    subparsers.add_parser("list-blocked", help="List all blocked channels")
+
     args = parser.parse_args()
 
     if args.command == "add":
@@ -1156,6 +1240,14 @@ def main() -> None:
         cmd_quota()
     elif args.command == "fetch":
         cmd_fetch(source_filter=args.source, dry_run=args.dry_run, workers=args.workers)
+    elif args.command == "block":
+        cmd_block(args.url)
+    elif args.command == "unblock":
+        cmd_unblock(args.url)
+    elif args.command == "remove":
+        cmd_remove(args.url)
+    elif args.command == "list-blocked":
+        cmd_list_blocked()
     else:
         parser.print_help()
         sys.exit(1)

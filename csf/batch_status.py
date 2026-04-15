@@ -207,6 +207,7 @@ class _BatchStatusStorage:
         self._ensure_nlm_export_state()
         self._ensure_channel_metadata()
         self._ensure_provider_score()
+        self._ensure_channel_blocklist()
 
     def _ensure_provider_score(self) -> None:
         """Create or migrate provider_score table for failure-aware routing."""
@@ -826,6 +827,88 @@ class _BatchStatusStorage:
         conn.close()
         return row[0] if row and row[0] else None
 
+    # ---------------------------------------------------------------------------
+    # channel blocklist
+    # ---------------------------------------------------------------------------
+
+    def _ensure_channel_blocklist(self) -> None:
+        """Create channel_blocklist table if it doesn't exist."""
+        conn = self._get_conn()
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS channel_blocklist (
+                channel_url TEXT PRIMARY KEY,
+                blocked_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.close()
+
+    def block_channel(self, channel_url: str) -> None:
+        """Add a channel to the blocklist."""
+        self._ensure_channel_blocklist()
+        conn = self._get_conn()
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            "INSERT OR REPLACE INTO channel_blocklist (channel_url, blocked_at) VALUES (?, ?)",
+            (channel_url, now),
+        )
+        conn.commit()
+        conn.close()
+
+    def unblock_channel(self, channel_url: str) -> bool:
+        """Remove a channel from the blocklist. Returns True if it was blocked."""
+        self._ensure_channel_blocklist()
+        conn = self._get_conn()
+        cursor = conn.execute(
+            "DELETE FROM channel_blocklist WHERE channel_url = ? RETURNING channel_url",
+            (channel_url,),
+        )
+        deleted = cursor.fetchone() is not None
+        conn.commit()
+        conn.close()
+        return deleted
+
+    def is_channel_blocked(self, channel_url: str) -> bool:
+        """Check if a channel is on the blocklist."""
+        self._ensure_channel_blocklist()
+        conn = self._get_conn()
+        cursor = conn.execute(
+            "SELECT 1 FROM channel_blocklist WHERE channel_url = ?",
+            (channel_url,),
+        )
+        exists = cursor.fetchone() is not None
+        conn.close()
+        return exists
+
+    def get_all_blocked_channels(self) -> list[tuple[str, str]]:
+        """Return all blocked channels as (channel_url, blocked_at) tuples."""
+        self._ensure_channel_blocklist()
+        conn = self._get_conn()
+        cursor = conn.execute(
+            "SELECT channel_url, blocked_at FROM channel_blocklist ORDER BY blocked_at DESC"
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return rows
+
+    def delete_channel(self, channel_url: str) -> bool:
+        """Delete a channel and all its video entries. Returns True if deleted."""
+        self._ensure_channel_metadata()
+        conn = self._get_conn()
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute("DELETE FROM analysis_status WHERE source = ?", (channel_url,))
+            conn.execute("DELETE FROM channel_metadata WHERE channel_url = ?", (channel_url,))
+            conn.commit()
+            deleted = True
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+        return deleted
+
     def get_entries_for_source(
         self, channel_url: str
     ) -> list[tuple[str, str, bool | None]]:
@@ -1203,6 +1286,47 @@ def get_newest_published_for_source(
     return _BatchStatusStorage(db_path=db_path).get_newest_published_for_source(
         channel_url
     )
+
+
+# ---------------------------------------------------------------------------
+# channel blocklist public API
+# ---------------------------------------------------------------------------
+
+
+def block_channel(channel_url: str, db_path: Path | None = None) -> None:
+    """Add a channel to the blocklist."""
+    if db_path is None:
+        _get_batch_status_storage().block_channel(channel_url)
+    else:
+        _BatchStatusStorage(db_path=db_path).block_channel(channel_url)
+
+
+def unblock_channel(channel_url: str, db_path: Path | None = None) -> bool:
+    """Remove a channel from the blocklist. Returns True if it was blocked."""
+    if db_path is None:
+        return _get_batch_status_storage().unblock_channel(channel_url)
+    return _BatchStatusStorage(db_path=db_path).unblock_channel(channel_url)
+
+
+def is_channel_blocked(channel_url: str, db_path: Path | None = None) -> bool:
+    """Check if a channel is on the blocklist."""
+    if db_path is None:
+        return _get_batch_status_storage().is_channel_blocked(channel_url)
+    return _BatchStatusStorage(db_path=db_path).is_channel_blocked(channel_url)
+
+
+def get_all_blocked_channels(db_path: Path | None = None) -> list[tuple[str, str]]:
+    """Return all blocked channels as (channel_url, blocked_at) tuples."""
+    if db_path is None:
+        return _get_batch_status_storage().get_all_blocked_channels()
+    return _BatchStatusStorage(db_path=db_path).get_all_blocked_channels()
+
+
+def delete_channel(channel_url: str, db_path: Path | None = None) -> bool:
+    """Delete a channel and all its video entries. Returns True if deleted."""
+    if db_path is None:
+        return _get_batch_status_storage().delete_channel(channel_url)
+    return _BatchStatusStorage(db_path=db_path).delete_channel(channel_url)
 
 
 def get_entries_for_source(

@@ -25,6 +25,11 @@ workflow_steps:
   - Delete batch notebook (cleanup)
   - Write transcripts to database cache (transcripts.sqlite)
   - Combine transcripts into batches for external use
+allowed_first_tools:
+  - Bash
+required_first_command_patterns:
+  - '^nlm\s+login\s+--check(?:\s|$)'
+required_first_command_hint: Run `nlm login --check` first so auth is validated before notebook work starts.
 
 parameters:
   - name: dry-run
@@ -94,16 +99,16 @@ yt-nlm --batch-size 20
 
 ## Integration Points
 
-- Reads from `batch_status.sqlite` (pending videos marked by `/yt-channel`)
+- Reads from `batch_status.sqlite` (pending videos marked by `/yt-is`)
 - Writes to `transcripts.sqlite` cache via `csf.cache.set_cached_transcript()`
 - Stores combined markdown files in `P:/__csf/.data/yt-is/transcripts/`
-- Compatible with `/yt-channel fetch` (both write to same cache database, different sources)
+- Compatible with `/yt-is fetch` (both write to same cache database, different sources)
 - External provider hook: `register_external_transcript_provider()` for custom sources
 
 ## Data Flow
 
 ```
-/yt-channel sync
+/yt-is sync
     ↓
 batch_status.sqlite (pending videos)
     ↓
@@ -150,8 +155,8 @@ When transcript fetch fails, `last_stage` and `failure_reason` are recorded:
 ## Related Skills
 
 - `/nlm` — NotebookLM CLI operations
-- `/yt-channel` — Video discovery and tracking
-- `/yt-channel fetch` — yt-dlp → Selenium transcript download (escalation chain)
+- `/yt-is` — Video discovery and tracking
+- `/yt-is fetch` — yt-dlp → Selenium transcript download (escalation chain)
 - `/yt-dlp` — Local transcript download via yt-dlp
 
 ## ADR Reference

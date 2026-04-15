@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - **Configurable NLM batch size** — `YTIS_NLM_MAX_SOURCES_PER_NOTEBOOK` env var controls max sources per notebook (default: 300)
 - **`last_stage` and `failure_reason` columns** — Structured failure taxonomy: `quota_exceeded`, `region_block`, `auth_failed`, `captcha`, `timeout`, `no_transcript`, `unavailable`, `unknown`
 - **Schema migrations** — `last_stage` and `failure_reason` columns auto-added to existing `analysis_status` table
-- **`/yt-channel fetch`** — Explicitly documented skill command for transcript downloading with escalation chain
+- **`/yt-is fetch`** — Explicitly documented skill command for transcript downloading with escalation chain
 
 ### Changed
 - **`csf_nlm_ingest.py` deprecated** — Replaced docstring with deprecation notice pointing to `transcript.py` batch workflow
@@ -26,10 +26,10 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - Initial release of yt-is (YouTube Intelligence System)
-- `/yt-channel` skill for YouTube channel management via RSS + API gap resolution
+- `/yt-is` skill for YouTube channel management via RSS + API gap resolution
 - `/yt-nlm` skill for NotebookLM transcript extraction
 - `csf-source` backend with `add`, `list`, `check`, `check-all`, `sync`, `fetch` commands
-- `yt-channel` CLI wrapper for `csf-source`
+- `yt-is` CLI wrapper for `csf-source`
 - Transcript caching with SQLite backend (`transcripts.sqlite`)
 - Batch processing with InterProcessLock for multi-terminal safety
 - Full internationalization support (i18n) with language configuration

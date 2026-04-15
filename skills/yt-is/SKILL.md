@@ -13,6 +13,11 @@ workflow_steps:
   - Delegate to csf-source backend
   - Paste raw output explicitly (Bash output gets compressed, user can't see it)
   - Display results
+allowed_first_tools:
+  - Bash
+required_first_command_patterns:
+  - '^csf-source\s+sync(?:\s|$)'
+required_first_command_hint: Use `csf-source sync` first, then `list` or `fetch` as needed.
 aliases:
   - yt-is
   - check youtube channels

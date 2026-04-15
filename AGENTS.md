@@ -19,11 +19,11 @@ User Input → Skill Invocation → CLI Script / Python → Transcript Sources �
 
 ## Skills
 
-### `/yt-channel` — YouTube Channel Management
+### `/yt-is` — YouTube Channel Management
 
 Check all tracked YouTube channels for new videos and manage your channel list.
 
-**Entry point**: `bin/yt-channel` (wraps `bin/csf-source`)
+**Entry point**: `bin/yt-is` (wraps `bin/csf-source`)
 
 **Commands:**
 - `sync` — Check all tracked channels for new videos (RSS + gap detection + API)
@@ -37,7 +37,7 @@ Check all tracked YouTube channels for new videos and manage your channel list.
 3. Selenium Firefox — fallback for bot-check failures
 
 **Key files:**
-- `bin/yt-channel` — CLI entry point
+- `bin/yt-is` — CLI entry point
 - `bin/csf-source` — Backend implementation
 - `csf/source_enumerator.py` — RSS + API enumeration
 - `csf/batch_status.py` — SQLite storage (`channel_metadata`, `analysis_status` tables)
@@ -77,15 +77,15 @@ Extract YouTube transcripts using NotebookLM's batch notebook workflow.
 
 ## CLI Tools
 
-### `yt-channel`
+### `yt-is`
 
 Channel management CLI. Delegates to `csf-source` backend.
 
 ```powershell
-yt-channel sync             # Check all tracked channels
-yt-channel list             # List all tracked channels
-yt-channel add <url>        # Add a channel
-yt-channel fetch            # Download pending transcripts
+yt-is sync                  # Check all tracked channels
+yt-is list                  # List all tracked channels
+yt-is add <url>             # Add a channel
+yt-is fetch                 # Download pending transcripts
 ```
 
 ### `csf-source`
@@ -104,7 +104,7 @@ csf-source fetch            # Download pending transcripts
 ## Data Flow
 
 ```
-/yt-channel sync
+/yt-is sync
     │
     ├─► RSS fetch (15 most recent per channel)
     ├─► Gap detection (new videos not in local DB)
@@ -113,7 +113,7 @@ csf-source fetch            # Download pending transcripts
             ▼
     batch_status.sqlite: analysis_status (pending)
             │
-            ├─► /yt-channel fetch ──► yt-dlp ──► transcripts.sqlite
+            ├─► /yt-is fetch ──► yt-dlp ──► transcripts.sqlite
             │                              └─► Selenium ──► transcripts.sqlite
             │
             └─► /yt-nlm ──► NotebookLM batch ──► transcripts.sqlite

@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from csf.batch_status import _get_batch_status_storage, get_entries_for_source
 from csf.cache import has_cached_transcript, set_cached_transcript
 from csf.batch_scheduler import BatchScheduler
+from csf.display import format_kv_block
 
 # Module-level singleton for Selenium-only scheduler
 _selenium_scheduler: BatchScheduler | None = None
@@ -178,13 +179,15 @@ def main() -> None:
             print(f"Channel '{args.channel}' not found in tracked sources.")
             sys.exit(1)
 
-    print("=== Selenium Transcript Extractor ===")
-    print(f"Channels: {len(channels)}")
-    print(f"Mode: {'LIVE (extracting)' if args.run else 'DRY RUN'}")
-    print(f"Workers: {args.workers}")
-    print(f"Language: {args.lang}")
+    status_rows: list[tuple[str, str | int]] = [
+        ("Channels", len(channels)),
+        ("Mode", "LIVE (extracting)" if args.run else "DRY RUN"),
+        ("Workers", args.workers),
+        ("Language", args.lang),
+    ]
     if args.profile:
-        print(f"Firefox Profile: {args.profile}")
+        status_rows.append(("Firefox Profile", args.profile))
+    print(format_kv_block("=== Selenium Transcript Extractor ===", status_rows))
     print()
 
     # Collect pending videos from all channels
@@ -260,11 +263,17 @@ def main() -> None:
 
     # Summary
     print()
-    print("=== Summary ===")
-    print(f"Successfully extracted: {success_count}")
-    print(f"Failed: {fail_count}")
-    print(f"Skipped (cached): {skip_count}")
-    print(f"Total processed: {len(pending_videos)}")
+    print(
+        format_kv_block(
+            "=== Summary ===",
+            [
+                ("Successfully extracted", success_count),
+                ("Failed", fail_count),
+                ("Skipped (cached)", skip_count),
+                ("Total processed", len(pending_videos)),
+            ],
+        )
+    )
 
     if fail_count > 0:
         sys.exit(1)

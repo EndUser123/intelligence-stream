@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from csf.display import format_result_row
 
 # Minimum characters for a "valid" high-fidelity transcript
 _MIN_TRANSCRIPT_CHARS = 500
@@ -83,6 +84,7 @@ class NLMBatchIngestor:
             return vid_hint, False, None, f"Fetch failed for {source_id}"
 
         print(f"[NLM-Batch] Fetching {len(sources)} sources in parallel...")
+        video_width = max(len(vid) for vid in batch_ids) if batch_ids else 0
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = []
             for i, vid in enumerate(batch_ids):
@@ -93,9 +95,9 @@ class NLMBatchIngestor:
                 vid, success, text, error = future.result()
                 results[vid] = (success, text, error)
                 if success:
-                    print(f"  ✓ {vid}: {len(text)} chars")
+                    print(format_result_row(vid, True, f"{len(text)} chars", video_width))
                 else:
-                    print(f"  ✗ {vid}: {error}")
+                    print(format_result_row(vid, False, error, video_width))
         
         return results
 

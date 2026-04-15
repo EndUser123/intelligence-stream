@@ -711,10 +711,10 @@ graph TD
       </div>
       <div class="steps">
         <div class="step"><strong>Industrial (<code>/yt-nlm</code>)</strong> — <code>nlm_batch.py</code> creates notebooks with up to 300 sources, fetches raw transcripts via <code>nlm source content</code> (no credits consumed). ~18K videos/hr, 99% SNR.</div>
-        <div class="step"><strong>Surgical (<code>/yt-channel fetch</code>)</strong> — <code>transcript.py</code> single-video fetch for targeted requests. ~720 videos/hr, lower SNR.</div>
+        <div class="step"><strong>Surgical (<code>/yt-is fetch</code>)</strong> — <code>transcript.py</code> single-video fetch for targeted requests. ~720 videos/hr, lower SNR.</div>
         <div class="step">Both paths feed the same <code>fetch_transcript_chain()</code> escalation ladder</div>
       </div>
-      <div class="data-flow">batch_status.sqlite → /yt-nlm | /yt-channel fetch → escalation chain</div>
+      <div class="data-flow">batch_status.sqlite → /yt-nlm | /yt-is fetch → escalation chain</div>
     </div>
 
     <div class="stage" id="ingest-escalation">

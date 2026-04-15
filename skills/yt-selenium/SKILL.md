@@ -18,6 +18,11 @@ workflow_steps:
   - channel_selection: Optionally specify --channel URL for specific channel
   - execute_extraction: Run with --run to extract transcripts via Selenium Firefox
   - fallback_handling: Selenium is slower (15-30s/video) but bypasses TLS bot detection
+allowed_first_tools:
+  - Bash
+required_first_command_patterns:
+  - '^python\s+-m\s+csf\.csf_selenium(?:\s|$)'
+required_first_command_hint: Start with `python -m csf.csf_selenium` to validate the pending queue before extraction.
 enforcement: advisory
 ---
 
@@ -119,7 +124,7 @@ Selenium has built-in rate limit protection:
 
 ## Integration Points
 
-- Reads from `batch_status.sqlite` (pending videos marked by `/yt-channel`)
+- Reads from `batch_status.sqlite` (pending videos marked by `/yt-is`)
 - Stores transcripts in `transcripts.sqlite` via `csf.cache`
 - Cross-terminal cooldown sharing via `BatchScheduler`
 - Compatible with `/yt-dlp` (can run both, compare results)
@@ -136,7 +141,7 @@ Selenium has built-in rate limit protection:
 ## Data Flow
 
 ```
-/yt-channel sync
+/yt-is sync
     ↓
 batch_status.sqlite (pending videos)
     ↓
@@ -195,7 +200,7 @@ winget install Mozilla.GeckoDriver
 
 - `/yt-dlp` — Fast transcript download (try first)
 - `/yt-nlm` — NotebookLM transcript ingestion (high quality)
-- `/yt-channel` — Video discovery and tracking
+- `/yt-is` — Video discovery and tracking
 
 ## ADR Reference
 

@@ -2,11 +2,11 @@
 """YouTube channel management — check for new videos and manage tracked channels.
 
 Usage:
-    yt-channel sync              # Check all tracked channels for new videos
-    yt-channel list              # List all tracked channels
-    yt-channel add <url>         # Add a new channel to track
-    yt-channel fetch             # Download pending transcripts (yt-dlp → Selenium)
-    yt-channel fetch --dry-run   # Preview what would be fetched
+    yt-is sync              # Check all tracked channels for new videos
+    yt-is list              # List all tracked channels
+    yt-is add <url>         # Add a new channel to track
+    yt-is fetch             # Download pending transcripts (yt-dlp → Selenium)
+    yt-is fetch --dry-run   # Preview what would be fetched
 """
 
 import argparse

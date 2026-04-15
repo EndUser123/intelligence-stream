@@ -1,5 +1,10 @@
 """Tests for csf_selenium module."""
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(r"P:\packages\yt-is").absolute()))
+
 import pytest
 
 from csf.csf_selenium import _fetch_via_selenium_only, _process_video

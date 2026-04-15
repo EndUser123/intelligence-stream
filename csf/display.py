@@ -33,19 +33,23 @@ class ChannelStats(NamedTuple):
         # Convert ISO format to more readable format (remove T, truncate microseconds)
         return ts[:19].replace("T", " ")
 
-    def format_summary(self) -> str:
-        """Format compact summary: ct, tt, vt
+    def format_summary(self, widths: tuple[int, int, int] | None = None) -> str:
+        """Format compact summary: ct, tt, vt.
 
         - ct (channel total): All videos known
         - tt (transcript total): Videos with captions available
         - vt (verified): Downloaded to disk
         """
-        parts = []
-        parts.append(f"{self.total} ct")
-        parts.append(f"{self.main_trackable} tt")
-        parts.append(f"{self.downloaded} vt")
-
-        return ", ".join(parts)
+        ct_width, tt_width, vt_width = widths or (
+            len(str(self.total)),
+            len(str(self.main_trackable)),
+            len(str(self.downloaded)),
+        )
+        return (
+            f"{self.total:>{ct_width}} ct, "
+            f"{self.main_trackable:>{tt_width}} tt, "
+            f"{self.downloaded:>{vt_width}} vt"
+        )
 
     def format_metadata(self) -> str:
         """Format optional metadata: playlists, subscribers"""
@@ -113,18 +117,32 @@ def format_channel_list(channels: list[ChannelStats]) -> str:
         "  ct = Channel total (all videos)",
         "  tt = Transcript total (videos with captions)",
         "  vt = Verified transcripts (downloaded to disk)",
+        "  lc = Last checked (timestamp)",
         "",
     ]
 
+    normalized_urls = []
     for ch in channels:
-        # Channel URL (fix @handle format: remove /channel/ prefix if present)
         display_url = ch.channel_url
         if "/channel/@" in display_url:
             display_url = display_url.replace("/channel/@", "/@")
+        normalized_urls.append(display_url)
 
+    url_width = min(80, max(60, max(len(url) for url in normalized_urls)))
+    summary_widths = (
+        max(len(str(ch.total)) for ch in channels),
+        max(len(str(ch.main_trackable)) for ch in channels),
+        max(len(str(ch.downloaded)) for ch in channels),
+    )
+
+    for ch, display_url in zip(channels, normalized_urls):
         # Single line: URL | ct, tt, vt | size | last_checked
-        summary = f"{ch.format_summary()} | {ch.format_storage_size():>8} | {ch.format_last_checked()[:16]}"
-        lines.append(f"{display_url:<60} | {summary}")
+        summary = (
+            f"{ch.format_summary(summary_widths)}"
+            f" | {ch.format_storage_size():>8}"
+            f" | {ch.format_last_checked()[:16]}"
+        )
+        lines.append(f"{display_url:<{url_width}} | {summary}")
 
     lines.append("```")
     return "\n".join(lines)
@@ -147,18 +165,24 @@ def format_sync_results(
 
     # Find max channel URL length for column width
     max_url_len = min(70, max(50, max((len(ch[0]) for ch in channels), default=50)))
+    video_width = max(len("Videos"), max(len(str(ch[1])) for ch in channels))
+    new_width = max(len("New"), max(len(str(ch[2])) for ch in channels))
+    last_checked_width = max(
+        len("Last Checked"),
+        max(len((ch[3][:19] if ch[3] else "Never").replace("T", " ")) for ch in channels),
+    )
 
     # Build header
     lines = [
-        f"{'Channel URL':<{max_url_len}} {'Videos':>6} {'New':>4} {'Last Checked':<20}",
-        "-" * (max_url_len + 6 + 4 + 20 + 3),  # +3 for spaces between columns
+        f"{'Channel URL':<{max_url_len}} {'Videos':>{video_width}} {'New':>{new_width}} {'Last Checked':<{last_checked_width}}",
+        "-" * (max_url_len + video_width + new_width + last_checked_width + 3),  # +3 for spaces between columns
     ]
 
     # Add each channel row
     for channel_url, video_count, new_count, last_checked in channels:
         last_checked_str = (last_checked[:19] if last_checked else "Never").replace("T", " ")
         lines.append(
-            f"{channel_url:<{max_url_len}} {video_count:>6} {new_count:>4} {last_checked_str:<20}"
+            f"{channel_url:<{max_url_len}} {video_count:>{video_width}} {new_count:>{new_width}} {last_checked_str:<{last_checked_width}}"
         )
 
     # Add summary
@@ -166,3 +190,23 @@ def format_sync_results(
     lines.append(f"[source] Check complete. {total_new} new videos across {len(channels)} channels.")
 
     return "\n".join(lines)
+
+
+def format_kv_block(title: str, rows: list[tuple[str, str | int]]) -> str:
+    """Format a compact aligned key/value block."""
+    if not rows:
+        return title
+
+    label_width = max(len(label) for label, _ in rows)
+    lines = [title]
+    for label, value in rows:
+        lines.append(f"{label:<{label_width}} : {value}")
+    return "\n".join(lines)
+
+
+def format_result_row(
+    video_id: str, success: bool, detail: str, width: int, indent: str = "  "
+) -> str:
+    """Format a single aligned result row for batch-style output."""
+    symbol = "✓" if success else "✗"
+    return f"{indent}{symbol} {video_id:<{width}} | {detail}"

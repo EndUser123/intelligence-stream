@@ -260,22 +260,21 @@ class NLMIndustrialScraper:
         results: Dict[str, Tuple[bool, Optional[str], Optional[str]]] = {}
 
         if batch_ids:
-            # Get count BEFORE adding so we know how many are already present
-            count_before = len(self.get_source_ids(self._staging_nb_id) or [])
             # Add sources to staging notebook
             source_ids = self._add_sources_to_staging(batch_ids)
             if not source_ids:
                 return {vid: (False, None, "source add failed") for vid in batch_ids}
-            # Determine how many were actually added (total minus old count)
-            added = len(source_ids) - count_before
+            # _add_sources_to_staging returns ALL source IDs in the notebook,
+            # ordered newest-first. The newly added sources are at the START
+            # of the list (indices 0 through len(batch_ids)-1).
+            added = len(batch_ids)
             self._source_count += added
-            # source list returns newest first; newly added sources occupy the
-            # range [count_before, count_before + added) at the START of the list
-            new_source_ids = source_ids[count_before:count_before + added] if added > 0 else []
+            new_source_ids = source_ids[:added]
             for i, vid in enumerate(batch_ids):
                 if i < len(new_source_ids):
                     vid_to_src[vid] = new_source_ids[i]
-            # Scrape the newly added sources
+            # Scrape the newly added sources (init driver first)
+            self._init_driver()
             results.update(self._scrape_sources(vid_to_src))
 
         # Iteratively process any remaining videos (overflow into next notebook)
@@ -292,19 +291,20 @@ class NLMIndustrialScraper:
                 # No room left in this notebook; _ensure_staging_notebook will
                 # have cleared and recreated one, so loop continues
                 continue
-            count_before = len(self.get_source_ids(self._staging_nb_id) or [])
             source_ids = self._add_sources_to_staging(batch_ids)
             if not source_ids:
                 for vid in batch_ids:
                     results[vid] = (False, None, "source add failed")
                 continue
-            added = len(source_ids) - count_before
+            # Newly added sources are at the START (newest-first ordering)
+            added = len(batch_ids)
             self._source_count += added
-            new_source_ids = source_ids[count_before:count_before + added] if added > 0 else []
+            new_source_ids = source_ids[:added]
             vid_to_src = {}
             for i, vid in enumerate(batch_ids):
                 if i < len(new_source_ids):
                     vid_to_src[vid] = new_source_ids[i]
+            self._init_driver()
             results.update(self._scrape_sources(vid_to_src))
 
         return results

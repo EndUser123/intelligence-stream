@@ -255,18 +255,26 @@ class NLMIndustrialScraper:
             batch_ids = video_ids
             rest = []
 
-        # Add sources to staging notebook
-        source_ids = self._add_sources_to_staging(batch_ids)
-        if not source_ids:
-            return {vid: (False, None, "source add failed") for vid in batch_ids}
-
-        self._source_count += len(batch_ids)
-
         # Map video_ids -> source_ids by position
         vid_to_src: Dict[str, str] = {}
-        for i, vid in enumerate(batch_ids):
-            if i < len(source_ids):
-                vid_to_src[vid] = source_ids[i]
+        if batch_ids:
+            # Get count BEFORE adding so we know how many are already present
+            count_before = len(self.get_source_ids(self._staging_nb_id) or [])
+            # Add sources to staging notebook
+            source_ids = self._add_sources_to_staging(batch_ids)
+            if not source_ids:
+                return {vid: (False, None, "source add failed") for vid in batch_ids}
+            # Get count AFTER to determine how many were actually added
+            count_after = len(source_ids)
+            self._source_count += count_after
+            # source list returns newest first, so newly added are at the START
+            # But we may have had old sources too, so take only the last
+            # count_after - count_before new sources (at the end of the list)
+            # We use the LAST count_after entries since they're newest-first
+            new_source_ids = source_ids[count_before:count_before + count_after] if count_after > 0 else []
+            for i, vid in enumerate(batch_ids):
+                if i < len(new_source_ids):
+                    vid_to_src[vid] = new_source_ids[i]
 
         # Scrape the newly added sources
         results = self._scrape_sources(vid_to_src)

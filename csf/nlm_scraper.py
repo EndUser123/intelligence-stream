@@ -189,19 +189,48 @@ class NLMIndustrialScraper:
         # Fallback: last line if format is unexpected
         return res.stdout.strip() or None
 
+    # Sub-batch size for CLI source adds — keeps NLM responsive and avoids
+    # overwhelming the backend when the staging notebook is fresh.
+    _CLI_SUBBATCH = 50
+
     def _add_sources_to_staging(self, video_ids: List[str]) -> List[str] | None:
-        """Add YouTube sources to the staging notebook. Returns source IDs in add order."""
+        """Add YouTube sources to the staging notebook in sub-batches.
+
+        Returns source IDs in add order, or None if any sub-batch fails.
+        On failure, clears the staging notebook to prevent stale state
+        contaminating the next batch.
+        """
         if not self._staging_nb_id:
             return None
-        add_cmd = ["source", "add", self._staging_nb_id, "--wait", "--wait-timeout", "600"]
-        for vid in video_ids:
-            add_cmd.extend(["--url", f"https://www.youtube.com/watch?v={vid}"])
-        res = self._run_nlm(add_cmd, timeout=900)
-        if res.returncode != 0:
-            print(f"[Industrial] Source add failed: {res.stderr}")
-            return None
-        # Fetch source list to get IDs in order
-        return self.get_source_ids(self._staging_nb_id)
+        all_source_ids: List[str] = []
+        for i in range(0, len(video_ids), self._CLI_SUBBATCH):
+            subbatch = video_ids[i : i + self._CLI_SUBBATCH]
+            add_cmd = [
+                "source", "add", self._staging_nb_id,
+                "--wait", "--wait-timeout", "600",
+            ]
+            for vid in subbatch:
+                add_cmd.extend(["--url", f"https://www.youtube.com/watch?v={vid}"])
+            res = self._run_nlm(add_cmd, timeout=900)
+            if res.returncode != 0:
+                # On sub-batch failure, clear the notebook so the next call
+                # starts with a fresh state instead of a corrupted one.
+                print(f"[Industrial] Sub-batch add failed ({i}-{i+len(subbatch)}): {res.stderr or '(no output)'} — clearing notebook")
+                self._clear_staging_notebook()
+                return None
+            # Get IDs for this sub-batch
+            ids = self.get_source_ids(self._staging_nb_id)
+            if ids is None or len(ids) == 0:
+                # None = error, [] = query succeeded but notebook unexpectedly empty
+                # Both indicate a bad state — clear and retry from scratch.
+                self._clear_staging_notebook()
+                return None
+            # Source IDs returned are ordered newest-first; the newly added
+            # ones are at the START of the list.  Figure out how many we
+            # just added and keep only those from the front.
+            added = len(subbatch)
+            all_source_ids.extend(ids[:added])
+        return all_source_ids
 
     def _clear_staging_notebook(self) -> bool:
         """Delete all sources from the staging notebook by deleting and recreating it."""

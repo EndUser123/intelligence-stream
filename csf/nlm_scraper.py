@@ -167,13 +167,39 @@ class NLMIndustrialScraper:
     # --- Staging notebook management (terminal-local reuse) ---
 
     def _run_nlm(self, args: List[str], timeout: int = 300) -> subprocess.CompletedProcess:
-        """Run an nlm CLI command. Uses the system PATH."""
-        return subprocess.run(
+        """Run an nlm CLI command. Uses the system PATH.
+
+        On auth errors (expired token between sessions), re-authenticates
+        and retries once — matching the pattern from nlm_batch.py.
+        """
+        res = subprocess.run(
             ["nlm"] + args,
             capture_output=True,
             text=True,
             timeout=timeout,
         )
+        if res.returncode == 0:
+            return res
+
+        # Check for auth errors — retry with re-auth if token expired mid-session
+        combined = (res.stderr or "") + (res.stdout or "")
+        is_auth_error = any(
+            kw in combined
+            for kw in ["Authentication Error", "authentication error", "Auth Error", "auth error"]
+        )
+        if is_auth_error:
+            login = subprocess.run(
+                ["nlm", "login", "--force"],
+                capture_output=True, text=True, timeout=120,
+            )
+            if login.returncode == 0:
+                res = subprocess.run(
+                    ["nlm"] + args,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                )
+        return res
 
     def _create_staging_notebook(self) -> str | None:
         """Create a new staging notebook and return its ID."""

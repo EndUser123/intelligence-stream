@@ -574,10 +574,77 @@ class NLMIndustrialScraper:
         if self._driver:
             self._driver.quit()
             self._driver = None
-        if self._staging_nb_id:
-            self._clear_staging_notebook()
+        self._cleanup_staging_on_close()
         self._staging_nb_id = None
         self._source_count = 0
+
+    # --- Pre-flight cleanup: remove orphaned staging notebooks from prior runs ---
+
+    ORPHAN_PREFIXES = ("staging_", "Industrial_Batch_")
+
+    def preflight_cleanup(self) -> tuple[int, int]:
+        """Delete orphaned staging/industrial notebooks from prior runs.
+
+        Called once before a fetch starts. Lists all NLM notebooks, keeps
+        any with unknown name patterns, and attempts to delete those matching
+        ORPHAN_PREFIXES with a short timeout (orphaned notebooks timeout on
+        the NLM server side, so we use a short timeout to avoid blocking).
+
+        Returns:
+            (deleted_count, failed_count)
+        """
+        res = self._run_nlm(["notebook", "list", "--json"], timeout=30)
+        if res.returncode != 0:
+            print(f"[Industrial] Pre-flight cleanup: list failed — {res.stderr or '(no output)'}")
+            return (0, 0)
+
+        try:
+            notebooks = json.loads(res.stdout)
+            if isinstance(notebooks, dict):
+                notebooks = notebooks.get("notebooks", [])
+        except Exception as e:
+            print(f"[Industrial] Pre-flight cleanup: parse error — {e}")
+            return (0, 0)
+
+        deleted = 0
+        failed = 0
+        for nb in notebooks:
+            name = nb.get("name", "") or ""
+            nb_id = nb.get("id") or nb.get("notebookId")
+            if not nb_id:
+                continue
+            if not any(name.startswith(p) for p in self.ORPHAN_PREFIXES):
+                continue
+
+            print(f"[Industrial] Pre-flight: removing orphaned notebook '{name}' ({nb_id})...")
+            # Use a short timeout — orphaned notebooks hang server-side but
+            # we still want to report the failure rather than block the run.
+            result = self._run_nlm(["notebook", "delete", str(nb_id), "--confirm"], timeout=15)
+            if result.returncode == 0:
+                print(f"  ✓ deleted '{name}'")
+                deleted += 1
+            else:
+                print(f"  ✗ could not delete '{name}' — {result.stderr or '(timeout?)'}")
+                failed += 1
+
+        print(f"[Industrial] Pre-flight cleanup: {deleted} deleted, {failed} orphaned/unreachable")
+        return (deleted, failed)
+
+    def _cleanup_staging_on_close(self) -> None:
+        """Attempt graceful cleanup of the current staging notebook on close.
+
+        Uses a longer timeout than pre-flight cleanup since the staging notebook
+        is still valid at this point (not orphaned). Logs success or failure.
+        """
+        if not self._staging_nb_id:
+            return
+        print(f"[Industrial] Closing: attempting to delete staging notebook {self._staging_nb_id}...")
+        res = self._run_nlm(["notebook", "delete", self._staging_nb_id, "--confirm"], timeout=60)
+        if res.returncode == 0:
+            print(f"[Industrial] Staging notebook deleted successfully")
+        else:
+            print(f"[Industrial] Staging notebook cleanup failed (may be orphaned server-side): {res.stderr or '(timeout)'}")
+            self._staging_nb_id = None  # clear even on failure so we don't retain a dead ID
 
 
 def main():

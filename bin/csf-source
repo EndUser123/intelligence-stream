@@ -1108,6 +1108,8 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
         from csf.nlm_scraper import NLMIndustrialScraper
 
         scraper = NLMIndustrialScraper(headless=True)
+        deleted, failed = scraper.preflight_cleanup()
+        print(f"[source] Pre-flight: {deleted} orphaned notebooks cleared, {failed} unreachable")
         batch_size = 300
         try:
             for i in range(0, len(all_pending), batch_size):

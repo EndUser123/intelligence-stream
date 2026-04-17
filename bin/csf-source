@@ -1116,7 +1116,7 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
                 for vid, (success, transcript, error) in results.items():
                     if success and transcript:
                         set_cached_transcript(vid, "en", "notebooklm", transcript)
-                        mark_complete(vid)
+                        mark_complete(vid, last_stage="notebooklm")
                         success_count += 1
                         print(f"  ✓ {vid} (notebooklm)")
                     else:
@@ -1137,7 +1137,7 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
 
             if result.transcript:
                 set_cached_transcript(video_id, result.lang or "en", result.source, result.transcript)
-                mark_complete(video_id)
+                mark_complete(video_id, last_stage=result.source)
                 return (video_id, True, result.source, "")
             else:
                 set_status(video_id, "failed")

@@ -146,6 +146,26 @@ class NLMBatchIngestor:
                 tracker.record_failure(is_rate_limit=True)
                 continue
 
+            # Auth-error patterns in stderr (expired between _ensure_nlm_auth and command execution)
+            is_auth_error = any(
+                kw in combined
+                for kw in ["Authentication Error", "authentication error", "Auth Error", "auth error"]
+            )
+            if is_auth_error:
+                login = subprocess.run(
+                    ["nlm", "login", "--force"],
+                    capture_output=True, text=True, timeout=120,
+                )
+                if login.returncode == 0:
+                    res = subprocess.run(
+                        ["nlm"] + args, capture_output=True, text=True, timeout=timeout,
+                    )
+                    if res.returncode == 0:
+                        tracker.record_success()
+                        return res
+                tracker.record_failure(is_rate_limit=False)
+                return res
+
             # Non-rate-limit failure — record but don't retry infinitely
             tracker.record_failure(is_rate_limit=False)
             return res

@@ -47,12 +47,38 @@ def _get_scheduler() -> BatchScheduler:
 _nlm_scraper: "NLMIndustrialScraper | None" = None
 
 
+def _ensure_nlm_auth() -> bool:
+    """Verify nlm CLI authentication is valid, re-authenticating if expired.
+
+    Returns True if auth is valid (or was just refreshed).
+    """
+    import subprocess
+
+    check = subprocess.run(
+        ["nlm", "login", "--check"], capture_output=True, text=True
+    )
+    if check.returncode == 0:
+        return True
+
+    # Auth expired — re-authenticate (auto-launches Chrome headless)
+    print("[transcript] NLM auth expired, re-authenticating...")
+    login = subprocess.run(["nlm", "login"], capture_output=True, text=True)
+    if login.returncode != 0:
+        print(f"[transcript] Re-auth failed: {login.stderr}")
+        return False
+    return True
+
+
 def _get_nlm_scraper() -> "NLMIndustrialScraper":
     global _nlm_scraper
     if _nlm_scraper is None:
+        _ensure_nlm_auth()
         from csf.nlm_scraper import NLMIndustrialScraper
 
         _nlm_scraper = NLMIndustrialScraper(headless=True)
+    else:
+        # Refresh auth check on every call to catch mid-session expiry
+        _ensure_nlm_auth()
     return _nlm_scraper
 
 
@@ -1379,10 +1405,10 @@ def _extract_video_id_from_url(url: str) -> str | None:
 def _fetch_via_notebooklm_batch(
     video_ids: list[str],
 ) -> dict[str, tuple[bool, str | None, str | None]]:
-    """Fetch transcripts for multiple videos using Industrial NLM staging logic.
+    """Fetch transcripts for multiple videos using Industrial NLM batch ingest.
 
-    Adds up to 300 YouTube sources per staging notebook, then scrapes raw
-    content. Reuses the staging notebook across calls within the same process.
+    Uses NLMBatchIngestor (parallel nlm source content CLI) for ~18K v/hr,
+    falling back to the Selenium scraper if that path is unavailable.
 
     Args:
         video_ids: List of YouTube video IDs (11 chars each)
@@ -1390,8 +1416,9 @@ def _fetch_via_notebooklm_batch(
     Returns:
         dict mapping video_id -> (success, transcript_text, error)
     """
-    scraper = _get_nlm_scraper()
-    return scraper.scrape_with_staging(video_ids)
+    from csf.nlm_batch import process_industrial_batch
+
+    return process_industrial_batch(video_ids)
 
 
 def _fetch_via_notebooklm(

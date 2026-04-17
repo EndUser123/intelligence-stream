@@ -20,7 +20,8 @@ workflow_steps:
   - Check for pending videos in batch_status.sqlite
   - Check auth with `nlm login --check`, auto-recover if expired
   - Create batch notebook (up to 300 YouTube sources per notebook)
-  - Add all sources with `nlm source add --youtube <url1> --youtube <url2> ... --wait`
+  - Add sources in sub-batches of 50 with `nlm source add --url ... --wait`
+  - Heartbeat-poll `source list --json` between sub-batches to confirm NLM async processing completes
   - Extract content via `nlm source content <source-id>` (returns raw JSON)
   - Delete batch notebook (cleanup)
   - Write transcripts to database cache (transcripts.sqlite)
@@ -83,7 +84,7 @@ yt-nlm --batch-size 20
 1. **Auth check**: `nlm login --check` before commands
 2. **Auto-recovery**: If expired, `nlm login --force` runs automatically (no user prompt)
 3. **Create batch notebook**: `nlm notebook create "batch_transcript_{id}"`
-4. **Add sources**: `nlm source add <nb-id> --youtube <url1> --youtube <url2> ... --wait`
+4. **Add sources**: `nlm source add <nb-id> --url <url1> --url <url2> ... --wait` in sub-batches of 50; heartbeat-poll `source list --json` between sub-batches to wait for NLM async processing
 5. **Get content**: `nlm source content <source-id>` — returns JSON with `{"value": {"content": "..."}}`
 6. **Delete notebook**: `nlm notebook delete <nb-id> --confirm`
 

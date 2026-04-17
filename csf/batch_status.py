@@ -282,6 +282,21 @@ class _BatchStatusStorage:
                 conn.execute(f"SELECT {col} FROM channel_metadata LIMIT 1")
             except sqlite3.OperationalError:
                 conn.execute(f"ALTER TABLE channel_metadata ADD COLUMN {col} {col_type}")
+        # Migration for extended metadata columns (description, published_at, country)
+        for col, col_type in [
+            ("description", "TEXT"),
+            ("published_at", "TEXT"),
+            ("country", "TEXT"),
+        ]:
+            try:
+                conn.execute(f"SELECT {col} FROM channel_metadata LIMIT 1")
+            except sqlite3.OperationalError:
+                conn.execute(f"ALTER TABLE channel_metadata ADD COLUMN {col} {col_type}")
+        # Migration for topic_categories (topicDetails.topicCategories from YouTube API)
+        try:
+            conn.execute("SELECT topic_categories FROM channel_metadata LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE channel_metadata ADD COLUMN topic_categories TEXT")
         conn.close()
 
     def _ensure_nlm_export_state(self) -> None:
@@ -685,13 +700,19 @@ class _BatchStatusStorage:
         thumbnail_url: str | None = None,
         subscriber_count: int | None = None,
         view_count: int | None = None,
+        description: str | None = None,
+        published_at: str | None = None,
+        country: str | None = None,
+        topic_categories: str | None = None,
+        keywords: str | None = None,
+        custom_url: str | None = None,
     ) -> None:
         """Set channel metadata for channel_url (insert or replace)."""
         self._ensure_channel_metadata()
         conn = self._get_conn()
         now = datetime.now(timezone.utc).isoformat()
         conn.execute(
-            "INSERT OR REPLACE INTO channel_metadata (channel_url, playlist_id, last_checked, last_full_enumeration, video_count_estimate, next_page_token, quota_exhausted_at, schema_version, channel_title, thumbnail_url, subscriber_count, view_count) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO channel_metadata (channel_url, playlist_id, last_checked, last_full_enumeration, video_count_estimate, next_page_token, quota_exhausted_at, schema_version, channel_title, thumbnail_url, subscriber_count, view_count, description, published_at, country, topic_categories, keywords, custom_url) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 channel_url,
                 playlist_id,
@@ -704,6 +725,12 @@ class _BatchStatusStorage:
                 thumbnail_url,
                 subscriber_count,
                 view_count,
+                description,
+                published_at,
+                country,
+                topic_categories,
+                keywords,
+                custom_url,
             ),
         )
         conn.commit()
@@ -719,10 +746,12 @@ class _BatchStatusStorage:
         conn = self._get_conn()
         conn.execute("BEGIN IMMEDIATE")
         try:
-            # Read existing within the same transaction
+            # Read existing within the same transaction — all columns including extended metadata
             cursor = conn.execute(
                 "SELECT channel_url, playlist_id, video_count_estimate, last_checked, "
-                "last_full_enumeration, next_page_token, quota_exhausted_at "
+                "last_full_enumeration, next_page_token, quota_exhausted_at, "
+                "channel_title, thumbnail_url, subscriber_count, view_count, "
+                "description, published_at, country, topic_categories "
                 "FROM channel_metadata WHERE channel_url = ?",
                 (channel_url,),
             )
@@ -739,13 +768,26 @@ class _BatchStatusStorage:
                     "last_full_enumeration": None,
                     "next_page_token": None,
                     "quota_exhausted_at": None,
+                    "channel_title": None,
+                    "thumbnail_url": None,
+                    "subscriber_count": None,
+                    "view_count": None,
+                    "description": None,
+                    "published_at": None,
+                    "country": None,
+                    "keywords": None,
+                    "custom_url": None,
+                    "topic_categories": None,
                 }
                 vals.update(kwargs)
                 conn.execute(
                     "INSERT INTO channel_metadata "
                     "(channel_url, playlist_id, video_count_estimate, last_checked, "
-                    "last_full_enumeration, next_page_token, quota_exhausted_at, schema_version) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
+                    "last_full_enumeration, next_page_token, quota_exhausted_at, "
+                    "channel_title, thumbnail_url, subscriber_count, view_count, "
+                    "description, published_at, country, keywords, custom_url, "
+                    "topic_categories, schema_version) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
                     (
                         vals["channel_url"],
                         vals["playlist_id"],
@@ -754,6 +796,16 @@ class _BatchStatusStorage:
                         vals["last_full_enumeration"],
                         vals["next_page_token"],
                         vals["quota_exhausted_at"],
+                        vals["channel_title"],
+                        vals["thumbnail_url"],
+                        vals["subscriber_count"],
+                        vals["view_count"],
+                        vals["description"],
+                        vals["published_at"],
+                        vals["country"],
+                        vals["keywords"],
+                        vals["custom_url"],
+                        vals["topic_categories"],
                     ),
                 )
             else:
@@ -766,6 +818,14 @@ class _BatchStatusStorage:
                     "last_full_enumeration": row[4],
                     "next_page_token": row[5],
                     "quota_exhausted_at": row[6],
+                    "channel_title": row[7],
+                    "thumbnail_url": row[8],
+                    "subscriber_count": row[9],
+                    "view_count": row[10],
+                    "description": row[11],
+                    "published_at": row[12],
+                    "country": row[13],
+                    "topic_categories": row[14],
                 }
                 for key in (
                     "playlist_id",
@@ -774,6 +834,16 @@ class _BatchStatusStorage:
                     "last_full_enumeration",
                     "next_page_token",
                     "quota_exhausted_at",
+                    "channel_title",
+                    "thumbnail_url",
+                    "subscriber_count",
+                    "view_count",
+                    "description",
+                    "published_at",
+                    "country",
+                    "keywords",
+                    "custom_url",
+                    "topic_categories",
                 ):
                     if key in kwargs:
                         existing[key] = kwargs[key]
@@ -782,7 +852,10 @@ class _BatchStatusStorage:
                 conn.execute(
                     "UPDATE channel_metadata SET "
                     "playlist_id=?, video_count_estimate=?, last_checked=?, "
-                    "last_full_enumeration=?, next_page_token=?, quota_exhausted_at=? "
+                    "last_full_enumeration=?, next_page_token=?, quota_exhausted_at=?, "
+                    "channel_title=?, thumbnail_url=?, subscriber_count=?, view_count=?, "
+                    "description=?, published_at=?, country=?, keywords=?, custom_url=?, "
+                    "topic_categories=? "
                     "WHERE channel_url=?",
                     (
                         existing["playlist_id"],
@@ -791,6 +864,16 @@ class _BatchStatusStorage:
                         existing["last_full_enumeration"],
                         existing["next_page_token"],
                         existing["quota_exhausted_at"],
+                        existing["channel_title"],
+                        existing["thumbnail_url"],
+                        existing["subscriber_count"],
+                        existing["view_count"],
+                        existing["description"],
+                        existing["published_at"],
+                        existing["country"],
+                        existing.get("keywords"),
+                        existing.get("custom_url"),
+                        existing.get("topic_categories"),
                         channel_url,
                     ),
                 )
@@ -800,8 +883,6 @@ class _BatchStatusStorage:
             raise
         finally:
             conn.close()
-
-    def get_pending_by_source(self, channel_url: str) -> list[str]:
         """Get all pending video_ids for a given channel/source."""
         conn = self._get_conn()
         cursor = conn.execute(
@@ -1215,6 +1296,12 @@ def set_channel_metadata(
     thumbnail_url: str | None = None,
     subscriber_count: int | None = None,
     view_count: int | None = None,
+    description: str | None = None,
+    published_at: str | None = None,
+    country: str | None = None,
+    topic_categories: str | None = None,
+    keywords: str | None = None,
+    custom_url: str | None = None,
 ) -> None:
     """Set channel metadata for channel_url (insert or replace)."""
     if db_path is None:
@@ -1228,6 +1315,12 @@ def set_channel_metadata(
             thumbnail_url=thumbnail_url,
             subscriber_count=subscriber_count,
             view_count=view_count,
+            description=description,
+            published_at=published_at,
+            country=country,
+            topic_categories=topic_categories,
+            keywords=keywords,
+            custom_url=custom_url,
         )
     else:
         _BatchStatusStorage(db_path=db_path).set_channel_metadata(
@@ -1240,6 +1333,12 @@ def set_channel_metadata(
             thumbnail_url=thumbnail_url,
             subscriber_count=subscriber_count,
             view_count=view_count,
+            description=description,
+            published_at=published_at,
+            country=country,
+            topic_categories=topic_categories,
+            keywords=keywords,
+            custom_url=custom_url,
         )
 
 

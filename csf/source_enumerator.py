@@ -32,6 +32,12 @@ class ChannelInfo(NamedTuple):
     thumbnail_url: str
     subscriber_count: int
     view_count: int
+    description: str = ""
+    published_at: str = ""
+    country: str = ""
+    keywords: str = ""      # from brandingSettings.channel.keywords
+    custom_url: str = ""    # from snippet.customUrl (e.g. /@MarquesBrownlee)
+    topic_categories: str = ""  # from topicDetails.topicCategories (comma-separated)
 
 # RSS feed URL template
 _RSS_TEMPLATE = "https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
@@ -373,8 +379,9 @@ def get_upload_playlist_id(channel_id: str) -> ChannelInfo | None:
     else:
         return None
 
-    # Tier 1: lightweight snippet-only call (1 unit) — validates handle exists
-    tier1_params = {id_param_key: id_param_val, "part": "snippet"}
+    # Tier 1: snippet + brandingSettings + topicDetails (1 unit total) — validates handle,
+    # captures title, customUrl, thumbnail, keywords, topicCategories, and channel identity
+    tier1_params = {id_param_key: id_param_val, "part": "snippet,brandingSettings,topicDetails"}
     result_t1 = _api_request("channels", tier1_params, unit_cost=1)
     if not result_t1 or "items" not in result_t1 or len(result_t1["items"]) == 0:
         return None
@@ -382,6 +389,7 @@ def get_upload_playlist_id(channel_id: str) -> ChannelInfo | None:
     try:
         item_t1 = result_t1["items"][0]
         snippet_t1 = item_t1.get("snippet", {})
+        branding_t1 = item_t1.get("brandingSettings", {})
         thumbnails_t1 = snippet_t1.get("thumbnails", {})
         tier1_custom_url = snippet_t1.get("customUrl", "")
         tier1_title = snippet_t1.get("title", "")
@@ -390,6 +398,12 @@ def get_upload_playlist_id(channel_id: str) -> ChannelInfo | None:
             or thumbnails_t1.get("medium", {}).get("url", "")
             or thumbnails_t1.get("high", {}).get("url", "")
         )
+        # Extract channel identity keywords from brandingSettings (channels self-declare)
+        branding_channel = branding_t1.get("channel", {})
+        tier1_keywords = branding_channel.get("keywords", "") or ""
+        # Extract topicCategories from topicDetails (YouTube's FreeBase topic assignments)
+        topic_details = item_t1.get("topicDetails", {})
+        tier1_topic_categories = ",".join(topic_details.get("topicCategories", []) or [])
         # Extract channel ID from Tier 1 response (channel IDs always start with UC)
         tier1_channel_id = item_t1.get("id", "") or snippet_t1.get("channelId", "")
     except (KeyError, ValueError, TypeError):
@@ -414,6 +428,12 @@ def get_upload_playlist_id(channel_id: str) -> ChannelInfo | None:
             thumbnail_url=tier1_thumbnail,
             subscriber_count=int(stats.get("subscriberCount", 0) or 0),
             view_count=int(stats.get("viewCount", 0) or 0),
+            description=snippet_t1.get("description", ""),
+            published_at=snippet_t1.get("publishedAt", ""),
+            country=snippet_t1.get("country", ""),
+            keywords=tier1_keywords,
+            custom_url=tier1_custom_url,
+            topic_categories=tier1_topic_categories,
         )
     except (KeyError, ValueError, TypeError):
         return None

@@ -36,6 +36,9 @@ Check all tracked YouTube channels for new videos and manage your channel list.
 - `sync --verbose` — Show detailed output during check
 - `list` — List all tracked channels with metadata
 - `add <url>` — **Add a new channel** with full validation (YouTube Data API resolves @handle, rejects fake/empty/single-video channels, captures title/thumbnail/subscriber/view counts)
+- `history` — **Extract channels from YouTube watch history** and add any new ones not already tracked. Filters: subscriber_count>100, video_count>2, most recent video within 3 months. Uses yt-dlp Python API + YouTube Data API + RSS feeds (no API quota for video IDs; RSS for recency).
+  - `history --dry-run` — Preview channels without adding them
+  - `history --min-history-videos <n>` — Minimum videos watched from a channel to qualify (default: 2)
 - `fetch` — **ESCALATION BATCH PROCESS**: Download transcripts for all pending videos using yt-dlp → Selenium fallback (RECOMMENDED)
   - `fetch --dry-run` — Preview what would be fetched
   - `fetch --source <url>` — Process only one channel
@@ -139,10 +142,10 @@ All data is stored in `batch_status.sqlite`:
 
 ## Files
 
-- `bin/yt-is` — CLI entry point
-- `bin/csf-source` — Backend implementation
-- `csf/source_enumerator.py` — RSS + API enumeration
-- `csf/batch_status.py` — SQLite storage
+- `P:/packages/yt-is/bin/yt-is` — CLI entry point (wrapper)
+- `P:/packages/yt-is/bin/csf-source` — Backend implementation (YouTube source management CLI)
+- `P:/packages/yt-is/csf/source_enumerator.py` — RSS + API enumeration
+- `P:/packages/yt-is/csf/batch_status.py` — SQLite storage
 
 ## Requirements
 

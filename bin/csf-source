@@ -7,6 +7,7 @@ Usage:
     csf-source check <source_id>                  # Daily check: RSS → gap detection → API if needed
     csf-source sync <source_id>                   # Process all pending videos via batch
     csf-source fetch [--source <url>]             # ESCALATION: fetch transcripts (yt-dlp → Selenium)
+    csf-source history                            # Extract channels from YouTube watch history and add new ones
 
 Commands:
     add       Add a new channel or playlist source. For channels, resolves the uploads
@@ -35,6 +36,7 @@ Commands:
 
 import argparse
 import fasteners
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -83,6 +85,80 @@ from csf.source_enumerator import (
     _get_api_keys,
 )
 from csf.display import format_sync_results
+
+
+def _print_block_signals(info, channel_id: str, canonical_url: str) -> bool:
+    """Evaluate and print blocklist signals for a channel.
+
+    Args:
+        info: ChannelInfo namedtuple from get_upload_playlist_id()
+        channel_id: the parsed channel ID (e.g. "@MarquesBrownlee" or "UC...")
+        canonical_url: the canonical YouTube URL for this channel
+
+    Returns:
+        True if the user chose to block the channel (caller should exit),
+        False otherwise.
+    """
+    desc_lower = (info.description or "").lower()
+    kw_lower = (info.keywords or "").lower()
+    custom = info.custom_url or ""
+
+    high: list[str] = []
+    med: list[str] = []
+
+    # High-confidence signals
+    if info.video_count and info.video_count >= 30_000:
+        high.append(f"video_count={info.video_count:,} (≥30K → 100%)")
+    elif info.video_count and info.video_count >= 5_000:
+        high.append(f"video_count={info.video_count:,} (≥5K → 91%)")
+
+    if "sports" in kw_lower:
+        high.append("keywords contains 'sports' (19.4x)")
+    if "breaking" in kw_lower:
+        high.append("keywords contains 'breaking' (17.8x)")
+    if "official" in kw_lower:
+        high.append("keywords contains 'official' (9.7x)")
+    if "breaking" in desc_lower:
+        high.append("description contains 'breaking' (6.1x)")
+    if "news" in desc_lower:
+        high.append("description contains 'news' (5.8x)")
+    if "network" in desc_lower:
+        high.append("description contains 'network' (9.2x)")
+
+    # Medium-confidence signals
+    if info.video_count and info.video_count >= 2_000:
+        med.append(f"video_count={info.video_count:,} (≥2K → 64%)")
+    if "sports" in desc_lower:
+        med.append("description contains 'sports' (8.2x)")
+    if custom and custom.startswith("/@"):
+        med.append(f"custom_url={custom} (personal/creator style)")
+    elif not custom:
+        med.append("no custom_url (may be older institutional channel)")
+
+    print()
+    if not high and not med:
+        print("[signals] No blocklist signals detected.")
+        return False
+
+    if high:
+        print("[signals] HIGH confidence (institutional broadcaster indicators):")
+        for s in high:
+            print(f"  • {s}")
+    if med:
+        print("[signals] MED confidence (secondary indicators):")
+        for s in med:
+            print(f"  • {s}")
+
+    print()
+    response = input("[signals] Block this channel? [y/N] ").strip().lower()
+    if response == "y":
+        block_channel(canonical_url)
+        print(f"[source] Blocked: {canonical_url}")
+        print("[source] Exiting — use 'unblock' to remove from blocklist later.")
+        return True
+
+    print()
+    return False
 
 
 def _mark_videos_pending(
@@ -212,6 +288,12 @@ def cmd_add(url: str) -> None:
         print(f"[source] Warning: {canonical_url} is already tracked.")
         print(f"[source] Use 'check' to update, or remove and re-add for full re-enumeration.")
 
+    # Block signal analysis — runs after channel_info is populated but before enumeration
+    if channel_id:
+        # canonical_url is set above in the if/elif/else branches
+        if _print_block_signals(channel_info, channel_id, canonical_url):
+            sys.exit(0)
+
     # Full enumeration
     print(f"[source] Enumerating all videos...")
     videos = enumerate_full(playlist_id)
@@ -253,7 +335,10 @@ def cmd_list() -> None:
     storage._ensure_channel_metadata()
     conn = storage._get_conn()
     cursor = conn.execute(
-        "SELECT channel_url, playlist_id, video_count_estimate, last_checked, last_full_enumeration FROM channel_metadata ORDER BY last_checked DESC"
+        """SELECT channel_url, playlist_id, video_count_estimate, last_checked, last_full_enumeration
+           FROM channel_metadata
+           WHERE channel_url NOT IN (SELECT channel_url FROM channel_blocklist)
+           ORDER BY last_checked DESC"""
     )
     rows = cursor.fetchall()
     conn.close()
@@ -958,6 +1043,8 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     cached_count = 0
 
     for channel_url, playlist_id in channels:
+        if is_channel_blocked(channel_url):
+            continue
         if not playlist_id:
             continue
 
@@ -985,6 +1072,10 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     print(f"[source] Pending extraction: {total_pending}")
     print(f"[source] Mode: {'DRY RUN' if dry_run else 'LIVE'}")
     print(f"[source] Strategy: {'Industrial (Batch NLM)' if use_industrial else 'Surgical (Chain)'}")
+    if use_industrial:
+        print("[source] Method: NotebookLM batch transcript extraction")
+    else:
+        print("[source] Method: yt-dlp → cookies → Selenium escalation chain")
     print(f"[source] Workers: {workers}")
     print()
 
@@ -1003,26 +1094,30 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
 
     if use_industrial:
         # --- INDUSTRIAL PATH: Group into batches of 300 for NLM ---
-        from csf.transcript import _fetch_via_notebooklm_batch
-
         print(f"[source] Starting Industrial Ingest (300 v/batch)...")
+        from csf.nlm_batch import NLMReusableIngestor
+
+        reusable = NLMReusableIngestor()
         batch_size = 300
-        for i in range(0, len(all_pending), batch_size):
-            batch = [vid for vid, src in all_pending[i : i + batch_size]]
-            print(f"[source] Processing batch {i//batch_size + 1} ({len(batch)} videos)...")
+        try:
+            for i in range(0, len(all_pending), batch_size):
+                batch = [vid for vid, src in all_pending[i : i + batch_size]]
+                print(f"[source] Processing batch {i//batch_size + 1} ({len(batch)} videos)...")
 
-            # Batch call directly to NotebookLM (skips local yt-dlp/Selenium)
-            results = _fetch_via_notebooklm_batch(batch)
+                # Batch call directly to NotebookLM (skips local yt-dlp/Selenium)
+                results = reusable.process_batch(batch)
 
-            for vid, (success, transcript, error) in results.items():
-                if success and transcript:
-                    set_cached_transcript(vid, "en", "notebooklm", transcript)
-                    mark_complete(vid)
-                    success_count += 1
-                    print(f"  ✓ {vid} (notebooklm)")
-                else:
-                    fail_count += 1
-                    print(f"  ✗ {vid}: {error[:80]}")
+                for vid, (success, transcript, error) in results.items():
+                    if success and transcript:
+                        set_cached_transcript(vid, "en", "notebooklm", transcript)
+                        mark_complete(vid)
+                        success_count += 1
+                        print(f"  ✓ {vid} (notebooklm)")
+                    else:
+                        fail_count += 1
+                        print(f"  ✗ {vid}: {error[:80]}")
+        finally:
+            reusable.close()
 
     else:
         # --- SURGICAL PATH: Sequential Escalation Chain ---
@@ -1175,6 +1270,295 @@ def cmd_remove(url: str) -> None:
         print(f"[source] Not found in database: {canonical_url}")
 
 
+def cmd_history(min_history_videos: int = 2, dry_run: bool = False) -> None:
+    """Extract channels from YouTube watch history and add new ones.
+
+    Three filters applied:
+    - subscriber_count > 100  (skip tiny/brand-new channels)
+    - video_count > 2        (skip barely-active channels)
+    - most recent video within 3 months (skip dormant/abandoned channels)
+
+    Requires: YOUTUBE_API_KEY
+    """
+    import os
+    from datetime import datetime, timezone, timedelta
+    from urllib.request import urlopen
+    from xml.etree import ElementTree as ET
+
+    print(f"[source] Step 1: Fetching watch history video IDs (yt-dlp Python API, no API quota)...")
+
+    # Find cookies file: prefer exported file, fall back to browser extraction
+    cookie_file = os.path.expanduser("~/youtube_cookies.txt")
+    if not os.path.exists(cookie_file):
+        # Fall back to browser cookies
+        cookie_file = None
+
+    try:
+        import yt_dlp
+        ydl_opts = {
+            "quiet": True,
+            "cookiefile": cookie_file,
+            "extract_flat": "in_playlist",
+            "skip_download": True,
+            "socket_timeout": 60,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            result = ydl.extract_info(
+                "https://www.youtube.com/feed/history",
+                download=False,
+            )
+            entries = result.get("entries", []) or []
+    except Exception as e:
+        print(f"[source] Error fetching history: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    video_ids = [e["id"] for e in entries if e and e.get("id")]
+    video_ids = [e["id"] for e in entries]
+    print(f"[source] Found {len(video_ids)} video IDs in history")
+
+    if not video_ids:
+        print("[source] No videos found in history.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"[source] Step 2: Resolving {len(video_ids)} video IDs → channel IDs (API, ~{len(video_ids)} units)...")
+
+    from csf.source_enumerator import _api_request
+
+    channel_video_map: dict[str, list[str]] = {}
+    for i in range(0, len(video_ids), 50):
+        batch = video_ids[i : i + 50]
+        params = {"part": "snippet", "id": ",".join(batch)}
+        resp = _api_request("videos", params, unit_cost=1)
+        if resp is None:
+            continue
+
+        for item in resp.get("items", []):
+            vid = item.get("id")
+            snippet = item.get("snippet", {})
+            ch_id = snippet.get("channelId", "")
+            if vid and ch_id:
+                channel_video_map.setdefault(ch_id, []).append(vid)
+
+        if (i + 50) % 500 == 0 or i + 50 >= len(video_ids):
+            print(f"  ... resolved {min(i + 50, len(video_ids))}/{len(video_ids)}")
+
+    channel_history_counts = {cid: len(vids) for cid, vids in channel_video_map.items()}
+    qualified = {cid: vids for cid, vids in channel_video_map.items() if len(vids) >= min_history_videos}
+    print(f"[source] Channels with ≥{min_history_videos} history videos: {len(qualified)}/{len(channel_video_map)}")
+
+    if not qualified:
+        print("[source] No channels passed the history-video threshold.")
+        sys.exit(1)
+
+    # Get already-tracked UC IDs
+    existing_uc_ids: set[str] = set()
+    storage = _get_batch_status_storage()
+    storage._ensure_channel_metadata()
+    conn = storage._get_conn()
+    for row in conn.execute("SELECT channel_url FROM channel_metadata").fetchall():
+        cu = row[0]
+        m = re.search(r"/channel/(UC[a-zA-Z0-9_-]+)", cu)
+        if m:
+            existing_uc_ids.add(m.group(1))
+        elif cu.startswith("UC"):
+            existing_uc_ids.add(cu)
+
+    new_qualified = [cid for cid in qualified if cid not in existing_uc_ids]
+    print(f"[source] Already tracked: {len(qualified) - len(new_qualified)}")
+    print(f"[source] New to add (before filters): {len(new_qualified)}")
+
+    if dry_run:
+        print(f"\n[source] DRY RUN — would add {len(new_qualified)} channels (filters not yet applied):")
+        for cid in sorted(new_qualified)[:50]:
+            print(f"  [{channel_history_counts[cid]} videos] https://www.youtube.com/channel/{cid}")
+        if len(new_qualified) > 50:
+            print(f"  ... and {len(new_qualified) - 50} more")
+        print(f"\n[source] Filters (applied on real run):")
+        print(f"  subscriber_count > 100")
+        print(f"  video_count > 2")
+        print(f"  most recent video within 3 months")
+        print(f"\n[source] Run without --dry-run to apply filters and add.")
+        return
+
+    if not new_qualified:
+        print("[source] All qualified history channels already tracked.")
+        return
+
+    # Step 3: Apply filters and add
+    print(f"[source] Step 3: Applying filters to {len(new_qualified)} channels...")
+    print(f"[source] Filters: subscriber_count>100, video_count>2, newest_video≤3mo")
+
+    # Batch-fetch channel metadata: 50 channels per channels.list call (5 units each)
+    # vs per-channel get_upload_playlist_id which makes 2 calls each (1+5 units)
+    # For 699 channels: ~14 batch calls (70 units) vs ~1398 individual calls (4194 units)
+    print(f"[source] Fetching channel metadata in batch (~{len(new_qualified)//50 + 1} API calls, ~5 units/call)...")
+    channel_meta: dict[str, dict] = {}
+    for i in range(0, len(new_qualified), 50):
+        batch = new_qualified[i:i + 50]
+        params = {"id": ",".join(batch), "part": "contentDetails,statistics,snippet"}
+        resp = _api_request("channels", params, unit_cost=5)
+        if not resp or "items" not in resp:
+            for uc_id in batch:
+                channel_meta[uc_id] = None
+            continue
+
+        for item in resp["items"]:
+            cid = item.get("id", "")
+            if not cid:
+                continue
+            snippet = item.get("snippet", {})
+            content_details = item.get("contentDetails", {})
+            statistics = item.get("statistics", {})
+            uploads_playlist = content_details.get("relatedPlaylists", {}).get("uploads", "")
+
+            channel_meta[cid] = {
+                "title": snippet.get("title", ""),
+                "subs": int(statistics.get("subscriberCount", 0) or 0),
+                "videos": int(statistics.get("videoCount", 0) or 0),
+                "playlist_id": uploads_playlist,
+            }
+        fetched = min(i + 50, len(new_qualified))
+        if (i + 50) % 500 == 0 or fetched >= len(new_qualified):
+            print(f"  ... fetched {fetched}/{len(new_qualified)}")
+
+    # Check recency via RSS (free, no quota) for each channel
+    cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+    three_months_ago = cutoff.strftime("%Y-%m-%d")
+
+    print(f"[source] Checking recency via RSS feed (free, no quota)...")
+
+    def get_latest_video_date(uc_id: str) -> str | None:
+        """Fetch most recent video date via RSS. Returns ISO date or None."""
+        ATOM_NS = "http://www.w3.org/2005/Atom"
+        try:
+            rss_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={uc_id}"
+            with urlopen(rss_url, timeout=10) as resp:
+                tree = ET.parse(resp)
+                root = tree.getroot()
+                entries = root.findall(f"{{{ATOM_NS}}}entry")
+                if not entries:
+                    return None
+                pub = entries[0].find(f"{{{ATOM_NS}}}published")
+                if pub is None:
+                    pub = entries[0].find("published")
+                return pub.text if pub is not None else None
+        except Exception:
+            return None
+
+    passed_filters = []
+    skipped_filters: dict[str, list[str]] = {
+        "subs≤100": [],
+        "videos≤2": [],
+        "stale>3mo": [],
+        "no_meta": [],
+    }
+
+    # Pre-fetch RSS recency for all channels in parallel (20 workers)
+    # Each RSS call is ~1-3s; 726 channels sequentially = ~30 min; in parallel ~= ~2 min
+    print(f"[source] Checking recency via RSS feed ({len(new_qualified)} channels, 20 workers)...")
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    rss_dates: dict[str, str | None] = {}
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        futures = {executor.submit(get_latest_video_date, cid): cid for cid in new_qualified}
+        done = 0
+        for future in as_completed(futures):
+            cid = futures[future]
+            rss_dates[cid] = future.result()
+            done += 1
+            if done % 100 == 0 or done == len(new_qualified):
+                print(f"  ... RSS checked {done}/{len(new_qualified)}")
+
+    print(f"[source] Applying filters to {len(new_qualified)} channels...")
+
+    for uc_id in new_qualified:
+        meta = channel_meta.get(uc_id)
+        if meta is None:
+            skipped_filters["no_meta"].append(uc_id)
+            continue
+
+        # Filter: subscriber count > 100
+        subs = meta["subs"] if meta else 0
+        if subs <= 100:
+            skipped_filters["subs≤100"].append(uc_id)
+            continue
+
+        # Filter: video count > 2
+        vid_count = meta["videos"] if meta else 0
+        if vid_count <= 2:
+            skipped_filters["videos≤2"].append(uc_id)
+            continue
+
+        # Filter: most recent video within 3 months
+        latest = rss_dates.get(uc_id)
+        if latest is None:
+            skipped_filters["no_meta"].append(uc_id)
+            continue
+        try:
+            latest_dt = datetime.fromisoformat(latest.replace("Z", "+00:00"))
+            if latest_dt < cutoff:
+                skipped_filters["stale>3mo"].append(uc_id)
+                continue
+        except ValueError:
+            pass
+
+        passed_filters.append(uc_id)
+
+    print(f"[source] Filters applied:")
+    print(f"  passed: {len(passed_filters)}")
+    for reason, cids in skipped_filters.items():
+        print(f"  skipped ({reason}): {len(cids)}")
+
+    if not passed_filters:
+        print("[source] No channels passed all filters.")
+        sys.exit(0)
+
+    print(f"[source] Step 4: Adding {len(passed_filters)} channels (no full enumeration — sync will handle lazily)...")
+
+    added = 0
+    failed = 0
+
+    for uc_id in passed_filters:
+        channel_url = f"https://www.youtube.com/channel/{uc_id}"
+        if is_channel_blocked(channel_url):
+            print(f"  [skip blocked] {channel_url}")
+            continue
+
+        meta = channel_meta.get(uc_id)
+        if not meta:
+            failed += 1
+            continue
+
+        uploads_playlist_id = meta["playlist_id"]
+        if not uploads_playlist_id or len(uploads_playlist_id) != 24:
+            failed += 1
+            continue
+
+        # Skip full enumerate_full() — let sync handle it lazily
+        # last_full_enumeration=None forces sync to enumerate on next run
+        now = datetime.now(timezone.utc).isoformat()
+        set_channel_metadata(
+            channel_url,
+            playlist_id=uploads_playlist_id,
+            last_checked=now,
+            last_full_enumeration=None,  # sync will enumerate lazily
+            video_count_estimate=meta["videos"],
+            channel_title=meta["title"] or None,
+            thumbnail_url=None,
+            subscriber_count=meta["subs"] or None,
+            view_count=None,
+        )
+        hist_count = channel_history_counts.get(uc_id, 0)
+        print(f"  OK: {meta['title'] or uc_id} ({meta['videos']} videos total, {hist_count} from history)")
+        added += 1
+
+    print()
+    print(f"[source] Done: {added} added, {failed} failed out of {len(passed_filters)}")
+    print(f"[source] Full video enumeration will happen on next sync — {added} channels will be processed then.")
+    for reason, cids in skipped_filters.items():
+        if cids:
+            print(f"[source] Skipped ({reason}): {len(cids)}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="YouTube source management CLI — Phase 2."
@@ -1224,6 +1608,23 @@ def main() -> None:
     # list-blocked command
     subparsers.add_parser("list-blocked", help="List all blocked channels")
 
+    # history command
+    history_parser = subparsers.add_parser(
+        "history",
+        help="Extract channels from YouTube watch history and add new ones",
+    )
+    history_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview channels without adding them",
+    )
+    history_parser.add_argument(
+        "--min-history-videos",
+        type=int,
+        default=2,
+        help="Minimum videos watched from a channel to qualify (default: 2)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "add":
@@ -1248,6 +1649,8 @@ def main() -> None:
         cmd_remove(args.url)
     elif args.command == "list-blocked":
         cmd_list_blocked()
+    elif args.command == "history":
+        cmd_history(min_history_videos=args.min_history_videos, dry_run=args.dry_run)
     else:
         parser.print_help()
         sys.exit(1)

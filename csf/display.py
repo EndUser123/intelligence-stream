@@ -4,6 +4,7 @@ Provides consistent table formatting for channel statistics and other output.
 Separated from business logic for maintainability.
 """
 
+import datetime
 from typing import NamedTuple
 
 
@@ -27,11 +28,24 @@ class ChannelStats(NamedTuple):
     storage_size_mb: float
 
     def format_timestamp(self, ts: str | None) -> str:
-        """Format timestamp for display."""
+        """Format timestamp for display in Calgary (MDT/MST) time."""
         if not ts:
             return "Never"
-        # Convert ISO format to more readable format (remove T, truncate microseconds)
-        return ts[:19].replace("T", " ")
+        # Parse UTC timestamp and convert to Calgary time
+        try:
+            # Handle both Z-suffix and +00:00 offset formats
+            normalized = ts.replace("Z", "+00:00")
+            dt_utc = datetime.datetime.fromisoformat(normalized)
+            # Calgary/Mountain: UTC-7 (MDT) or UTC-8 (MST) depending on DST
+            utc_now = datetime.datetime.now(datetime.timezone.utc)
+            is_dst = (utc_now.month > 3 or (utc_now.month == 3 and utc_now.day >= 8)) and utc_now.month < 11
+            calgary_offset = -7 if is_dst else -8
+            calgary_tz = datetime.timezone(datetime.timedelta(hours=calgary_offset))
+            dt_calgary = dt_utc.astimezone(calgary_tz)
+            return dt_calgary.strftime("%Y-%m-%d %H:%M")
+        except (ValueError, OSError):
+            # Fallback to raw UTC display
+            return ts[:19].replace("T", " ")
 
     def format_summary(self, widths: tuple[int, int, int] | None = None) -> str:
         """Format compact summary: ct, tt, vt.

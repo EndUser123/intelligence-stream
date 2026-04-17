@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Iterator
 
-from csf.batch_status import _get_batch_status_storage
+from csf.batch_status import _get_batch_status_storage, is_channel_blocked
 
 # Jitter bounds — match transcript.py values for consistency
 _JITTER_MIN = 2.0
@@ -259,6 +259,10 @@ self, video_id: str, status: str, source: str | None = None, error: str | None =
                     continue  # No pending videos for this channel
 
                 video_id = row[0]
+
+                # Blocklist guard: skip videos from blocked channels
+                if is_channel_blocked(channel):
+                    continue  # Channel blocked — try next channel
 
                 # Mark as attempting before yielding
                 self._record_attempting(video_id, channel)

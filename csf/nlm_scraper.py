@@ -366,55 +366,75 @@ class NLMIndustrialScraper:
         except Exception as e:
             print(f"[Industrial] Could not click Sources tab: {e}")
 
+        # Build button map ONCE before any clicking — DOM state is stable at this
+        # point.  Each video's button is located by matching its source_id against
+        # the button's aria-label (which contains the YouTube URL for video sources).
+        # This replaces the fragile positional indexing that broke after the first
+        # click shifted the DOM.
+        buttons = self._driver.find_elements(By.TAG_NAME, "button")
+        source_buttons = [
+            btn
+            for btn in buttons
+            if btn.get_attribute("aria-label")
+            and len(btn.get_attribute("aria-label") or "") > 20
+            and not btn.text.strip()
+        ]
+        # Map: source_id -> button element
+        button_by_source: Dict[str, WebElement] = {}
+        for btn in source_buttons:
+            label = btn.get_attribute("aria-label") or ""
+            for vid, source_id in vid_to_src.items():
+                if source_id in label or f"youtube.com/watch?v={vid}" in label:
+                    button_by_source[vid] = btn
+                    break
+
         results: Dict[str, Tuple[bool, Optional[str], Optional[str]]] = {}
 
-        for idx, (vid, source_id) in enumerate(vid_to_src.items(), 1):
+        for vid, source_id in vid_to_src.items():
+            idx = list(vid_to_src.keys()).index(vid) + 1
             print(f"[{idx}/{len(vid_to_src)}] Scraping: {vid[:20]}...", end=" ", flush=True)
 
             try:
-                buttons = self._driver.find_elements(By.TAG_NAME, "button")
-                source_buttons = [
-                    btn
-                    for btn in buttons
-                    if btn.get_attribute("aria-label")
-                    and len(btn.get_attribute("aria-label") or "") > 20
-                    and not btn.text.strip()
-                ]
+                target_btn = button_by_source.get(vid)
+                if not target_btn:
+                    # Fallback: positional index from initial stable scan
+                    src_idx = list(vid_to_src.keys()).index(vid)
+                    if src_idx < len(source_buttons):
+                        target_btn = source_buttons[src_idx]
 
-                if idx <= len(source_buttons):
-                    target_btn = source_buttons[idx - 1]
-                    self._driver.execute_script(
-                        "arguments[0].scrollIntoView({block:'center'});", target_btn
-                    )
-                    time.sleep(0.3)
-                    self._driver.execute_script("arguments[0].click();", target_btn)
-                    print("✓ ", end="", flush=True)
-                    body_text = self._wait_for_transcript_ready(timeout=20.0)
-                    transcript = self._extract_transcript_from_body(body_text)
-
-                    if transcript:
-                        results[vid] = (True, transcript, None)
-                        print(f"{len(transcript)} chars")
-                    else:
-                        results[vid] = (False, None, "content too short or empty")
-                        print("✗ too short")
-
-                    # Navigate back for next iteration
-                    try:
-                        back_btn = None
-                        for b in self._driver.find_elements(By.TAG_NAME, "button"):
-                            if b.get_attribute("aria-label") == "Back":
-                                back_btn = b
-                                break
-                        if back_btn:
-                            self._driver.execute_script("arguments[0].click();", back_btn)
-                            time.sleep(1.5)
-                    except Exception:
-                        pass
-
-                else:
+                if not target_btn:
                     results[vid] = (False, None, "source button not found")
                     print("✗ button not found")
+                    continue
+
+                self._driver.execute_script(
+                    "arguments[0].scrollIntoView({block:'center'});", target_btn
+                )
+                time.sleep(0.3)
+                self._driver.execute_script("arguments[0].click();", target_btn)
+                print("✓ ", end="", flush=True)
+                body_text = self._wait_for_transcript_ready(timeout=20.0)
+                transcript = self._extract_transcript_from_body(body_text)
+
+                if transcript:
+                    results[vid] = (True, transcript, None)
+                    print(f"{len(transcript)} chars")
+                else:
+                    results[vid] = (False, None, "content too short or empty")
+                    print("✗ too short")
+
+                # Navigate back for next iteration
+                try:
+                    back_btn = None
+                    for b in self._driver.find_elements(By.TAG_NAME, "button"):
+                        if b.get_attribute("aria-label") == "Back":
+                            back_btn = b
+                            break
+                    if back_btn:
+                        self._driver.execute_script("arguments[0].click();", back_btn)
+                        time.sleep(1.5)
+                except Exception:
+                    pass
 
             except Exception as e:
                 results[vid] = (False, None, str(e))
@@ -482,54 +502,67 @@ class NLMIndustrialScraper:
         except Exception as e:
             print(f"[Industrial] Could not click Sources tab: {e}")
 
+        # Build button map ONCE before any clicking — stable DOM at this point.
+        # Buttons are matched by source_id via aria-label, with positional fallback.
+        buttons = self._driver.find_elements(By.TAG_NAME, "button")
+        source_buttons = [
+            btn for btn in buttons
+            if btn.get_attribute("aria-label")
+            and len(btn.get_attribute("aria-label") or "") > 20
+            and not btn.text.strip()
+        ]
+        button_by_source: Dict[str, WebElement] = {}
+        for btn in source_buttons:
+            label = btn.get_attribute("aria-label") or ""
+            for vid, source_id in vid_to_src.items():
+                if source_id in label or f"youtube.com/watch?v={vid}" in label:
+                    button_by_source[vid] = btn
+                    break
+
         results: Dict[str, Tuple[bool, Optional[str], Optional[str]]] = {}
 
         for idx, (vid, source_id) in enumerate(vid_to_src.items(), 1):
             print(f"[{idx}/{len(vid_to_src)}] Scraping: {vid[:20]}...", end=" ", flush=True)
 
             try:
-                # Refresh button list after each back-navigation
-                buttons = self._driver.find_elements(By.TAG_NAME, "button")
-                source_buttons = [
-                    btn for btn in buttons
-                    if btn.get_attribute("aria-label")
-                    and len(btn.get_attribute("aria-label") or "") > 20
-                    and not btn.text.strip()
-                ]
+                target_btn = button_by_source.get(vid)
+                if not target_btn:
+                    src_pos = list(vid_to_src.keys()).index(vid)
+                    if src_pos < len(source_buttons):
+                        target_btn = source_buttons[src_pos]
 
-                if idx <= len(source_buttons):
-                    target_btn = source_buttons[idx - 1]
-                    self._driver.execute_script("arguments[0].scrollIntoView({block:'center'});", target_btn)
-                    time.sleep(0.3)
-                    self._driver.execute_script("arguments[0].click();", target_btn)
-                    print("✓ ", end="", flush=True)
-                    # Dynamically wait for transcript content (poll every 0.5s, up to 20s)
-                    body_text = self._wait_for_transcript_ready(timeout=20.0)
-                    transcript = self._extract_transcript_from_body(body_text)
-
-                    if transcript:
-                        results[vid] = (True, transcript, None)
-                        print(f"{len(transcript)} chars")
-                    else:
-                        results[vid] = (False, None, "content too short or empty")
-                        print("✗ too short")
-
-                    # Go back to source list for next iteration
-                    try:
-                        back_btn = None
-                        for b in self._driver.find_elements(By.TAG_NAME, "button"):
-                            if b.get_attribute("aria-label") == "Back":
-                                back_btn = b
-                                break
-                        if back_btn:
-                            self._driver.execute_script("arguments[0].click();", back_btn)
-                            time.sleep(1.5)
-                    except Exception:
-                        pass  # Back button may not exist if we're already in list view
-
-                else:
+                if not target_btn:
                     results[vid] = (False, None, "source button not found")
                     print("✗ button not found")
+                    continue
+
+                self._driver.execute_script("arguments[0].scrollIntoView({block:'center'});", target_btn)
+                time.sleep(0.3)
+                self._driver.execute_script("arguments[0].click();", target_btn)
+                print("✓ ", end="", flush=True)
+                # Dynamically wait for transcript content (poll every 0.5s, up to 20s)
+                body_text = self._wait_for_transcript_ready(timeout=20.0)
+                transcript = self._extract_transcript_from_body(body_text)
+
+                if transcript:
+                    results[vid] = (True, transcript, None)
+                    print(f"{len(transcript)} chars")
+                else:
+                    results[vid] = (False, None, "content too short or empty")
+                    print("✗ too short")
+
+                # Go back to source list for next iteration
+                try:
+                    back_btn = None
+                    for b in self._driver.find_elements(By.TAG_NAME, "button"):
+                        if b.get_attribute("aria-label") == "Back":
+                            back_btn = b
+                            break
+                    if back_btn:
+                        self._driver.execute_script("arguments[0].click();", back_btn)
+                        time.sleep(1.5)
+                except Exception:
+                    pass  # Back button may not exist if we're already in list view
 
             except Exception as e:
                 results[vid] = (False, None, str(e))

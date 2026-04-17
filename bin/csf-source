@@ -36,6 +36,7 @@ Commands:
 
 import argparse
 import fasteners
+import subprocess
 import re
 import sys
 from datetime import datetime, timezone
@@ -1084,6 +1085,19 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
         print("[source] Method: yt-dlp → cookies → Selenium escalation chain")
     print(f"[source] Workers: {workers}")
     print()
+
+    # Ensure NLM is authenticated before industrial run
+    login_check = subprocess.run(
+        ["nlm", "login", "--check"],
+        capture_output=True, text=True, timeout=30,
+    )
+    if login_check.returncode != 0:
+        print("[source] NLM auth expired, re-authenticating...", file=sys.stderr)
+        login_res = subprocess.run(["nlm", "login"], capture_output=True, text=True, timeout=120)
+        if login_res.returncode != 0:
+            print(f"[source] FATAL: NLM login failed: {login_res.stderr}", file=sys.stderr)
+            sys.exit(1)
+        print("[source] NLM re-authenticated.", file=sys.stderr)
 
     if not all_pending:
         print("[source] All transcripts already cached. Nothing to do.")

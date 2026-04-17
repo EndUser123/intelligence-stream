@@ -420,6 +420,7 @@ class NLMIndustrialScraper:
             idx = list(vid_to_src.keys()).index(vid) + 1
             print(f"[{idx}/{len(vid_to_src)}] Scraping: {vid[:20]}...", end=" ", flush=True)
 
+            did_click = False
             try:
                 target_btn = button_by_source.get(vid)
                 if not target_btn:
@@ -438,6 +439,7 @@ class NLMIndustrialScraper:
                 )
                 time.sleep(0.3)
                 self._driver.execute_script("arguments[0].click();", target_btn)
+                did_click = True
                 print("✓ ", end="", flush=True)
                 body_text = self._wait_for_transcript_ready(timeout=20.0)
                 transcript = self._extract_transcript_from_body(body_text)
@@ -449,22 +451,26 @@ class NLMIndustrialScraper:
                     results[vid] = (False, None, "content too short or empty")
                     print("✗ too short")
 
-                # Navigate back for next iteration
-                try:
-                    back_btn = None
-                    for b in self._driver.find_elements(By.TAG_NAME, "button"):
-                        if b.get_attribute("aria-label") == "Back":
-                            back_btn = b
-                            break
-                    if back_btn:
-                        self._driver.execute_script("arguments[0].click();", back_btn)
-                        time.sleep(1.5)
-                except Exception:
-                    pass
-
             except Exception as e:
                 results[vid] = (False, None, str(e))
                 print(f"✗ {e}")
+
+            finally:
+                # Always navigate back if we left the Sources tab, so the next
+                # iteration's button lookups start from a stable page state.
+                if did_click:
+                    try:
+                        for b in self._driver.find_elements(By.TAG_NAME, "button"):
+                            if b.get_attribute("aria-label") == "Back":
+                                self._driver.execute_script("arguments[0].click();", b)
+                                time.sleep(1.5)
+                                break
+                    except Exception:
+                        # Fallback: reload the notebook to get back to Sources tab
+                        self._driver.get(
+                            f"https://notebooklm.google.com/notebook/{self._staging_nb_id}"
+                        )
+                        time.sleep(3)
 
         return results
 
@@ -550,6 +556,7 @@ class NLMIndustrialScraper:
         for idx, (vid, source_id) in enumerate(vid_to_src.items(), 1):
             print(f"[{idx}/{len(vid_to_src)}] Scraping: {vid[:20]}...", end=" ", flush=True)
 
+            did_click = False
             try:
                 target_btn = button_by_source.get(vid)
                 if not target_btn:
@@ -565,6 +572,7 @@ class NLMIndustrialScraper:
                 self._driver.execute_script("arguments[0].scrollIntoView({block:'center'});", target_btn)
                 time.sleep(0.3)
                 self._driver.execute_script("arguments[0].click();", target_btn)
+                did_click = True
                 print("✓ ", end="", flush=True)
                 # Dynamically wait for transcript content (poll every 0.5s, up to 20s)
                 body_text = self._wait_for_transcript_ready(timeout=20.0)
@@ -577,22 +585,25 @@ class NLMIndustrialScraper:
                     results[vid] = (False, None, "content too short or empty")
                     print("✗ too short")
 
-                # Go back to source list for next iteration
-                try:
-                    back_btn = None
-                    for b in self._driver.find_elements(By.TAG_NAME, "button"):
-                        if b.get_attribute("aria-label") == "Back":
-                            back_btn = b
-                            break
-                    if back_btn:
-                        self._driver.execute_script("arguments[0].click();", back_btn)
-                        time.sleep(1.5)
-                except Exception:
-                    pass  # Back button may not exist if we're already in list view
-
             except Exception as e:
                 results[vid] = (False, None, str(e))
                 print(f"✗ {e}")
+
+            finally:
+                # Always navigate back if we left the Sources tab, so the next
+                # iteration's button lookups start from a stable page state.
+                if did_click:
+                    try:
+                        for b in self._driver.find_elements(By.TAG_NAME, "button"):
+                            if b.get_attribute("aria-label") == "Back":
+                                self._driver.execute_script("arguments[0].click();", b)
+                                time.sleep(1.5)
+                                break
+                    except Exception:
+                        self._driver.get(
+                            f"https://notebooklm.google.com/notebook/{notebook_id}"
+                        )
+                        time.sleep(3)
 
         return results
 

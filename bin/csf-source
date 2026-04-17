@@ -319,6 +319,12 @@ def cmd_add(url: str) -> None:
         thumbnail_url=thumbnail_url or None,
         subscriber_count=subscriber_count or None,
         view_count=view_count or None,
+        description=channel_info.description or None,
+        published_at=channel_info.published_at or None,
+        country=channel_info.country or None,
+        topic_categories=channel_info.topic_categories or None,
+        keywords=channel_info.keywords or None,
+        custom_url=channel_info.custom_url or None,
     )
 
     print(f"[source] Done. {len(videos)} total videos, {new_count} new pending.")

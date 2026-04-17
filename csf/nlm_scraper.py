@@ -46,6 +46,7 @@ class NLMIndustrialScraper:
         self._driver = None
         self._staging_nb_id: str | None = None
         self._source_count: int = 0
+        self._consecutive_nb_create_failures: int = 0
 
     def _init_driver(self):
         if self._driver:
@@ -211,6 +212,7 @@ class NLMIndustrialScraper:
         for attempt in range(3):
             res = self._run_nlm(["notebook", "create", name])
             if res.returncode == 0:
+                self._consecutive_nb_create_failures = 0
                 break
             print(f"[Industrial] Notebook create attempt {attempt + 1} failed: {res.stderr or '(empty)'}")
             if attempt < 2:
@@ -224,6 +226,7 @@ class NLMIndustrialScraper:
                     break
         else:
             print("[Industrial] Notebook create failed after 3 attempts")
+            self._consecutive_nb_create_failures += 1
             return None
 
         # Parse "ID: <uuid>" from stdout
@@ -287,6 +290,9 @@ class NLMIndustrialScraper:
 
     def _ensure_staging_notebook(self) -> bool:
         """Ensure a staging notebook exists, creating one if needed or if at capacity."""
+        if self._consecutive_nb_create_failures >= 3:
+            print("[Industrial] FATAL: 3 consecutive notebook creation failures — bailing out")
+            return False
         if self._staging_nb_id and self._source_count < self.MAX_SOURCES_PER_NOTEBOOK:
             return True
         if self._staging_nb_id:
@@ -477,18 +483,28 @@ class NLMIndustrialScraper:
                 # Always navigate back if we left the Sources tab, so the next
                 # iteration's button lookups start from a stable page state.
                 if did_click:
-                    try:
-                        for b in self._driver.find_elements(By.TAG_NAME, "button"):
-                            if b.get_attribute("aria-label") == "Back":
-                                self._driver.execute_script("arguments[0].click();", b)
-                                time.sleep(1.5)
-                                break
-                    except Exception:
-                        # Fallback: reload the notebook to get back to Sources tab
-                        self._driver.get(
-                            f"https://notebooklm.google.com/notebook/{self._staging_nb_id}"
-                        )
-                        time.sleep(3)
+                    # Only click Back if we're actually on a transcript/source page.
+                    # If we're already on the Sources tab, clicking Back would
+                    # navigate backwards OUT of the Sources list — the opposite of
+                    # what we want after a stale-element exception.
+                    current_url = self._driver.current_url
+                    on_source_page = "/source/" in current_url
+                    if not on_source_page:
+                        # We're already on Sources tab — no back-nav needed
+                        pass
+                    else:
+                        try:
+                            for b in self._driver.find_elements(By.TAG_NAME, "button"):
+                                if b.get_attribute("aria-label") == "Back":
+                                    self._driver.execute_script("arguments[0].click();", b)
+                                    time.sleep(1.5)
+                                    break
+                        except Exception:
+                            # Fallback: reload the notebook to get back to Sources tab
+                            self._driver.get(
+                                f"https://notebooklm.google.com/notebook/{self._staging_nb_id}"
+                            )
+                            time.sleep(3)
 
         return results
 
@@ -608,20 +624,23 @@ class NLMIndustrialScraper:
                 print(f"✗ {e}")
 
             finally:
-                # Always navigate back if we left the Sources tab, so the next
-                # iteration's button lookups start from a stable page state.
                 if did_click:
-                    try:
-                        for b in self._driver.find_elements(By.TAG_NAME, "button"):
-                            if b.get_attribute("aria-label") == "Back":
-                                self._driver.execute_script("arguments[0].click();", b)
-                                time.sleep(1.5)
-                                break
-                    except Exception:
-                        self._driver.get(
-                            f"https://notebooklm.google.com/notebook/{notebook_id}"
-                        )
-                        time.sleep(3)
+                    current_url = self._driver.current_url
+                    on_source_page = "/source/" in current_url
+                    if not on_source_page:
+                        pass  # Already on Sources tab — no back-nav needed
+                    else:
+                        try:
+                            for b in self._driver.find_elements(By.TAG_NAME, "button"):
+                                if b.get_attribute("aria-label") == "Back":
+                                    self._driver.execute_script("arguments[0].click();", b)
+                                    time.sleep(1.5)
+                                    break
+                        except Exception:
+                            self._driver.get(
+                                f"https://notebooklm.google.com/notebook/{notebook_id}"
+                            )
+                            time.sleep(3)
 
         return results
 

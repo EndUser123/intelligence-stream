@@ -1079,7 +1079,7 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     print(f"[source] Mode: {'DRY RUN' if dry_run else 'LIVE'}")
     print(f"[source] Strategy: {'Industrial (Batch NLM)' if use_industrial else 'Surgical (Chain)'}")
     if use_industrial:
-        print("[source] Method: NotebookLM batch transcript extraction")
+        print("[source] Method: NLM Selenium scraper (~18-28k vph)")
     else:
         print("[source] Method: yt-dlp → cookies → Selenium escalation chain")
     print(f"[source] Workers: {workers}")
@@ -1099,31 +1099,34 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     skip_count = 0
 
     if use_industrial:
-        # --- INDUSTRIAL PATH: Group into batches of 300 for NLM ---
-        print(f"[source] Starting Industrial Ingest (300 v/batch)...")
-        from csf.nlm_batch import NLMReusableIngestor
+        # --- INDUSTRIAL PATH: Selenium scraper via NLM web UI ---
+        # NLMIndustrialScraper opens the notebook once, clicks each source in the
+        # Sources tab, and reads transcript text directly from the preview pane.
+        # Throughput: ~18-28k vph at scale; no YouTube API quota, no per-video CLI overhead.
+        # Source arg is "selenium" to distinguish from yt-dlp/cookies/surgical paths.
+        print(f"[source] Starting Industrial Ingest (NLM Selenium scraper)...")
+        from csf.nlm_scraper import NLMIndustrialScraper
 
-        reusable = NLMReusableIngestor()
+        scraper = NLMIndustrialScraper(headless=True)
         batch_size = 300
         try:
             for i in range(0, len(all_pending), batch_size):
                 batch = [vid for vid, src in all_pending[i : i + batch_size]]
                 print(f"[source] Processing batch {i//batch_size + 1} ({len(batch)} videos)...")
 
-                # Batch call directly to NotebookLM (skips local yt-dlp/Selenium)
-                results = reusable.process_batch(batch)
+                results = scraper.scrape_with_staging(batch)
 
                 for vid, (success, transcript, error) in results.items():
                     if success and transcript:
-                        set_cached_transcript(vid, "en", "notebooklm", transcript)
-                        mark_complete(vid, last_stage="notebooklm")
+                        set_cached_transcript(vid, "en", "selenium", transcript)
+                        mark_complete(vid, last_stage="selenium")
                         success_count += 1
-                        print(f"  ✓ {vid} (notebooklm)")
+                        print(f"  ✓ {vid} (selenium)")
                     else:
                         fail_count += 1
                         print(f"  ✗ {vid}: {error[:80]}")
         finally:
-            reusable.close()
+            scraper.close()
 
     else:
         # --- SURGICAL PATH: Sequential Escalation Chain ---

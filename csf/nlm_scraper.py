@@ -202,12 +202,30 @@ class NLMIndustrialScraper:
         return res
 
     def _create_staging_notebook(self) -> str | None:
-        """Create a new staging notebook and return its ID."""
+        """Create a new staging notebook and return its ID.
+
+        Retries up to 3 times, re-authenticating before each retry, to handle
+        both auth expiry and transient server-side failures.
+        """
         name = f"staging_{int(time.time())}"
-        res = self._run_nlm(["notebook", "create", name])
-        if res.returncode != 0:
-            print(f"[Industrial] Notebook create failed: {res.stderr}")
+        for attempt in range(3):
+            res = self._run_nlm(["notebook", "create", name])
+            if res.returncode == 0:
+                break
+            print(f"[Industrial] Notebook create attempt {attempt + 1} failed: {res.stderr or '(empty)'}")
+            if attempt < 2:
+                print(f"[Industrial] Re-authenticating before retry...")
+                login = subprocess.run(
+                    ["nlm", "login", "--force"],
+                    capture_output=True, text=True, timeout=120,
+                )
+                if login.returncode != 0:
+                    print(f"[Industrial] Re-auth failed: {login.stderr}")
+                    break
+        else:
+            print("[Industrial] Notebook create failed after 3 attempts")
             return None
+
         # Parse "ID: <uuid>" from stdout
         for line in res.stdout.split("\n"):
             if "ID:" in line:

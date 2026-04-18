@@ -1050,6 +1050,8 @@ class _BatchStatusStorage:
                         upload_status = rest[6] if len(rest) > 6 else None
                         is_live_content = rest[7] if len(rest) > 7 else None
                         unavailable_reason = rest[8] if len(rest) > 8 else None
+                        last_stage = rest[9] if len(rest) > 9 else None
+                        failure_reason = rest[10] if len(rest) > 10 else None
                     else:
                         # Use dataclass fields
                         video_id = entry.video_id

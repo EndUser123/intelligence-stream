@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 from collections.abc import Sequence
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 
 # Type alias for batch entries - use dataclass for extensibility
 @dataclass

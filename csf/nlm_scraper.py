@@ -445,28 +445,6 @@ class NLMIndustrialScraper:
         except Exception as e:
             print(f"[Industrial] Could not click Sources tab: {e}")
 
-        # Build button map ONCE before any clicking — DOM state is stable at this
-        # point.  Each video's button is located by matching its source_id against
-        # the button's aria-label (which contains the YouTube URL for video sources).
-        # This replaces the fragile positional indexing that broke after the first
-        # click shifted the DOM.
-        buttons = self._driver.find_elements(By.TAG_NAME, "button")
-        source_buttons = [
-            btn
-            for btn in buttons
-            if btn.get_attribute("aria-label")
-            and len(btn.get_attribute("aria-label") or "") > 20
-            and not btn.text.strip()
-        ]
-        # Map: source_id -> button element
-        button_by_source: Dict[str, WebElement] = {}
-        for btn in source_buttons:
-            label = btn.get_attribute("aria-label") or ""
-            for vid, source_id in vid_to_src.items():
-                if source_id in label or f"youtube.com/watch?v={vid}" in label:
-                    button_by_source[vid] = btn
-                    break
-
         results: Dict[str, Tuple[bool, Optional[str], Optional[str]]] = {}
 
         for vid, source_id in vid_to_src.items():
@@ -475,36 +453,30 @@ class NLMIndustrialScraper:
 
             did_click = False
             try:
-                target_btn = button_by_source.get(vid)
+                # Always find the button fresh from current DOM state.  Caching
+                # button references across navigations is the root cause of the stale-
+                # element cascade: after the first click navigates to a transcript
+                # page, all 299 remaining cached WebElement references go stale.
+                # By scanning the DOM fresh for every video, we eliminate stale
+                # references entirely.
+                all_buttons = self._driver.find_elements(By.TAG_NAME, "button")
+                source_buttons = [
+                    b for b in all_buttons
+                    if b.get_attribute("aria-label")
+                    and len(b.get_attribute("aria-label") or "") > 20
+                    and not b.text.strip()
+                ]
+                target_btn = None
+                for b in source_buttons:
+                    label = b.get_attribute("aria-label") or ""
+                    if source_id in label or f"youtube.com/watch?v={vid}" in label:
+                        target_btn = b
+                        break
+                # Positional fallback only when aria-label match missed
                 if not target_btn:
-                    # Fallback: positional index from initial stable scan
                     src_idx = list(vid_to_src.keys()).index(vid)
                     if src_idx < len(source_buttons):
                         target_btn = source_buttons[src_idx]
-
-                if not target_btn:
-                    # Stale-element recovery: re-scan the DOM to find buttons, then retry.
-                    # This handles the case where a prior stale-element exception left
-                    # driver on the Sources tab with stale button references.
-                    time.sleep(2)
-                    all_buttons = self._driver.find_elements(By.TAG_NAME, "button")
-                    source_buttons_fresh = [
-                        b for b in all_buttons
-                        if b.get_attribute("aria-label")
-                        and len(b.get_attribute("aria-label") or "") > 20
-                        and not b.text.strip()
-                    ]
-                    button_by_source_fresh: Dict[str, WebElement] = {}
-                    for b in source_buttons_fresh:
-                        label = b.get_attribute("aria-label") or ""
-                        if source_id in label or f"youtube.com/watch?v={vid}" in label:
-                            button_by_source_fresh[vid] = b
-                            break
-                    target_btn = button_by_source_fresh.get(vid)
-                    if not target_btn:
-                        src_idx = list(vid_to_src.keys()).index(vid)
-                        if src_idx < len(source_buttons_fresh):
-                            target_btn = source_buttons_fresh[src_idx]
 
                 if not target_btn:
                     results[vid] = (False, None, "source button not found")

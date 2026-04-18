@@ -565,6 +565,12 @@ class NLMIndustrialScraper:
                             results[vid] = (False, None, "source button not found after stale recovery")
                             print("✗ button not found after stale recovery")
                     except Exception:
+                        # Failed even recovery — must reload Sources tab so the
+                        # next video iteration starts from a clean DOM state.
+                        self._driver.get(
+                            f"https://notebooklm.google.com/notebook/{self._staging_nb_id}"
+                        )
+                        time.sleep(3)
                         results[vid] = (False, None, error_msg)
                         print(f"✗ {error_msg}")
                 else:

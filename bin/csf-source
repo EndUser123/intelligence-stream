@@ -39,6 +39,7 @@ import fasteners
 import subprocess
 import re
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -1026,6 +1027,29 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     from concurrent.futures import ThreadPoolExecutor, as_completed
     from csf.transcript import fetch_transcript_chain, LanguageConfig
 
+    fetch_started_at = time.monotonic()
+    log_action(
+        "fetch_invoked",
+        {
+            "source_filter": source_filter,
+            "dry_run": dry_run,
+            "workers": workers,
+        },
+    )
+    first_download_logged = False
+
+    def _log_first_download_started(kind: str, **details) -> None:
+        nonlocal first_download_logged
+        if first_download_logged:
+            return
+        first_download_logged = True
+        payload = {
+            "kind": kind,
+            "elapsed_s": round(time.monotonic() - fetch_started_at, 3),
+        }
+        payload.update(details)
+        log_action("first_download_started", payload)
+
     storage = _get_batch_status_storage()
 
     # Get all channels or specific channel
@@ -1130,6 +1154,13 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
                 batch = [vid for vid, src in all_pending[i : i + batch_size]]
                 print(f"[source] Processing batch {i//batch_size + 1} ({len(batch)} videos)...")
 
+                if batch:
+                    _log_first_download_started(
+                        "industrial",
+                        batch_index=(i // batch_size) + 1,
+                        batch_size=len(batch),
+                        first_video_id=batch[0],
+                    )
                 results = scraper.scrape_with_staging(batch)
 
                 for vid, (success, transcript, error) in results.items():
@@ -1151,6 +1182,11 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             if has_cached_transcript(video_id):
                 return (video_id, True, "cache", "")
 
+            _log_first_download_started(
+                "surgical",
+                video_id=video_id,
+                source_url=source_url,
+            )
             config = LanguageConfig(prefer_lang="en", allow_translation=False)
             result = fetch_transcript_chain(video_id, config)
 

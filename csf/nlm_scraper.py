@@ -33,6 +33,7 @@ try:
     from selenium.webdriver.chrome.options import Options as ChOptions
     from selenium.webdriver.common.by import By
     from selenium.webdriver.remote.webelement import WebElement
+    from csf.csf_logging import log_action
 except ImportError:
     print("Error: Selenium not installed. Run 'pip install selenium'.")
     sys.exit(1)
@@ -144,6 +145,185 @@ class NLMIndustrialScraper:
         # Timeout — return whatever we have (may be empty or partial)
         return self._driver.find_element(By.TAG_NAME, "body").text
 
+    def _wait_for_source_ids_ready(
+        self,
+        expected_count: int,
+        timeout: int = 120,
+    ) -> List[str]:
+        """Poll source list until the expected number of sources is visible.
+
+        NotebookLM source adds are asynchronous enough that `nlm source add --wait`
+        can return before the UI/source list has finished materializing the new
+        entries. We poll the notebook source list here so downstream Selenium code
+        only runs after the source buttons should exist in the DOM.
+        """
+        start = time.time()
+        while time.time() - start < timeout:
+            if not self._staging_nb_id:
+                return []
+            ids = self.get_source_ids(self._staging_nb_id)
+            if len(ids) >= expected_count:
+                return ids
+            time.sleep(5)
+        return []
+
+    def _poll_source_buttons_dom(
+        self,
+        expected: int,
+        timeout: int = 120,
+    ) -> Optional[int]:
+        """Poll browser DOM for source buttons until the expected number exist.
+
+        This bridges the materialization gap: _add_sources_to_staging() confirms
+        sources via CLI before NotebookLM has finished rendering them in the
+        browser SPA. We poll the DOM directly rather than trusting CLI alone.
+
+        Unlike the scrape loop which filters by real source_id+vid, this polling
+        filter is source-ID-agnostic — it just checks for buttons with long
+        aria-labels that don't look like UI chrome. This avoids false negatives
+        when empty strings are passed for source_id/vid during the poll.
+        """
+        start = time.time()
+        while time.time() - start < timeout:
+            try:
+                all_btns = self._driver.find_elements(By.TAG_NAME, "button")
+                source_btns = []
+                for b in all_btns:
+                    label = (b.get_attribute("aria-label") or "").strip()
+                    # Skip short labels — UI chrome like "Settings" or "Create notebook"
+                    if not label or len(label) <= 20:
+                        continue
+                    # Skip obvious non-source UI buttons
+                    if b.text.strip():
+                        continue
+                    # Exclude the standard NotebookLM UI phrases
+                    lower_label = label.lower()
+                    if any(
+                        phrase in lower_label
+                        for phrase in (
+                            "chat panel",
+                            "save to note",
+                            "add to note",
+                            "view source",
+                            "back",
+                            "close",
+                            "more options",
+                            "scrolls the chat panel",
+                            "scroll to top",
+                            "scroll to bottom",
+                            "send message",
+                        )
+                    ):
+                        continue
+                    source_btns.append(b)
+                count = len(source_btns)
+                if count >= expected:
+                    return count
+                print(f"[Industrial] DOM poll: {count}/{expected} source buttons visible...")
+            except Exception:
+                pass
+            time.sleep(3)
+        return None
+
+    def _navigate_to_sources_tab(self) -> None:
+        """Navigate to the Sources tab, waiting for it to be interactive."""
+        try:
+            tabs = self._driver.find_elements(By.CSS_SELECTOR, '[role="tab"]')
+            for tab in tabs:
+                if tab.text.strip() == "Sources":
+                    self._driver.execute_script(
+                        "arguments[0].scrollIntoView({block:'center'});", tab
+                    )
+                    time.sleep(0.3)
+                    self._driver.execute_script("arguments[0].click();", tab)
+                    time.sleep(1)
+                    print("[Industrial] Switched to Sources tab")
+                    break
+        except Exception as e:
+            print(f"[Industrial] Could not click Sources tab: {e}")
+
+    def _is_sources_list_url(self, current_url: str) -> bool:
+        """Return True when the browser is on the Sources list page."""
+        if "/source/" not in current_url:
+            return False
+        tail = current_url.split("/source/", 1)[1].strip("/")
+        return "/" not in tail
+
+    def _ensure_sources_context(self, notebook_id: str) -> bool:
+        """Ensure the browser is on the Sources list page with a cheap URL check."""
+        current_url = self._driver.current_url or ""
+        if self._is_sources_list_url(current_url):
+            return True
+
+        # If we drifted onto a transcript page, Back is cheaper than a full reload.
+        if "/source/" in current_url:
+            try:
+                for b in self._driver.find_elements(By.TAG_NAME, "button"):
+                    if b.get_attribute("aria-label") == "Back":
+                        self._driver.execute_script("arguments[0].click();", b)
+                        time.sleep(1.0)
+                        current_url = self._driver.current_url or ""
+                        if self._is_sources_list_url(current_url):
+                            return True
+                        break
+            except Exception:
+                pass
+
+        # Normal recovery path: click the Sources tab from the current notebook page.
+        self._navigate_to_sources_tab()
+        current_url = self._driver.current_url or ""
+        if self._is_sources_list_url(current_url):
+            return True
+
+        # Last resort: reload the notebook root, then try Sources again.
+        self._driver.get(f"https://notebooklm.google.com/notebook/{notebook_id}")
+        time.sleep(3)
+        self._navigate_to_sources_tab()
+        current_url = self._driver.current_url or ""
+        return self._is_sources_list_url(current_url)
+
+    def _button_label_preview(self, buttons: List[WebElement], limit: int = 3) -> str:
+        """Return a compact preview of candidate button labels for logging."""
+        previews: List[str] = []
+        for btn in buttons[:limit]:
+            label = (btn.get_attribute("aria-label") or "").replace("\n", " ").strip()
+            if len(label) > 120:
+                label = label[:117] + "..."
+            previews.append(label or "(no aria-label)")
+        return " | ".join(previews) if previews else "(none)"
+
+    def _is_source_button_label(self, label: str, source_id: str, vid: str) -> bool:
+        """Return True when a label looks like a NotebookLM source entry."""
+        norm = label.lower()
+        if any(
+            phrase in norm
+            for phrase in (
+                "chat panel",
+                "save to note",
+                "add to note",
+                "view source",
+                "back",
+                "close",
+                "more options",
+                "scrolls the chat panel",
+                "scroll to top",
+                "scroll to bottom",
+                "send message",
+            )
+        ):
+            return False
+
+        video_url = f"youtube.com/watch?v={vid}"
+        if source_id in label:
+            return True
+        if video_url in label:
+            return True
+        if f"/source/{source_id}" in label:
+            return True
+        if "open source" in norm and vid in label:
+            return True
+        return False
+
     def _extract_transcript_from_body(self, body_text: str) -> Optional[str]:
         """Extract clean transcript text from NotebookLM source preview body text."""
         if len(body_text) < 200:
@@ -246,7 +426,8 @@ class NLMIndustrialScraper:
 
         Returns source IDs in add order, or None if any sub-batch fails.
         On failure, clears the staging notebook to prevent stale state
-        contaminating the next batch.
+        contaminating the next batch. After each sub-batch add, waits for the
+        notebook source list to reflect the expected total count before moving on.
         """
         if not self._staging_nb_id:
             return None
@@ -266,11 +447,11 @@ class NLMIndustrialScraper:
                 print(f"[Industrial] Sub-batch add failed ({i}-{i+len(subbatch)}): {res.stderr or '(no output)'} — clearing notebook")
                 self._clear_staging_notebook()
                 return None
-            # Get IDs for this sub-batch
-            ids = self.get_source_ids(self._staging_nb_id)
-            if ids is None or len(ids) == 0:
-                # None = error, [] = query succeeded but notebook unexpectedly empty
-                # Both indicate a bad state — clear and retry from scratch.
+            # Wait for NotebookLM to finish materializing the added sources.
+            expected_total = len(all_source_ids) + len(subbatch)
+            ids = self._wait_for_source_ids_ready(expected_total, timeout=120)
+            if len(ids) < expected_total:
+                # The notebook did not reflect the expected source count in time.
                 self._clear_staging_notebook()
                 return None
             # Source IDs returned are ordered newest-first; the newly added
@@ -362,9 +543,17 @@ class NLMIndustrialScraper:
 
         if batch_ids:
             # Add sources to staging notebook
+            print(
+                f"[Industrial] Adding sub-batch of {len(batch_ids)} sources "
+                f"(current={self._source_count}, limit={self.MAX_SOURCES_PER_NOTEBOOK})"
+            )
             source_ids = self._add_sources_to_staging(batch_ids)
             if not source_ids:
                 return {vid: (False, None, "source add failed") for vid in batch_ids}
+            print(
+                f"[Industrial] Source list ready for scrape: {len(source_ids)} total IDs "
+                f"after add"
+            )
             # _add_sources_to_staging returns ALL source IDs in the notebook,
             # ordered newest-first. The newly added sources are at the START
             # of the list (indices 0 through len(batch_ids)-1).
@@ -393,11 +582,19 @@ class NLMIndustrialScraper:
                 remaining = self.MAX_SOURCES_PER_NOTEBOOK - self._source_count
             batch_ids = rest[:remaining]
             rest = rest[remaining:]
+            print(
+                f"[Industrial] Adding overflow sub-batch of {len(batch_ids)} sources "
+                f"(current={self._source_count}, remaining_capacity={remaining})"
+            )
             source_ids = self._add_sources_to_staging(batch_ids)
             if not source_ids:
                 for vid in batch_ids:
                     results[vid] = (False, None, "source add failed")
                 continue
+            print(
+                f"[Industrial] Source list ready for overflow scrape: {len(source_ids)} total IDs "
+                f"after add"
+            )
             # Newly added sources are at the START (newest-first ordering)
             added = len(batch_ids)
             self._source_count += added
@@ -429,27 +626,71 @@ class NLMIndustrialScraper:
         self._driver.get(url)
         time.sleep(15)
 
-        # Click Sources tab
-        try:
-            tabs = self._driver.find_elements(By.CSS_SELECTOR, '[role="tab"]')
-            for tab in tabs:
-                if tab.text.strip() == "Sources":
-                    self._driver.execute_script(
-                        "arguments[0].scrollIntoView({block:'center'});", tab
-                    )
-                    time.sleep(0.3)
-                    self._driver.execute_script("arguments[0].click();", tab)
-                    time.sleep(1)
-                    print("[Industrial] Switched to Sources tab")
-                    break
-        except Exception as e:
-            print(f"[Industrial] Could not click Sources tab: {e}")
+        # Navigate to Sources tab, then poll until source buttons render.
+        self._ensure_sources_context(self._staging_nb_id)
+        batch_started_at = time.monotonic()
+        log_action(
+            "industrial_scrape_batch_started",
+            {
+                "nb_id": self._staging_nb_id,
+                "batch_size": len(vid_to_src),
+            },
+        )
+
+        # Poll DOM for source buttons until they appear or timeout.
+        # Unlike nlm_batch.py which uses `nlm source content` CLI directly,
+        # this scraper relies on the browser SPA rendering source buttons.
+        # The CLI confirms sources were added; we must confirm buttons exist.
+        print(f"[Industrial] Waiting up to 120s for {len(vid_to_src)} source buttons to render...")
+        dom_ready = self._poll_source_buttons_dom(expected=len(vid_to_src), timeout=120)
+        if dom_ready:
+            print(f"[Industrial] DOM buttons ready ({dom_ready} found)")
+        else:
+            print(f"[Industrial] DOM polling timed out — proceeding anyway (may fail)")
 
         results: Dict[str, Tuple[bool, Optional[str], Optional[str]]] = {}
 
         for vid, source_id in vid_to_src.items():
             idx = list(vid_to_src.keys()).index(vid) + 1
-            print(f"[{idx}/{len(vid_to_src)}] Scraping: {vid[:20]}...", end=" ", flush=True)
+            video_started_at = time.monotonic()
+
+            if not self._ensure_sources_context(self._staging_nb_id):
+                results[vid] = (False, None, "sources context not available")
+                log_action(
+                    "industrial_scrape_video_finished",
+                    {
+                        "nb_id": self._staging_nb_id,
+                        "video_id": vid,
+                        "source_id": source_id,
+                        "index": idx,
+                        "batch_size": len(vid_to_src),
+                        "status": "context_not_ready",
+                        "elapsed_s": round(time.monotonic() - video_started_at, 3),
+                    },
+                )
+                print(
+                    f"[Industrial] Sources context not ready for vid={vid[:12]} "
+                    f"source={source_id[:12]}"
+                )
+                print("✗ sources context not available")
+                continue
+
+            print(
+                f"[{idx}/{len(vid_to_src)}] Scraping {vid[:12]} via {source_id[:12]}...",
+                end=" ",
+                flush=True,
+            )
+            log_action(
+                "industrial_scrape_video_started",
+                {
+                    "nb_id": self._staging_nb_id,
+                    "video_id": vid,
+                    "source_id": source_id,
+                    "index": idx,
+                    "batch_size": len(vid_to_src),
+                    "elapsed_s": round(video_started_at - batch_started_at, 3),
+                },
+            )
 
             did_click = False
             try:
@@ -460,26 +701,46 @@ class NLMIndustrialScraper:
                 # By scanning the DOM fresh for every video, we eliminate stale
                 # references entirely.
                 all_buttons = self._driver.find_elements(By.TAG_NAME, "button")
-                source_buttons = [
-                    b for b in all_buttons
-                    if b.get_attribute("aria-label")
-                    and len(b.get_attribute("aria-label") or "") > 20
-                    and not b.text.strip()
-                ]
+                source_buttons = []
+                for b in all_buttons:
+                    label = (b.get_attribute("aria-label") or "").strip()
+                    if not label or len(label) <= 20 or b.text.strip():
+                        continue
+                    if self._is_source_button_label(label, source_id, vid):
+                        source_buttons.append(b)
                 target_btn = None
                 for b in source_buttons:
                     label = b.get_attribute("aria-label") or ""
-                    if source_id in label or f"youtube.com/watch?v={vid}" in label:
+                    if self._is_source_button_label(label, source_id, vid):
                         target_btn = b
                         break
-                # Positional fallback only when aria-label match missed
-                if not target_btn:
-                    src_idx = list(vid_to_src.keys()).index(vid)
-                    if src_idx < len(source_buttons):
-                        target_btn = source_buttons[src_idx]
 
                 if not target_btn:
+                    print(
+                        f"[Industrial] button lookup failed for vid={vid} source={source_id} "
+                        f"buttons={len(source_buttons)} url={self._driver.current_url}"
+                    )
+                    if source_buttons:
+                        preview_buttons = source_buttons
+                    else:
+                        preview_buttons = all_buttons
+                    print(
+                        f"[Industrial] candidate labels: "
+                        f"{self._button_label_preview(preview_buttons)}"
+                    )
                     results[vid] = (False, None, "source button not found")
+                    log_action(
+                        "industrial_scrape_video_finished",
+                        {
+                            "nb_id": self._staging_nb_id,
+                            "video_id": vid,
+                            "source_id": source_id,
+                            "index": idx,
+                            "batch_size": len(vid_to_src),
+                            "status": "button_not_found",
+                            "elapsed_s": round(time.monotonic() - video_started_at, 3),
+                        },
+                    )
                     print("✗ button not found")
                     continue
 
@@ -495,9 +756,34 @@ class NLMIndustrialScraper:
 
                 if transcript:
                     results[vid] = (True, transcript, None)
+                    log_action(
+                        "industrial_scrape_video_finished",
+                        {
+                            "nb_id": self._staging_nb_id,
+                            "video_id": vid,
+                            "source_id": source_id,
+                            "index": idx,
+                            "batch_size": len(vid_to_src),
+                            "status": "success",
+                            "transcript_chars": len(transcript),
+                            "elapsed_s": round(time.monotonic() - video_started_at, 3),
+                        },
+                    )
                     print(f"{len(transcript)} chars")
                 else:
                     results[vid] = (False, None, "content too short or empty")
+                    log_action(
+                        "industrial_scrape_video_finished",
+                        {
+                            "nb_id": self._staging_nb_id,
+                            "video_id": vid,
+                            "source_id": source_id,
+                            "index": idx,
+                            "batch_size": len(vid_to_src),
+                            "status": "too_short",
+                            "elapsed_s": round(time.monotonic() - video_started_at, 3),
+                        },
+                    )
                     print("✗ too short")
 
             except Exception as e:
@@ -509,15 +795,16 @@ class NLMIndustrialScraper:
                     try:
                         # Re-locate the button from current DOM state
                         fresh_buttons = self._driver.find_elements(By.TAG_NAME, "button")
-                        fresh_source_buttons = [
-                            b for b in fresh_buttons
-                            if b.get_attribute("aria-label")
-                            and len(b.get_attribute("aria-label") or "") > 20
-                            and not b.text.strip()
-                        ]
+                        fresh_source_buttons = []
+                        for b in fresh_buttons:
+                            label = (b.get_attribute("aria-label") or "").strip()
+                            if not label or len(label) <= 20 or b.text.strip():
+                                continue
+                            if self._is_source_button_label(label, source_id, vid):
+                                fresh_source_buttons.append(b)
                         for b in fresh_source_buttons:
                             label = b.get_attribute("aria-label") or ""
-                            if source_id in label or f"youtube.com/watch?v={vid}" in label:
+                            if self._is_source_button_label(label, source_id, vid):
                                 self._driver.execute_script(
                                     "arguments[0].scrollIntoView({block:'center'});", b
                                 )
@@ -528,13 +815,63 @@ class NLMIndustrialScraper:
                                 transcript = self._extract_transcript_from_body(body_text)
                                 if transcript:
                                     results[vid] = (True, transcript, None)
+                                    log_action(
+                                        "industrial_scrape_video_finished",
+                                        {
+                                            "nb_id": self._staging_nb_id,
+                                            "video_id": vid,
+                                            "source_id": source_id,
+                                            "index": idx,
+                                            "batch_size": len(vid_to_src),
+                                            "status": "success_stale_recovery",
+                                            "transcript_chars": len(transcript),
+                                            "elapsed_s": round(time.monotonic() - video_started_at, 3),
+                                        },
+                                    )
                                     print(f"{len(transcript)} chars (stale recovery)")
                                 else:
                                     results[vid] = (False, None, "content too short or empty")
+                                    log_action(
+                                        "industrial_scrape_video_finished",
+                                        {
+                                            "nb_id": self._staging_nb_id,
+                                            "video_id": vid,
+                                            "source_id": source_id,
+                                            "index": idx,
+                                            "batch_size": len(vid_to_src),
+                                            "status": "too_short_stale_recovery",
+                                            "elapsed_s": round(time.monotonic() - video_started_at, 3),
+                                        },
+                                    )
                                     print("✗ too short")
                                 break
                         else:
+                            print(
+                                f"[Industrial] stale recovery lookup failed for vid={vid} "
+                                f"source={source_id} buttons={len(fresh_source_buttons)} "
+                                f"url={self._driver.current_url}"
+                            )
+                            if fresh_source_buttons:
+                                recovery_preview = fresh_source_buttons
+                            else:
+                                recovery_preview = fresh_buttons
+                            print(
+                                f"[Industrial] recovery candidates: "
+                                f"{self._button_label_preview(recovery_preview)}"
+                            )
                             results[vid] = (False, None, "source button not found after stale recovery")
+                            log_action(
+                                "industrial_scrape_video_finished",
+                                {
+                                    "nb_id": self._staging_nb_id,
+                                    "video_id": vid,
+                                    "source_id": source_id,
+                                    "index": idx,
+                                    "batch_size": len(vid_to_src),
+                                    "status": "button_not_found_stale_recovery",
+                                    "elapsed_s": round(time.monotonic() - video_started_at, 3),
+                                },
+                            )
                             print("✗ button not found after stale recovery")
                     except Exception:
                         # Failed even recovery — must reload Sources tab so the
@@ -543,10 +880,39 @@ class NLMIndustrialScraper:
                             f"https://notebooklm.google.com/notebook/{self._staging_nb_id}"
                         )
                         time.sleep(3)
+                        # Navigate to Sources tab after reload so the next button
+                        # scan has a clean DOM to work from.
+                        self._navigate_to_sources_tab()
                         results[vid] = (False, None, error_msg)
+                        log_action(
+                            "industrial_scrape_video_finished",
+                            {
+                                "nb_id": self._staging_nb_id,
+                                "video_id": vid,
+                                "source_id": source_id,
+                                "index": idx,
+                                "batch_size": len(vid_to_src),
+                                "status": "stale_recovery_exception",
+                                "error": error_msg[:200],
+                                "elapsed_s": round(time.monotonic() - video_started_at, 3),
+                            },
+                        )
                         print(f"✗ {error_msg}")
                 else:
                     results[vid] = (False, None, error_msg)
+                    log_action(
+                        "industrial_scrape_video_finished",
+                        {
+                            "nb_id": self._staging_nb_id,
+                            "video_id": vid,
+                            "source_id": source_id,
+                            "index": idx,
+                            "batch_size": len(vid_to_src),
+                            "status": "error",
+                            "error": error_msg[:200],
+                            "elapsed_s": round(time.monotonic() - video_started_at, 3),
+                        },
+                    )
                     print(f"✗ {error_msg}")
 
             finally:

@@ -367,6 +367,83 @@ class TestRunNlmAuthRetry:
         assert mock_run.call_count == 3  # Original + login + retry
 
 
+class TestNlmAuthLogging:
+    """Auth helpers should emit explicit NotebookLM auth markers."""
+
+    @pytest.fixture
+    def scraper(self):
+        from csf.nlm_scraper import NLMIndustrialScraper
+
+        sc = NLMIndustrialScraper(headless=True)
+        sc._staging_nb_id = "nb-test"
+        sc._source_count = 0
+        return sc
+
+    def test_ensure_staging_notebook_logs_auth_ok(self, scraper):
+        """A clean notebook list check should log auth-ok."""
+        scraper._consecutive_nb_create_failures = 0
+        with mock.patch.object(scraper, "_run_nlm") as mock_run:
+            mock_run.return_value = mock.MagicMock(returncode=0, stdout="ok", stderr="")
+            with mock.patch("csf.nlm_scraper.log_action") as mock_log:
+                assert scraper._ensure_staging_notebook() is True
+
+        assert [c.args[0] for c in mock_log.call_args_list] == ["nlm_auth_checked"]
+        assert mock_log.call_args.args[1]["component"] == "nlm_scraper"
+
+    def test_run_nlm_auth_retry_logs_refresh(self, scraper):
+        """A mid-session auth retry should log auth-refresh."""
+        call_count = [0]
+
+        def run_side_effect(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return mock.MagicMock(returncode=1, stdout="", stderr="Authentication Error: token expired")
+            if call_count[0] == 2:
+                return mock.MagicMock(returncode=0, stdout="", stderr="")
+            return mock.MagicMock(returncode=0, stdout="ok", stderr="")
+
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.side_effect = run_side_effect
+            with mock.patch("csf.nlm_scraper.log_action") as mock_log:
+                res = scraper._run_nlm(["notebook", "list"])
+
+        assert res.returncode == 0
+        assert [c.args[0] for c in mock_log.call_args_list] == ["nlm_auth_refreshed"]
+        assert mock_log.call_args.args[1]["component"] == "nlm_scraper"
+
+
+class TestSeleniumProfileIsolation:
+    """Selenium should use a dedicated profile directory."""
+
+    @pytest.fixture
+    def scraper(self):
+        from csf.nlm_scraper import NLMIndustrialScraper
+
+        return NLMIndustrialScraper(headless=True)
+
+    def test_init_driver_uses_dedicated_chrome_profile_root(self, scraper, tmp_path, monkeypatch):
+        """Chrome should launch with a Selenium-only user-data-dir, not the shared MCP profile."""
+        monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+        monkeypatch.delenv("APPDATA", raising=False)
+
+        chrome_mock = mock.MagicMock()
+        with mock.patch("csf.nlm_scraper.webdriver.Chrome", return_value=chrome_mock) as mock_chrome:
+            with mock.patch.object(scraper, "_seed_profile_tree") as mock_seed:
+                with mock.patch("csf.nlm_scraper.log_action") as mock_log:
+                    scraper._init_driver()
+
+        mock_seed.assert_called_once()
+        mock_log.assert_any_call(
+            "selenium_profile_selected",
+            mock.ANY,
+        )
+        opts = mock_chrome.call_args.kwargs["options"]
+        user_data_dir_args = [arg for arg in opts.arguments if arg.startswith("--user-data-dir=")]
+        assert len(user_data_dir_args) == 1
+        assert "selenium-profiles/chrome" in user_data_dir_args[0].replace("\\", "/")
+        assert "mcp-chrome-9050243" not in user_data_dir_args[0]
+
+
 class TestBackNavPageStateGuard:
     """Test Fix 2: back-nav skips click when already on Sources tab."""
 

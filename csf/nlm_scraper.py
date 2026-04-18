@@ -19,6 +19,7 @@ import sys
 import time
 import json
 import subprocess
+import shutil
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 
@@ -50,22 +51,72 @@ class NLMIndustrialScraper:
         self._source_count: int = 0
         self._consecutive_nb_create_failures: int = 0
 
+    def _selenium_profile_root(self, browser: str) -> Path:
+        """Return the per-browser Selenium-only profile root."""
+        appdata = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or ""
+        return Path(appdata) / "yt-is" / "selenium-profiles" / browser
+
+    def _chrome_profile_sources(self) -> tuple[Path, str]:
+        """Return the source profile base and profile directory name for Chrome."""
+        appdata = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or ""
+        playwright_chrome_base = Path(appdata) / "ms-playwright" / "mcp-chrome-9050243"
+        if playwright_chrome_base.is_dir():
+            return playwright_chrome_base, "Default"
+        return Path(appdata) / "Google" / "Chrome" / "User Data", "default"
+
+    def _should_skip_profile_item(self, name: str) -> bool:
+        """Skip lock/cache files that should not be cloned into a fresh profile."""
+        lower = name.lower()
+        if name.startswith("Singleton") or name == "lockfile":
+            return True
+        if lower in {"cache", "code cache", "gpucache", "shadercache", "grshadercache"}:
+            return True
+        if lower.endswith(".tmp"):
+            return True
+        if name == "DevToolsActivePort":
+            return True
+        return False
+
+    def _seed_profile_tree(self, source_base: Path, target_base: Path) -> None:
+        """Best-effort clone of a browser profile tree into a dedicated target."""
+        if not source_base.exists():
+            target_base.mkdir(parents=True, exist_ok=True)
+            return
+        target_base.mkdir(parents=True, exist_ok=True)
+        for root, dirs, files in os.walk(source_base):
+            root_path = Path(root)
+            rel_root = root_path.relative_to(source_base)
+            target_root = target_base / rel_root
+            target_root.mkdir(parents=True, exist_ok=True)
+            dirs[:] = [d for d in dirs if not self._should_skip_profile_item(d)]
+            for file_name in files:
+                if self._should_skip_profile_item(file_name):
+                    continue
+                src = root_path / file_name
+                dst = target_root / file_name
+                try:
+                    shutil.copy2(src, dst)
+                except Exception:
+                    # Best-effort clone: locked cache files and transient browser
+                    # state can fail to copy while the source profile is live.
+                    continue
+
     def _init_driver(self):
         if self._driver:
             return
 
-        appdata = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or ""
-
-        # Try ms-playwright Chrome first (nlm MCP auth lives here)
-        playwright_chrome_base = os.path.join(
-            appdata, "ms-playwright", "mcp-chrome-9050243"
+        chrome_source_base, profile_name = self._chrome_profile_sources()
+        chrome_profile_base = self._selenium_profile_root("chrome")
+        self._seed_profile_tree(chrome_source_base, chrome_profile_base)
+        log_action(
+            "selenium_profile_selected",
+            {
+                "browser": "chrome",
+                "profile_root": str(chrome_profile_base),
+                "profile_name": profile_name,
+                "seeded_from": str(chrome_source_base),
+            },
         )
-        if os.path.isdir(playwright_chrome_base):
-            chrome_profile_base = playwright_chrome_base
-            profile_name = "Default"
-        else:
-            chrome_profile_base = os.path.join(appdata, "Google", "Chrome", "User Data")
-            profile_name = "default"
 
         try:
             opts = ChOptions()
@@ -80,12 +131,16 @@ class NLMIndustrialScraper:
             opts.add_argument("--no-sandbox")
             opts.add_experimental_option("excludeSwitches", ["enable-automation"])
 
-            print(f"[Industrial] Using Chrome profile: {chrome_profile_base}/{profile_name}")
+            print(
+                f"[Industrial] Using Chrome profile clone: {chrome_profile_base}/{profile_name} "
+                f"(seeded from {chrome_source_base})"
+            )
             self._driver = webdriver.Chrome(options=opts)
         except Exception as e:
             print(f"[Industrial] Chrome init failed ({e}), falling back to Firefox...")
             try:
                 import glob as _glob
+                appdata = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or ""
                 opts = FxOptions()
                 if self.headless:
                     opts.add_argument("--headless")
@@ -94,11 +149,39 @@ class NLMIndustrialScraper:
                 if not profiles:
                     all_profiles = _glob.glob(os.path.join(ff_profile_base, "*"))
                     profiles = [p for p in all_profiles if ".default" not in os.path.basename(p)]
+                firefox_profile_root = self._selenium_profile_root("firefox")
                 if profiles:
                     profile_path = profiles[0]
-                    print(f"[Industrial] Using Firefox profile: {Path(profile_path).name}")
-                    opts.add_argument("-profile")
-                    opts.add_argument(profile_path)
+                    self._seed_profile_tree(Path(profile_path), firefox_profile_root)
+                    log_action(
+                        "selenium_profile_selected",
+                        {
+                            "browser": "firefox",
+                            "profile_root": str(firefox_profile_root),
+                            "profile_name": Path(profile_path).name,
+                            "seeded_from": str(profile_path),
+                        },
+                    )
+                    print(
+                        f"[Industrial] Using Firefox profile clone: {firefox_profile_root.name} "
+                        f"(seeded from {Path(profile_path).name})"
+                    )
+                else:
+                    firefox_profile_root.mkdir(parents=True, exist_ok=True)
+                    log_action(
+                        "selenium_profile_selected",
+                        {
+                            "browser": "firefox",
+                            "profile_root": str(firefox_profile_root),
+                            "profile_name": "new",
+                            "seeded_from": None,
+                        },
+                    )
+                    print(
+                        f"[Industrial] Using fresh Firefox profile clone: {firefox_profile_root.name}"
+                    )
+                opts.add_argument("-profile")
+                opts.add_argument(str(firefox_profile_root))
                 self._driver = webdriver.Firefox(options=opts)
             except Exception as e2:
                 print(f"[Industrial] Firefox fallback also failed: {e2}")
@@ -375,11 +458,20 @@ class NLMIndustrialScraper:
                 capture_output=True, text=True, timeout=120,
             )
             if login.returncode == 0:
+                log_action(
+                    "nlm_auth_refreshed",
+                    {"component": "nlm_scraper", "status": "mid_session_ok"},
+                )
                 res = subprocess.run(
                     ["nlm"] + args,
                     capture_output=True,
                     text=True,
                     timeout=timeout,
+                )
+            else:
+                log_action(
+                    "nlm_auth_failed",
+                    {"component": "nlm_scraper", "status": "mid_session_refresh_failed"},
                 )
         return res
 
@@ -482,20 +574,42 @@ class NLMIndustrialScraper:
             combined = auth_ok.stderr + auth_ok.stdout
             if any(kw in combined for kw in ["Authentication Error", "authentication error", "Auth Error", "auth error"]):
                 print("[Industrial] Auth smoke-test failed — re-authing...")
+                log_action(
+                    "nlm_auth_checked",
+                    {"component": "nlm_scraper", "status": "expired"},
+                )
                 login = subprocess.run(["nlm", "login", "--force"], capture_output=True, text=True, timeout=120)
                 if login.returncode != 0:
+                    log_action(
+                        "nlm_auth_failed",
+                        {"component": "nlm_scraper", "status": "refresh_failed"},
+                    )
                     print(f"[Industrial] Re-auth failed: {login.stderr}")
                     self._consecutive_nb_create_failures += 1
                     return False
                 auth_ok = self._run_nlm(["notebook", "list"], timeout=30)
                 if auth_ok.returncode != 0:
+                    log_action(
+                        "nlm_auth_failed",
+                        {"component": "nlm_scraper", "status": "post_refresh_failed"},
+                    )
                     print(f"[Industrial] Auth smoke-test still failing after re-auth: {auth_ok.stderr}")
                     self._consecutive_nb_create_failures += 1
                     return False
+                log_action(
+                    "nlm_auth_refreshed",
+                    {"component": "nlm_scraper", "status": "ok"},
+                )
             else:
+                log_action(
+                    "nlm_auth_failed",
+                    {"component": "nlm_scraper", "status": "non_auth_failure"},
+                )
                 print(f"[Industrial] Notebook list failed (non-auth): {auth_ok.stderr}")
                 self._consecutive_nb_create_failures += 1
                 return False
+        else:
+            log_action("nlm_auth_checked", {"component": "nlm_scraper", "status": "ok"})
         if self._staging_nb_id and self._source_count < self.MAX_SOURCES_PER_NOTEBOOK:
             return True
         if self._staging_nb_id:

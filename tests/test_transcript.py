@@ -890,6 +890,44 @@ class TestCookieFreshnessTracker:
             csf.transcript._cookie_freshness_tracker = None
 
 
+class TestNlmAuthLogging:
+    """_ensure_nlm_auth should emit explicit auth-state markers."""
+
+    def test_auth_check_logs_ok(self):
+        """A clean --check result should log an auth-ok marker."""
+        import csf.transcript
+
+        def mock_run(cmd, **kwargs):
+            return subprocess.CompletedProcess(cmd, 0, "", "Auth valid")
+
+        with mock.patch("subprocess.run", side_effect=mock_run):
+            with mock.patch("csf.transcript.log_action") as mock_log:
+                assert csf.transcript._ensure_nlm_auth() is True
+
+        mock_log.assert_called_once()
+        assert mock_log.call_args.args[0] == "nlm_auth_checked"
+        assert mock_log.call_args.args[1]["component"] == "transcript"
+
+    def test_auth_refresh_logs_refreshed(self):
+        """A refresh path should log an auth-refreshed marker."""
+        import csf.transcript
+
+        def mock_run(cmd, **kwargs):
+            if cmd == ["nlm", "login", "--check"]:
+                return subprocess.CompletedProcess(cmd, 1, "", "Auth expired")
+            if cmd == ["nlm", "login"]:
+                return subprocess.CompletedProcess(cmd, 0, "", "OK")
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+
+        with mock.patch("subprocess.run", side_effect=mock_run):
+            with mock.patch("csf.transcript.log_action") as mock_log:
+                assert csf.transcript._ensure_nlm_auth() is True
+
+        assert [c.args[0] for c in mock_log.call_args_list] == [
+            "nlm_auth_refreshed",
+        ]
+
+
 class TestDirectApiFallback:
     """Tests for _fetch_via_direct_api fallback."""
 

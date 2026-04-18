@@ -1,6 +1,7 @@
 """Tests for nlm_batch rate-limit tracker and sub-batch reset logic."""
 
 import pytest
+from unittest import mock
 from csf import nlm_batch
 
 
@@ -145,6 +146,25 @@ class TestAuthAutoLogin:
         try:
             result = nlm_batch._ensure_nlm_auth()
             assert result is False
+        finally:
+            subprocess.run = original_run
+
+    def test_ensure_nlm_auth_logs_success(self):
+        """A successful auth check should emit an auth-ok marker."""
+        import subprocess
+
+        def mock_run(cmd, **kwargs):
+            return subprocess.CompletedProcess(cmd, 0, "", "Auth valid")
+
+        original_run = subprocess.run
+        subprocess.run = mock_run
+        try:
+            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                result = nlm_batch._ensure_nlm_auth()
+            assert result is True
+            mock_log.assert_called_once()
+            assert mock_log.call_args.args[0] == "nlm_auth_checked"
+            assert mock_log.call_args.args[1]["component"] == "nlm_batch"
         finally:
             subprocess.run = original_run
 

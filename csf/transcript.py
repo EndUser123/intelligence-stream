@@ -25,6 +25,7 @@ from typing import Literal, TYPE_CHECKING
 from csf.batch_status import get_source as _get_source_for_video
 from csf.batch_scheduler import BatchScheduler
 from csf.cache import set_cached_transcript
+from csf.csf_logging import log_action
 from csf.youtube_auth import get_browser_cookies
 
 if TYPE_CHECKING:
@@ -59,14 +60,20 @@ def _ensure_nlm_auth() -> bool:
         ["nlm", "login", "--check"], capture_output=True, text=True
     )
     if check.returncode == 0:
+        log_action("nlm_auth_checked", {"component": "transcript", "status": "ok"})
         return True
 
     # Auth expired — re-authenticate (auto-launches Chrome headless)
     print("[transcript] NLM auth expired, re-authenticating...")
     login = subprocess.run(["nlm", "login"], capture_output=True, text=True)
     if login.returncode != 0:
+        log_action(
+            "nlm_auth_failed",
+            {"component": "transcript", "status": "refresh_failed"},
+        )
         print(f"[transcript] Re-auth failed: {login.stderr}")
         return False
+    log_action("nlm_auth_refreshed", {"component": "transcript", "status": "ok"})
     return True
 
 
@@ -1366,6 +1373,7 @@ def _ensure_nlm_auth() -> bool:
             capture_output=True, timeout=30,
         )
         if check.returncode == 0:
+            log_action("nlm_auth_checked", {"component": "transcript", "status": "ok"})
             rate_limiter.record_call()
             return True
     except Exception:
@@ -1379,12 +1387,21 @@ def _ensure_nlm_auth() -> bool:
             capture_output=True, timeout=120,
         )
         if login.returncode == 0:
+            log_action("nlm_auth_refreshed", {"component": "transcript", "status": "ok"})
             rate_limiter.record_auth_success()
             return True
         # Only --force failures count toward cooldown trigger
+        log_action(
+            "nlm_auth_failed",
+            {"component": "transcript", "status": "refresh_failed"},
+        )
         rate_limiter.record_auth_failure()
         return False
     except Exception:
+        log_action(
+            "nlm_auth_failed",
+            {"component": "transcript", "status": "refresh_exception"},
+        )
         rate_limiter.record_auth_failure()
         return False
 

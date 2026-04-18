@@ -1,0 +1,21 @@
+{"timestamp": "2026-04-18T13:02:39.079123+00:00", "trace_id": "term_56c36862", "action": "nlm_auth_checked", "data": {"component": "nlm_scraper", "status": "ok"}}
+{"timestamp": "2026-04-18T13:02:39.080916+00:00", "trace_id": "term_56c36862", "action": "nlm_auth_checked", "data": {"component": "nlm_scraper", "status": "ok"}}
+{"timestamp": "2026-04-18T13:02:39.082066+00:00", "trace_id": "term_56c36862", "action": "nlm_auth_checked", "data": {"component": "nlm_scraper", "status": "ok"}}
+{"timestamp": "2026-04-18T13:02:42.811698+00:00", "trace_id": "term_56c36862", "action": "nlm_auth_failed", "data": {"component": "nlm_scraper", "status": "non_auth_failure"}}
+{"timestamp": "2026-04-18T13:02:42.813085+00:00", "trace_id": "term_56c36862", "action": "nlm_auth_checked", "data": {"component": "nlm_scraper", "status": "ok"}}
+{"timestamp": "2026-04-18T13:02:42.817584+00:00", "trace_id": "term_56c36862", "action": "nlm_auth_refreshed", "data": {"component": "nlm_scraper", "status": "mid_session_ok"}}
+{"timestamp": "2026-04-18T13:02:42.818777+00:00", "trace_id": "term_56c36862", "action": "nlm_auth_failed", "data": {"component": "nlm_scraper", "status": "mid_session_refresh_failed"}}
+{"timestamp": "2026-04-18T13:02:42.820428+00:00", "trace_id": "term_56c36862", "action": "nlm_auth_refreshed", "data": {"component": "nlm_scraper", "status": "mid_session_ok"}}
+{"timestamp": "2026-04-18T13:02:42.821127+00:00", "trace_id": "term_56c36862", "action": "nlm_auth_refreshed", "data": {"component": "nlm_scraper", "status": "mid_session_ok"}}
+{"timestamp": "2026-04-18T13:02:42.821690+00:00", "trace_id": "term_56c36862", "action": "nlm_auth_refreshed", "data": {"component": "nlm_scraper", "status": "mid_session_ok"}}
+{"timestamp": "2026-04-18T13:02:42.822133+00:00", "trace_id": "term_56c36862", "action": "nlm_auth_refreshed", "data": {"component": "nlm_scraper", "status": "mid_session_ok"}}
+{"timestamp": "2026-04-18T13:02:42.823474+00:00", "trace_id": "term_56c36862", "action": "nlm_auth_refreshed", "data": {"component": "nlm_scraper", "status": "mid_session_ok"}}
+{"timestamp": "2026-04-18T13:02:57.831927+00:00", "trace_id": "term_56c36862", "action": "industrial_scrape_batch_started", "data": {"nb_id": "nb-test", "batch_size": 1}}
+{"timestamp": "2026-04-18T13:02:57.832566+00:00", "trace_id": "term_56c36862", "action": "industrial_scrape_video_started", "data": {"nb_id": "nb-test", "video_id": "vid1", "source_id": "src-1", "index": 1, "batch_size": 1, "elapsed_s": 0.001}}
+{"timestamp": "2026-04-18T13:02:58.133389+00:00", "trace_id": "term_56c36862", "action": "industrial_scrape_video_finished", "data": {"nb_id": "nb-test", "video_id": "vid1", "source_id": "src-1", "index": 1, "batch_size": 1, "status": "success", "transcript_chars": 15, "elapsed_s": 0.301}}
+{"timestamp": "2026-04-18T13:03:13.136354+00:00", "trace_id": "term_56c36862", "action": "industrial_scrape_batch_started", "data": {"nb_id": "nb-test", "batch_size": 1}}
+{"timestamp": "2026-04-18T13:03:13.136887+00:00", "trace_id": "term_56c36862", "action": "industrial_scrape_video_started", "data": {"nb_id": "nb-test", "video_id": "vid1", "source_id": "src-1", "index": 1, "batch_size": 1, "elapsed_s": 0.001}}
+{"timestamp": "2026-04-18T13:03:13.438449+00:00", "trace_id": "term_56c36862", "action": "industrial_scrape_video_finished", "data": {"nb_id": "nb-test", "video_id": "vid1", "source_id": "src-1", "index": 1, "batch_size": 1, "status": "success", "transcript_chars": 15, "elapsed_s": 0.301}}
+{"timestamp": "2026-04-18T13:03:29.942015+00:00", "trace_id": "term_56c36862", "action": "industrial_scrape_batch_started", "data": {"nb_id": "nb-test", "batch_size": 1}}
+{"timestamp": "2026-04-18T13:05:29.959901+00:00", "trace_id": "term_56c36862", "action": "industrial_scrape_video_started", "data": {"nb_id": "nb-test", "video_id": "vid1", "source_id": "src-1", "index": 1, "batch_size": 1, "elapsed_s": 120.018}}
+{"timestamp": "2026-04-18T13:05:29.960375+00:00", "trace_id": "term_56c36862", "action": "industrial_scrape_video_finished", "data": {"nb_id": "nb-test", "video_id": "vid1", "source_id": "src-1", "index": 1, "batch_size": 1, "status": "button_not_found", "elapsed_s": 0.001}}

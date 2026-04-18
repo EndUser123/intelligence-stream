@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from csf.display import format_result_row
+from csf.csf_logging import log_action
 
 
 def _ensure_nlm_auth() -> bool:
@@ -31,13 +32,18 @@ def _ensure_nlm_auth() -> bool:
         ["nlm", "login", "--check"], capture_output=True, text=True, timeout=30
     )
     if check.returncode == 0:
+        log_action("nlm_auth_checked", {"component": "nlm_batch", "status": "ok"})
         return True
 
     # Auth expired — re-authenticate
     login = subprocess.run(
         ["nlm", "login", "--force"], capture_output=True, text=True, timeout=120
     )
-    return login.returncode == 0
+    if login.returncode == 0:
+        log_action("nlm_auth_refreshed", {"component": "nlm_batch", "status": "ok"})
+        return True
+    log_action("nlm_auth_failed", {"component": "nlm_batch", "status": "refresh_failed"})
+    return False
 
 
 # Minimum characters for a "valid" high-fidelity transcript

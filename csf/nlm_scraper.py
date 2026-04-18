@@ -32,6 +32,7 @@ try:
     from selenium.webdriver.firefox.options import Options as FxOptions
     from selenium.webdriver.chrome.options import Options as ChOptions
     from selenium.webdriver.common.by import By
+    from selenium.webdriver.remote.webelement import WebElement
 except ImportError:
     print("Error: Selenium not installed. Run 'pip install selenium'.")
     sys.exit(1)
@@ -293,6 +294,27 @@ class NLMIndustrialScraper:
         if self._consecutive_nb_create_failures >= 3:
             print("[Industrial] FATAL: 3 consecutive notebook creation failures — bailing out")
             return False
+        # Auth smoke test: verify nlm CLI is authenticated before attempting notebook ops.
+        # On auth failure, re-auth and retry once.
+        auth_ok = self._run_nlm(["notebook", "list"], timeout=30)
+        if auth_ok.returncode != 0:
+            combined = auth_ok.stderr + auth_ok.stdout
+            if any(kw in combined for kw in ["Authentication Error", "authentication error", "Auth Error", "auth error"]):
+                print("[Industrial] Auth smoke-test failed — re-authing...")
+                login = subprocess.run(["nlm", "login", "--force"], capture_output=True, text=True, timeout=120)
+                if login.returncode != 0:
+                    print(f"[Industrial] Re-auth failed: {login.stderr}")
+                    self._consecutive_nb_create_failures += 1
+                    return False
+                auth_ok = self._run_nlm(["notebook", "list"], timeout=30)
+                if auth_ok.returncode != 0:
+                    print(f"[Industrial] Auth smoke-test still failing after re-auth: {auth_ok.stderr}")
+                    self._consecutive_nb_create_failures += 1
+                    return False
+            else:
+                print(f"[Industrial] Notebook list failed (non-auth): {auth_ok.stderr}")
+                self._consecutive_nb_create_failures += 1
+                return False
         if self._staging_nb_id and self._source_count < self.MAX_SOURCES_PER_NOTEBOOK:
             return True
         if self._staging_nb_id:
@@ -386,6 +408,12 @@ class NLMIndustrialScraper:
             self._init_driver()
             results.update(self._scrape_sources(vid_to_src))
 
+        # Batch success summary
+        total = len(results)
+        succeeded = sum(1 for ok, _, _ in results.values() if ok)
+        if total > 0:
+            pct = succeeded / total * 100
+            print(f"[Industrial] Batch complete: {succeeded}/{total} succeeded ({pct:.0f}%)")
         return results
 
     def _scrape_sources(
@@ -454,6 +482,31 @@ class NLMIndustrialScraper:
                         target_btn = source_buttons[src_idx]
 
                 if not target_btn:
+                    # Stale-element recovery: re-scan the DOM to find buttons, then retry.
+                    # This handles the case where a prior stale-element exception left
+                    # driver on the Sources tab with stale button references.
+                    time.sleep(2)
+                    all_buttons = self._driver.find_elements(By.TAG_NAME, "button")
+                    source_buttons_fresh = [
+                        b for b in all_buttons
+                        if b.get_attribute("aria-label")
+                        and len(b.get_attribute("aria-label") or "") > 20
+                        and not b.text.strip()
+                    ]
+                    button_by_source_fresh: Dict[str, WebElement] = {}
+                    for b in source_buttons_fresh:
+                        label = b.get_attribute("aria-label") or ""
+                        for src_id in vid_to_src.values():
+                            if src_id in label:
+                                button_by_source_fresh[vid] = b
+                                break
+                    target_btn = button_by_source_fresh.get(vid)
+                    if not target_btn:
+                        src_idx = list(vid_to_src.keys()).index(vid)
+                        if src_idx < len(source_buttons_fresh):
+                            target_btn = source_buttons_fresh[src_idx]
+
+                if not target_btn:
                     results[vid] = (False, None, "source button not found")
                     print("✗ button not found")
                     continue
@@ -488,9 +541,16 @@ class NLMIndustrialScraper:
                     # navigate backwards OUT of the Sources list — the opposite of
                     # what we want after a stale-element exception.
                     current_url = self._driver.current_url
-                    on_source_page = "/source/" in current_url
-                    if not on_source_page:
-                        # We're already on Sources tab — no back-nav needed
+                    # Distinguish Sources tab list page from transcript/source-detail page.
+                    # Sources tab: .../notebook/{nb}/source/{srcId}       (no trailing segment)
+                    # Transcript page: .../notebook/{nb}/source/{srcId}/hash (has trailing segment)
+                    # Both contain "/source/", so we check for an additional path segment.
+                    on_transcript_page = (
+                        "/source/" in current_url
+                        and len(current_url.split("/source/")[-1].split("/")) >= 2
+                    )
+                    if not on_transcript_page:
+                        # We're on Sources tab (or any non-source page) — no back-nav needed
                         pass
                     else:
                         try:
@@ -626,9 +686,12 @@ class NLMIndustrialScraper:
             finally:
                 if did_click:
                     current_url = self._driver.current_url
-                    on_source_page = "/source/" in current_url
-                    if not on_source_page:
-                        pass  # Already on Sources tab — no back-nav needed
+                    on_transcript_page = (
+                        "/source/" in current_url
+                        and len(current_url.split("/source/")[-1].split("/")) >= 2
+                    )
+                    if not on_transcript_page:
+                        pass  # On Sources tab or other page — no back-nav needed
                     else:
                         try:
                             for b in self._driver.find_elements(By.TAG_NAME, "button"):

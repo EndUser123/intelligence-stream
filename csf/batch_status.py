@@ -297,6 +297,14 @@ class _BatchStatusStorage:
             conn.execute("SELECT topic_categories FROM channel_metadata LIMIT 1")
         except sqlite3.OperationalError:
             conn.execute("ALTER TABLE channel_metadata ADD COLUMN topic_categories TEXT")
+        for col, col_type in [
+            ("keywords", "TEXT"),
+            ("custom_url", "TEXT"),
+        ]:
+            try:
+                conn.execute(f"SELECT {col} FROM channel_metadata LIMIT 1")
+            except sqlite3.OperationalError:
+                conn.execute(f"ALTER TABLE channel_metadata ADD COLUMN {col} {col_type}")
         conn.close()
 
     def _ensure_nlm_export_state(self) -> None:
@@ -707,34 +715,32 @@ class _BatchStatusStorage:
         keywords: str | None = None,
         custom_url: str | None = None,
     ) -> None:
-        """Set channel metadata for channel_url (insert or replace)."""
-        self._ensure_channel_metadata()
-        conn = self._get_conn()
+        """Set channel metadata for channel_url.
+
+        Delegates to upsert_channel to preserve existing fields on partial updates.
+        """
         now = datetime.now(timezone.utc).isoformat()
-        conn.execute(
-            "INSERT OR REPLACE INTO channel_metadata (channel_url, playlist_id, last_checked, last_full_enumeration, video_count_estimate, next_page_token, quota_exhausted_at, schema_version, channel_title, thumbnail_url, subscriber_count, view_count, description, published_at, country, topic_categories, keywords, custom_url) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                channel_url,
-                playlist_id,
-                last_checked or now,
-                last_full_enumeration,
-                video_count_estimate,
-                next_page_token,
-                quota_exhausted_at,
-                channel_title,
-                thumbnail_url,
-                subscriber_count,
-                view_count,
-                description,
-                published_at,
-                country,
-                topic_categories,
-                keywords,
-                custom_url,
-            ),
-        )
-        conn.commit()
-        conn.close()
+        kwargs: dict[str, str | int | None] = {
+            "playlist_id": playlist_id,
+            "last_checked": last_checked or now,
+            "last_full_enumeration": last_full_enumeration,
+            "video_count_estimate": video_count_estimate,
+            "channel_title": channel_title,
+            "thumbnail_url": thumbnail_url,
+            "subscriber_count": subscriber_count,
+            "view_count": view_count,
+            "description": description,
+            "published_at": published_at,
+            "country": country,
+            "topic_categories": topic_categories,
+            "keywords": keywords,
+            "custom_url": custom_url,
+        }
+        if next_page_token is not None:
+            kwargs["next_page_token"] = next_page_token
+        if quota_exhausted_at is not None:
+            kwargs["quota_exhausted_at"] = quota_exhausted_at
+        self.upsert_channel(channel_url, **kwargs)
 
     def upsert_channel(self, channel_url: str, **kwargs: str | int | None) -> None:
         """Upsert channel metadata, updating only provided fields.
@@ -883,6 +889,8 @@ class _BatchStatusStorage:
             raise
         finally:
             conn.close()
+
+    def get_pending_by_source(self, channel_url: str) -> list[str]:
         """Get all pending video_ids for a given channel/source."""
         conn = self._get_conn()
         cursor = conn.execute(
@@ -1303,7 +1311,7 @@ def set_channel_metadata(
     keywords: str | None = None,
     custom_url: str | None = None,
 ) -> None:
-    """Set channel metadata for channel_url (insert or replace)."""
+    """Set channel metadata, updating only provided fields."""
     if db_path is None:
         _get_batch_status_storage().set_channel_metadata(
             channel_url,

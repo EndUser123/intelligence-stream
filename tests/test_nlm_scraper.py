@@ -64,23 +64,26 @@ class TestNLMIndustrialScraperStagingNotebook:
         scraper._source_count = 50
 
         with mock.patch.object(scraper, "_run_nlm") as mock_run:
+            mock_run.return_value = mock.MagicMock(returncode=0, stdout="", stderr="")
             result = scraper._ensure_staging_notebook()
 
         assert result is True
         assert scraper._staging_nb_id == "nb-existing"
         assert scraper._source_count == 50
-        mock_run.assert_not_called()  # No CLI call needed
+        mock_run.assert_called_once_with(["notebook", "list"], timeout=30)
 
     def test_ensure_staging_clears_and_recreates_at_capacity(self, scraper):
         """_ensure_staging_notebook clears and recreates at 300 sources."""
         scraper._staging_nb_id = "nb-old"
         scraper._source_count = 300
 
-        with mock.patch.object(scraper, "_clear_staging_notebook") as mock_clear:
-            mock_clear.return_value = True
-            with mock.patch.object(scraper, "_create_staging_notebook") as mock_create:
-                mock_create.return_value = "nb-new"
-                scraper._ensure_staging_notebook()
+        with mock.patch.object(scraper, "_run_nlm") as mock_run:
+            mock_run.return_value = mock.MagicMock(returncode=0, stdout="", stderr="")
+            with mock.patch.object(scraper, "_clear_staging_notebook") as mock_clear:
+                mock_clear.return_value = True
+                with mock.patch.object(scraper, "_create_staging_notebook") as mock_create:
+                    mock_create.return_value = "nb-new"
+                    scraper._ensure_staging_notebook()
 
         mock_clear.assert_called_once()
         mock_create.assert_called_once()
@@ -244,6 +247,106 @@ class TestConsecutiveFailureBail:
             "vid1": (False, None, "staging notebook unavailable"),
             "vid2": (False, None, "staging notebook unavailable"),
         }
+
+
+class TestRunNlmAuthRetry:
+    """Test Fix 4: auth-error retry loop in _run_nlm — 4 auth/stability fixes."""
+
+    @pytest.fixture
+    def scraper(self):
+        from csf.nlm_scraper import NLMIndustrialScraper
+        sc = NLMIndustrialScraper(headless=True)
+        return sc
+
+    def test_run_nlm_succeeds_no_retry(self, scraper):
+        """_run_nlm returns immediately on success — no auth check needed."""
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(returncode=0, stdout="ok", stderr="")
+            res = scraper._run_nlm(["notebook", "list"])
+
+        assert res.returncode == 0
+        assert mock_run.call_count == 1
+
+    def test_run_nlm_non_auth_failure_no_retry(self, scraper):
+        """_run_nlm returns failure immediately when error is NOT auth-related."""
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(
+                returncode=1, stdout="", stderr="Server error 500"
+            )
+            res = scraper._run_nlm(["notebook", "create", "test"])
+
+        assert res.returncode == 1
+        assert mock_run.call_count == 1  # No retry for non-auth errors
+
+    def test_run_nlm_auth_error_retries_after_reauth(self, scraper):
+        """_run_nlm detects auth error, re-auths, then retries the command once."""
+        call_count = [0]
+
+        def run_side_effect(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return mock.MagicMock(returncode=1, stdout="", stderr="Authentication Error: token expired")
+            return mock.MagicMock(returncode=0, stdout="retry-success", stderr="")
+
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.side_effect = run_side_effect
+            res = scraper._run_nlm(["notebook", "list"])
+
+        # call_count: 1 for failed attempt, 2 for login, 3 for retry
+        assert mock_run.call_count == 3
+        calls = mock_run.call_args_list
+        # First call: the actual command (failed)
+        assert calls[0][0][0] == ["nlm", "notebook", "list"]
+        # Second call: login --force
+        assert calls[1][0][0] == ["nlm", "login", "--force"]
+        # Third call: retry of original command
+        assert calls[2][0][0] == ["nlm", "notebook", "list"]
+        assert res.stdout == "retry-success"
+
+    def test_run_nlm_auth_error_login_fails_no_retry(self, scraper):
+        """_run_nlm does NOT retry command if re-auth also fails."""
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(
+                returncode=1, stdout="", stderr="Authentication Error"
+            )
+            res = scraper._run_nlm(["notebook", "list"])
+
+        assert mock_run.call_count == 2  # Original + login (both fail)
+        assert res.returncode == 1
+
+    def test_run_nlm_auth_error_case_insensitive(self, scraper):
+        """Auth error detection matches 'auth error' (lowercase) and 'Auth Error' (title case)."""
+        for err_text in ["Authentication Error", "authentication error", "Auth Error", "auth error"]:
+            call_count = [0]
+
+            def run_side_effect(*args, **kwargs):
+                call_count[0] += 1
+                if call_count[0] == 1:
+                    return mock.MagicMock(returncode=1, stdout="", stderr=err_text)
+                return mock.MagicMock(returncode=0, stdout="ok", stderr="")
+
+            with mock.patch("subprocess.run") as mock_run:
+                mock_run.side_effect = run_side_effect
+                scraper._consecutive_nb_create_failures = 0
+                res = scraper._run_nlm(["notebook", "list"])
+
+            assert mock_run.call_count == 3, f"Failed for: {err_text}"
+
+    def test_run_nlm_mixed_case_auth_in_stdout(self, scraper):
+        """Auth error is detected in stdout as well as stderr."""
+        call_count = [0]
+
+        def run_side_effect(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return mock.MagicMock(returncode=1, stdout="auth error detected", stderr="")
+            return mock.MagicMock(returncode=0, stdout="ok", stderr="")
+
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.side_effect = run_side_effect
+            res = scraper._run_nlm(["notebook", "list"])
+
+        assert mock_run.call_count == 3  # Original + login + retry
 
 
 class TestBackNavPageStateGuard:

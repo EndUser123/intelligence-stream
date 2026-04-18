@@ -25,6 +25,7 @@ from typing import Literal, TYPE_CHECKING
 from csf.batch_status import get_source as _get_source_for_video
 from csf.batch_scheduler import BatchScheduler
 from csf.cache import set_cached_transcript
+from csf.youtube_auth import get_browser_cookies
 
 if TYPE_CHECKING:
     from csf.nlm_scraper import NLMIndustrialScraper

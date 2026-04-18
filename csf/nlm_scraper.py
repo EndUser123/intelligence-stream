@@ -529,8 +529,47 @@ class NLMIndustrialScraper:
                     print("✗ too short")
 
             except Exception as e:
-                results[vid] = (False, None, str(e))
-                print(f"✗ {e}")
+                error_msg = str(e)
+                # Check if this is a stale element reference during click —
+                # if so, attempt one recovery click before giving up.
+                if "stale element" in error_msg.lower():
+                    time.sleep(2)
+                    try:
+                        # Re-locate the button from current DOM state
+                        fresh_buttons = self._driver.find_elements(By.TAG_NAME, "button")
+                        fresh_source_buttons = [
+                            b for b in fresh_buttons
+                            if b.get_attribute("aria-label")
+                            and len(b.get_attribute("aria-label") or "") > 20
+                            and not b.text.strip()
+                        ]
+                        for b in fresh_source_buttons:
+                            label = b.get_attribute("aria-label") or ""
+                            if source_id in label or f"youtube.com/watch?v={vid}" in label:
+                                self._driver.execute_script(
+                                    "arguments[0].scrollIntoView({block:'center'});", b
+                                )
+                                time.sleep(0.3)
+                                self._driver.execute_script("arguments[0].click();", b)
+                                did_click = True
+                                body_text = self._wait_for_transcript_ready(timeout=20.0)
+                                transcript = self._extract_transcript_from_body(body_text)
+                                if transcript:
+                                    results[vid] = (True, transcript, None)
+                                    print(f"{len(transcript)} chars (stale recovery)")
+                                else:
+                                    results[vid] = (False, None, "content too short or empty")
+                                    print("✗ too short")
+                                break
+                        else:
+                            results[vid] = (False, None, "source button not found after stale recovery")
+                            print("✗ button not found after stale recovery")
+                    except Exception:
+                        results[vid] = (False, None, error_msg)
+                        print(f"✗ {error_msg}")
+                else:
+                    results[vid] = (False, None, error_msg)
+                    print(f"✗ {error_msg}")
 
             finally:
                 # Always navigate back if we left the Sources tab, so the next

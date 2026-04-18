@@ -13,7 +13,7 @@ import urllib.request
 import urllib.parse
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import NamedTuple
 
 # YouTube Data API endpoint
@@ -752,15 +752,18 @@ def enumerate_full_playlist(playlist_id: str, max_videos: int = 20000) -> list[d
 def detect_gap(
     rss_ids: list[str],
     all_video_ids: set[str],
+    newest_batch_published: datetime | None = None,
 ) -> bool:
     """Detect whether a channel has a gap requiring API gap resolution.
 
-    Gap is triggered when RSS shows videos that don't exist in local database.
-    This means we've missed videos and need to fill the gap via API.
+    Gap is triggered when RSS shows videos that don't exist in local database
+    AND the newest batch video is older than 7 days (stale data suggesting
+    missed videos). Recent batch activity means no gap — just new uploads.
 
     Args:
         rss_ids: Video IDs from RSS feed (exactly 15 videos)
         all_video_ids: ALL video IDs in database for this channel (pending, complete, failed)
+        newest_batch_published: Timestamp of newest video in batch, or None if unknown
 
     Returns:
         True if gap resolution is needed, False otherwise.
@@ -768,16 +771,19 @@ def detect_gap(
     if not rss_ids:
         return False
 
-    # Check for overlap between RSS and database
     rss_set = set(rss_ids)
     overlap = rss_set & all_video_ids
 
-    # No overlap = gap detected (RSS videos don't exist in our database)
-    if not overlap:
-        return True
+    if overlap:
+        return False
 
-    # Has overlap = up to date, no gap
-    return False
+    # No overlap — check if batch is stale enough to indicate a gap
+    if newest_batch_published is not None:
+        age = datetime.now(timezone.utc) - newest_batch_published
+        if age < timedelta(days=7):
+            return False
+
+    return True
 
 
 def get_pending_by_source(channel_url: str) -> list[str]:

@@ -116,6 +116,24 @@ class TestNLMIndustrialScraperStagingNotebook:
 
         assert source_ids == ["src-A", "src-B", "src-C"]
 
+    def test_add_sources_waits_for_source_list_materialization(self, scraper):
+        """_add_sources_to_staging waits until the added sources appear in source list."""
+        scraper._staging_nb_id = "nb-test"
+
+        with mock.patch.object(scraper, "_run_nlm") as mock_run:
+            mock_run.return_value = mock.MagicMock(returncode=0, stdout="", stderr="")
+            with mock.patch.object(scraper, "get_source_ids") as mock_list:
+                mock_list.side_effect = [
+                    [],
+                    [],
+                    ["src-B", "src-A"],
+                ]
+                with mock.patch("csf.nlm_scraper.time.sleep"):
+                    source_ids = scraper._add_sources_to_staging(["vid1", "vid2"])
+
+        assert source_ids == ["src-B", "src-A"]
+        assert mock_list.call_count == 3
+
     def test_scrape_with_staging_increments_source_count(self, scraper):
         """scrape_with_staging increments _source_count after adding sources."""
         scraper._staging_nb_id = "nb-test"
@@ -384,7 +402,8 @@ class TestBackNavPageStateGuard:
 
                         scraper._driver.execute_script = lambda *a, **k: None
                         with mock.patch.object(scraper._driver, "find_elements", side_effect=find_side_effect):
-                            result = scraper._scrape_sources({"vid1": "src-1"})
+                            with mock.patch.object(scraper, "_ensure_sources_context", return_value=True):
+                                result = scraper._scrape_sources({"vid1": "src-1"})
 
         # current_url still has /source/ → guard sees it → skips back-nav
         back_button.click.assert_not_called()
@@ -417,6 +436,73 @@ class TestBackNavPageStateGuard:
 
                         scraper._driver.execute_script = mock_execute_script
                         with mock.patch.object(scraper._driver, "find_elements", side_effect=find_side_effect):
-                            result = scraper._scrape_sources({"vid1": "src-1"})
+                            with mock.patch.object(scraper, "_ensure_sources_context", return_value=True):
+                                result = scraper._scrape_sources({"vid1": "src-1"})
 
         back_button.click.assert_called_once()
+
+    def test_chat_panel_button_is_not_selected_as_source(self, scraper):
+        """_scrape_sources must ignore generic chat-panel buttons."""
+        scraper._staging_nb_id = "nb-test"
+        scraper._driver.current_url = "https://notebooklm.google.com/notebook/nb-test/source/abc123"
+
+        chat_button = mock.MagicMock()
+        chat_button.get_attribute.return_value = "Scrolls the chat panel to the bottom"
+        chat_button.text.strip.return_value = ""
+
+        with mock.patch.object(scraper, "_init_driver"):
+            with mock.patch.object(scraper._driver, "get"):
+                with mock.patch.object(scraper, "_wait_for_transcript_ready", return_value="transcript text"):
+                    with mock.patch.object(scraper, "_extract_transcript_from_body", return_value="transcript text"):
+                        def find_side_effect(*args, **kwargs):
+                            if len(args) >= 2 and args[1] == "button":
+                                return [chat_button]
+                            return []
+
+                        scraper._driver.execute_script = lambda *a, **k: None
+                        with mock.patch.object(scraper._driver, "find_elements", side_effect=find_side_effect):
+                            with mock.patch.object(scraper, "_ensure_sources_context", return_value=True):
+                                result = scraper._scrape_sources({"vid1": "src-1"})
+
+        chat_button.click.assert_not_called()
+        assert result["vid1"][0] is False
+        assert result["vid1"][2] == "source button not found"
+
+
+class TestSourcesContextGuard:
+    """Test cheap URL-based Sources context recovery."""
+
+    @pytest.fixture
+    def scraper(self):
+        from csf.nlm_scraper import NLMIndustrialScraper
+
+        sc = NLMIndustrialScraper(headless=True)
+        sc._driver = mock.MagicMock()
+        return sc
+
+    def test_ensure_sources_context_skips_when_already_on_sources_page(self, scraper):
+        """Already being on the Sources list should not trigger recovery work."""
+        scraper._staging_nb_id = "nb-test"
+        scraper._driver.current_url = "https://notebooklm.google.com/notebook/nb-test/source/abc123"
+
+        with mock.patch.object(scraper, "_navigate_to_sources_tab") as nav:
+            with mock.patch.object(scraper._driver, "get") as get:
+                assert scraper._ensure_sources_context("nb-test") is True
+
+        nav.assert_not_called()
+        get.assert_not_called()
+
+    def test_ensure_sources_context_recovers_without_reload_when_drifted(self, scraper):
+        """A shell-page drift should recover by clicking Sources, not reloading first."""
+        scraper._staging_nb_id = "nb-test"
+        scraper._driver.current_url = "https://notebooklm.google.com/notebook/nb-test"
+
+        def nav_side_effect():
+            scraper._driver.current_url = "https://notebooklm.google.com/notebook/nb-test/source/abc123"
+
+        with mock.patch.object(scraper, "_navigate_to_sources_tab", side_effect=nav_side_effect) as nav:
+            with mock.patch.object(scraper._driver, "get") as get:
+                assert scraper._ensure_sources_context("nb-test") is True
+
+        nav.assert_called_once()
+        get.assert_not_called()

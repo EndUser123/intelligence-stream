@@ -386,12 +386,13 @@ class NLMIndustrialScraper:
                     results[vid] = (False, None, "staging notebook unavailable")
                 break
             remaining = self.MAX_SOURCES_PER_NOTEBOOK - self._source_count
-            batch_ids = rest[:remaining] if remaining > 0 else []
-            rest = rest[remaining:] if remaining > 0 else []
-            if not batch_ids:
-                # No room left in this notebook; _ensure_staging_notebook will
-                # have cleared and recreated one, so loop continues
-                continue
+            if remaining == 0:
+                # At capacity; clear and recreate notebook to get fresh headroom
+                self._clear_staging_notebook()
+                self._ensure_staging_notebook()
+                remaining = self.MAX_SOURCES_PER_NOTEBOOK - self._source_count
+            batch_ids = rest[:remaining]
+            rest = rest[remaining:]
             source_ids = self._add_sources_to_staging(batch_ids)
             if not source_ids:
                 for vid in batch_ids:
@@ -496,10 +497,9 @@ class NLMIndustrialScraper:
                     button_by_source_fresh: Dict[str, WebElement] = {}
                     for b in source_buttons_fresh:
                         label = b.get_attribute("aria-label") or ""
-                        for src_id in vid_to_src.values():
-                            if src_id in label:
-                                button_by_source_fresh[vid] = b
-                                break
+                        if source_id in label or f"youtube.com/watch?v={vid}" in label:
+                            button_by_source_fresh[vid] = b
+                            break
                     target_btn = button_by_source_fresh.get(vid)
                     if not target_btn:
                         src_idx = list(vid_to_src.keys()).index(vid)

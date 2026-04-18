@@ -9,6 +9,8 @@ Multi-terminal safe: all terminals share the same DB with WAL mode.
 
 import sqlite3
 import threading
+from contextlib import contextmanager
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
@@ -88,7 +90,6 @@ class _BatchStatusStorage:
     """Thread-safe batch status backed by SQLite with WAL mode."""
 
     def __init__(self, db_path: Path | None = None) -> None:
-        self._conn: sqlite3.Connection | None = None
         self._db_path = db_path or _get_default_db_path()
         self._ensure_table()
 
@@ -211,21 +212,20 @@ class _BatchStatusStorage:
 
     def _ensure_provider_score(self) -> None:
         """Create or migrate provider_score table for failure-aware routing."""
-        conn = self._get_conn()
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS provider_score (
-                channel_url TEXT NOT NULL,
-                provider TEXT NOT NULL,
-                successes INTEGER DEFAULT 0,
-                failures INTEGER DEFAULT 0,
-                last_result TEXT,
-                updated_at TEXT NOT NULL,
-                PRIMARY KEY (channel_url, provider)
+        with self._conn() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS provider_score (
+                    channel_url TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    successes INTEGER DEFAULT 0,
+                    failures INTEGER DEFAULT 0,
+                    last_result TEXT,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (channel_url, provider)
+                )
+                """
             )
-            """
-        )
-        conn.close()
 
     def _ensure_channel_metadata(self) -> None:
         """Create or migrate channel_metadata table to current schema.
@@ -234,78 +234,77 @@ class _BatchStatusStorage:
         last_full_enumeration, video_count_estimate DEFAULT 0, next_page_token,
         quota_exhausted_at, schema_version.
         """
-        conn = self._get_conn()
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS channel_metadata (
-                channel_url TEXT PRIMARY KEY,
-                playlist_id TEXT,
-                last_checked TEXT NOT NULL,
-                last_full_enumeration TEXT,
-                video_count_estimate INTEGER DEFAULT 0,
-                next_page_token TEXT,
-                quota_exhausted_at TEXT,
-                schema_version INTEGER DEFAULT 1,
-                -- Full metadata from channels.list API (contentDetails + statistics + snippet)
-                channel_title TEXT,
-                thumbnail_url TEXT,
-                subscriber_count INTEGER,
-                view_count INTEGER
-            )
-            """
-        )
-        # Migrate pre-existing tables that lack new columns
-        try:
-            conn.execute("SELECT next_page_token FROM channel_metadata LIMIT 1")
-        except sqlite3.OperationalError:
-            conn.execute("ALTER TABLE channel_metadata ADD COLUMN next_page_token TEXT")
-        try:
-            conn.execute("SELECT quota_exhausted_at FROM channel_metadata LIMIT 1")
-        except sqlite3.OperationalError:
+        with self._conn() as conn:
             conn.execute(
-                "ALTER TABLE channel_metadata ADD COLUMN quota_exhausted_at TEXT"
+                """
+                CREATE TABLE IF NOT EXISTS channel_metadata (
+                    channel_url TEXT PRIMARY KEY,
+                    playlist_id TEXT,
+                    last_checked TEXT NOT NULL,
+                    last_full_enumeration TEXT,
+                    video_count_estimate INTEGER DEFAULT 0,
+                    next_page_token TEXT,
+                    quota_exhausted_at TEXT,
+                    schema_version INTEGER DEFAULT 1,
+                    -- Full metadata from channels.list API (contentDetails + statistics + snippet)
+                    channel_title TEXT,
+                    thumbnail_url TEXT,
+                    subscriber_count INTEGER,
+                    view_count INTEGER
+                )
+                """
             )
-        try:
-            conn.execute("SELECT schema_version FROM channel_metadata LIMIT 1")
-        except sqlite3.OperationalError:
-            conn.execute(
-                "ALTER TABLE channel_metadata ADD COLUMN schema_version INTEGER DEFAULT 1"
-            )
-        # Migration for full metadata columns (channel_title, thumbnail_url, subscriber_count, view_count)
-        for col, col_type in [
-            ("channel_title", "TEXT"),
-            ("thumbnail_url", "TEXT"),
-            ("subscriber_count", "INTEGER"),
-            ("view_count", "INTEGER"),
-        ]:
+            # Migrate pre-existing tables that lack new columns
             try:
-                conn.execute(f"SELECT {col} FROM channel_metadata LIMIT 1")
+                conn.execute("SELECT next_page_token FROM channel_metadata LIMIT 1")
             except sqlite3.OperationalError:
-                conn.execute(f"ALTER TABLE channel_metadata ADD COLUMN {col} {col_type}")
-        # Migration for extended metadata columns (description, published_at, country)
-        for col, col_type in [
-            ("description", "TEXT"),
-            ("published_at", "TEXT"),
-            ("country", "TEXT"),
-        ]:
+                conn.execute("ALTER TABLE channel_metadata ADD COLUMN next_page_token TEXT")
             try:
-                conn.execute(f"SELECT {col} FROM channel_metadata LIMIT 1")
+                conn.execute("SELECT quota_exhausted_at FROM channel_metadata LIMIT 1")
             except sqlite3.OperationalError:
-                conn.execute(f"ALTER TABLE channel_metadata ADD COLUMN {col} {col_type}")
-        # Migration for topic_categories (topicDetails.topicCategories from YouTube API)
-        try:
-            conn.execute("SELECT topic_categories FROM channel_metadata LIMIT 1")
-        except sqlite3.OperationalError:
-            conn.execute("ALTER TABLE channel_metadata ADD COLUMN topic_categories TEXT")
-        for col, col_type in [
-            ("keywords", "TEXT"),
-            ("custom_url", "TEXT"),
-        ]:
+                conn.execute(
+                    "ALTER TABLE channel_metadata ADD COLUMN quota_exhausted_at TEXT"
+                )
             try:
-                conn.execute(f"SELECT {col} FROM channel_metadata LIMIT 1")
+                conn.execute("SELECT schema_version FROM channel_metadata LIMIT 1")
             except sqlite3.OperationalError:
-                conn.execute(f"ALTER TABLE channel_metadata ADD COLUMN {col} {col_type}")
-        conn.close()
+                conn.execute(
+                    "ALTER TABLE channel_metadata ADD COLUMN schema_version INTEGER DEFAULT 1"
+                )
+            # Migration for full metadata columns (channel_title, thumbnail_url, subscriber_count, view_count)
+            for col, col_type in [
+                ("channel_title", "TEXT"),
+                ("thumbnail_url", "TEXT"),
+                ("subscriber_count", "INTEGER"),
+                ("view_count", "INTEGER"),
+            ]:
+                try:
+                    conn.execute(f"SELECT {col} FROM channel_metadata LIMIT 1")
+                except sqlite3.OperationalError:
+                    conn.execute(f"ALTER TABLE channel_metadata ADD COLUMN {col} {col_type}")
+            # Migration for extended metadata columns (description, published_at, country)
+            for col, col_type in [
+                ("description", "TEXT"),
+                ("published_at", "TEXT"),
+                ("country", "TEXT"),
+            ]:
+                try:
+                    conn.execute(f"SELECT {col} FROM channel_metadata LIMIT 1")
+                except sqlite3.OperationalError:
+                    conn.execute(f"ALTER TABLE channel_metadata ADD COLUMN {col} {col_type}")
+            # Migration for topic_categories (topicDetails.topicCategories from YouTube API)
+            try:
+                conn.execute("SELECT topic_categories FROM channel_metadata LIMIT 1")
+            except sqlite3.OperationalError:
+                conn.execute("ALTER TABLE channel_metadata ADD COLUMN topic_categories TEXT")
+            for col, col_type in [
+                ("keywords", "TEXT"),
+                ("custom_url", "TEXT"),
+            ]:
+                try:
+                    conn.execute(f"SELECT {col} FROM channel_metadata LIMIT 1")
+                except sqlite3.OperationalError:
+                    conn.execute(f"ALTER TABLE channel_metadata ADD COLUMN {col} {col_type}")
 
     def _ensure_nlm_export_state(self) -> None:
         """Create or migrate nlm_export_state table to current schema.
@@ -313,51 +312,49 @@ class _BatchStatusStorage:
         Current schema: composite_id (PK), notebook_id, batch_key, video_ids,
         content_hash, word_count, nlm_source_id, created_at, updated_at.
         """
-        conn = self._get_conn()
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS nlm_export_state (
-                composite_id TEXT PRIMARY KEY,
-                notebook_id TEXT,
-                batch_key TEXT,
-                video_ids TEXT,
-                content_hash TEXT,
-                word_count INTEGER,
-                nlm_source_id TEXT,
-                created_at TEXT,
-                updated_at TEXT
+        with self._conn() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS nlm_export_state (
+                    composite_id TEXT PRIMARY KEY,
+                    notebook_id TEXT,
+                    batch_key TEXT,
+                    video_ids TEXT,
+                    content_hash TEXT,
+                    word_count INTEGER,
+                    nlm_source_id TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                )
+                """
             )
-            """
-        )
-        # Migrate pre-existing tables that lack new columns
-        for col, dtype in [
-            ("batch_key", "TEXT"),
-            ("content_hash", "TEXT"),
-            ("word_count", "INTEGER"),
-            ("nlm_source_id", "TEXT"),
-        ]:
-            try:
-                conn.execute(f"SELECT {col} FROM nlm_export_state LIMIT 1")
-            except sqlite3.OperationalError:
-                conn.execute(f"ALTER TABLE nlm_export_state ADD COLUMN {col} {dtype}")
-        # Index for get_nlm_exports_by_video queries
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_nlm_export_video_ids ON nlm_export_state(video_ids)"
-        )
-        conn.close()
+            # Migrate pre-existing tables that lack new columns
+            for col, dtype in [
+                ("batch_key", "TEXT"),
+                ("content_hash", "TEXT"),
+                ("word_count", "INTEGER"),
+                ("nlm_source_id", "TEXT"),
+            ]:
+                try:
+                    conn.execute(f"SELECT {col} FROM nlm_export_state LIMIT 1")
+                except sqlite3.OperationalError:
+                    conn.execute(f"ALTER TABLE nlm_export_state ADD COLUMN {col} {dtype}")
+            # Index for get_nlm_exports_by_video queries
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_nlm_export_video_ids ON nlm_export_state(video_ids)"
+            )
 
     def _get_nlm_export_state(self, composite_id: str) -> dict | None:
         """Get nlm_export_state by composite_id. Returns dict or None."""
         self._ensure_nlm_export_state()
-        conn = self._get_conn()
-        cursor = conn.execute(
-            "SELECT composite_id, notebook_id, batch_key, video_ids, content_hash, "
-            "word_count, nlm_source_id, created_at, updated_at "
-            "FROM nlm_export_state WHERE composite_id = ?",
-            (composite_id,),
-        )
-        row = cursor.fetchone()
-        conn.close()
+        with self._conn() as conn:
+            cursor = conn.execute(
+                "SELECT composite_id, notebook_id, batch_key, video_ids, content_hash, "
+                "word_count, nlm_source_id, created_at, updated_at "
+                "FROM nlm_export_state WHERE composite_id = ?",
+                (composite_id,),
+            )
+            row = cursor.fetchone()
         if row is None:
             return None
         return {
@@ -426,14 +423,13 @@ class _BatchStatusStorage:
     def _get_pending_nlm_exports(self) -> list[dict]:
         """Get all nlm_export_state rows where notebook_id IS NULL (not yet exported)."""
         self._ensure_nlm_export_state()
-        conn = self._get_conn()
-        cursor = conn.execute(
-            "SELECT composite_id, notebook_id, batch_key, video_ids, content_hash, "
-            "word_count, nlm_source_id, created_at, updated_at "
-            "FROM nlm_export_state WHERE notebook_id IS NULL"
-        )
-        rows = cursor.fetchall()
-        conn.close()
+        with self._conn() as conn:
+            cursor = conn.execute(
+                "SELECT composite_id, notebook_id, batch_key, video_ids, content_hash, "
+                "word_count, nlm_source_id, created_at, updated_at "
+                "FROM nlm_export_state WHERE notebook_id IS NULL"
+            )
+            rows = cursor.fetchall()
         return [
             {
                 "composite_id": row[0],
@@ -452,16 +448,15 @@ class _BatchStatusStorage:
     def _get_nlm_exports_by_video(self, video_id: str) -> list[dict]:
         """Get all nlm_export_state rows that contain a given video_id."""
         self._ensure_nlm_export_state()
-        conn = self._get_conn()
-        # video_ids is pipe-delimited; match video_id at start, end, or between pipes
-        cursor = conn.execute(
-            "SELECT composite_id, notebook_id, batch_key, video_ids, content_hash, "
-            "word_count, nlm_source_id, created_at, updated_at "
-            "FROM nlm_export_state WHERE video_ids = ? OR video_ids LIKE ? OR video_ids LIKE ? OR video_ids LIKE ?",
-            (video_id, f"{video_id}|%", f"%|{video_id}|%", f"%|{video_id}"),
-        )
-        rows = cursor.fetchall()
-        conn.close()
+        with self._conn() as conn:
+            # video_ids is pipe-delimited; match video_id at start, end, or between pipes
+            cursor = conn.execute(
+                "SELECT composite_id, notebook_id, batch_key, video_ids, content_hash, "
+                "word_count, nlm_source_id, created_at, updated_at "
+                "FROM nlm_export_state WHERE video_ids = ? OR video_ids LIKE ? OR video_ids LIKE ? OR video_ids LIKE ?",
+                (video_id, f"{video_id}|%", f"%|{video_id}|%", f"%|{video_id}"),
+            )
+            rows = cursor.fetchall()
         return [
             {
                 "composite_id": row[0],
@@ -532,13 +527,12 @@ class _BatchStatusStorage:
         Returns {provider: (successes, failures)}. Unknown providers omitted.
         """
         self._ensure_provider_score()
-        conn = self._get_conn()
-        cursor = conn.execute(
-            "SELECT provider, successes, failures FROM provider_score WHERE channel_url = ?",
-            (channel_url,),
-        )
-        rows = cursor.fetchall()
-        conn.close()
+        with self._conn() as conn:
+            cursor = conn.execute(
+                "SELECT provider, successes, failures FROM provider_score WHERE channel_url = ?",
+                (channel_url,),
+            )
+            rows = cursor.fetchall()
         return {row[0]: (row[1], row[2]) for row in rows}
 
     def _get_conn(self) -> sqlite3.Connection:
@@ -548,14 +542,31 @@ class _BatchStatusStorage:
         conn.execute("PRAGMA busy_timeout=5000")
         return conn
 
+    @contextmanager
+    def _conn(self):
+        """Context manager that yields a connection and guarantees close."""
+        conn = self._get_conn()
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+    @contextmanager
+    def _conn(self):
+        """Context manager that yields a connection and guarantees close."""
+        conn = self._get_conn()
+        try:
+            yield conn
+        finally:
+            conn.close()
+
     def get_status(self, video_id: str) -> str | None:
         """Get status for a video_id. Returns 'complete', 'failed', or None."""
-        conn = self._get_conn()
-        cursor = conn.execute(
-            "SELECT status FROM analysis_status WHERE video_id = ?", (video_id,)
-        )
-        row = cursor.fetchone()
-        conn.close()
+        with self._conn() as conn:
+            cursor = conn.execute(
+                "SELECT status FROM analysis_status WHERE video_id = ?", (video_id,)
+            )
+            row = cursor.fetchone()
         return row[0] if row else None
 
     def _get_status_batch(self, video_ids: list[str]) -> dict[str, str | None]:
@@ -566,14 +577,13 @@ class _BatchStatusStorage:
         """
         if not video_ids:
             return {}
-        conn = self._get_conn()
-        placeholders = ",".join("?" * len(video_ids))
-        cursor = conn.execute(
-            f"SELECT video_id, status FROM analysis_status WHERE video_id IN ({placeholders})",
-            video_ids,
-        )
-        rows = cursor.fetchall()
-        conn.close()
+        with self._conn() as conn:
+            placeholders = ",".join("?" * len(video_ids))
+            cursor = conn.execute(
+                f"SELECT video_id, status FROM analysis_status WHERE video_id IN ({placeholders})",
+                video_ids,
+            )
+            rows = cursor.fetchall()
         result = {row[0]: row[1] for row in rows}
         # Fill in None for missing IDs to match docstring contract
         for vid in video_ids:
@@ -583,22 +593,20 @@ class _BatchStatusStorage:
 
     def get_source(self, video_id: str) -> str | None:
         """Get source for a video_id. Returns channel URL or None."""
-        conn = self._get_conn()
-        cursor = conn.execute(
-            "SELECT source FROM analysis_status WHERE video_id = ?", (video_id,)
-        )
-        row = cursor.fetchone()
-        conn.close()
+        with self._conn() as conn:
+            cursor = conn.execute(
+                "SELECT source FROM analysis_status WHERE video_id = ?", (video_id,)
+            )
+            row = cursor.fetchone()
         return row[0] if row else None
 
     def get_published_at(self, video_id: str) -> str | None:
         """Get published_at for a video_id. Returns ISO timestamp or None."""
-        conn = self._get_conn()
-        cursor = conn.execute(
-            "SELECT published_at FROM analysis_status WHERE video_id = ?", (video_id,)
-        )
-        row = cursor.fetchone()
-        conn.close()
+        with self._conn() as conn:
+            cursor = conn.execute(
+                "SELECT published_at FROM analysis_status WHERE video_id = ?", (video_id,)
+            )
+            row = cursor.fetchone()
         return row[0] if row else None
 
     def set_status(
@@ -656,17 +664,15 @@ class _BatchStatusStorage:
 
     def clear_video(self, video_id: str) -> None:
         """Remove entry for a video_id."""
-        conn = self._get_conn()
-        conn.execute("DELETE FROM analysis_status WHERE video_id = ?", (video_id,))
-        conn.commit()
-        conn.close()
+        with self._conn() as conn:
+            conn.execute("DELETE FROM analysis_status WHERE video_id = ?", (video_id,))
+            conn.commit()
 
     def clear_all(self) -> None:
         """Remove all entries."""
-        conn = self._get_conn()
-        conn.execute("DELETE FROM analysis_status")
-        conn.commit()
-        conn.close()
+        with self._conn() as conn:
+            conn.execute("DELETE FROM analysis_status")
+            conn.commit()
 
     # ---------------------------------------------------------------------------
     # channel_metadata table
@@ -675,13 +681,12 @@ class _BatchStatusStorage:
     def get_channel_metadata(self, channel_url: str) -> dict | None:
         """Get channel metadata by channel_url. Returns dict or None."""
         self._ensure_channel_metadata()
-        conn = self._get_conn()
-        cursor = conn.execute(
-            "SELECT channel_url, playlist_id, video_count_estimate, last_checked, last_full_enumeration, next_page_token, quota_exhausted_at, schema_version FROM channel_metadata WHERE channel_url = ?",
-            (channel_url,),
-        )
-        row = cursor.fetchone()
-        conn.close()
+        with self._conn() as conn:
+            cursor = conn.execute(
+                "SELECT channel_url, playlist_id, video_count_estimate, last_checked, last_full_enumeration, next_page_token, quota_exhausted_at, schema_version FROM channel_metadata WHERE channel_url = ?",
+                (channel_url,),
+            )
+            row = cursor.fetchone()
         if row is None:
             return None
         return {
@@ -892,13 +897,12 @@ class _BatchStatusStorage:
 
     def get_pending_by_source(self, channel_url: str) -> list[str]:
         """Get all pending video_ids for a given channel/source."""
-        conn = self._get_conn()
-        cursor = conn.execute(
-            "SELECT video_id FROM analysis_status WHERE source = ? AND status = ?",
-            (channel_url, _STATUS_PENDING),
-        )
-        rows = cursor.fetchall()
-        conn.close()
+        with self._conn() as conn:
+            cursor = conn.execute(
+                "SELECT video_id FROM analysis_status WHERE source = ? AND status = ?",
+                (channel_url, _STATUS_PENDING),
+            )
+            rows = cursor.fetchall()
         return [row[0] for row in rows]
 
     def get_newest_published_for_source(self, channel_url: str) -> str | None:
@@ -907,13 +911,12 @@ class _BatchStatusStorage:
         Used for gap detection. Returns the MAX(published_at) across all
         videos from this source, or None if no videos have published_at set.
         """
-        conn = self._get_conn()
-        cursor = conn.execute(
-            "SELECT MAX(published_at) FROM analysis_status WHERE source = ?",
-            (channel_url,),
-        )
-        row = cursor.fetchone()
-        conn.close()
+        with self._conn() as conn:
+            cursor = conn.execute(
+                "SELECT MAX(published_at) FROM analysis_status WHERE source = ?",
+                (channel_url,),
+            )
+            row = cursor.fetchone()
         return row[0] if row and row[0] else None
 
     # ---------------------------------------------------------------------------
@@ -922,63 +925,58 @@ class _BatchStatusStorage:
 
     def _ensure_channel_blocklist(self) -> None:
         """Create channel_blocklist table if it doesn't exist."""
-        conn = self._get_conn()
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS channel_blocklist (
-                channel_url TEXT PRIMARY KEY,
-                blocked_at TEXT NOT NULL
+        with self._conn() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS channel_blocklist (
+                    channel_url TEXT PRIMARY KEY,
+                    blocked_at TEXT NOT NULL
+                )
+                """
             )
-            """
-        )
-        conn.close()
 
     def block_channel(self, channel_url: str) -> None:
         """Add a channel to the blocklist."""
         self._ensure_channel_blocklist()
-        conn = self._get_conn()
-        now = datetime.now(timezone.utc).isoformat()
-        conn.execute(
-            "INSERT OR REPLACE INTO channel_blocklist (channel_url, blocked_at) VALUES (?, ?)",
-            (channel_url, now),
-        )
-        conn.commit()
-        conn.close()
+        with self._conn() as conn:
+            now = datetime.now(timezone.utc).isoformat()
+            conn.execute(
+                "INSERT OR REPLACE INTO channel_blocklist (channel_url, blocked_at) VALUES (?, ?)",
+                (channel_url, now),
+            )
+            conn.commit()
 
     def unblock_channel(self, channel_url: str) -> bool:
         """Remove a channel from the blocklist. Returns True if it was blocked."""
         self._ensure_channel_blocklist()
-        conn = self._get_conn()
-        cursor = conn.execute(
-            "DELETE FROM channel_blocklist WHERE channel_url = ? RETURNING channel_url",
-            (channel_url,),
-        )
-        deleted = cursor.fetchone() is not None
-        conn.commit()
-        conn.close()
+        with self._conn() as conn:
+            cursor = conn.execute(
+                "DELETE FROM channel_blocklist WHERE channel_url = ? RETURNING channel_url",
+                (channel_url,),
+            )
+            deleted = cursor.fetchone() is not None
+            conn.commit()
         return deleted
 
     def is_channel_blocked(self, channel_url: str) -> bool:
         """Check if a channel is on the blocklist."""
         self._ensure_channel_blocklist()
-        conn = self._get_conn()
-        cursor = conn.execute(
-            "SELECT 1 FROM channel_blocklist WHERE channel_url = ?",
-            (channel_url,),
-        )
-        exists = cursor.fetchone() is not None
-        conn.close()
+        with self._conn() as conn:
+            cursor = conn.execute(
+                "SELECT 1 FROM channel_blocklist WHERE channel_url = ?",
+                (channel_url,),
+            )
+            exists = cursor.fetchone() is not None
         return exists
 
     def get_all_blocked_channels(self) -> list[tuple[str, str]]:
         """Return all blocked channels as (channel_url, blocked_at) tuples."""
         self._ensure_channel_blocklist()
-        conn = self._get_conn()
-        cursor = conn.execute(
-            "SELECT channel_url, blocked_at FROM channel_blocklist ORDER BY blocked_at DESC"
-        )
-        rows = cursor.fetchall()
-        conn.close()
+        with self._conn() as conn:
+            cursor = conn.execute(
+                "SELECT channel_url, blocked_at FROM channel_blocklist ORDER BY blocked_at DESC"
+            )
+            rows = cursor.fetchall()
         return rows
 
     def delete_channel(self, channel_url: str) -> bool:
@@ -1008,13 +1006,12 @@ class _BatchStatusStorage:
         """
         # Normalize URL for query consistency
         channel_url = _normalize_channel_url(channel_url)
-        conn = self._get_conn()
-        cursor = conn.execute(
-            "SELECT video_id, status, has_captions FROM analysis_status WHERE source = ?",
-            (channel_url,),
-        )
-        rows = cursor.fetchall()
-        conn.close()
+        with self._conn() as conn:
+            cursor = conn.execute(
+                "SELECT video_id, status, has_captions FROM analysis_status WHERE source = ?",
+                (channel_url,),
+            )
+            rows = cursor.fetchall()
         return [(r[0], r[1], r[2]) for r in rows]
 
     def set_status_batch(self, entries: Sequence[BatchEntry]) -> int:

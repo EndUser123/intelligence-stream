@@ -603,6 +603,7 @@ def _fetch_via_gemini_cli(
         stdout, stderr = proc.communicate(timeout=300)
     except subprocess.TimeoutExpired:
         proc.kill()
+        proc.communicate()
         return (False, None, "gemini CLI timed out after 300s")
     except Exception as e:
         return (False, None, f"gemini CLI error: {e}")

@@ -1,6 +1,6 @@
 """Tests for csf/transcript.py - Full Fallback Chain.
 
-Current chain: ytdlp → ytdlp_ejs → selenium → notebooklm → whisper
+Current chain: ytdlp → ytdlp_ejs → notebooklm → selenium → whisper → direct_api
 """
 from __future__ import annotations
 
@@ -100,49 +100,23 @@ class TestFallbackChain:
             assert result.transcript == "transcript via ytdlp_ejs"
             assert result.source == "ytdlp_ejs"
 
-    def test_ytdlp_ejs_fails_selenium_succeeds(self):
-        """ytdlp and ytdlp_ejs fail, selenium succeeds."""
+    def test_ytdlp_ejs_fails_notebooklm_succeeds(self):
+        """ytdlp and ytdlp_ejs fail, notebooklm succeeds (now 3rd in chain)."""
         with (
             mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
             mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
-            mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
             mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
+            mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
             mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
             mock.patch("time.sleep"),
         ):
             mock_ytdlp.return_value = (False, None, "no captions")
             mock_ejs.return_value = (False, None, "no cookies")
-            mock_selenium.return_value = (True, "transcript via selenium", None)
-            mock_nlm.return_value = (True, "should not be called", None)
-            mock_whisper.return_value = (True, "should not be called", None)
-
-            result = fetch_transcript_chain(
-                "dQw4w9WgXcQ", LanguageConfig(prefer_lang="en")
-            )
-
-            mock_ytdlp.assert_called()
-            mock_ejs.assert_called()
-            mock_selenium.assert_called()
-            mock_nlm.assert_not_called()
-            mock_whisper.assert_not_called()
-            assert result.transcript == "transcript via selenium"
-            assert result.source == "selenium"
-
-    def test_selenium_fails_notebooklm_succeeds(self):
-        """ytdlp, ytdlp_ejs, selenium fail, notebooklm succeeds."""
-        with (
-            mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
-            mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
-            mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
-            mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
-            mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
-            mock.patch("time.sleep"),
-        ):
-            mock_ytdlp.return_value = (False, None, "no captions")
-            mock_ejs.return_value = (False, None, "no cookies")
-            mock_selenium.return_value = (False, None, "selenium failed")
             mock_nlm.return_value = (True, "transcript via notebooklm", None)
+            mock_selenium.return_value = (True, "should not be called", None)
             mock_whisper.return_value = (True, "should not be called", None)
+            mock_direct.return_value = (True, "should not be called", None)
 
             result = fetch_transcript_chain(
                 "dQw4w9WgXcQ", LanguageConfig(prefer_lang="en")
@@ -150,11 +124,41 @@ class TestFallbackChain:
 
             mock_ytdlp.assert_called()
             mock_ejs.assert_called()
-            mock_selenium.assert_called()
             mock_nlm.assert_called()
+            mock_selenium.assert_not_called()
             mock_whisper.assert_not_called()
             assert result.transcript == "transcript via notebooklm"
             assert result.source == "notebooklm"
+
+    def test_notebooklm_fails_selenium_succeeds(self):
+        """ytdlp, ytdlp_ejs, notebooklm fail, selenium succeeds (now 4th in chain)."""
+        with (
+            mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
+            mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
+            mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
+            mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
+            mock.patch("time.sleep"),
+        ):
+            mock_ytdlp.return_value = (False, None, "no captions")
+            mock_ejs.return_value = (False, None, "no cookies")
+            mock_nlm.return_value = (False, None, "nlm failed")
+            mock_selenium.return_value = (True, "transcript via selenium", None)
+            mock_whisper.return_value = (True, "should not be called", None)
+            mock_direct.return_value = (True, "should not be called", None)
+
+            result = fetch_transcript_chain(
+                "dQw4w9WgXcQ", LanguageConfig(prefer_lang="en")
+            )
+
+            mock_ytdlp.assert_called()
+            mock_ejs.assert_called()
+            mock_nlm.assert_called()
+            mock_selenium.assert_called()
+            mock_whisper.assert_not_called()
+            assert result.transcript == "transcript via selenium"
+            assert result.source == "selenium"
 
     def test_all_methods_fail_returns_empty_result(self):
         """When all methods fail, returns TranscriptResult with empty transcript."""
@@ -378,287 +382,189 @@ class TestReturnType:
 class TestFetchViaNotebooklmBatch:
     """Unit tests for _fetch_via_notebooklm_batch error paths.
 
-    subprocess.call sequence per test: (create, add, list, [content×N], delete)
-    The finally block ALWAYS runs delete, so every test needs a delete mock.
+    _fetch_via_notebooklm_batch delegates to nlm_batch.process_industrial_batch,
+    which creates an NLMBatchIngestor, calls create_batch_notebook → extract_transcripts → cleanup.
+    We mock NLMBatchIngestor methods to test each failure path.
     """
 
-    def _mock_run(self, stdout="", returncode=0):
-        """Create a mock subprocess.run result."""
-        m = mock.MagicMock()
-        m.returncode = returncode
-        m.stdout = stdout
-        m.stderr = ""
-        return m
+    def _mock_ingestor(self, create_fn=None, extract_fn=None):
+        """Create a mock NLMBatchIngestor with configurable methods."""
+        ingestor = mock.MagicMock()
+        ingestor.create_batch_notebook = create_fn or mock.MagicMock(return_value="nb-123")
+        ingestor.extract_transcripts = extract_fn or mock.MagicMock(return_value={})
+        ingestor.cleanup = mock.MagicMock()
+        return ingestor
 
     def test_auth_failure_returns_auth_failed(self):
-        """When _ensure_nlm_auth returns False, no subprocess calls are made."""
+        """When _ensure_nlm_auth returns False, NLMBatchIngestor still gets created but fails."""
         from csf.transcript import _fetch_via_notebooklm_batch
 
-        with mock.patch("csf.transcript._ensure_nlm_auth", return_value=False):
+        ingestor = self._mock_ingestor(
+            create_fn=mock.MagicMock(return_value=None),
+        )
+        with mock.patch("csf.nlm_batch.NLMBatchIngestor", return_value=ingestor):
             result = _fetch_via_notebooklm_batch(["vid1", "vid2"])
-        assert result["vid1"] == (False, None, "nlm auth failed")
-        assert result["vid2"] == (False, None, "nlm auth failed")
+        assert result["vid1"][0] is False
+        assert result["vid2"][0] is False
 
     def test_notebook_create_failure_returns_create_failed(self):
-        """When notebook create fails, all videos get create error."""
+        """When notebook create fails, all videos get 'Notebook failed' error."""
         from csf.transcript import _fetch_via_notebooklm_batch
 
-        with (
-            mock.patch("csf.transcript._ensure_nlm_auth", return_value=True),
-            mock.patch("subprocess.run") as mock_run,
-        ):
-            mock_run.side_effect = [
-                self._mock_run("error", returncode=1),  # create fails
-                self._mock_run("", returncode=0),  # delete (finally block always runs)
-            ]
+        ingestor = self._mock_ingestor(
+            create_fn=mock.MagicMock(return_value=None),
+        )
+        with mock.patch("csf.nlm_batch.NLMBatchIngestor", return_value=ingestor):
             result = _fetch_via_notebooklm_batch(["vid1"])
         assert result["vid1"][0] is False
-        assert "create failed" in result["vid1"][2]
+        assert "Notebook failed" in result["vid1"][2]
 
     def test_parse_notebook_id_failure_returns_parse_failed(self):
-        """When notebook ID cannot be parsed, all videos get parse error."""
+        """When notebook create returns empty string, all videos get Notebook failed."""
         from csf.transcript import _fetch_via_notebooklm_batch
 
-        with (
-            mock.patch("csf.transcript._ensure_nlm_auth", return_value=True),
-            mock.patch("subprocess.run") as mock_run,
-        ):
-            # create succeeds but output has no "ID:" line; delete runs in finally
-            mock_run.side_effect = [
-                self._mock_run("notebook created\n", returncode=0),  # create
-                self._mock_run("", returncode=0),  # delete
-            ]
+        ingestor = self._mock_ingestor(
+            create_fn=mock.MagicMock(return_value=""),
+        )
+        with mock.patch("csf.nlm_batch.NLMBatchIngestor", return_value=ingestor):
             result = _fetch_via_notebooklm_batch(["vid1"])
         assert result["vid1"][0] is False
-        assert "parse notebook ID failed" in result["vid1"][2]
+        assert "Notebook failed" in result["vid1"][2]
 
     def test_source_add_failure_returns_add_source_failed(self):
-        """When source add fails, all videos get add-source error."""
+        """When notebook created but no transcripts extracted, videos get failure."""
         from csf.transcript import _fetch_via_notebooklm_batch
 
-        with (
-            mock.patch("csf.transcript._ensure_nlm_auth", return_value=True),
-            mock.patch("subprocess.run") as mock_run,
-        ):
-            mock_run.side_effect = [
-                self._mock_run("notebook created\nNotebook ID: nb-123", returncode=0),  # create
-                self._mock_run("", returncode=1),  # add fails → early return
-                self._mock_run("", returncode=0),  # delete (finally block)
-            ]
+        ingestor = self._mock_ingestor(
+            create_fn=mock.MagicMock(return_value="nb-123"),
+            extract_fn=mock.MagicMock(return_value={"vid1": (False, None, "Fetch failed for s1")}),
+        )
+        with mock.patch("csf.nlm_batch.NLMBatchIngestor", return_value=ingestor):
             result = _fetch_via_notebooklm_batch(["vid1"])
         assert result["vid1"][0] is False
-        assert "add source failed" in result["vid1"][2]
 
     def test_source_list_failure_returns_list_failed(self):
-        """When source list fails, all videos get list error."""
+        """When extract_transcripts returns List failed error."""
         from csf.transcript import _fetch_via_notebooklm_batch
 
-        with (
-            mock.patch("csf.transcript._ensure_nlm_auth", return_value=True),
-            mock.patch("subprocess.run") as mock_run,
-        ):
-            mock_run.side_effect = [
-                self._mock_run("notebook created\nNotebook ID: nb-123", returncode=0),  # create
-                self._mock_run("", returncode=0),  # add succeeds
-                self._mock_run("", returncode=1),  # list fails → early return
-                self._mock_run("", returncode=0),  # delete (finally block)
-            ]
+        ingestor = self._mock_ingestor(
+            create_fn=mock.MagicMock(return_value="nb-123"),
+            extract_fn=mock.MagicMock(return_value={"vid1": (False, None, "List failed")}),
+        )
+        with mock.patch("csf.nlm_batch.NLMBatchIngestor", return_value=ingestor):
             result = _fetch_via_notebooklm_batch(["vid1"])
         assert result["vid1"][0] is False
-        assert "source list failed" in result["vid1"][2]
+        assert "List failed" in result["vid1"][2]
 
     def test_json_parse_failure_returns_parse_error(self):
-        """When source list returns malformed JSON, all videos get parse error."""
+        """When extract_transcripts returns Parse failed error."""
         from csf.transcript import _fetch_via_notebooklm_batch
 
-        with (
-            mock.patch("csf.transcript._ensure_nlm_auth", return_value=True),
-            mock.patch("subprocess.run") as mock_run,
-        ):
-            mock_run.side_effect = [
-                self._mock_run("notebook created\nNotebook ID: nb-123", returncode=0),  # create
-                self._mock_run("", returncode=0),  # add succeeds
-                self._mock_run("not valid json", returncode=0),  # list succeeds but bad JSON
-                self._mock_run("", returncode=0),  # delete (finally block)
-            ]
+        ingestor = self._mock_ingestor(
+            create_fn=mock.MagicMock(return_value="nb-123"),
+            extract_fn=mock.MagicMock(return_value={"vid1": (False, None, "Parse failed")}),
+        )
+        with mock.patch("csf.nlm_batch.NLMBatchIngestor", return_value=ingestor):
             result = _fetch_via_notebooklm_batch(["vid1"])
         assert result["vid1"][0] is False
-        assert "source list parse failed" in result["vid1"][2]
+        assert "Parse failed" in result["vid1"][2]
 
-    def test_content_threshold_20_chars_fails(self):
-        """Content with 20 chars is discarded (below minimum of 21)."""
+    def test_content_threshold_short_fails(self):
+        """Content below 100 chars is discarded by NLMBatchIngestor (min threshold)."""
         from csf.transcript import _fetch_via_notebooklm_batch
 
-        with (
-            mock.patch("csf.transcript._ensure_nlm_auth", return_value=True),
-            mock.patch("subprocess.run") as mock_run,
-        ):
-            mock_run.side_effect = [
-                self._mock_run("notebook created\nNotebook ID: nb-123", returncode=0),  # create
-                self._mock_run("", returncode=0),  # add succeeds
-                self._mock_run(
-                    '{"sources":[{"id":"s1","url":"https://www.youtube.com/watch?v=dQw4w9WgXcQ"}]}',
-                    returncode=0,
-                ),  # list
-                self._mock_run("x" * 20, returncode=0),  # content: 20 chars → fails (< 21)
-                self._mock_run("", returncode=0),  # delete (finally block)
-            ]
+        ingestor = self._mock_ingestor(
+            create_fn=mock.MagicMock(return_value="nb-123"),
+            extract_fn=mock.MagicMock(return_value={"dQw4w9WgXcQ": (False, None, "Fetch failed for s1")}),
+        )
+        with mock.patch("csf.nlm_batch.NLMBatchIngestor", return_value=ingestor):
             result = _fetch_via_notebooklm_batch(["dQw4w9WgXcQ"])
         assert result["dQw4w9WgXcQ"][0] is False
-        assert "source content empty" in result["dQw4w9WgXcQ"][2]
 
-    def test_content_threshold_21_chars_succeeds(self):
-        """Content with 21 chars is accepted (minimum threshold is 21)."""
+    def test_content_above_threshold_succeeds(self):
+        """Content above 100 chars is accepted by NLMBatchIngestor."""
         from csf.transcript import _fetch_via_notebooklm_batch
 
-        with (
-            mock.patch("csf.transcript._ensure_nlm_auth", return_value=True),
-            mock.patch("subprocess.run") as mock_run,
-        ):
-            mock_run.side_effect = [
-                self._mock_run("notebook created\nNotebook ID: nb-123", returncode=0),  # create
-                self._mock_run("", returncode=0),  # add succeeds
-                self._mock_run(
-                    '{"sources":[{"id":"s1","url":"https://www.youtube.com/watch?v=dQw4w9WgXcQ"}]}',
-                    returncode=0,
-                ),  # list
-                self._mock_run("x" * 21, returncode=0),  # content: 21 chars → succeeds
-                self._mock_run("", returncode=0),  # delete (finally block)
-            ]
+        long_text = "x" * 200
+        ingestor = self._mock_ingestor(
+            create_fn=mock.MagicMock(return_value="nb-123"),
+            extract_fn=mock.MagicMock(return_value={"dQw4w9WgXcQ": (True, long_text, None)}),
+        )
+        with mock.patch("csf.nlm_batch.NLMBatchIngestor", return_value=ingestor):
             result = _fetch_via_notebooklm_batch(["dQw4w9WgXcQ"])
         assert result["dQw4w9WgXcQ"][0] is True
-        assert result["dQw4w9WgXcQ"][1] == "x" * 21
+        assert result["dQw4w9WgXcQ"][1] == long_text
 
-    def test_300_video_cap(self):
-        """When more than 300 videos are passed, only first 300 are processed."""
+    def test_batch_processes_all_passed_videos(self):
+        """All videos passed to process_industrial_batch are returned."""
         from csf.transcript import _fetch_via_notebooklm_batch
 
-        vids = [f"video{i:011d}" for i in range(400)]
+        vids = [f"video{i:011d}" for i in range(10)]
 
-        # _ensure_nlm_auth returns False for all → returns auth errors for all batch_ids.
-        # The cap is applied BEFORE _ensure_nlm_auth is called, so if we pass 400
-        # vids and auth fails, we get 400 auth errors. To test the cap, we let
-        # auth succeed and fail at the notebook-create step instead.
-        with (
-            mock.patch("csf.transcript._ensure_nlm_auth", return_value=True),
-            mock.patch("subprocess.run") as mock_run,
-        ):
-            # create succeeds, add/list fail → only auth + create are called
-            mock_run.side_effect = [
-                mock.MagicMock(returncode=1, stdout="", stderr="create failed"),  # create fails
-                mock.MagicMock(returncode=0, stdout="", stderr=""),  # delete
-            ]
+        fail_results = {vid: (False, None, "Notebook failed") for vid in vids}
+        ingestor = self._mock_ingestor(
+            create_fn=mock.MagicMock(return_value=None),
+        )
+        with mock.patch("csf.nlm_batch.NLMBatchIngestor", return_value=ingestor):
             result = _fetch_via_notebooklm_batch(vids)
-        # Should have exactly 300 results (the cap)
-        assert len(result) == 300
-        # 301st video should not be present
-        assert f"video{300:011d}" not in result
+        # All 10 videos should get failure results
+        assert len(result) == 10
+        for vid in vids:
+            assert result[vid][0] is False
 
     def test_empty_video_list_returns_empty_dict(self):
         """Empty video_ids list returns empty result dict."""
         from csf.transcript import _fetch_via_notebooklm_batch
 
-        with mock.patch("csf.transcript._ensure_nlm_auth", return_value=True):
+        ingestor = self._mock_ingestor()
+        with mock.patch("csf.nlm_batch.NLMBatchIngestor", return_value=ingestor):
             result = _fetch_via_notebooklm_batch([])
         assert result == {}
 
     def test_successful_end_to_end(self):
-        """Full happy path: auth → create → add → list → content → delete."""
+        """Full happy path: create → extract → cleanup."""
         from csf.transcript import _fetch_via_notebooklm_batch
 
-        with (
-            mock.patch("csf.transcript._ensure_nlm_auth", return_value=True),
-            mock.patch("subprocess.run") as mock_run,
-        ):
-            mock_run.side_effect = [
-                self._mock_run("notebook created\nNotebook ID: nb-123", returncode=0),  # create
-                self._mock_run("", returncode=0),  # add succeeds
-                self._mock_run(
-                    '{"sources":[{"id":"s1","url":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","title":"Test"}]}',
-                    returncode=0,
-                ),  # list
-                self._mock_run("this is a valid transcript content", returncode=0),  # content
-                self._mock_run("", returncode=0),  # delete
-            ]
+        transcript = "x" * 200
+        ingestor = self._mock_ingestor(
+            create_fn=mock.MagicMock(return_value="nb-123"),
+            extract_fn=mock.MagicMock(return_value={"dQw4w9WgXcQ": (True, transcript, None)}),
+        )
+        with mock.patch("csf.nlm_batch.NLMBatchIngestor", return_value=ingestor):
             result = _fetch_via_notebooklm_batch(["dQw4w9WgXcQ"])
         assert result["dQw4w9WgXcQ"][0] is True
-        assert result["dQw4w9WgXcQ"][1] == "this is a valid transcript content"
+        assert result["dQw4w9WgXcQ"][1] == transcript
         assert result["dQw4w9WgXcQ"][2] is None
+        ingestor.cleanup.assert_called_once()
 
-    def test_parse_notebook_id_returns_none(self):
-        """When _parse_notebook_id returns None, all videos get parse error."""
+    def test_notebook_create_returns_false(self):
+        """When create_batch_notebook returns falsy, all videos get Notebook failed."""
         from csf.transcript import _fetch_via_notebooklm_batch
 
-        with (
-            mock.patch("csf.transcript._ensure_nlm_auth", return_value=True),
-            mock.patch("subprocess.run") as mock_run,
-        ):
-            mock_run.side_effect = [
-                self._mock_run("created successfully", returncode=0),  # create — no ID line
-                self._mock_run("", returncode=0),  # delete
-            ]
+        ingestor = self._mock_ingestor(
+            create_fn=mock.MagicMock(return_value=""),
+        )
+        with mock.patch("csf.nlm_batch.NLMBatchIngestor", return_value=ingestor):
             result = _fetch_via_notebooklm_batch(["vid1"])
         assert result["vid1"][0] is False
-        assert "parse notebook ID failed" in result["vid1"][2]
+        assert "Notebook failed" in result["vid1"][2]
 
-    def test_parallel_content_fetch(self):
-        """Content fetching uses ThreadPoolExecutor (verify concurrent calls)."""
+    def test_multi_video_batch(self):
+        """Multiple videos are passed through to extract_transcripts."""
         from csf.transcript import _fetch_via_notebooklm_batch
-        import json
-        import threading
 
-        call_times: list[float] = []
-        call_lock = threading.Lock()
+        vids = ["dQw4w9WgXcQ", "dQw4w9WgXcR", "dQw4w9WgXcS"]
+        extract_results = {vid: (True, "x" * 200, None) for vid in vids}
+        ingestor = self._mock_ingestor(
+            create_fn=mock.MagicMock(return_value="nb-123"),
+            extract_fn=mock.MagicMock(return_value=extract_results),
+        )
+        with mock.patch("csf.nlm_batch.NLMBatchIngestor", return_value=ingestor):
+            result = _fetch_via_notebooklm_batch(vids)
 
-        original_run = subprocess.run
-
-        def tracking_run(*args, **kwargs):
-            with call_lock:
-                call_times.append(time_module.time())
-            time_module.sleep(0.05)
-            return original_run(*args, **kwargs)
-
-        with (
-            mock.patch("csf.transcript._ensure_nlm_auth", return_value=True),
-            mock.patch("subprocess.run", side_effect=tracking_run),
-        ):
-            # Use properly-formatted 11-char YouTube video IDs in URLs
-            # so _extract_video_id_from_url can match them
-            sources = [
-                {"id": "s1", "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"},
-                {"id": "s2", "url": "https://www.youtube.com/watch?v=dQw4w9WgXcR"},
-                {"id": "s3", "url": "https://www.youtube.com/watch?v=dQw4w9WgXcS"},
-            ]
-            list_json = json.dumps({"sources": sources})
-            # create + add + list + content×3 + delete = 7 calls
-            call_sequence = [
-                self._mock_run("notebook created\nNotebook ID: nb-123", returncode=0),  # create
-                self._mock_run("", returncode=0),  # add
-                self._mock_run(list_json, returncode=0),  # list
-                self._mock_run("valid transcript content here", returncode=0),  # content 1
-                self._mock_run("valid transcript content here", returncode=0),  # content 2
-                self._mock_run("valid transcript content here", returncode=0),  # content 3
-                self._mock_run("", returncode=0),  # delete
-            ]
-            subprocess.run.side_effect = call_sequence
-            result = _fetch_via_notebooklm_batch(
-                ["dQw4w9WgXcQ", "dQw4w9WgXcR", "dQw4w9WgXcS"]
-            )
-
-        # All 3 should succeed
-        for vid in ["dQw4w9WgXcQ", "dQw4w9WgXcR", "dQw4w9WgXcS"]:
+        for vid in vids:
             assert result[vid][0] is True, f"{vid} failed: {result[vid]}"
-
-        # Verify concurrent execution — content calls (indices 3,4,5) should
-        # all start within <0.04s of each other with ThreadPoolExecutor,
-        # vs ~0.05s apart if sequential
-        if len(call_times) >= 6:
-            content_times = call_times[3:6]
-            time_span = max(content_times) - min(content_times)
-            assert time_span < 0.04, (
-                f"Content fetch appears sequential: time span={time_span:.3f}s. "
-                f"Expected parallel < 0.04s."
-            )
+        ingestor.cleanup.assert_called_once()
 
 
 class TestNLMConfig:

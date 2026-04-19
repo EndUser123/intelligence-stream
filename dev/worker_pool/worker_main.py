@@ -217,15 +217,62 @@ def main(argv: list[str] | None = None) -> int:
         total_succeeded = 0
         total_failed = 0
         for batch_index, video_ids in enumerate(batches, 1):
+            batch_started_at = time.monotonic()
             total_video_count += len(video_ids)
+            log_action(
+                "worker_batch_started",
+                {
+                    "worker_id": args.worker_id,
+                    "batch_index": batch_index,
+                    "batch_count": len(batches),
+                    "batch_size": len(video_ids),
+                    "video_count": len(video_ids),
+                    "notebooklm_profile": notebooklm_profile,
+                    "state_path": args.state_path,
+                    "notebook_title": args.notebook_title,
+                },
+            )
             results = process_industrial_batch_reusable(video_ids)
+            batch_succeeded = 0
+            batch_failed = 0
             for vid, (success, transcript, err) in results.items():
                 if success and transcript:
                     set_cached_transcript(vid, "en", "notebooklm", transcript)
                     mark_complete(vid, last_stage="notebooklm")
                     total_succeeded += 1
+                    batch_succeeded += 1
                 else:
                     total_failed += 1
+                    batch_failed += 1
+            log_action(
+                "worker_batch_completed",
+                {
+                    "worker_id": args.worker_id,
+                    "batch_index": batch_index,
+                    "batch_count": len(batches),
+                    "batch_size": len(video_ids),
+                    "video_count": len(video_ids),
+                    "succeeded": batch_succeeded,
+                    "failed": batch_failed,
+                    "elapsed_s": round(time.monotonic() - batch_started_at, 3),
+                    "notebooklm_profile": notebooklm_profile,
+                    "state_path": args.state_path,
+                    "notebook_title": args.notebook_title,
+                },
+            )
+        log_action(
+            "worker_completed",
+            {
+                "worker_id": args.worker_id,
+                "batch_count": len(batches),
+                "video_count": total_video_count,
+                "succeeded": total_succeeded,
+                "failed": total_failed,
+                "notebooklm_profile": notebooklm_profile,
+                "state_path": args.state_path,
+                "notebook_title": args.notebook_title,
+            },
+        )
         worker_result.update(
             {
                 "batch_count": len(batches),
@@ -249,13 +296,67 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(worker_result, separators=(",", ":")))
         return 1
     finally:
+        log_action(
+            "worker_cleanup_started",
+            {
+                "worker_id": args.worker_id,
+                "batch_count": worker_result.get("batch_count", 0),
+                "video_count": worker_result.get("video_count", 0),
+                "succeeded": worker_result.get("succeeded", 0),
+                "failed": worker_result.get("failed", 0),
+                "status": worker_result.get("status", "unknown"),
+                "returncode": worker_result.get("returncode", None),
+                "notebooklm_profile": notebooklm_profile,
+                "state_path": args.state_path,
+                "notebook_title": args.notebook_title,
+            },
+        )
         try:
             _write_result_file(args.result_path, worker_result)
+            log_action(
+                "worker_result_written",
+                {
+                    "worker_id": args.worker_id,
+                    "result_path": str(args.result_path) if args.result_path is not None else None,
+                    "status": worker_result.get("status", "unknown"),
+                    "returncode": worker_result.get("returncode", None),
+                    "notebooklm_profile": notebooklm_profile,
+                },
+            )
         except Exception:
             pass
         try:
+            cleanup_ingestor_started = time.monotonic()
+            log_action(
+                "worker_cleanup_ingestor_close_started",
+                {
+                    "worker_id": args.worker_id,
+                    "notebooklm_profile": notebooklm_profile,
+                    "state_path": args.state_path,
+                    "notebook_title": args.notebook_title,
+                },
+            )
             close_reusable_ingestor(delete=False)
+            log_action(
+                "worker_cleanup_ingestor_close_completed",
+                {
+                    "worker_id": args.worker_id,
+                    "elapsed_s": round(time.monotonic() - cleanup_ingestor_started, 3),
+                    "notebooklm_profile": notebooklm_profile,
+                    "state_path": args.state_path,
+                    "notebook_title": args.notebook_title,
+                },
+            )
         finally:
+            log_action(
+                "worker_cleanup_completed",
+                {
+                    "worker_id": args.worker_id,
+                    "notebooklm_profile": notebooklm_profile,
+                    "state_path": args.state_path,
+                    "notebook_title": args.notebook_title,
+                },
+            )
             watchdog_stop.set()
 
 

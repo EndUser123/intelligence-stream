@@ -332,10 +332,83 @@ def test_cmd_fetch_starts_industrial_batch_before_scan_completes_when_buffer_is_
                                             mod.cmd_fetch(dry_run=False, workers=4)
 
     log_names = [call.args[0] for call in mock_log.call_args_list]
+    assert "fetch_worker_dispatch_state" in log_names
     assert "fetch_worker_dispatch_started" in log_names
     assert "fetch_scan_completed" in log_names
     assert "fetch_completed" in log_names
+    state_payload = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "fetch_worker_dispatch_state")
+    assert state_payload["workers_requested"] == 4
+    assert state_payload["queued_batches"] >= 1
+    assert state_payload["available_slots"] >= 1
     assert log_names.index("fetch_worker_dispatch_started") < log_names.index("fetch_scan_completed")
+
+
+def test_take_industrial_dispatch_groups_limits_each_dispatch_to_free_slots():
+    """A freed worker slot should only receive one batch at a time."""
+    mod = _load_csf_source_module()
+    batch_queue = [[f"vid{i:03d}"] for i in range(1042)]
+
+    groups = mod._take_industrial_dispatch_groups(batch_queue, 1)
+
+    assert len(groups) == 1
+    assert len(groups[0]) == 1
+    assert len(batch_queue) == 1041
+    assert groups[0][0] == ["vid000"]
+
+
+def test_load_worker_summary_falls_back_when_result_file_missing():
+    """Worker summary parsing should fall back to stdout when the result file is missing."""
+    mod = _load_csf_source_module()
+    summary = mod._load_worker_summary(
+        Path(r"P:\packages\yt-is\tests\missing-worker-result.json"),
+        '{"worker_id":"worker-02","succeeded":7,"failed":2,"status":"ok"}',
+    )
+
+    assert summary["worker_id"] == "worker-02"
+    assert summary["succeeded"] == 7
+    assert summary["failed"] == 2
+    assert summary["status"] == "ok"
+
+
+def test_build_worker_health_warning_includes_key_context():
+    """Worker health warnings should carry enough context to act on quickly."""
+    mod = _load_csf_source_module()
+    payload = mod._build_worker_health_warning(
+        reason="no_worker_completion_after_15m",
+        elapsed_s=901.2,
+        active_workers=4,
+        queued_batches=12,
+        available_slots=0,
+        first_worker_finished_at=None,
+    )
+
+    assert payload["reason"] == "no_worker_completion_after_15m"
+    assert payload["elapsed_s"] == 901.2
+    assert payload["active_workers"] == 4
+    assert payload["queued_batches"] == 12
+    assert payload["available_slots"] == 0
+    assert payload["first_worker_finished"] is False
+
+    oversized = mod._build_worker_health_warning(
+        reason="oversized_worker_dispatch",
+        elapsed_s=120.0,
+        active_workers=3,
+        queued_batches=1,
+        available_slots=1,
+        first_worker_finished_at=118.0,
+        worker_id="worker-02",
+        batch_count=1042,
+        video_count=312599,
+        batch_size=300,
+    )
+
+    assert oversized["reason"] == "oversized_worker_dispatch"
+    assert oversized["first_worker_finished"] is True
+    assert oversized["first_worker_finished_at"] == 118.0
+    assert oversized["worker_id"] == "worker-02"
+    assert oversized["batch_count"] == 1042
+    assert oversized["video_count"] == 312599
+    assert oversized["batch_size"] == 300
 
 
 def test_cmd_fetch_skips_blocked_channels_in_preflight_scan():

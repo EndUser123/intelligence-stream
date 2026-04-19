@@ -101,6 +101,186 @@ from csf.source_enumerator import (
 from csf.display import format_sync_results
 
 
+def _take_industrial_dispatch_groups(
+    batch_queue: list[list[str]],
+    worker_slots: int,
+) -> list[list[list[str]]]:
+    """Take up to one batch per available worker slot from the queue."""
+    if worker_slots < 1:
+        raise ValueError("worker_slots must be >= 1")
+    if not batch_queue:
+        return []
+    dispatch_count = min(worker_slots, len(batch_queue))
+    return [[batch_queue.pop(0)] for _ in range(dispatch_count)]
+
+
+def _load_worker_summary(result_path: Path | None, stdout_text: str) -> dict[str, object]:
+    """Load a worker result from disk, falling back to stdout JSON."""
+    summary: dict[str, object] = {}
+    if result_path is not None and result_path.exists():
+        try:
+            summary = json.loads(result_path.read_text(encoding="utf-8"))
+        except Exception:
+            summary = {}
+    if not summary and stdout_text:
+        lines = stdout_text.rstrip().splitlines()
+        if lines:
+            try:
+                summary = json.loads(lines[-1])
+            except Exception:
+                summary = {}
+    return summary
+
+
+def _build_fetch_completed_payload(
+    *,
+    source_filter: str | None,
+    strategy: str,
+    backend: str,
+    backlog_threshold: int,
+    batch_size: int,
+    workers: int,
+    channels_tracked_total: int,
+    channels_blocked_total: int,
+    channels_active_total: int,
+    pending_total: int,
+    cached_total: int,
+    cached_hit_rate: float,
+    cached_sample: list[dict[str, object]],
+    industrial_batches_processed: int,
+    transcript_fallback_count: int,
+    terminal_count: int,
+    worker_cleanup_deleted: int,
+    worker_cleanup_failed: int,
+    success_count: int,
+    fail_count: int,
+    skip_count: int,
+    processed_count: int,
+    elapsed_s: float,
+    status: str,
+) -> dict[str, object]:
+    return {
+        "source_filter": source_filter,
+        "strategy": strategy,
+        "backend": backend,
+        "backlog_threshold": backlog_threshold,
+        "batch_size": batch_size,
+        "workers": workers,
+        "channels_tracked_total": channels_tracked_total,
+        "channels_blocked_total": channels_blocked_total,
+        "channels_active_total": channels_active_total,
+        "pending_total": pending_total,
+        "cached_total": cached_total,
+        "cached_hit_rate": cached_hit_rate,
+        "cached_sample": cached_sample,
+        "industrial_batches_processed": industrial_batches_processed,
+        "transcript_fallback_count": transcript_fallback_count,
+        "terminal_count": terminal_count,
+        "worker_cleanup_deleted": worker_cleanup_deleted,
+        "worker_cleanup_failed": worker_cleanup_failed,
+        "success_count": success_count,
+        "fail_count": fail_count,
+        "skip_count": skip_count,
+        "processed_count": processed_count,
+        "elapsed_s": elapsed_s,
+        "success_per_min": round(success_count / elapsed_s * 60, 2) if elapsed_s > 0 else None,
+        "processed_per_min": round(processed_count / elapsed_s * 60, 2) if elapsed_s > 0 else None,
+        "status": status,
+    }
+
+
+def _log_fetch_completed(
+    *,
+    source_filter: str | None,
+    strategy: str,
+    backend: str,
+    backlog_threshold: int,
+    batch_size: int,
+    workers: int,
+    channels_tracked_total: int,
+    channels_blocked_total: int,
+    channels_active_total: int,
+    pending_total: int,
+    cached_total: int,
+    cached_hit_rate: float,
+    cached_sample: list[dict[str, object]],
+    industrial_batches_processed: int,
+    transcript_fallback_count: int,
+    terminal_count: int,
+    worker_cleanup_deleted: int,
+    worker_cleanup_failed: int,
+    success_count: int,
+    fail_count: int,
+    skip_count: int,
+    elapsed_s: float,
+    status: str,
+) -> None:
+    processed_count = success_count + fail_count + skip_count
+    log_action(
+        "fetch_completed",
+        _build_fetch_completed_payload(
+            source_filter=source_filter,
+            strategy=strategy,
+            backend=backend,
+            backlog_threshold=backlog_threshold,
+            batch_size=batch_size,
+            workers=workers,
+            channels_tracked_total=channels_tracked_total,
+            channels_blocked_total=channels_blocked_total,
+            channels_active_total=channels_active_total,
+            pending_total=pending_total,
+            cached_total=cached_total,
+            cached_hit_rate=cached_hit_rate,
+            cached_sample=cached_sample,
+            industrial_batches_processed=industrial_batches_processed,
+            transcript_fallback_count=transcript_fallback_count,
+            terminal_count=terminal_count,
+            worker_cleanup_deleted=worker_cleanup_deleted,
+            worker_cleanup_failed=worker_cleanup_failed,
+            success_count=success_count,
+            fail_count=fail_count,
+            skip_count=skip_count,
+            processed_count=processed_count,
+            elapsed_s=elapsed_s,
+            status=status,
+        ),
+    )
+
+
+def _build_worker_health_warning(
+    *,
+    reason: str,
+    elapsed_s: float,
+    active_workers: int,
+    queued_batches: int,
+    available_slots: int,
+    first_worker_finished_at: float | None,
+    worker_id: str | None = None,
+    batch_count: int | None = None,
+    video_count: int | None = None,
+    batch_size: int | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "reason": reason,
+        "elapsed_s": round(elapsed_s, 3),
+        "active_workers": active_workers,
+        "queued_batches": queued_batches,
+        "available_slots": available_slots,
+        "first_worker_finished": first_worker_finished_at is not None,
+    }
+    if first_worker_finished_at is not None:
+        payload["first_worker_finished_at"] = round(first_worker_finished_at, 3)
+    if worker_id is not None:
+        payload["worker_id"] = worker_id
+    if batch_count is not None:
+        payload["batch_count"] = batch_count
+    if video_count is not None:
+        payload["video_count"] = video_count
+    if batch_size is not None:
+        payload["batch_size"] = batch_size
+    return payload
+
+
 def _print_block_signals(info, channel_id: str, canonical_url: str) -> bool:
     """Evaluate and print blocklist signals for a channel.
 
@@ -1091,6 +1271,9 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     from csf.transcript import fetch_transcript_chain, LanguageConfig
 
     fetch_started_at = time.monotonic()
+    industrial_first_worker_finished_at: float | None = None
+    industrial_no_completion_alert_logged = False
+    industrial_oversized_dispatch_alert_logged = False
     def _env_int(primary: str, fallback: str, default: int) -> int:
         value = os.getenv(primary)
         if value is None or not value.strip():
@@ -1136,6 +1319,20 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
         }
         payload.update(details)
         log_action("first_download_started", payload)
+
+    def _log_worker_health_warning(reason: str, **details) -> None:
+        log_action(
+            "fetch_worker_health_warning",
+            _build_worker_health_warning(
+                reason=reason,
+                elapsed_s=time.monotonic() - fetch_started_at,
+                active_workers=len(industrial_worker_futures),
+                queued_batches=len(industrial_batch_queue),
+                available_slots=max(0, workers - len(industrial_worker_futures)),
+                first_worker_finished_at=industrial_first_worker_finished_at,
+                **details,
+            ),
+        )
 
     storage = _get_batch_status_storage()
 
@@ -1301,6 +1498,17 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
                     summary = {}
         return summary
 
+    def _take_industrial_dispatch_groups(
+        batch_queue: list[list[str]],
+        worker_slots: int,
+    ) -> list[list[list[str]]]:
+        if worker_slots < 1:
+            raise ValueError("worker_slots must be >= 1")
+        if not batch_queue:
+            return []
+        dispatch_count = min(worker_slots, len(batch_queue))
+        return [[batch_queue.pop(0)] for _ in range(dispatch_count)]
+
     def _run_industrial_worker(worker_id: int, worker_batches: list[list[str]]) -> tuple[int, dict[str, object], str, str]:
         state_root = Path(
             os.getenv(
@@ -1385,6 +1593,8 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     def _service_industrial_workers(wait_for_completion: bool = False) -> None:
         nonlocal industrial_batch_queue, industrial_worker_executor, industrial_worker_futures
         nonlocal industrial_worker_slots_in_use, industrial_batches_processed, success_count, fail_count
+        nonlocal industrial_first_worker_finished_at
+        nonlocal industrial_no_completion_alert_logged, industrial_oversized_dispatch_alert_logged
 
         if wait_for_completion and industrial_worker_futures:
             done, _ = wait(industrial_worker_futures, return_when=FIRST_COMPLETED)
@@ -1402,6 +1612,19 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             industrial_batches_processed += batch_count
             success_count += succeeded
             fail_count += failed
+            if industrial_first_worker_finished_at is None:
+                industrial_first_worker_finished_at = time.monotonic() - fetch_started_at
+            if not industrial_oversized_dispatch_alert_logged and (
+                batch_count != 1 or video_count > batch_size
+            ):
+                industrial_oversized_dispatch_alert_logged = True
+                _log_worker_health_warning(
+                    "oversized_worker_dispatch",
+                    worker_id=f"worker-{slot_id:02d}",
+                    batch_count=batch_count,
+                    video_count=video_count,
+                    batch_size=batch_size,
+                )
             log_action(
                 "fetch_worker_dispatch_finished",
                 {
@@ -1414,10 +1637,34 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             )
 
         available_slots = max(0, workers - len(industrial_worker_futures))
+        free_slots = [
+            slot_id
+            for slot_id in range(1, workers + 1)
+            if slot_id not in industrial_worker_slots_in_use.values()
+        ]
+        log_action(
+            "fetch_worker_dispatch_state",
+            {
+                "workers_requested": workers,
+                "active_workers": len(industrial_worker_futures),
+                "free_slots": len(free_slots),
+                "queued_batches": len(industrial_batch_queue),
+                "available_slots": available_slots,
+                "wait_for_completion": wait_for_completion,
+            },
+        )
+        if (
+            not industrial_no_completion_alert_logged
+            and industrial_first_worker_finished_at is None
+            and time.monotonic() - fetch_started_at >= 900
+            and (industrial_worker_futures or industrial_batch_queue)
+        ):
+            industrial_no_completion_alert_logged = True
+            _log_worker_health_warning("no_worker_completion_after_15m")
         if available_slots <= 0 or not industrial_batch_queue:
             return
 
-        worker_groups = _split_batches_for_workers(industrial_batch_queue, available_slots)
+        worker_groups = _take_industrial_dispatch_groups(industrial_batch_queue, available_slots)
         if not worker_groups:
             return
 
@@ -1443,12 +1690,6 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             },
         )
 
-        industrial_batch_queue = []
-        free_slots = [
-            slot_id
-            for slot_id in range(1, workers + 1)
-            if slot_id not in industrial_worker_slots_in_use.values()
-        ]
         for slot_id, worker_batches in zip(free_slots, worker_groups):
             future = industrial_worker_executor.submit(
                 _run_industrial_worker,
@@ -1673,8 +1914,6 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
                     "channel_index": channel_index,
                     "channels_active_total": channel_count,
                     "pending_so_far": pending_discovered_total,
-                    "cached_so_far": cached_count,
-                    "cached_hit_rate": round(cached_count / pending_discovered_total, 4) if pending_discovered_total else 0.0,
                     "elapsed_s": elapsed_s,
                 },
             )
@@ -1697,7 +1936,9 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             "channels_active_total": channel_count,
             "pending_total": pending_discovered_total,
             "cached_total": cached_count,
-            "cached_hit_rate": round(cached_count / pending_discovered_total, 4) if pending_discovered_total else 0.0,
+            "cached_hit_rate": round(cached_count / (cached_count + pending_discovered_total + terminal_count), 4)
+            if (cached_count + pending_discovered_total + terminal_count)
+            else 0.0,
             "cached_sample": cached_sample,
             "terminal_count": terminal_count,
             "transcript_fallback_count": transcript_fallback_count,
@@ -1706,6 +1947,11 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     )
 
     total_pending = pending_discovered_total
+    use_industrial = industrial_selected or total_pending >= backlog_threshold
+    strategy_name = "industrial_cli_batch" if use_industrial else "surgical_chain"
+    backend_name = "notebooklm_cli_batch" if use_industrial else "yt_dlp_plus_selenium"
+    deleted = 0
+    failed = 0
     log_action(
         "fetch_scan_completed",
         {
@@ -1715,7 +1961,9 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             "channels_active_total": channel_count,
             "pending_total": total_pending,
             "cached_total": cached_count,
-            "cached_hit_rate": round(cached_count / total_pending, 4) if total_pending else 0.0,
+            "cached_hit_rate": round(cached_count / (cached_count + total_pending + terminal_count), 4)
+            if (cached_count + total_pending + terminal_count)
+            else 0.0,
             "cached_sample": cached_sample,
             "terminal_count": terminal_count,
             "transcript_fallback_count": transcript_fallback_count,
@@ -1738,35 +1986,39 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     print(f"[source] Escalation Batch Process")
     print(f"[source] Channels: {channel_count} active / {tracked_count} tracked")
     print(f"[source] Already cached: {cached_count}")
+    if cached_sample:
+        cached_ids = ", ".join(item["video_id"] for item in cached_sample)
+        print(f"[source] Cached sample: {cached_ids}")
     print(f"[source] Pending extraction: {total_pending}")
     print(f"[source] Mode: {'DRY RUN' if dry_run else 'LIVE'}")
     if dry_run:
         print("[source] Dry run complete. Use without --dry-run to fetch transcripts.")
-        log_action(
-            "fetch_completed",
-            {
-                "source_filter": source_filter,
-                "strategy": strategy_name,
-                "backend": backend_name,
-                "backlog_threshold": backlog_threshold,
-                "batch_size": batch_size,
-                "workers": workers,
-                "channels_tracked_total": tracked_count,
-                "channels_blocked_total": blocked_count,
-                "channels_active_total": channel_count,
-                "pending_total": total_pending,
-                "cached_total": cached_count,
-                "industrial_batches_processed": industrial_batches_processed,
-                "transcript_fallback_count": transcript_fallback_count,
-                "terminal_count": terminal_count,
-                "worker_cleanup_deleted": deleted,
-                "worker_cleanup_failed": failed,
-                "success_count": success_count,
-                "fail_count": fail_count,
-                "skip_count": skip_count,
-                "elapsed_s": round(time.monotonic() - fetch_started_at, 3),
-                "status": "dry_run",
-            },
+        _log_fetch_completed(
+            source_filter=source_filter,
+            strategy=strategy_name,
+            backend=backend_name,
+            backlog_threshold=backlog_threshold,
+            batch_size=batch_size,
+            workers=workers,
+            channels_tracked_total=tracked_count,
+            channels_blocked_total=blocked_count,
+            channels_active_total=channel_count,
+            pending_total=total_pending,
+            cached_total=cached_count,
+            cached_hit_rate=round(cached_count / (cached_count + total_pending + terminal_count), 4)
+            if (cached_count + total_pending + terminal_count)
+            else 0.0,
+            cached_sample=cached_sample,
+            industrial_batches_processed=industrial_batches_processed,
+            transcript_fallback_count=transcript_fallback_count,
+            terminal_count=terminal_count,
+            worker_cleanup_deleted=deleted,
+            worker_cleanup_failed=failed,
+            success_count=success_count,
+            fail_count=fail_count,
+            skip_count=skip_count,
+            elapsed_s=round(time.monotonic() - fetch_started_at, 3),
+            status="dry_run",
         )
         return
     use_industrial = industrial_selected or total_pending >= backlog_threshold
@@ -1786,6 +2038,10 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             "channels_active_total": channel_count,
             "pending_total": total_pending,
             "cached_total": cached_count,
+            "cached_hit_rate": round(cached_count / (cached_count + total_pending + terminal_count), 4)
+            if (cached_count + total_pending + terminal_count)
+            else 0.0,
+            "cached_sample": cached_sample,
             "industrial_selected": industrial_selected,
             "use_industrial": use_industrial,
         },
@@ -1794,31 +2050,32 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     failed = 0
     if total_pending == 0:
         print("[source] All transcripts already cached. Nothing to do.")
-        log_action(
-            "fetch_completed",
-            {
-                "source_filter": source_filter,
-                "strategy": strategy_name,
-                "backend": backend_name,
-                "backlog_threshold": backlog_threshold,
-                "batch_size": batch_size,
-                "workers": workers,
-                "channels_tracked_total": tracked_count,
-                "channels_blocked_total": blocked_count,
-                "channels_active_total": channel_count,
-                "pending_total": total_pending,
-                "cached_total": cached_count,
-                "industrial_batches_processed": industrial_batches_processed,
-                "transcript_fallback_count": transcript_fallback_count,
-                "terminal_count": terminal_count,
-                "worker_cleanup_deleted": deleted,
-                "worker_cleanup_failed": failed,
-                "success_count": success_count,
-                "fail_count": fail_count,
-                "skip_count": skip_count,
-                "elapsed_s": round(time.monotonic() - fetch_started_at, 3),
-                "status": "no_pending",
-            },
+        _log_fetch_completed(
+            source_filter=source_filter,
+            strategy=strategy_name,
+            backend=backend_name,
+            backlog_threshold=backlog_threshold,
+            batch_size=batch_size,
+            workers=workers,
+            channels_tracked_total=tracked_count,
+            channels_blocked_total=blocked_count,
+            channels_active_total=channel_count,
+            pending_total=total_pending,
+            cached_total=cached_count,
+            cached_hit_rate=round(cached_count / (cached_count + total_pending + terminal_count), 4)
+            if (cached_count + total_pending + terminal_count)
+            else 0.0,
+            cached_sample=cached_sample,
+            industrial_batches_processed=industrial_batches_processed,
+            transcript_fallback_count=transcript_fallback_count,
+            terminal_count=terminal_count,
+            worker_cleanup_deleted=deleted,
+            worker_cleanup_failed=failed,
+            success_count=success_count,
+            fail_count=fail_count,
+            skip_count=skip_count,
+            elapsed_s=round(time.monotonic() - fetch_started_at, 3),
+            status="no_pending",
         )
         return
     print(
@@ -1978,34 +2235,32 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     processed_count = success_count + fail_count + skip_count
     print(f"[source] Total discovered: {total_pending}")
     print(f"[source] Total processed outcomes: {processed_count}")
-    log_action(
-        "fetch_completed",
-        {
-            "source_filter": source_filter,
-            "strategy": strategy_name,
-            "backend": backend_name,
-            "backlog_threshold": backlog_threshold,
-            "batch_size": batch_size,
-            "workers": workers,
-            "channels_tracked_total": tracked_count,
-            "channels_blocked_total": blocked_count,
-            "channels_active_total": channel_count,
-            "pending_total": total_pending,
-            "cached_total": cached_count,
-            "industrial_batches_processed": industrial_batches_processed,
-            "transcript_fallback_count": transcript_fallback_count,
-            "terminal_count": terminal_count,
-            "worker_cleanup_deleted": deleted,
-            "worker_cleanup_failed": failed,
-            "success_count": success_count,
-            "fail_count": fail_count,
-            "skip_count": skip_count,
-            "processed_count": processed_count,
-            "elapsed_s": elapsed_s,
-            "success_per_min": round(success_count / elapsed_s * 60, 2) if elapsed_s > 0 else None,
-            "processed_per_min": round(processed_count / elapsed_s * 60, 2) if elapsed_s > 0 else None,
-            "status": "completed",
-        },
+    _log_fetch_completed(
+        source_filter=source_filter,
+        strategy=strategy_name,
+        backend=backend_name,
+        backlog_threshold=backlog_threshold,
+        batch_size=batch_size,
+        workers=workers,
+        channels_tracked_total=tracked_count,
+        channels_blocked_total=blocked_count,
+        channels_active_total=channel_count,
+        pending_total=total_pending,
+        cached_total=cached_count,
+        cached_hit_rate=round(cached_count / (cached_count + total_pending + terminal_count), 4)
+        if (cached_count + total_pending + terminal_count)
+        else 0.0,
+        cached_sample=cached_sample,
+        industrial_batches_processed=industrial_batches_processed,
+        transcript_fallback_count=transcript_fallback_count,
+        terminal_count=terminal_count,
+        worker_cleanup_deleted=deleted,
+        worker_cleanup_failed=failed,
+        success_count=success_count,
+        fail_count=fail_count,
+        skip_count=skip_count,
+        elapsed_s=elapsed_s,
+        status="completed",
     )
 
 

@@ -51,3 +51,27 @@ These are not throughput blockers for this experiment:
 python dev\worker_pool\planner.py .logs\term_052c5133.jsonl --max-workers 8
 ```
 
+## Parallel execution prototype
+
+The planner is read-only. If you want to run isolated workers in parallel
+without touching the production fetch path, use the subprocess dispatcher:
+
+```powershell
+python -m dev.worker_pool.parallel_batches --input .\my_batches.json --workers 2
+```
+
+Input format:
+
+```json
+[
+  ["video_id_1", "video_id_2"],
+  ["video_id_3", "video_id_4"]
+]
+```
+
+Each batch gets its own reusable notebook state path and notebook title via
+environment variables:
+
+- `YTIS_NLM_REUSABLE_STATE_PATH`
+- `YTIS_NLM_REUSABLE_NOTEBOOK_TITLE`
+

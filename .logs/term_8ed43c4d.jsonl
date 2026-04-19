@@ -1,0 +1,11 @@
+{"timestamp": "2026-04-19T03:44:23.496882+00:00", "trace_id": "term_8ed43c4d", "action": "nlm_login_started", "data": {"component": "nlm_batch", "mode": "force", "status": "started"}}
+{"timestamp": "2026-04-19T03:44:23.497283+00:00", "trace_id": "term_8ed43c4d", "action": "nlm_login_completed", "data": {"component": "nlm_batch", "mode": "force", "status": "ok", "elapsed_s": 0.0}}
+{"timestamp": "2026-04-19T03:44:23.497530+00:00", "trace_id": "term_8ed43c4d", "action": "nlm_auth_refreshed", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T03:44:23.498816+00:00", "trace_id": "term_8ed43c4d", "action": "nlm_batch_reusable_state_loaded", "data": {"nb_id": null, "state_path": "P:\\__csf\\.data\\yt-is\\reusable_nlm_notebook.json", "status": "empty"}}
+{"timestamp": "2026-04-19T03:44:23.500879+00:00", "trace_id": "term_8ed43c4d", "action": "nlm_batch_reusable_state_loaded", "data": {"nb_id": "nb-existing", "state_path": "P:\\__csf\\.data\\yt-is\\reusable_nlm_notebook.json", "status": "loaded"}}
+{"timestamp": "2026-04-19T03:44:23.502526+00:00", "trace_id": "term_8ed43c4d", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T03:44:23.503351+00:00", "trace_id": "term_8ed43c4d", "action": "nlm_login_started", "data": {"component": "nlm_batch", "mode": "force", "status": "started"}}
+{"timestamp": "2026-04-19T03:44:23.503604+00:00", "trace_id": "term_8ed43c4d", "action": "nlm_login_failed", "data": {"component": "nlm_batch", "mode": "force", "status": "failed", "elapsed_s": 0.0, "returncode": 1}}
+{"timestamp": "2026-04-19T03:44:23.503817+00:00", "trace_id": "term_8ed43c4d", "action": "nlm_auth_failed", "data": {"component": "nlm_batch", "status": "refresh_failed"}}
+{"timestamp": "2026-04-19T03:44:23.505693+00:00", "trace_id": "term_8ed43c4d", "action": "nlm_batch_notebook_create_started", "data": {"batch_size": 2, "nb_name": "yt-is::dev::worker-01"}}
+{"timestamp": "2026-04-19T03:44:23.505956+00:00", "trace_id": "term_8ed43c4d", "action": "nlm_batch_notebook_create_succeeded", "data": {"batch_size": 2, "nb_id": "nb-123", "nb_name": "yt-is::dev::worker-01"}}

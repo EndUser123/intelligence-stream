@@ -78,7 +78,8 @@ def summarize(
     # ---- Run Gemini CLI ----
     try:
         result = subprocess.run(
-            [gemini_path, "-p", prompt, "--output-format", "json"],
+            [gemini_path, "--output-format", "json"],
+            input=prompt,
             capture_output=True,
             text=True,
             timeout=timeout,

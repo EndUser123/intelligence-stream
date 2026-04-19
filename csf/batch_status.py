@@ -1034,6 +1034,35 @@ class _BatchStatusStorage:
             rows = cursor.fetchall()
         return [(r[0], r[1], r[2]) for r in rows]
 
+    def get_entries_for_source_details(self, channel_url: str) -> list[dict[str, object | None]]:
+        """Get all entries for a channel/source with classification metadata."""
+        channel_url = _normalize_channel_url(channel_url)
+        with self._conn() as conn:
+            cursor = conn.execute(
+                """
+                SELECT video_id, status, has_captions, duration, privacy_status,
+                       upload_status, is_live_content, unavailable_reason, source
+                FROM analysis_status
+                WHERE source = ?
+                """,
+                (channel_url,),
+            )
+            rows = cursor.fetchall()
+        return [
+            {
+                "video_id": row[0],
+                "status": row[1],
+                "has_captions": row[2],
+                "duration": row[3],
+                "privacy_status": row[4],
+                "upload_status": row[5],
+                "is_live_content": row[6],
+                "unavailable_reason": row[7],
+                "source": row[8],
+            }
+            for row in rows
+        ]
+
     def set_status_batch(self, entries: Sequence[BatchEntry]) -> int:
         """Bulk insert/update status for multiple videos — best-effort.
 
@@ -1466,6 +1495,15 @@ def get_entries_for_source(
     if db_path is None:
         return _get_batch_status_storage().get_entries_for_source(channel_url)
     return _BatchStatusStorage(db_path=db_path).get_entries_for_source(channel_url)
+
+
+def get_entries_for_source_details(
+    channel_url: str, db_path: Path | None = None
+) -> list[dict[str, object | None]]:
+    """Get all entries for a channel/source with metadata useful for triage."""
+    if db_path is None:
+        return _get_batch_status_storage().get_entries_for_source_details(channel_url)
+    return _BatchStatusStorage(db_path=db_path).get_entries_for_source_details(channel_url)
 
 
 def set_status_batch(

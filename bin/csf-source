@@ -36,11 +36,15 @@ Commands:
 
 import argparse
 from collections import deque
+import json
 import fasteners
+import os
 import subprocess
 import re
 import sys
+import threading
 import time
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -54,7 +58,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from csf import batch
 from csf.csf_logging import log_user_message, log_action
 from csf.cache import has_cached_transcript, set_cached_transcript
-from csf.nlm_batch import process_industrial_batch_reusable, close_reusable_ingestor
+from csf.nlm_batch import (
+    process_industrial_batch_reusable,
+    close_reusable_ingestor,
+    cleanup_stale_worker_notebooks,
+)
 from csf.transcript import fetch_transcript_chain, LanguageConfig
 from csf.batch_status import (
     get_channel_metadata,
@@ -73,6 +81,7 @@ from csf.batch_status import (
     is_channel_blocked,
     get_all_blocked_channels,
     delete_channel,
+    get_entries_for_source_details,
 )
 from csf.source_enumerator import (
     parse_channel_url,
@@ -346,10 +355,10 @@ def cmd_list() -> None:
     storage._ensure_channel_metadata()
     conn = storage._get_conn()
     cursor = conn.execute(
-        """SELECT channel_url, playlist_id, video_count_estimate, last_checked, last_full_enumeration, category
+        """SELECT channel_url, playlist_id, video_count_estimate, last_checked, last_full_enumeration, category, subcategory
            FROM channel_metadata
            WHERE channel_url NOT IN (SELECT channel_url FROM channel_blocklist)
-           ORDER BY category, last_checked DESC"""
+           ORDER BY CASE WHEN category IS NULL THEN 1 ELSE 0 END, category, subcategory, last_checked DESC"""
     )
     rows = cursor.fetchall()
     conn.close()
@@ -520,6 +529,7 @@ def cmd_list() -> None:
                 languages=languages,
                 storage_size_mb=size_mb,
                 category=row[5],
+                subcategory=row[6],
             )
         )
 
@@ -832,7 +842,7 @@ def cmd_check_all(verbose: bool = False) -> None:
     Iterates through all channels in channel_metadata table, runs check
     on each one in parallel using ThreadPoolExecutor.
     """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
     from csf.batch_status import _get_batch_status_storage
 
     storage = _get_batch_status_storage()
@@ -888,23 +898,26 @@ def cmd_check_all(verbose: bool = False) -> None:
     # Re-query to get updated statistics
     conn = storage._get_conn()
     cursor = conn.execute(
-        "SELECT channel_url, video_count_estimate, category FROM channel_metadata ORDER BY category, last_checked ASC"
+        "SELECT channel_url, video_count_estimate, category, subcategory FROM channel_metadata ORDER BY CASE WHEN category IS NULL THEN 1 ELSE 0 END, category, subcategory, last_checked ASC"
     )
     channels_meta = cursor.fetchall()
     conn.close()
 
     total_videos_all = 0
-    current_category = None
+    current_cat_sub = (None, None)
 
     # Query transcript cache
     try:
         from csf.cache import has_cached_transcript
 
-        for channel_url, video_count, category in channels_meta:
+        for channel_url, video_count, category, subcategory in channels_meta:
             # Print category header when group changes
-            if category != current_category:
-                current_category = category
-                cat_display = category or "(uncategorized)"
+            if (category, subcategory) != current_cat_sub:
+                current_cat_sub = (category, subcategory)
+                if subcategory:
+                    cat_display = f"{category} > {subcategory}"
+                else:
+                    cat_display = category or "(uncategorized)"
                 print(f"\n### {cat_display}")
                 print("")
             batch_conn = storage._get_conn()
@@ -978,7 +991,7 @@ def cmd_check_all(verbose: bool = False) -> None:
 
 def cmd_categorize(workers: int = 1) -> None:
     """Categorize all channels using Gemini CLI (idempotent — skips if already categorized)."""
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
     from csf.batch_status import _get_batch_status_storage
     from csf.categorize import categorize_channel
 
@@ -1074,16 +1087,40 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
         dry_run: If True, show what would be fetched without actually fetching.
         workers: Number of parallel workers (default: 1).
     """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
     from csf.transcript import fetch_transcript_chain, LanguageConfig
 
     fetch_started_at = time.monotonic()
+    def _env_int(primary: str, fallback: str, default: int) -> int:
+        value = os.getenv(primary)
+        if value is None or not value.strip():
+            value = os.getenv(fallback)
+        return int(value or default)
+
+    def _env_float(primary: str, fallback: str, default: float) -> float:
+        value = os.getenv(primary)
+        if value is None or not value.strip():
+            value = os.getenv(fallback)
+        return float(value or default)
+
     log_action(
         "fetch_invoked",
         {
             "source_filter": source_filter,
             "dry_run": dry_run,
             "workers": workers,
+            "transcript_fallback_workers": max(
+                1,
+                min(
+                    workers,
+                    _env_int("YTIS_TRANSCRIPT_FALLBACK_WORKERS", "YTIS_AUDIO_FALLBACK_WORKERS", 1),
+                ),
+            ),
+            "transcript_fallback_min_start_interval_s": _env_float(
+                "YTIS_TRANSCRIPT_FALLBACK_MIN_START_INTERVAL_S",
+                "YTIS_AUDIO_FALLBACK_MIN_START_INTERVAL_S",
+                2.5,
+            ),
         },
     )
     first_download_logged = False
@@ -1137,6 +1174,7 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     # a queue so industrial batches can start as soon as there is enough work.
     pending_buffer: deque[tuple[str, str]] = deque()  # (video_id, source_url)
     cached_count = 0
+    cached_sample = []
     pending_discovered_total = 0
     scan_started_at = time.monotonic()
     tracked_count = len(tracked_channels)
@@ -1147,9 +1185,60 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     industrial_selected = False
     industrial_scraper = None
     industrial_batches_processed = 0
+    industrial_batch_queue: list[list[str]] = []
+    industrial_worker_executor: ThreadPoolExecutor | None = None
+    industrial_worker_futures: set = set()
+    industrial_worker_slots_in_use: dict[object, int] = {}
+    transcript_fallback_queue: deque[tuple[str, str]] = deque()
+    transcript_fallback_worker_executor: ThreadPoolExecutor | None = None
+    transcript_fallback_worker_futures: set = set()
+    transcript_fallback_worker_seq = 0
+    transcript_fallback_workers = max(
+        1,
+        min(
+            workers,
+            _env_int("YTIS_TRANSCRIPT_FALLBACK_WORKERS", "YTIS_AUDIO_FALLBACK_WORKERS", 1),
+        ),
+    )
+    transcript_fallback_min_start_interval_s = float(
+        _env_float(
+            "YTIS_TRANSCRIPT_FALLBACK_MIN_START_INTERVAL_S",
+            "YTIS_AUDIO_FALLBACK_MIN_START_INTERVAL_S",
+            2.5,
+        )
+    )
+    transcript_fallback_start_lock = threading.Lock()
+    transcript_fallback_last_start_at = 0.0
+    industrial_parallel_enabled = workers > 1 and os.getenv(
+        "YTIS_DISABLE_INDUSTRIAL_PARALLEL", ""
+    ).strip().lower() not in {"1", "true", "yes", "on"}
     success_count = 0
     fail_count = 0
     skip_count = 0
+    transcript_fallback_count = 0
+    terminal_count = 0
+    terminal_entries: list[BatchEntry] = []
+    terminal_sample: list[dict[str, object]] = []
+
+    def _terminal_failure_reason(entry: dict[str, object | None]) -> str | None:
+        unavailable_reason = str(entry.get("unavailable_reason") or "").strip().lower()
+        privacy_status = str(entry.get("privacy_status") or "").strip().lower()
+        upload_status = str(entry.get("upload_status") or "").strip().lower()
+
+        if unavailable_reason in {"deleted", "removed", "private"}:
+            return unavailable_reason
+        if privacy_status == "private":
+            return "private"
+        if upload_status in {"deleted", "failed"}:
+            return upload_status
+        return None
+
+    def _classify_pending_entry(entry: dict[str, object | None]) -> tuple[str, str | None]:
+        terminal_reason = _terminal_failure_reason(entry)
+        if terminal_reason:
+            return "terminal", terminal_reason
+        return "notebooklm", None
+
     log_action(
         "fetch_scan_started",
         {
@@ -1185,12 +1274,197 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             )
         return industrial_scraper
 
+    def _split_batches_for_workers(batch_queue: list[list[str]], worker_count: int) -> list[list[list[str]]]:
+        if worker_count < 1:
+            raise ValueError("worker_count must be >= 1")
+        if not batch_queue:
+            return []
+        effective_worker_count = min(worker_count, len(batch_queue))
+        groups: list[list[list[str]]] = [[] for _ in range(effective_worker_count)]
+        for idx, batch in enumerate(batch_queue):
+            groups[idx % effective_worker_count].append(batch)
+        return groups
+
+    def _load_worker_summary(result_path: Path | None, stdout_text: str) -> dict[str, object]:
+        summary: dict[str, object] = {}
+        if result_path is not None and result_path.exists():
+            try:
+                summary = json.loads(result_path.read_text(encoding="utf-8"))
+            except Exception:
+                summary = {}
+        if not summary and stdout_text:
+            lines = stdout_text.rstrip().splitlines()
+            if lines:
+                try:
+                    summary = json.loads(lines[-1])
+                except Exception:
+                    summary = {}
+        return summary
+
+    def _run_industrial_worker(worker_id: int, worker_batches: list[list[str]]) -> tuple[int, dict[str, object], str, str]:
+        state_root = Path(
+            os.getenv(
+                "YTIS_INDUSTRIAL_WORKER_STATE_ROOT",
+                "P:/__csf/.data/yt-is/industrial-worker-states",
+            )
+        )
+        notebook_prefix = os.getenv(
+            "YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX",
+            "yt-is::industrial::worker",
+        )
+        state_root.mkdir(parents=True, exist_ok=True)
+        state_path = state_root / f"worker-{worker_id:02d}.json"
+        notebook_title = f"{notebook_prefix}::worker-{worker_id:02d}"
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tmp:
+            json.dump(worker_batches, tmp)
+            batch_file = Path(tmp.name)
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tmp:
+            result_path = Path(tmp.name)
+        worker_label = f"worker-{worker_id:02d}"
+        started_at = time.monotonic()
+        log_action(
+            "fetch_worker_started",
+            {
+                "worker_id": worker_label,
+                "batch_count": len(worker_batches),
+                "video_count": sum(len(batch) for batch in worker_batches),
+                "state_path": str(state_path),
+                "notebook_title": notebook_title,
+            },
+        )
+        cmd = [
+            sys.executable,
+            "-m",
+            "dev.worker_pool.worker_main",
+            "--input",
+            str(batch_file),
+            "--state-path",
+            str(state_path),
+            "--notebook-title",
+            notebook_title,
+            "--worker-id",
+            worker_label,
+            "--result-path",
+            str(result_path),
+        ]
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+        finally:
+            try:
+                batch_file.unlink()
+            except Exception:
+                pass
+        elapsed_s = round(time.monotonic() - started_at, 3)
+        stdout_text = proc.stdout or ""
+        summary = _load_worker_summary(result_path, stdout_text)
+        if stdout_text:
+            stdout_text = stdout_text.rstrip()
+            if stdout_text:
+                print(stdout_text)
+        if proc.stderr:
+            stderr_text = proc.stderr.rstrip()
+            if stderr_text:
+                print(stderr_text, file=sys.stderr)
+        try:
+            result_path.unlink()
+        except Exception:
+            pass
+        log_action(
+            "fetch_worker_finished",
+            {
+                "worker_id": worker_label,
+                "batch_count": len(worker_batches),
+                "video_count": sum(len(batch) for batch in worker_batches),
+                "returncode": proc.returncode,
+                "elapsed_s": elapsed_s,
+                "summary": summary,
+            },
+        )
+        return (worker_id, summary, proc.stdout or "", proc.stderr or "")
+
+    def _service_industrial_workers(wait_for_completion: bool = False) -> None:
+        nonlocal industrial_batch_queue, industrial_worker_executor, industrial_worker_futures
+        nonlocal industrial_worker_slots_in_use, industrial_batches_processed, success_count, fail_count
+
+        if wait_for_completion and industrial_worker_futures:
+            done, _ = wait(industrial_worker_futures, return_when=FIRST_COMPLETED)
+        else:
+            done, _ = wait(industrial_worker_futures, timeout=0, return_when=FIRST_COMPLETED)
+
+        for future in done:
+            industrial_worker_futures.remove(future)
+            worker_id, summary, _stdout, _stderr = future.result()
+            slot_id = industrial_worker_slots_in_use.pop(future, worker_id)
+            batch_count = int(summary.get("batch_count", 0) or 0)
+            video_count = int(summary.get("video_count", 0) or 0)
+            succeeded = int(summary.get("succeeded", 0) or 0)
+            failed = int(summary.get("failed", 0) or 0)
+            industrial_batches_processed += batch_count
+            success_count += succeeded
+            fail_count += failed
+            log_action(
+                "fetch_worker_dispatch_finished",
+                {
+                    "worker_id": f"worker-{slot_id:02d}",
+                    "batch_count": batch_count,
+                    "video_count": video_count,
+                    "succeeded": succeeded,
+                    "failed": failed,
+                },
+            )
+
+        available_slots = max(0, workers - len(industrial_worker_futures))
+        if available_slots <= 0 or not industrial_batch_queue:
+            return
+
+        worker_groups = _split_batches_for_workers(industrial_batch_queue, available_slots)
+        if not worker_groups:
+            return
+
+        if industrial_worker_executor is None:
+            industrial_worker_executor = ThreadPoolExecutor(max_workers=workers)
+
+        total_batches = sum(len(group) for group in worker_groups)
+        print(
+            f"[source] Parallel industrial dispatch: {total_batches} batches "
+            f"across {len(worker_groups)} workers..."
+        )
+        log_action(
+            "fetch_worker_dispatch_started",
+            {
+                "workers": len(worker_groups),
+                "batch_count": total_batches,
+                "video_count": sum(len(batch) for batch in industrial_batch_queue),
+                "state_root": os.getenv(
+                    "YTIS_INDUSTRIAL_WORKER_STATE_ROOT",
+                    "P:/__csf/.data/yt-is/industrial-worker-states",
+                ),
+                "streaming": True,
+            },
+        )
+
+        industrial_batch_queue = []
+        free_slots = [
+            slot_id
+            for slot_id in range(1, workers + 1)
+            if slot_id not in industrial_worker_slots_in_use.values()
+        ]
+        for slot_id, worker_batches in zip(free_slots, worker_groups):
+            future = industrial_worker_executor.submit(
+                _run_industrial_worker,
+                slot_id,
+                worker_batches,
+            )
+            industrial_worker_futures.add(future)
+            industrial_worker_slots_in_use[future] = slot_id
+
     def _process_industrial_batch(batch_items: list[tuple[str, str]]) -> None:
-        nonlocal industrial_batches_processed, success_count, fail_count
+        nonlocal industrial_batches_processed, success_count, fail_count, transcript_fallback_queue, transcript_fallback_count
         if not batch_items:
             return
         industrial_batches_processed += 1
         batch = [vid for vid, _ in batch_items]
+        source_map = {vid: source_url for vid, source_url in batch_items}
         print(
             f"[source] Processing batch {industrial_batches_processed} "
             f"({len(batch)} videos) via NotebookLM CLI batch..."
@@ -1203,20 +1477,166 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
         )
         results = process_industrial_batch_reusable(batch)
         for vid, (success, transcript, error) in results.items():
+                if success and transcript:
+                    set_cached_transcript(vid, "en", "notebooklm", transcript)
+                    mark_complete(vid, last_stage="notebooklm")
+                    success_count += 1
+                    print(f"  ✓ {vid} (notebooklm)")
+                else:
+                    fail_count += 1
+                    print(f"  ✗ {vid}: {error[:80]}")
+                    source_url = source_map.get(vid, "")
+                    if source_url:
+                        log_action(
+                            "transcript_fallback_queued",
+                            {
+                                "video_id": vid,
+                                "source_url": source_url,
+                                "reason": error[:120],
+                                "queue_depth": len(transcript_fallback_queue) + 1,
+                            },
+                        )
+                        transcript_fallback_count += 1
+                        transcript_fallback_queue.append((vid, source_url))
+
+    def _process_transcript_fallback(video_id: str, source_url: str) -> tuple[str, bool, str, str, str]:
+        """Process a fallback video via the transcript chain."""
+        if has_cached_transcript(video_id):
+            return (video_id, True, "cache", "", "")
+        nonlocal transcript_fallback_last_start_at
+        with transcript_fallback_start_lock:
+            now = time.monotonic()
+            elapsed = now - transcript_fallback_last_start_at
+            if elapsed < transcript_fallback_min_start_interval_s:
+                time.sleep(transcript_fallback_min_start_interval_s - elapsed)
+            transcript_fallback_last_start_at = time.monotonic()
+        log_action(
+            "transcript_fallback_started",
+            {
+                "video_id": video_id,
+                "source_url": source_url,
+                "queue_depth": len(transcript_fallback_queue),
+                "transcript_fallback_workers": transcript_fallback_workers,
+                "min_start_interval_s": transcript_fallback_min_start_interval_s,
+            },
+        )
+        _log_first_download_started(
+            "transcript_fallback",
+            video_id=video_id,
+            source_url=source_url,
+        )
+        config = LanguageConfig(prefer_lang="en", allow_translation=False)
+        result = fetch_transcript_chain(video_id, config)
+        if result.transcript:
+            set_cached_transcript(video_id, result.lang or "en", result.source, result.transcript)
+            mark_complete(video_id, last_stage=result.source or "transcript_fallback")
+            log_action(
+                "transcript_fallback_completed",
+                {
+                    "video_id": video_id,
+                    "source_url": source_url,
+                    "status": "success",
+                    "source": result.source or "transcript_fallback",
+                    "lang": result.lang or "en",
+                    "chars": len(result.transcript),
+                },
+            )
+            return (video_id, True, result.source or "transcript_fallback", result.transcript, "")
+        log_action(
+            "transcript_fallback_completed",
+            {
+                "video_id": video_id,
+                "source_url": source_url,
+                "status": "failed",
+                "error": result.error or "No transcript available",
+            },
+        )
+        return (video_id, False, "", "", result.error or "No transcript available")
+
+    def _service_transcript_fallback_workers(wait_for_completion: bool = False) -> None:
+        nonlocal transcript_fallback_queue, transcript_fallback_worker_executor, transcript_fallback_worker_futures
+        nonlocal transcript_fallback_worker_seq, success_count, fail_count
+
+        if wait_for_completion and transcript_fallback_worker_futures:
+            done, _ = wait(transcript_fallback_worker_futures, return_when=FIRST_COMPLETED)
+        else:
+            done, _ = wait(transcript_fallback_worker_futures, timeout=0, return_when=FIRST_COMPLETED)
+
+        for future in done:
+            transcript_fallback_worker_futures.remove(future)
+            video_id, success, source, transcript, error = future.result()
             if success and transcript:
-                set_cached_transcript(vid, "en", "notebooklm", transcript)
-                mark_complete(vid, last_stage="notebooklm")
                 success_count += 1
-                print(f"  ✓ {vid} (notebooklm)")
+                print(f"  ✓ {video_id} ({source})")
             else:
                 fail_count += 1
-                print(f"  ✗ {vid}: {error[:80]}")
+                print(f"  ✗ {video_id}: {error[:80]}")
+
+        available_slots = max(0, workers - len(transcript_fallback_worker_futures))
+        if available_slots <= 0 or not transcript_fallback_queue:
+            return
+
+        if transcript_fallback_worker_executor is None:
+            transcript_fallback_worker_executor = ThreadPoolExecutor(max_workers=transcript_fallback_workers)
+
+        submit_count = min(
+            max(0, transcript_fallback_workers - len(transcript_fallback_worker_futures)),
+            len(transcript_fallback_queue),
+        )
+        for _ in range(submit_count):
+            video_id, source_url = transcript_fallback_queue.popleft()
+            transcript_fallback_worker_seq += 1
+            worker_label = f"transcript-fallback-{transcript_fallback_worker_seq:02d}"
+            future = transcript_fallback_worker_executor.submit(_process_transcript_fallback, video_id, source_url)
+            transcript_fallback_worker_futures.add(future)
 
     for channel_index, (channel_url, playlist_id) in enumerate(channels, start=1):
-        pending_ids = get_pending_by_source(channel_url)
-        for video_id in pending_ids:
+        pending_entries = get_entries_for_source_details(channel_url)
+        for entry in pending_entries:
+            video_id = str(entry["video_id"])
+            status = str(entry["status"])
+            if status != "pending":
+                continue
             if has_cached_transcript(video_id):
                 cached_count += 1
+                if len(cached_sample) < 10:
+                    cached_sample.append(
+                        {
+                            "video_id": video_id,
+                            "source": channel_url,
+                            "channel_index": channel_index,
+                        }
+                    )
+                continue
+
+            bucket, reason = _classify_pending_entry(entry)
+            if bucket == "terminal":
+                terminal_count += 1
+                if len(terminal_sample) < 10:
+                    terminal_sample.append(
+                        {
+                            "video_id": video_id,
+                            "source": channel_url,
+                            "reason": reason or "unavailable",
+                            "privacy_status": entry.get("privacy_status"),
+                            "upload_status": entry.get("upload_status"),
+                            "unavailable_reason": entry.get("unavailable_reason"),
+                        }
+                    )
+                terminal_entries.append(
+                    BatchEntry(
+                        video_id=video_id,
+                        status="failed",
+                        source=channel_url,
+                        has_captions=entry.get("has_captions") if isinstance(entry.get("has_captions"), bool) else None,
+                        duration=entry.get("duration") if isinstance(entry.get("duration"), int) else None,
+                        privacy_status=entry.get("privacy_status") if isinstance(entry.get("privacy_status"), str) else None,
+                        upload_status=entry.get("upload_status") if isinstance(entry.get("upload_status"), str) else None,
+                        is_live_content=entry.get("is_live_content") if isinstance(entry.get("is_live_content"), bool) else None,
+                        unavailable_reason=entry.get("unavailable_reason") if isinstance(entry.get("unavailable_reason"), str) else None,
+                        failure_reason=f"terminal:{reason or 'unavailable'}",
+                    )
+                )
                 continue
             pending_buffer.append((video_id, channel_url))
             pending_discovered_total += 1
@@ -1227,7 +1647,12 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
         if not dry_run and industrial_selected and len(pending_buffer) >= batch_size:
             while len(pending_buffer) >= batch_size:
                 batch_items = [pending_buffer.popleft() for _ in range(batch_size)]
-                _process_industrial_batch(batch_items)
+                industrial_batch_queue.append([vid for vid, _src in batch_items])
+                if industrial_parallel_enabled:
+                    _service_industrial_workers(wait_for_completion=False)
+
+        if transcript_fallback_queue:
+            _service_transcript_fallback_workers(wait_for_completion=False)
 
         if (
             channel_index == 1
@@ -1249,9 +1674,36 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
                     "channels_active_total": channel_count,
                     "pending_so_far": pending_discovered_total,
                     "cached_so_far": cached_count,
+                    "cached_hit_rate": round(cached_count / pending_discovered_total, 4) if pending_discovered_total else 0.0,
                     "elapsed_s": elapsed_s,
                 },
             )
+
+    if terminal_entries and not dry_run:
+        set_status_batch(terminal_entries)
+        print(f"[source] Marked {len(terminal_entries)} terminal videos as failed/skipped")
+        log_action(
+            "fetch_terminal_marked",
+            {
+                "count": len(terminal_entries),
+                "sample": terminal_sample,
+            },
+        )
+
+    log_action(
+        "fetch_triage_summary",
+        {
+            "source_filter": source_filter,
+            "channels_active_total": channel_count,
+            "pending_total": pending_discovered_total,
+            "cached_total": cached_count,
+            "cached_hit_rate": round(cached_count / pending_discovered_total, 4) if pending_discovered_total else 0.0,
+            "cached_sample": cached_sample,
+            "terminal_count": terminal_count,
+            "transcript_fallback_count": transcript_fallback_count,
+            "industrial_pending_count": len(pending_buffer),
+        },
+    )
 
     total_pending = pending_discovered_total
     log_action(
@@ -1263,13 +1715,26 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             "channels_active_total": channel_count,
             "pending_total": total_pending,
             "cached_total": cached_count,
+            "cached_hit_rate": round(cached_count / total_pending, 4) if total_pending else 0.0,
+            "cached_sample": cached_sample,
+            "terminal_count": terminal_count,
+            "transcript_fallback_count": transcript_fallback_count,
             "elapsed_s": round(time.monotonic() - scan_started_at, 3),
         },
     )
     print(
         f"[source] Preflight scan complete: {channel_count} active channels, "
-        f"{total_pending} pending, {cached_count} cached"
+        f"{total_pending} pending, {cached_count} cached, "
+        f"{terminal_count} terminal, {transcript_fallback_count} transcript-fallback"
     )
+    if cached_sample:
+        cached_ids = ", ".join(item["video_id"] for item in cached_sample)
+        print(f"[source] Cached sample: {cached_ids}")
+    if not dry_run and industrial_selected and pending_buffer:
+        industrial_batch_queue.append([vid for vid, _src in pending_buffer])
+        pending_buffer.clear()
+    if industrial_parallel_enabled:
+        _service_industrial_workers(wait_for_completion=False)
     print(f"[source] Escalation Batch Process")
     print(f"[source] Channels: {channel_count} active / {tracked_count} tracked")
     print(f"[source] Already cached: {cached_count}")
@@ -1292,36 +1757,15 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
                 "pending_total": total_pending,
                 "cached_total": cached_count,
                 "industrial_batches_processed": industrial_batches_processed,
+                "transcript_fallback_count": transcript_fallback_count,
+                "terminal_count": terminal_count,
+                "worker_cleanup_deleted": deleted,
+                "worker_cleanup_failed": failed,
                 "success_count": success_count,
                 "fail_count": fail_count,
                 "skip_count": skip_count,
                 "elapsed_s": round(time.monotonic() - fetch_started_at, 3),
                 "status": "dry_run",
-            },
-        )
-        return
-    if total_pending == 0:
-        print("[source] All transcripts already cached. Nothing to do.")
-        log_action(
-            "fetch_completed",
-            {
-                "source_filter": source_filter,
-                "strategy": strategy_name,
-                "backend": backend_name,
-                "backlog_threshold": backlog_threshold,
-                "batch_size": batch_size,
-                "workers": workers,
-                "channels_tracked_total": tracked_count,
-                "channels_blocked_total": blocked_count,
-                "channels_active_total": channel_count,
-                "pending_total": total_pending,
-                "cached_total": cached_count,
-                "industrial_batches_processed": industrial_batches_processed,
-                "success_count": success_count,
-                "fail_count": fail_count,
-                "skip_count": skip_count,
-                "elapsed_s": round(time.monotonic() - fetch_started_at, 3),
-                "status": "no_pending",
             },
         )
         return
@@ -1346,6 +1790,37 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             "use_industrial": use_industrial,
         },
     )
+    deleted = 0
+    failed = 0
+    if total_pending == 0:
+        print("[source] All transcripts already cached. Nothing to do.")
+        log_action(
+            "fetch_completed",
+            {
+                "source_filter": source_filter,
+                "strategy": strategy_name,
+                "backend": backend_name,
+                "backlog_threshold": backlog_threshold,
+                "batch_size": batch_size,
+                "workers": workers,
+                "channels_tracked_total": tracked_count,
+                "channels_blocked_total": blocked_count,
+                "channels_active_total": channel_count,
+                "pending_total": total_pending,
+                "cached_total": cached_count,
+                "industrial_batches_processed": industrial_batches_processed,
+                "transcript_fallback_count": transcript_fallback_count,
+                "terminal_count": terminal_count,
+                "worker_cleanup_deleted": deleted,
+                "worker_cleanup_failed": failed,
+                "success_count": success_count,
+                "fail_count": fail_count,
+                "skip_count": skip_count,
+                "elapsed_s": round(time.monotonic() - fetch_started_at, 3),
+                "status": "no_pending",
+            },
+        )
+        return
     print(
         f"[source] Strategy: {'Industrial (Batch NLM)' if use_industrial else 'Surgical (Chain)'}"
     )
@@ -1371,27 +1846,78 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             sys.exit(1)
         print("[source] NLM re-authenticated.", file=sys.stderr)
 
+    if workers > 1:
+        deleted, failed = cleanup_stale_worker_notebooks()
+        print(
+            f"[source] Pre-flight worker cleanup: {deleted} stale notebooks deleted, {failed} failed"
+        )
+        log_action(
+            "fetch_worker_prewarm_summary",
+            {
+                "workers_requested": workers,
+                "workers_active": workers,
+                "batches": 0,
+                "worker_slots": workers,
+                "prewarm_expected": workers,
+                "cleanup_deleted": deleted,
+                "cleanup_failed": failed,
+                "state_root": os.getenv(
+                    "YTIS_INDUSTRIAL_WORKER_STATE_ROOT",
+                    "P:/__csf/.data/yt-is/industrial-worker-states",
+                ),
+                "streaming": True,
+                "status": "planned",
+            },
+        )
+    else:
+        deleted = 0
+        failed = 0
+
+    def _industrial_parallel_enabled() -> bool:
+        disable_flag = os.getenv("YTIS_DISABLE_INDUSTRIAL_PARALLEL", "").strip().lower()
+        return workers > 1 and disable_flag not in {"1", "true", "yes", "on"}
+
+    def _split_batches_for_workers(batch_queue: list[list[str]], worker_count: int) -> list[list[list[str]]]:
+        if worker_count < 1:
+            raise ValueError("worker_count must be >= 1")
+        if not batch_queue:
+            return []
+        effective_worker_count = min(worker_count, len(batch_queue))
+        groups: list[list[list[str]]] = [[] for _ in range(effective_worker_count)]
+        for idx, batch in enumerate(batch_queue):
+            groups[idx % effective_worker_count].append(batch)
+        return groups
+
     if use_industrial:
         # --- INDUSTRIAL PATH: NotebookLM CLI batch content fetch ---
-        # Stream the backlog into batch-sized windows so the first scrape can
-        # begin before the entire channel inventory has been drained.
+        # Group the backlog into batches and run them through isolated workers.
         try:
-            while pending_buffer:
-                if not dry_run and len(pending_buffer) >= batch_size:
-                    batch_items = [pending_buffer.popleft() for _ in range(batch_size)]
-                    _process_industrial_batch(batch_items)
-                elif not dry_run and industrial_selected and pending_buffer:
-                    batch_items = list(pending_buffer)
-                    pending_buffer.clear()
-                    _process_industrial_batch(batch_items)
-                else:
-                    break
+            if transcript_fallback_queue:
+                _service_transcript_fallback_workers(wait_for_completion=False)
+            if dry_run:
+                pass
+            elif industrial_parallel_enabled:
+                while industrial_batch_queue or industrial_worker_futures or transcript_fallback_queue or transcript_fallback_worker_futures:
+                    _service_industrial_workers(wait_for_completion=True)
+                    _service_transcript_fallback_workers(wait_for_completion=True)
+            else:
+                while industrial_batch_queue:
+                    batch = industrial_batch_queue.pop(0)
+                    _process_industrial_batch([(vid, "") for vid in batch])
+                while transcript_fallback_queue or transcript_fallback_worker_futures:
+                    _service_transcript_fallback_workers(wait_for_completion=True)
         finally:
+            if industrial_worker_executor is not None:
+                industrial_worker_executor.shutdown(wait=True, cancel_futures=False)
+            if transcript_fallback_worker_executor is not None:
+                transcript_fallback_worker_executor.shutdown(wait=True, cancel_futures=False)
             close_reusable_ingestor()
 
     else:
         # --- SURGICAL PATH: Sequential Escalation Chain ---
         all_pending = list(pending_buffer)
+        all_pending.extend(transcript_fallback_queue)
+        transcript_fallback_queue.clear()
         def _process_video(video_id: str, source_url: str) -> tuple[str, bool, str, str]:
             """Process a single video using the escalation chain."""
             if has_cached_transcript(video_id):
@@ -1442,8 +1968,16 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     print(f"[source] Successfully extracted: {success_count}")
     print(f"[source] Failed: {fail_count}")
     print(f"[source] Skipped (cached): {skip_count}")
-    print(f"[source] Total processed: {total_pending}")
+    print(f"[source] Skipped (terminal): {terminal_count}")
+    print(f"[source] Routed to transcript fallback: {transcript_fallback_count}")
+    if workers > 1:
+        print(
+            f"[source] Worker notebook cleanup: {deleted} deleted, {failed} failed"
+        )
     elapsed_s = round(time.monotonic() - fetch_started_at, 3)
+    processed_count = success_count + fail_count + skip_count
+    print(f"[source] Total discovered: {total_pending}")
+    print(f"[source] Total processed outcomes: {processed_count}")
     log_action(
         "fetch_completed",
         {
@@ -1459,12 +1993,17 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             "pending_total": total_pending,
             "cached_total": cached_count,
             "industrial_batches_processed": industrial_batches_processed,
+            "transcript_fallback_count": transcript_fallback_count,
+            "terminal_count": terminal_count,
+            "worker_cleanup_deleted": deleted,
+            "worker_cleanup_failed": failed,
             "success_count": success_count,
             "fail_count": fail_count,
             "skip_count": skip_count,
+            "processed_count": processed_count,
             "elapsed_s": elapsed_s,
             "success_per_min": round(success_count / elapsed_s * 60, 2) if elapsed_s > 0 else None,
-            "processed_per_min": round(total_pending / elapsed_s * 60, 2) if elapsed_s > 0 else None,
+            "processed_per_min": round(processed_count / elapsed_s * 60, 2) if elapsed_s > 0 else None,
             "status": "completed",
         },
     )

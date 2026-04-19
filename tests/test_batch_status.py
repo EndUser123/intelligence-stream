@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
 
 from csf.batch_status import (
     get_analysis_status,
+    get_entries_for_source_details,
     is_complete,
     mark_complete,
     mark_failed,
@@ -199,3 +200,52 @@ class TestGetStatusBatch:
         result = get_status_batch(["vid1", "nonexistent"], db_path=_TEST_DB_PATH)
         assert "vid1" in result
         assert result["nonexistent"] is None
+
+
+class TestGetEntriesForSourceDetails:
+    """Test richer per-source metadata fetch used for fetch triage."""
+
+    def setup_method(self):
+        reset_all(_TEST_DB_PATH)
+
+    def test_get_entries_for_source_details_returns_metadata(self):
+        entries: list[BatchEntry] = [
+            BatchEntry(
+                video_id="vid_terminal",
+                status="pending",
+                source="https://youtube.com/channel/UC1",
+                published_at="2026-01-01T00:00:00Z",
+                has_captions=False,
+                duration=42,
+                privacy_status="private",
+                upload_status="deleted",
+                is_live_content=False,
+                unavailable_reason="deleted",
+            ),
+            BatchEntry(
+                video_id="vid_audio",
+                status="pending",
+                source="https://youtube.com/channel/UC1",
+                published_at="2026-01-02T00:00:00Z",
+                has_captions=False,
+                duration=133,
+                privacy_status="public",
+                upload_status="processed",
+                is_live_content=False,
+                unavailable_reason=None,
+            ),
+        ]
+        set_status_batch(entries, db_path=_TEST_DB_PATH)
+
+        details = get_entries_for_source_details(
+            "https://youtube.com/channel/UC1",
+            db_path=_TEST_DB_PATH,
+        )
+
+        assert len(details) == 2
+        assert details[0]["video_id"] == "vid_terminal"
+        assert details[0]["privacy_status"] == "private"
+        assert details[0]["unavailable_reason"] == "deleted"
+        assert details[1]["video_id"] == "vid_audio"
+        assert details[1]["duration"] == 133
+        assert details[1]["upload_status"] == "processed"

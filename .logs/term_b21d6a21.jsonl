@@ -1,0 +1,359 @@
+{"timestamp": "2026-04-19T03:57:41.204500+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_reusable_state_loaded", "data": {"nb_id": null, "state_path": "P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-04.json", "status": "empty"}}
+{"timestamp": "2026-04-19T03:57:41.204951+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_reusable_process_started", "data": {"batch_size": 300, "nb_id": null, "notebook_reused": false, "subbatch_size": 300, "strategy": "reusable"}}
+{"timestamp": "2026-04-19T03:57:41.205280+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_notebook_create_started", "data": {"batch_size": 300, "nb_name": "yt-is::industrial::worker::worker-04"}}
+{"timestamp": "2026-04-19T03:57:42.668217+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T03:57:45.476321+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_notebook_create_succeeded", "data": {"batch_size": 300, "nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "nb_name": "yt-is::industrial::worker::worker-04"}}
+{"timestamp": "2026-04-19T03:57:45.476651+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_subbatch_add_started", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 1, "subbatch_size": 50, "expected_total": 50}}
+{"timestamp": "2026-04-19T03:57:46.934543+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T03:58:36.223553+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_subbatch_add_completed", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 1, "subbatch_size": 50, "expected_total": 50, "returncode": 0, "stdout": "Adding 50 URLs and waiting for processing...\n\u2713 Added source: 7 Skills I Had to Learn to Make $100k/yr (as a technical \nfounder) (ready)\n  Source ID: 8eed2959-5c54-49d9-8e41-2726ffb2c8a2\n\u2713 Added source", "stderr": ""}}
+{"timestamp": "2026-04-19T03:58:36.223971+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_source_materialization_wait_started", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 1, "expected_total": 50}}
+{"timestamp": "2026-04-19T03:58:39.960356+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T03:58:41.918177+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_source_materialization_wait_succeeded", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 1, "expected_total": 50}}
+{"timestamp": "2026-04-19T03:58:41.918617+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_subbatch_add_started", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 2, "subbatch_size": 50, "expected_total": 100}}
+{"timestamp": "2026-04-19T03:58:44.307711+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T03:59:41.744448+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_subbatch_add_completed", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 2, "subbatch_size": 50, "expected_total": 100, "returncode": 0, "stdout": "Adding 50 URLs and waiting for processing...\n\u2713 Added source: Yolo V5 Snowboarding LIVE (ready)\n  Source ID: f058dc21-60f4-4a5a-a56c-9e2d44dfcf56\n\u2713 Added source: Build a PC with an Nvidia RTX 3080 LIVE", "stderr": ""}}
+{"timestamp": "2026-04-19T03:59:41.744813+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_source_materialization_wait_started", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 2, "expected_total": 100}}
+{"timestamp": "2026-04-19T03:59:44.733978+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T03:59:46.893182+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_source_materialization_wait_succeeded", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 2, "expected_total": 100}}
+{"timestamp": "2026-04-19T03:59:46.893692+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_subbatch_add_started", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 3, "subbatch_size": 50, "expected_total": 150}}
+{"timestamp": "2026-04-19T03:59:50.656311+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:00:41.852152+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_subbatch_add_completed", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 3, "subbatch_size": 50, "expected_total": 150, "returncode": 0, "stdout": "Adding 50 URLs and waiting for processing...\n\u2713 Added source: Make Money with Machine Learning (ready)\n  Source ID: 896160b7-531a-42b9-b405-2b16f72a2846\n\u2713 Added source: 10 Speed Learning Techniques (re", "stderr": ""}}
+{"timestamp": "2026-04-19T04:00:41.852553+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_source_materialization_wait_started", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 3, "expected_total": 150}}
+{"timestamp": "2026-04-19T04:00:43.352934+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:00:44.453850+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_source_materialization_wait_succeeded", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 3, "expected_total": 150}}
+{"timestamp": "2026-04-19T04:00:44.454202+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_subbatch_add_started", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 4, "subbatch_size": 50, "expected_total": 200}}
+{"timestamp": "2026-04-19T04:00:46.213638+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:01:35.805692+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_subbatch_add_completed", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 4, "subbatch_size": 50, "expected_total": 200, "returncode": 0, "stdout": "Adding 50 URLs and waiting for processing...\n\u2713 Added source: The Problem with Blockchain (ready)\n  Source ID: c5ad5a5a-38bf-4880-8efb-e0377d451d2c\n\u2713 Added source: Geometric Deep Learning (ready)\n  Sou", "stderr": ""}}
+{"timestamp": "2026-04-19T04:01:35.806009+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_source_materialization_wait_started", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 4, "expected_total": 200}}
+{"timestamp": "2026-04-19T04:01:37.680392+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:01:38.604264+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_source_materialization_wait_succeeded", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 4, "expected_total": 200}}
+{"timestamp": "2026-04-19T04:01:38.604643+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_subbatch_add_started", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 5, "subbatch_size": 50, "expected_total": 250}}
+{"timestamp": "2026-04-19T04:01:40.120062+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:02:31.637725+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_subbatch_add_completed", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 5, "subbatch_size": 50, "expected_total": 250, "returncode": 0, "stdout": "Adding 50 URLs and waiting for processing...\n\u2713 Added source: Move 37 Teaser Trailer (ready)\n  Source ID: 3c091a07-4780-4bc0-8c52-5affbd64d3f6\n\u2713 Added source: School of AI Cities (ready)\n  Source ID: 4", "stderr": ""}}
+{"timestamp": "2026-04-19T04:02:31.638064+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_source_materialization_wait_started", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 5, "expected_total": 250}}
+{"timestamp": "2026-04-19T04:02:33.215429+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:02:34.191164+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_source_materialization_wait_succeeded", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 5, "expected_total": 250}}
+{"timestamp": "2026-04-19T04:02:34.191537+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_subbatch_add_started", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 6, "subbatch_size": 50, "expected_total": 300}}
+{"timestamp": "2026-04-19T04:02:35.799354+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:32.935556+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_subbatch_add_completed", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 6, "subbatch_size": 50, "expected_total": 300, "returncode": 0, "stdout": "Adding 50 URLs and waiting for processing...\n\u2713 Added source: Fraud Prevention | AI in Finance (ready)\n  Source ID: 695bf29f-d59d-44a4-8f14-6bb7517341ba\n\u2713 Added source: Stock Price Prediction | AI in F", "stderr": ""}}
+{"timestamp": "2026-04-19T04:03:32.936036+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_source_materialization_wait_started", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 6, "expected_total": 300}}
+{"timestamp": "2026-04-19T04:03:36.662279+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:38.686185+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_source_materialization_wait_succeeded", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "subbatch_index": 6, "expected_total": 300}}
+{"timestamp": "2026-04-19T04:03:38.687029+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_reusable_state_saved", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "state_path": "P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-04.json"}}
+{"timestamp": "2026-04-19T04:03:41.100689+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:43.717852+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_extract_started", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "batch_size": 300, "sources_visible": 300}}
+{"timestamp": "2026-04-19T04:03:47.213127+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:47.293450+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:47.657130+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:47.751504+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:47.812862+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:48.025800+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:49.255578+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:49.281400+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:49.558088+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:50.547212+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:53.608426+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:53.994702+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:54.124809+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:54.486582+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:54.499241+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:55.849335+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:56.171069+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:56.619382+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:56.776142+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:57.041045+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:58.646249+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:03:59.752635+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:00.329405+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:00.421910+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:01.336805+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:02.581534+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:03.069716+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:03.913436+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:04.524993+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:06.315994+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:08.999897+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:09.200257+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:09.528682+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:09.846812+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:10.068371+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:11.228818+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:11.274638+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:11.469778+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:11.869071+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:14.931604+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:16.631234+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:16.679160+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:16.894086+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:17.461012+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:17.944839+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:18.552373+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:19.052540+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:19.248268+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:19.516458+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:23.681822+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:23.906891+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:24.639297+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:25.113014+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:26.082499+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:26.175981+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:27.264976+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:27.484788+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:27.585900+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:27.609338+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:30.466164+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:31.665317+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:31.716837+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:32.149578+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:32.436116+00:00", "trace_id": "term_b21d6a21", "action": "nlm_login_started", "data": {"component": "nlm_batch", "mode": "force", "status": "started"}}
+{"timestamp": "2026-04-19T04:04:32.701726+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:33.454632+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:33.850745+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:33.907812+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:34.377915+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:36.848903+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:38.118256+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:38.446190+00:00", "trace_id": "term_b21d6a21", "action": "nlm_login_started", "data": {"component": "nlm_batch", "mode": "force", "status": "started"}}
+{"timestamp": "2026-04-19T04:04:38.549107+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:39.076583+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:40.198431+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:41.226601+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:41.237891+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:41.973599+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:43.230159+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:44.193704+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:45.849442+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:46.030222+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:46.972619+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:48.410997+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:49.024449+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:49.561241+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:50.729397+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:52.436319+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:52.533161+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:53.331487+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:55.551079+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:55.789723+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:55.994098+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:58.414228+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:58.791219+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:04:59.840383+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:01.668476+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:01.999612+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:02.348158+00:00", "trace_id": "term_b21d6a21", "action": "nlm_login_completed", "data": {"component": "nlm_batch", "mode": "force", "status": "ok", "elapsed_s": 29.912}}
+{"timestamp": "2026-04-19T04:05:02.348547+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_refreshed", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:02.581802+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:04.268712+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:04.641510+00:00", "trace_id": "term_b21d6a21", "action": "nlm_login_started", "data": {"component": "nlm_batch", "mode": "force", "status": "started"}}
+{"timestamp": "2026-04-19T04:05:05.505950+00:00", "trace_id": "term_b21d6a21", "action": "nlm_login_completed", "data": {"component": "nlm_batch", "mode": "force", "status": "ok", "elapsed_s": 27.06}}
+{"timestamp": "2026-04-19T04:05:05.506500+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_refreshed", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:05.724497+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:05.735280+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:06.289787+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:07.293509+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:08.655624+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:09.768190+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:10.464189+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:10.861792+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:11.946427+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:12.552112+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:12.720499+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:14.833273+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:14.961164+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:16.761296+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:17.433187+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:18.843780+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:19.064463+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:19.426024+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:19.668649+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:19.800780+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:20.249498+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:22.701287+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:24.382621+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:24.427865+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:26.255361+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:26.349394+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:28.183317+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:28.262150+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:29.143039+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:29.705087+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:30.632038+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:30.823368+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:31.437320+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:32.137038+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:32.934486+00:00", "trace_id": "term_b21d6a21", "action": "nlm_login_completed", "data": {"component": "nlm_batch", "mode": "force", "status": "ok", "elapsed_s": 28.293}}
+{"timestamp": "2026-04-19T04:05:32.934857+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_refreshed", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:34.819812+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:34.861991+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:35.158039+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:36.047155+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:36.654016+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:37.128618+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:37.522162+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:37.536468+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:37.563199+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:38.503220+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:40.041741+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:41.424049+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:41.955804+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:42.315131+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:43.334649+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:43.388503+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:44.473481+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:44.807489+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:45.581124+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:46.707908+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:47.575244+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:47.576477+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:47.959355+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:49.811282+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:50.306388+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:50.835503+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:50.953722+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:51.333935+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:51.449230+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:52.749532+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:52.995017+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:53.649848+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:53.758645+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:54.925401+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:55.230855+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:56.187579+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:56.211239+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:57.384428+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:57.528021+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:59.503707+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:05:59.578168+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:00.747670+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:01.189757+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:01.403940+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:01.502351+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:02.188573+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:02.795108+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:04.072623+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:04.917230+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:05.230699+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:06.853824+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:07.247806+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:07.306295+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:07.607359+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:07.785930+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:08.389508+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:08.896775+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:09.139489+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:11.828491+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:12.004464+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:12.728859+00:00", "trace_id": "term_b21d6a21", "action": "nlm_login_started", "data": {"component": "nlm_batch", "mode": "force", "status": "started"}}
+{"timestamp": "2026-04-19T04:06:12.739611+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:13.511980+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:13.567269+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:13.964711+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:13.964805+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:14.172343+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:15.757967+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:18.261633+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:18.861079+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:19.472571+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:19.511798+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:20.768586+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:21.166966+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:21.218274+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:21.582863+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:22.334564+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:22.857259+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:23.037287+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:23.045837+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:23.962837+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:25.719280+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:26.858200+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:27.449796+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:27.641086+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:27.832825+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:27.851563+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:28.934496+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:29.358414+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:29.368815+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:29.713192+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:32.006605+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:32.363294+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:32.745733+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:32.773072+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:32.960946+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:34.225807+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:34.729262+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:35.409863+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:36.120571+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:37.039826+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:37.532069+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:37.612731+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:37.916487+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:38.845281+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:39.150660+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:39.449945+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:39.969068+00:00", "trace_id": "term_b21d6a21", "action": "nlm_login_completed", "data": {"component": "nlm_batch", "mode": "force", "status": "ok", "elapsed_s": 27.24}}
+{"timestamp": "2026-04-19T04:06:39.969491+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_refreshed", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:40.018844+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:40.036259+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:41.168664+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:41.420576+00:00", "trace_id": "term_b21d6a21", "action": "nlm_login_started", "data": {"component": "nlm_batch", "mode": "force", "status": "started"}}
+{"timestamp": "2026-04-19T04:06:41.801538+00:00", "trace_id": "term_b21d6a21", "action": "nlm_login_started", "data": {"component": "nlm_batch", "mode": "force", "status": "started"}}
+{"timestamp": "2026-04-19T04:06:43.833325+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:44.912984+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:46.306413+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:47.015783+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:47.653559+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:47.955080+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:48.088508+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:48.350630+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:48.368831+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:48.676334+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:49.956425+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:52.892834+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:52.896814+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:52.985095+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:53.256423+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:53.373143+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:53.687508+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:54.395952+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:54.688614+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:55.948725+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:56.931317+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:57.217539+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:57.275196+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:57.379330+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:58.098359+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:58.126942+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:58.515750+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:58.624665+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:59.706225+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:06:59.924445+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:00.427955+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:00.961558+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:00.966640+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:01.112130+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:01.518281+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:01.706340+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:02.804587+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:02.935761+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:03.395412+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:03.906901+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:04.212660+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:04.231641+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:04.481144+00:00", "trace_id": "term_b21d6a21", "action": "nlm_login_started", "data": {"component": "nlm_batch", "mode": "force", "status": "started"}}
+{"timestamp": "2026-04-19T04:07:04.487654+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:04.524085+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:05.195356+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:05.254957+00:00", "trace_id": "term_b21d6a21", "action": "nlm_login_failed", "data": {"component": "nlm_batch", "mode": "force", "status": "failed", "elapsed_s": 23.835, "returncode": 1}}
+{"timestamp": "2026-04-19T04:07:05.255542+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_failed", "data": {"component": "nlm_batch", "status": "refresh_failed"}}
+{"timestamp": "2026-04-19T04:07:06.265881+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:06.582166+00:00", "trace_id": "term_b21d6a21", "action": "nlm_login_failed", "data": {"component": "nlm_batch", "mode": "force", "status": "failed", "elapsed_s": 24.781, "returncode": 1}}
+{"timestamp": "2026-04-19T04:07:06.582565+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_failed", "data": {"component": "nlm_batch", "status": "refresh_failed"}}
+{"timestamp": "2026-04-19T04:07:06.754630+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:07.045729+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:07.256991+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:07.817605+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:07.925810+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:07.999780+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:27.245105+00:00", "trace_id": "term_b21d6a21", "action": "nlm_login_completed", "data": {"component": "nlm_batch", "mode": "force", "status": "ok", "elapsed_s": 22.764}}
+{"timestamp": "2026-04-19T04:07:27.245517+00:00", "trace_id": "term_b21d6a21", "action": "nlm_auth_refreshed", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:28.008869+00:00", "trace_id": "term_b21d6a21", "action": "nlm_batch_extract_completed", "data": {"nb_id": "004de31f-ad0c-4879-81f0-b6c5166790b7", "batch_size": 300, "succeeded": 254, "failed": 46, "elapsed_s": 229.321}}

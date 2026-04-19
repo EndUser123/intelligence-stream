@@ -27,6 +27,7 @@ class ChannelStats(NamedTuple):
     languages: str
     storage_size_mb: float
     category: str | None = None
+    subcategory: str | None = None
 
     def format_timestamp(self, ts: str | None) -> str:
         """Format timestamp for display in Calgary (MDT/MST) time."""
@@ -150,12 +151,15 @@ def format_channel_list(channels: list[ChannelStats]) -> str:
         max(len(str(ch.downloaded)) for ch in channels),
     )
 
-    current_category: str | None = None
+    current_cat_sub: tuple[str | None, str | None] = (None, None)
     for ch, display_url in zip(channels, normalized_urls):
         # Print category header when group changes
-        if ch.category != current_category:
-            current_category = ch.category
-            cat_label = current_category if current_category else "Unknown"
+        if (ch.category, ch.subcategory) != current_cat_sub:
+            current_cat_sub = (ch.category, ch.subcategory)
+            if ch.subcategory:
+                cat_label = f"{ch.category} > {ch.subcategory}"
+            else:
+                cat_label = ch.category if ch.category else "Unknown"
             lines.append("")
             lines.append(f"### {cat_label}")
             lines.append("")

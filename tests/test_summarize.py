@@ -8,7 +8,7 @@ from unittest import mock
 
 
 # Ensure the package is importable
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\packages\yt-is").absolute()))
 
 from csf.summarize import summarize
 from csf.providers import VideoAnalysisResult
@@ -53,9 +53,8 @@ class TestSummarize:
 
         def capture_run(cmd, **kwargs):
             nonlocal captured_prompt
-            # Capture the prompt from the call
-            prompt_idx = cmd.index("-p") + 1
-            captured_prompt = cmd[prompt_idx]
+            # Capture the prompt from the input kwarg (stdin)
+            captured_prompt = kwargs.get("input")
             mock_result = mock.Mock()
             mock_result.returncode = 0
             mock_result.stdout = json.dumps(
@@ -76,6 +75,7 @@ class TestSummarize:
             summarize(transcript=long_transcript, code_snippets=[], visual_tags=[])
 
         # The prompt should contain truncated transcript (near end)
+        assert captured_prompt is not None
         assert len(captured_prompt) < len(long_transcript)
         assert " [truncated]..." in captured_prompt
 
@@ -113,11 +113,11 @@ class TestSummarize:
 
     def test_prompt_has_separate_sections(self):
         """Captured prompt contains ## TRANSCRIPT, ## CODE SNIPPETS, and ## VISUAL TAGS."""
-        captured_cmd = None
+        captured_prompt = None
 
         def capture_run(cmd, **kwargs):
-            nonlocal captured_cmd
-            captured_cmd = cmd
+            nonlocal captured_prompt
+            captured_prompt = kwargs.get("input")
             mock_result = mock.Mock()
             mock_result.returncode = 0
             mock_result.stdout = json.dumps(
@@ -141,10 +141,10 @@ class TestSummarize:
                 visual_tags=["tag1"],
             )
 
-        prompt = captured_cmd[captured_cmd.index("-p") + 1]
-        assert "## TRANSCRIPT" in prompt
-        assert "## CODE SNIPPETS" in prompt
-        assert "## VISUAL TAGS" in prompt
+        assert captured_prompt is not None
+        assert "## TRANSCRIPT" in captured_prompt
+        assert "## CODE SNIPPETS" in captured_prompt
+        assert "## VISUAL TAGS" in captured_prompt
 
     def test_gemini_cli_not_found(self):
         """shutil.which returns None returns partial result."""

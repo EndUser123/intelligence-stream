@@ -1,0 +1,7 @@
+{"timestamp": "2026-04-19T04:07:39.824325+00:00", "trace_id": "term_cfa6d285", "action": "nlm_batch_reusable_state_loaded", "data": {"nb_id": null, "state_path": "P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-10.json", "status": "empty"}}
+{"timestamp": "2026-04-19T04:07:39.825157+00:00", "trace_id": "term_cfa6d285", "action": "nlm_batch_reusable_process_started", "data": {"batch_size": 300, "nb_id": null, "notebook_reused": false, "subbatch_size": 300, "strategy": "reusable"}}
+{"timestamp": "2026-04-19T04:07:39.825758+00:00", "trace_id": "term_cfa6d285", "action": "nlm_batch_notebook_create_started", "data": {"batch_size": 300, "nb_name": "yt-is::industrial::worker::worker-10"}}
+{"timestamp": "2026-04-19T04:07:41.517443+00:00", "trace_id": "term_cfa6d285", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-19T04:07:45.150201+00:00", "trace_id": "term_cfa6d285", "action": "nlm_batch_notebook_create_succeeded", "data": {"batch_size": 300, "nb_id": "6c424af5-b485-4b76-9c86-a08a4a150953", "nb_name": "yt-is::industrial::worker::worker-10"}}
+{"timestamp": "2026-04-19T04:07:45.150601+00:00", "trace_id": "term_cfa6d285", "action": "nlm_batch_subbatch_add_started", "data": {"nb_id": "6c424af5-b485-4b76-9c86-a08a4a150953", "subbatch_index": 1, "subbatch_size": 50, "expected_total": 50, "retry_depth": 0}}
+{"timestamp": "2026-04-19T04:07:46.883167+00:00", "trace_id": "term_cfa6d285", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}

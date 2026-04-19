@@ -1,5 +1,6 @@
 """Tests for nlm_batch rate-limit tracker and sub-batch reset logic."""
 
+import json
 import pytest
 from unittest import mock
 from csf import nlm_batch
@@ -119,6 +120,22 @@ class TestAuthAutoLogin:
 class TestReusableBatchLogging:
     """Reusable batch runs should emit lifecycle and summary logs."""
 
+    def test_retire_reusable_notebook_state_deletes_and_clears(self):
+        """Retiring reusable state should delete the recorded notebook and clear state."""
+        with mock.patch("csf.nlm_batch._load_reusable_notebook_id", return_value="nb-stale"):
+            with mock.patch("csf.nlm_batch._clear_reusable_notebook_state") as mock_clear:
+                with mock.patch.object(
+                    nlm_batch.NLMBatchIngestor,
+                    "_run_cmd",
+                    return_value=mock.Mock(returncode=0, stdout="", stderr=""),
+                ) as mock_run:
+                    info = nlm_batch.retire_reusable_notebook_state()
+
+        assert info["nb_id"] == "nb-stale"
+        assert info["status"] == "deleted"
+        mock_run.assert_called_once()
+        mock_clear.assert_called_once()
+
     def test_reusable_batch_logs_summary_for_fresh_notebook(self):
         """A fresh reusable batch should log create/setup/extract/cleanup timings."""
         batch_ids = ["vid1", "vid2"]
@@ -190,6 +207,46 @@ class TestReusableBatchLogging:
         assert completed["succeeded"] == 1
         assert completed["failed"] == 0
 
+    def test_experiment_add_acceptance_logs_sweep_results(self):
+        """The add-acceptance sweep should log a per-size result and cleanup."""
+        batch_ids = [f"vid{i:02d}" for i in range(20)]
+        sizes = [50, 25, 10]
+
+        with mock.patch("csf.nlm_batch._load_reusable_notebook_id", return_value=None):
+            with mock.patch("csf.nlm_batch._save_reusable_notebook_id"):
+                with mock.patch("csf.nlm_batch._clear_reusable_notebook_state"):
+                    ingestor = nlm_batch.NLMReusableIngestor(batch_size=4)
+                    call_sizes: list[int] = []
+
+                    def fake_run_cmd(cmd, timeout=60):
+                        if cmd[:2] == ["notebook", "create"]:
+                            return mock.MagicMock(returncode=0, stdout="ID: nb-sweep", stderr="")
+                        if cmd[:2] == ["notebook", "delete"]:
+                            return mock.MagicMock(returncode=0, stdout="", stderr="")
+                        raise AssertionError(f"unexpected command: {cmd}")
+
+                    def fake_add(batch_ids, *, subbatch_size=50):
+                        call_sizes.append(subbatch_size)
+                        return batch_ids[: min(len(batch_ids), subbatch_size)]
+
+                    with mock.patch.object(ingestor._ingestor, "_run_cmd", side_effect=fake_run_cmd):
+                        with mock.patch.object(ingestor._ingestor, "reset_sources") as mock_reset:
+                            with mock.patch.object(ingestor._ingestor, "close") as mock_close:
+                                with mock.patch.object(ingestor._ingestor, "_add_sources_in_subbatches", side_effect=fake_add):
+                                    with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                        results = ingestor._ingestor.experiment_add_acceptance(batch_ids, sizes, notebook_title="yt-is::dev::sweep")
+
+        assert call_sizes == sizes
+        assert [result["subbatch_size"] for result in results] == sizes
+        assert results[0]["added_count"] == 20
+        assert results[1]["added_count"] == 20
+        assert results[2]["added_count"] == 10
+        assert any(call.args[0] == "nlm_batch_size_sweep_started" for call in mock_log.call_args_list)
+        assert any(call.args[0] == "nlm_batch_size_sweep_result" for call in mock_log.call_args_list)
+        assert any(call.args[0] == "nlm_batch_size_sweep_completed" for call in mock_log.call_args_list)
+        mock_reset.assert_called()
+        mock_close.assert_called()
+
     def test_ensure_nlm_auth_returns_true_when_check_passes(self):
         """When --check succeeds, _ensure_nlm_auth returns True without calling --force."""
         import subprocess
@@ -223,6 +280,47 @@ class TestReusableBatchLogging:
             assert result is False
         finally:
             subprocess.run = original_run
+
+
+class TestReusableNotebookEnvironmentOverrides:
+    """Worker-specific env vars should isolate reusable notebook state."""
+
+    def test_state_path_override_is_used(self, monkeypatch):
+        """YTIS_NLM_REUSABLE_STATE_PATH should override the default state file."""
+        monkeypatch.setenv(
+            "YTIS_NLM_REUSABLE_STATE_PATH",
+            "P:/__csf/.data/yt-is/dev-workers/worker-01.json",
+        )
+        assert nlm_batch._get_reusable_notebook_state_path() == nlm_batch.Path(
+            "P:/__csf/.data/yt-is/dev-workers/worker-01.json"
+        )
+
+    def test_title_override_is_used(self, monkeypatch):
+        """YTIS_NLM_REUSABLE_NOTEBOOK_TITLE should override the notebook title."""
+        monkeypatch.setenv("YTIS_NLM_REUSABLE_NOTEBOOK_TITLE", "yt-is::dev::worker-01")
+        assert nlm_batch._get_reusable_notebook_title() == "yt-is::dev::worker-01"
+
+    def test_notebooklm_profile_override_is_used(self, monkeypatch):
+        """NOTEBOOKLM_PROFILE should override the default NotebookLM profile."""
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-worker-01")
+        assert nlm_batch._get_notebooklm_profile() == "ytis-worker-01"
+
+    def test_create_batch_notebook_uses_override_title(self, monkeypatch):
+        """create_batch_notebook should honor the worker-specific notebook title."""
+        monkeypatch.setenv("YTIS_NLM_REUSABLE_NOTEBOOK_TITLE", "yt-is::dev::worker-01")
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
+        completed = type(
+            "CompletedProcess",
+            (),
+            {"stdout": "Created notebook\nID: nb-123\n", "stderr": "", "returncode": 0},
+        )()
+        with mock.patch.object(ingestor, "_run_cmd", return_value=completed) as mock_run_cmd:
+            with mock.patch.object(ingestor, "_add_sources_in_subbatches") as mock_add:
+                result = ingestor.create_batch_notebook(["vid1", "vid2"])
+        assert result == "nb-123"
+        mock_run_cmd.assert_called_once()
+        assert mock_run_cmd.call_args.args[0] == ["notebook", "create", "yt-is::dev::worker-01"]
+        mock_add.assert_called_once_with(["vid1", "vid2"])
 
     def test_ensure_nlm_auth_logs_success(self):
         """A successful auth check should emit an auth-ok marker."""
@@ -267,6 +365,140 @@ class TestReusableBatchLogging:
             ]
         finally:
             subprocess.run = original_run
+
+
+class TestWorkerNotebookCleanup:
+    """Stale worker notebooks should be retired without touching active ones."""
+
+    def test_cleanup_deletes_stale_worker_notebooks(self, tmp_path, monkeypatch):
+        """Only notebooks missing from state files should be deleted."""
+        state_root = tmp_path / "worker-states"
+        state_root.mkdir()
+        (state_root / "worker-01.json").write_text(json.dumps({"nb_id": "keep-1"}), encoding="utf-8")
+        (state_root / "worker-02.json").write_text(json.dumps({"nb_id": "keep-2"}), encoding="utf-8")
+        monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_STATE_ROOT", str(state_root))
+        monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX", "yt-is::industrial::worker")
+
+        notebooks = {
+            "notebooks": [
+                {"id": "keep-1", "name": "yt-is::industrial::worker::worker-01"},
+                {"id": "stale-1", "name": "yt-is::industrial::worker::worker-03"},
+                {"id": "ignore-1", "name": "something-else"},
+            ]
+        }
+        calls: list[list[str]] = []
+
+        def mock_run_cmd(self, args, timeout=300):
+            calls.append(args)
+            if args[:3] == ["notebook", "list", "--json"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"stdout": json.dumps(notebooks), "stderr": "", "returncode": 0},
+                )()
+            if args[:3] == ["notebook", "delete", "stale-1"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"stdout": "", "stderr": "", "returncode": 0},
+                )()
+            return type(
+                "CompletedProcess",
+                (),
+                {"stdout": "", "stderr": "unexpected", "returncode": 1},
+            )()
+
+        monkeypatch.setattr(nlm_batch.NLMBatchIngestor, "_run_cmd", mock_run_cmd)
+        with mock.patch("csf.nlm_batch.log_action") as mock_log:
+            deleted, failed = nlm_batch.cleanup_stale_worker_notebooks()
+
+        assert deleted == 1
+        assert failed == 0
+        assert ["notebook", "delete", "stale-1", "--confirm"] in calls
+        cleanup_complete = next(
+            call.args[1]
+            for call in mock_log.call_args_list
+            if call.args[0] == "nlm_worker_notebook_cleanup_complete"
+        )
+        assert cleanup_complete["status"] == "ok"
+        assert cleanup_complete["deleted"] == 1
+
+
+class TestReusableNotebookPrewarm:
+    """Reusable notebooks should be warmed and cleared before worker batches."""
+
+    def test_prepare_creates_and_clears_notebook(self, monkeypatch):
+        ingestor = nlm_batch.NLMReusableIngestor(batch_size=3)
+        cleanup_calls: list[str] = []
+        saved_ids: list[str] = []
+
+        def mock_ensure_notebook(batch_ids):
+            ingestor._nb_id = "nb-prewarm-1"
+            return True, "create"
+
+        monkeypatch.setattr(ingestor, "_ensure_notebook", mock_ensure_notebook)
+        monkeypatch.setattr(ingestor._ingestor, "cleanup", lambda: cleanup_calls.append("cleanup"))
+        monkeypatch.setattr(nlm_batch, "_save_reusable_notebook_id", lambda nb_id: saved_ids.append(nb_id))
+
+        with mock.patch("csf.nlm_batch.log_action") as mock_log:
+            prepared, setup_mode = ingestor.prepare()
+
+        assert prepared is True
+        assert setup_mode == "create"
+        assert cleanup_calls == ["cleanup"]
+        assert saved_ids == ["nb-prewarm-1"]
+        assert any(call.args[0] == "nlm_batch_reusable_prep_started" for call in mock_log.call_args_list)
+        assert any(call.args[0] == "nlm_batch_reusable_prep_completed" for call in mock_log.call_args_list)
+
+
+class TestSubBatchFailureMode:
+    """NotebookLM add failures should not recursively shrink to 1-2 items."""
+
+    def test_add_failure_does_not_split_recursively(self):
+        """A failed add should log and return empty without retry splitting."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=3)
+        ingestor._nb_id = "nb-123"
+        response = type(
+            "CompletedProcess",
+            (),
+            {"stdout": "", "stderr": "Could not add URL sources", "returncode": 1},
+        )()
+
+        with mock.patch.object(ingestor, "_run_cmd", return_value=response) as mock_run_cmd:
+            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                result = ingestor._add_sources_chunk(
+                    ["vid1", "vid2", "vid3"],
+                    subbatch_index=1,
+                    expected_total=3,
+                )
+
+        assert result == []
+        mock_run_cmd.assert_called_once()
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_batch_subbatch_add_failed" in log_names
+
+    def test_subbatch_failure_keeps_configured_batch_size(self):
+        """A failed sub-batch should not shrink the next window."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=3)
+        ingestor._nb_id = "nb-123"
+
+        with mock.patch.object(
+            ingestor,
+            "_add_sources_chunk",
+            side_effect=[[], [], []],
+        ) as mock_add:
+            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                result = ingestor._add_sources_in_subbatches(
+                    ["vid1", "vid2", "vid3", "vid4", "vid5", "vid6", "vid7", "vid8"],
+                    subbatch_size=3,
+                )
+
+        assert result == []
+        call_sizes = [len(call.args[0]) for call in mock_add.call_args_list]
+        assert call_sizes == [3, 3, 2]
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_batch_subbatch_add_shortfall" in log_names
+        assert "nlm_batch_subbatch_size_adjusted" not in log_names
 
 
 class TestBackoffCalculation:

@@ -194,6 +194,7 @@ def _run_with_timeout(
     timeout_s: float,
     *,
     env: dict[str, str] | None = None,
+    stdin_data: str | None = None,
 ) -> subprocess.CompletedProcess:
     """Run a subprocess with a hard timeout using the OS `timeout` command.
 
@@ -212,6 +213,7 @@ def _run_with_timeout(
 
     proc = subprocess.Popen(
         run_cmd,
+        stdin=subprocess.PIPE if stdin_data else None,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -219,7 +221,7 @@ def _run_with_timeout(
     )
     timed_out = False
     try:
-        stdout, stderr = proc.communicate(timeout=timeout_s + 5)
+        stdout, stderr = proc.communicate(input=stdin_data, timeout=timeout_s + 5)
     except subprocess.TimeoutExpired:
         timed_out = True
         proc.kill()
@@ -286,13 +288,13 @@ def analyze_by_url_cli(video_id: str, video_url: str, model: str | None = None) 
         "Return ONLY the JSON, no explanation or markdown formatting."
     )
 
-    cmd = [gemini_path, "-p", prompt, "--output-format", "json"]
+    cmd = [gemini_path, "--output-format", "json"]
     if model:
         cmd.extend(["--model", model])
 
     timeout = _adaptive_timeout()
     start = time.monotonic()
-    result = _run_with_timeout(cmd, timeout)
+    result = _run_with_timeout(cmd, timeout, stdin_data=prompt)
     _append_timing(time.monotonic() - start)
 
     if result.returncode == 124:
@@ -557,7 +559,7 @@ def _analyze_via_transcript(
         "Return ONLY the JSON, no explanation or markdown formatting."
     )
 
-    cmd = [gemini_path, "-p", prompt, "--output-format", "json"]
+    cmd = [gemini_path, "--output-format", "json"]
     if model:
         cmd.extend(["--model", model])
 
@@ -566,6 +568,7 @@ def _analyze_via_transcript(
     try:
         result = subprocess.run(
             cmd,
+            input=prompt,
             capture_output=True,
             text=True,
             timeout=timeout,

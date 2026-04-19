@@ -1,0 +1,7 @@
+{"timestamp": "2026-04-18T22:53:13.849557+00:00", "trace_id": "term_5050c22d", "action": "staging_source_add_started", "data": {"nb_id": "nb-test", "subbatch_index": 1, "subbatch_size": 3, "expected_total": 3}}
+{"timestamp": "2026-04-18T22:53:13.850147+00:00", "trace_id": "term_5050c22d", "action": "staging_source_add_completed", "data": {"nb_id": "nb-test", "subbatch_index": 1, "subbatch_size": 3, "expected_total": 3}}
+{"timestamp": "2026-04-18T22:53:13.850433+00:00", "trace_id": "term_5050c22d", "action": "staging_source_materialization_wait_started", "data": {"nb_id": "nb-test", "subbatch_index": 1, "expected_total": 3}}
+{"timestamp": "2026-04-18T22:53:13.850824+00:00", "trace_id": "term_5050c22d", "action": "staging_source_materialization_wait_succeeded", "data": {"nb_id": "nb-test", "subbatch_index": 1, "expected_total": 3, "observed_total": 3}}
+{"timestamp": "2026-04-18T22:53:28.853889+00:00", "trace_id": "term_5050c22d", "action": "industrial_scrape_batch_started", "data": {"nb_id": "nb-test", "batch_size": 1}}
+{"timestamp": "2026-04-18T22:55:28.873312+00:00", "trace_id": "term_5050c22d", "action": "industrial_scrape_video_started", "data": {"nb_id": "nb-test", "video_id": "vid1", "source_id": "src-1", "index": 1, "batch_size": 1, "elapsed_s": 120.019}}
+{"timestamp": "2026-04-18T22:55:28.874070+00:00", "trace_id": "term_5050c22d", "action": "industrial_scrape_video_finished", "data": {"nb_id": "nb-test", "video_id": "vid1", "source_id": "src-1", "index": 1, "batch_size": 1, "status": "button_not_found", "elapsed_s": 0.001}}

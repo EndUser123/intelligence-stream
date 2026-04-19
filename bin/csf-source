@@ -6,7 +6,7 @@ Usage:
     csf-source list                               # List all tracked sources
     csf-source check <source_id>                  # Daily check: RSS → gap detection → API if needed
     csf-source sync <source_id>                   # Process all pending videos via batch
-    csf-source fetch [--source <url>]             # ESCALATION: fetch transcripts (yt-dlp → Selenium)
+    csf-source fetch [--source <url>]             # ESCALATION: fetch transcripts (yt-dlp → NotebookLM CLI batch)
     csf-source history                            # Extract channels from YouTube watch history and add new ones
 
 Commands:
@@ -27,7 +27,7 @@ Commands:
               Does NOT check for new videos — use 'check' first.
 
     fetch     ESCALATION BATCH PROCESS: Fetch transcripts for pending videos using
-              yt-dlp → Selenium fallback chain. This is the RECOMMENDED way to download
+              yt-dlp → NotebookLM CLI batch fallback chain. This is the RECOMMENDED way to download
               transcripts in bulk. Handles retries, caching, and status updates automatically.
               --source <url>   Process only this channel URL (default: all channels)
               --dry-run        Show what would be fetched without fetching
@@ -35,6 +35,7 @@ Commands:
 """
 
 import argparse
+from collections import deque
 import fasteners
 import subprocess
 import re
@@ -53,12 +54,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from csf import batch
 from csf.csf_logging import log_user_message, log_action
 from csf.cache import has_cached_transcript, set_cached_transcript
+from csf.nlm_batch import process_industrial_batch_reusable, close_reusable_ingestor
 from csf.transcript import fetch_transcript_chain, LanguageConfig
 from csf.batch_status import (
     get_channel_metadata,
     set_channel_metadata,
     upsert_channel,
     get_entries_for_source,
+    get_pending_by_source,
     mark_complete,
     set_status,
     set_status_batch,
@@ -343,10 +346,10 @@ def cmd_list() -> None:
     storage._ensure_channel_metadata()
     conn = storage._get_conn()
     cursor = conn.execute(
-        """SELECT channel_url, playlist_id, video_count_estimate, last_checked, last_full_enumeration
+        """SELECT channel_url, playlist_id, video_count_estimate, last_checked, last_full_enumeration, category
            FROM channel_metadata
            WHERE channel_url NOT IN (SELECT channel_url FROM channel_blocklist)
-           ORDER BY last_checked DESC"""
+           ORDER BY category, last_checked DESC"""
     )
     rows = cursor.fetchall()
     conn.close()
@@ -516,6 +519,7 @@ def cmd_list() -> None:
                 success_rate=success_rate,
                 languages=languages,
                 storage_size_mb=size_mb,
+                category=row[5],
             )
         )
 
@@ -884,19 +888,25 @@ def cmd_check_all(verbose: bool = False) -> None:
     # Re-query to get updated statistics
     conn = storage._get_conn()
     cursor = conn.execute(
-        "SELECT channel_url, video_count_estimate FROM channel_metadata ORDER BY last_checked ASC"
+        "SELECT channel_url, video_count_estimate, category FROM channel_metadata ORDER BY category, last_checked ASC"
     )
     channels_meta = cursor.fetchall()
     conn.close()
 
     total_videos_all = 0
+    current_category = None
 
     # Query transcript cache
     try:
         from csf.cache import has_cached_transcript
 
-        for channel_url, video_count in channels_meta:
-            # Get video status counts including unavailable_reason
+        for channel_url, video_count, category in channels_meta:
+            # Print category header when group changes
+            if category != current_category:
+                current_category = category
+                cat_display = category or "(uncategorized)"
+                print(f"\n### {cat_display}")
+                print("")
             batch_conn = storage._get_conn()
             batch_cursor = batch_conn.execute(
                 """SELECT status, has_captions, unavailable_reason, COUNT(*)
@@ -964,6 +974,46 @@ def cmd_check_all(verbose: bool = False) -> None:
     # Print summary (total_videos_all is calculated above from actual database counts)
     print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print(f"Summary: {len(channels_meta)} channels | {total_new_videos} new | {total_videos_all} total videos")
+
+
+def cmd_categorize(workers: int = 1) -> None:
+    """Categorize all channels using Gemini CLI (idempotent — skips if already categorized)."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from csf.batch_status import _get_batch_status_storage
+    from csf.categorize import categorize_channel
+
+    storage = _get_batch_status_storage()
+    storage._ensure_channel_metadata()
+    conn = storage._get_conn()
+    cursor = conn.execute(
+        "SELECT channel_url, channel_title, description FROM channel_metadata WHERE category IS NULL"
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    if not rows:
+        print("[source] All channels already categorized.")
+        return
+
+    print(f"[source] Categorizing {len(rows)} uncategorized channels (workers={workers})...")
+
+    def _categorize_one(url: str, title: str, desc: str) -> tuple[str, str | None]:
+        cat = categorize_channel(title or "", desc or "")
+        if cat:
+            upsert_channel(url, category=cat)
+        return url, cat
+
+    total = 0
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(_categorize_one, url, title, desc): url for url, title, desc in rows}
+        for future in as_completed(futures):
+            url, cat = future.result()
+            total += 1
+            if total % 50 == 0:
+                print(f"[source] ... categorized {total}/{len(rows)}")
+
+    categorized = sum(1 for _, c in [(f.result()) for f in futures] if c)
+    print(f"[source] Done. Categorized {categorized}/{len(rows)} channels.")
 
 
 def cmd_sync(source_id_or_url: str) -> None:
@@ -1058,62 +1108,260 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
         if not existing:
             print(f"[source] Error: {source_filter} is not a tracked source.", file=sys.stderr)
             sys.exit(1)
-        channels = [(source_filter, existing.get("playlist_id"))]
+        tracked_channels = [(source_filter, existing.get("playlist_id"))]
     else:
         conn = storage._get_conn()
         cursor = conn.execute("SELECT channel_url, playlist_id FROM channel_metadata")
-        channels = cursor.fetchall()
+        tracked_channels = cursor.fetchall()
         conn.close()
 
-    if not channels:
+    if not tracked_channels:
         print("[source] No tracked channels found.")
         return
 
-    # Collect all pending videos across channels
-    all_pending: list[tuple[str, str]] = []  # (video_id, source_url)
-    cached_count = 0
-
-    for channel_url, playlist_id in channels:
+    channels: list[tuple[str, str]] = []
+    blocked_count = 0
+    for channel_url, playlist_id in tracked_channels:
         if is_channel_blocked(channel_url):
+            blocked_count += 1
             continue
         if not playlist_id:
             continue
+        channels.append((channel_url, playlist_id))
 
-        entries = get_entries_for_source(channel_url)
-        for entry in entries:
-            video_id, status, has_captions = entry
-            if status != "pending":
-                continue
+    if not channels:
+        print("[source] No unblocked tracked channels found.")
+        return
 
+    # Collect pending videos across channels. We stream the active backlog into
+    # a queue so industrial batches can start as soon as there is enough work.
+    pending_buffer: deque[tuple[str, str]] = deque()  # (video_id, source_url)
+    cached_count = 0
+    pending_discovered_total = 0
+    scan_started_at = time.monotonic()
+    tracked_count = len(tracked_channels)
+    channel_count = len(channels)
+    scan_progress_interval = max(1, channel_count // 10)
+    batch_size = 300
+    backlog_threshold = 50
+    industrial_selected = False
+    industrial_scraper = None
+    industrial_batches_processed = 0
+    success_count = 0
+    fail_count = 0
+    skip_count = 0
+    log_action(
+        "fetch_scan_started",
+        {
+            "source_filter": source_filter,
+            "channels_tracked_total": tracked_count,
+            "channels_blocked_total": blocked_count,
+            "channels_active_total": channel_count,
+            "progress_interval": scan_progress_interval,
+        },
+    )
+    print(
+        f"[source] Preflight scan: checking {channel_count} active channels "
+        f"({blocked_count} blocked skipped) for pending videos..."
+    )
+
+    def _ensure_industrial_scraper():
+        nonlocal industrial_scraper
+        if industrial_scraper is None:
+            print("[source] Starting Industrial Ingest (NLM Selenium scraper)...")
+            from csf.nlm_scraper import NLMIndustrialScraper
+
+            industrial_scraper = NLMIndustrialScraper(headless=True)
+            browser_cleanup = getattr(industrial_scraper, "preflight_browser_cleanup", None)
+            if callable(browser_cleanup):
+                browser_deleted, browser_failed = browser_cleanup()
+                print(
+                    f"[source] Pre-flight browser cleanup: {browser_deleted} terminated, "
+                    f"{browser_failed} failed"
+                )
+            deleted, failed = industrial_scraper.preflight_cleanup()
+            print(
+                f"[source] Pre-flight: {deleted} orphaned notebooks cleared, {failed} unreachable"
+            )
+        return industrial_scraper
+
+    def _process_industrial_batch(batch_items: list[tuple[str, str]]) -> None:
+        nonlocal industrial_batches_processed, success_count, fail_count
+        if not batch_items:
+            return
+        industrial_batches_processed += 1
+        batch = [vid for vid, _ in batch_items]
+        print(
+            f"[source] Processing batch {industrial_batches_processed} "
+            f"({len(batch)} videos) via NotebookLM CLI batch..."
+        )
+        _log_first_download_started(
+            "industrial_cli_batch",
+            batch_index=industrial_batches_processed,
+            batch_size=len(batch),
+            first_video_id=batch[0],
+        )
+        results = process_industrial_batch_reusable(batch)
+        for vid, (success, transcript, error) in results.items():
+            if success and transcript:
+                set_cached_transcript(vid, "en", "notebooklm", transcript)
+                mark_complete(vid, last_stage="notebooklm")
+                success_count += 1
+                print(f"  ✓ {vid} (notebooklm)")
+            else:
+                fail_count += 1
+                print(f"  ✗ {vid}: {error[:80]}")
+
+    for channel_index, (channel_url, playlist_id) in enumerate(channels, start=1):
+        pending_ids = get_pending_by_source(channel_url)
+        for video_id in pending_ids:
             if has_cached_transcript(video_id):
                 cached_count += 1
-            else:
-                all_pending.append((video_id, channel_url))
+                continue
+            pending_buffer.append((video_id, channel_url))
+            pending_discovered_total += 1
 
-    total_pending = len(all_pending)
-    # Automated Triage Decision
-    # If backlog >= 50, use Industrial (Batch NLM) path to maximize throughput.
-    # Otherwise use Surgical (Escalation Chain) for immediate results.
-    BACKLOG_THRESHOLD = 50
-    use_industrial = total_pending >= BACKLOG_THRESHOLD
+        if pending_discovered_total >= backlog_threshold:
+            industrial_selected = True
 
+        if not dry_run and industrial_selected and len(pending_buffer) >= batch_size:
+            while len(pending_buffer) >= batch_size:
+                batch_items = [pending_buffer.popleft() for _ in range(batch_size)]
+                _process_industrial_batch(batch_items)
+
+        if (
+            channel_index == 1
+            or channel_index == channel_count
+            or channel_index % scan_progress_interval == 0
+        ):
+            elapsed_s = round(time.monotonic() - scan_started_at, 3)
+            print(
+                "[source] Preflight scan progress: "
+                f"{channel_index}/{channel_count} channels, "
+                f"pending={pending_discovered_total}, cached={cached_count}, "
+                f"elapsed={elapsed_s}s"
+            )
+            log_action(
+                "fetch_scan_progress",
+                {
+                    "source_filter": source_filter,
+                    "channel_index": channel_index,
+                    "channels_active_total": channel_count,
+                    "pending_so_far": pending_discovered_total,
+                    "cached_so_far": cached_count,
+                    "elapsed_s": elapsed_s,
+                },
+            )
+
+    total_pending = pending_discovered_total
+    log_action(
+        "fetch_scan_completed",
+        {
+            "source_filter": source_filter,
+            "channels_tracked_total": tracked_count,
+            "channels_blocked_total": blocked_count,
+            "channels_active_total": channel_count,
+            "pending_total": total_pending,
+            "cached_total": cached_count,
+            "elapsed_s": round(time.monotonic() - scan_started_at, 3),
+        },
+    )
+    print(
+        f"[source] Preflight scan complete: {channel_count} active channels, "
+        f"{total_pending} pending, {cached_count} cached"
+    )
     print(f"[source] Escalation Batch Process")
-    print(f"[source] Channels: {len(channels)}")
+    print(f"[source] Channels: {channel_count} active / {tracked_count} tracked")
     print(f"[source] Already cached: {cached_count}")
     print(f"[source] Pending extraction: {total_pending}")
     print(f"[source] Mode: {'DRY RUN' if dry_run else 'LIVE'}")
-    print(f"[source] Strategy: {'Industrial (Batch NLM)' if use_industrial else 'Surgical (Chain)'}")
+    if dry_run:
+        print("[source] Dry run complete. Use without --dry-run to fetch transcripts.")
+        log_action(
+            "fetch_completed",
+            {
+                "source_filter": source_filter,
+                "strategy": strategy_name,
+                "backend": backend_name,
+                "backlog_threshold": backlog_threshold,
+                "batch_size": batch_size,
+                "workers": workers,
+                "channels_tracked_total": tracked_count,
+                "channels_blocked_total": blocked_count,
+                "channels_active_total": channel_count,
+                "pending_total": total_pending,
+                "cached_total": cached_count,
+                "industrial_batches_processed": industrial_batches_processed,
+                "success_count": success_count,
+                "fail_count": fail_count,
+                "skip_count": skip_count,
+                "elapsed_s": round(time.monotonic() - fetch_started_at, 3),
+                "status": "dry_run",
+            },
+        )
+        return
+    if total_pending == 0:
+        print("[source] All transcripts already cached. Nothing to do.")
+        log_action(
+            "fetch_completed",
+            {
+                "source_filter": source_filter,
+                "strategy": strategy_name,
+                "backend": backend_name,
+                "backlog_threshold": backlog_threshold,
+                "batch_size": batch_size,
+                "workers": workers,
+                "channels_tracked_total": tracked_count,
+                "channels_blocked_total": blocked_count,
+                "channels_active_total": channel_count,
+                "pending_total": total_pending,
+                "cached_total": cached_count,
+                "industrial_batches_processed": industrial_batches_processed,
+                "success_count": success_count,
+                "fail_count": fail_count,
+                "skip_count": skip_count,
+                "elapsed_s": round(time.monotonic() - fetch_started_at, 3),
+                "status": "no_pending",
+            },
+        )
+        return
+    use_industrial = industrial_selected or total_pending >= backlog_threshold
+    strategy_name = "industrial_cli_batch" if use_industrial else "surgical_chain"
+    backend_name = "notebooklm_cli_batch" if use_industrial else "yt_dlp_plus_selenium"
+    log_action(
+        "fetch_strategy_selected",
+        {
+            "source_filter": source_filter,
+            "strategy": strategy_name,
+            "backend": backend_name,
+            "backlog_threshold": backlog_threshold,
+            "batch_size": batch_size,
+            "workers": workers,
+            "channels_tracked_total": tracked_count,
+            "channels_blocked_total": blocked_count,
+            "channels_active_total": channel_count,
+            "pending_total": total_pending,
+            "cached_total": cached_count,
+            "industrial_selected": industrial_selected,
+            "use_industrial": use_industrial,
+        },
+    )
+    print(
+        f"[source] Strategy: {'Industrial (Batch NLM)' if use_industrial else 'Surgical (Chain)'}"
+    )
     if use_industrial:
-        print("[source] Method: NLM Selenium scraper (~18-28k vph)")
+        print("[source] Method: NotebookLM CLI batch (~18k vph)")
     else:
         print("[source] Method: yt-dlp → cookies → Selenium escalation chain")
     print(f"[source] Workers: {workers}")
     print()
 
-    # Ensure NLM is authenticated before industrial run
+    # Ensure NLM is authenticated before any live fetch run.
     login_check = subprocess.run(
         ["nlm", "login", "--check"],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     if login_check.returncode != 0:
         print("[source] NLM auth expired, re-authenticating...", file=sys.stderr)
@@ -1123,60 +1371,27 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             sys.exit(1)
         print("[source] NLM re-authenticated.", file=sys.stderr)
 
-    if not all_pending:
-        print("[source] All transcripts already cached. Nothing to do.")
-        return
-
-    if dry_run:
-        print("[source] Dry run complete. Use without --dry-run to fetch transcripts.")
-        return
-
-    # Process videos
-    success_count = 0
-    fail_count = 0
-    skip_count = 0
-
     if use_industrial:
-        # --- INDUSTRIAL PATH: Selenium scraper via NLM web UI ---
-        # NLMIndustrialScraper opens the notebook once, clicks each source in the
-        # Sources tab, and reads transcript text directly from the preview pane.
-        # Throughput: ~18-28k vph at scale; no YouTube API quota, no per-video CLI overhead.
-        # Source arg is "selenium" to distinguish from yt-dlp/cookies/surgical paths.
-        print(f"[source] Starting Industrial Ingest (NLM Selenium scraper)...")
-        from csf.nlm_scraper import NLMIndustrialScraper
-
-        scraper = NLMIndustrialScraper(headless=True)
-        deleted, failed = scraper.preflight_cleanup()
-        print(f"[source] Pre-flight: {deleted} orphaned notebooks cleared, {failed} unreachable")
-        batch_size = 300
+        # --- INDUSTRIAL PATH: NotebookLM CLI batch content fetch ---
+        # Stream the backlog into batch-sized windows so the first scrape can
+        # begin before the entire channel inventory has been drained.
         try:
-            for i in range(0, len(all_pending), batch_size):
-                batch = [vid for vid, src in all_pending[i : i + batch_size]]
-                print(f"[source] Processing batch {i//batch_size + 1} ({len(batch)} videos)...")
-
-                if batch:
-                    _log_first_download_started(
-                        "industrial",
-                        batch_index=(i // batch_size) + 1,
-                        batch_size=len(batch),
-                        first_video_id=batch[0],
-                    )
-                results = scraper.scrape_with_staging(batch)
-
-                for vid, (success, transcript, error) in results.items():
-                    if success and transcript:
-                        set_cached_transcript(vid, "en", "selenium", transcript)
-                        mark_complete(vid, last_stage="selenium")
-                        success_count += 1
-                        print(f"  ✓ {vid} (selenium)")
-                    else:
-                        fail_count += 1
-                        print(f"  ✗ {vid}: {error[:80]}")
+            while pending_buffer:
+                if not dry_run and len(pending_buffer) >= batch_size:
+                    batch_items = [pending_buffer.popleft() for _ in range(batch_size)]
+                    _process_industrial_batch(batch_items)
+                elif not dry_run and industrial_selected and pending_buffer:
+                    batch_items = list(pending_buffer)
+                    pending_buffer.clear()
+                    _process_industrial_batch(batch_items)
+                else:
+                    break
         finally:
-            scraper.close()
+            close_reusable_ingestor()
 
     else:
         # --- SURGICAL PATH: Sequential Escalation Chain ---
+        all_pending = list(pending_buffer)
         def _process_video(video_id: str, source_url: str) -> tuple[str, bool, str, str]:
             """Process a single video using the escalation chain."""
             if has_cached_transcript(video_id):
@@ -1228,6 +1443,31 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     print(f"[source] Failed: {fail_count}")
     print(f"[source] Skipped (cached): {skip_count}")
     print(f"[source] Total processed: {total_pending}")
+    elapsed_s = round(time.monotonic() - fetch_started_at, 3)
+    log_action(
+        "fetch_completed",
+        {
+            "source_filter": source_filter,
+            "strategy": strategy_name,
+            "backend": backend_name,
+            "backlog_threshold": backlog_threshold,
+            "batch_size": batch_size,
+            "workers": workers,
+            "channels_tracked_total": tracked_count,
+            "channels_blocked_total": blocked_count,
+            "channels_active_total": channel_count,
+            "pending_total": total_pending,
+            "cached_total": cached_count,
+            "industrial_batches_processed": industrial_batches_processed,
+            "success_count": success_count,
+            "fail_count": fail_count,
+            "skip_count": skip_count,
+            "elapsed_s": elapsed_s,
+            "success_per_min": round(success_count / elapsed_s * 60, 2) if elapsed_s > 0 else None,
+            "processed_per_min": round(total_pending / elapsed_s * 60, 2) if elapsed_s > 0 else None,
+            "status": "completed",
+        },
+    )
 
 
 def cmd_quota() -> None:
@@ -1641,6 +1881,10 @@ def main() -> None:
     check_all_parser = subparsers.add_parser("check-all", help="Check all tracked channels for new videos")
     check_all_parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
 
+    # categorize command
+    categorize_parser = subparsers.add_parser("categorize", help="LLM-categorize all channels (idempotent, skips categorized)")
+    categorize_parser.add_argument("--workers", type=int, default=1, help="Number of parallel workers (default: 1)")
+
     # sync command
     sync_parser = subparsers.add_parser("sync", help="Process pending videos for a source")
     sync_parser.add_argument("source", help="Source ID (channel URL or bare channel ID)")
@@ -1696,6 +1940,8 @@ def main() -> None:
         cmd_check(args.source)
     elif args.command == "check-all":
         cmd_check_all(verbose=args.verbose)
+    elif args.command == "categorize":
+        cmd_categorize(workers=args.workers)
     elif args.command == "sync":
         cmd_sync(args.source)
     elif args.command == "quota":

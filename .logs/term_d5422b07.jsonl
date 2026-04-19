@@ -1,0 +1,7 @@
+{"timestamp": "2026-04-18T19:37:11.137302+00:00", "trace_id": "term_d5422b07", "action": "staging_source_add_started", "data": {"nb_id": "nb-test", "subbatch_index": 1, "subbatch_size": 3, "expected_total": 3}}
+{"timestamp": "2026-04-18T19:37:11.137842+00:00", "trace_id": "term_d5422b07", "action": "staging_source_materialization_wait_started", "data": {"nb_id": "nb-test", "subbatch_index": 1, "expected_total": 3}}
+{"timestamp": "2026-04-18T19:37:11.138324+00:00", "trace_id": "term_d5422b07", "action": "staging_source_materialization_wait_succeeded", "data": {"nb_id": "nb-test", "subbatch_index": 1, "expected_total": 3, "observed_total": 3}}
+{"timestamp": "2026-04-18T19:37:11.140719+00:00", "trace_id": "term_d5422b07", "action": "staging_source_add_started", "data": {"nb_id": "nb-test", "subbatch_index": 1, "subbatch_size": 2, "expected_total": 2}}
+{"timestamp": "2026-04-18T19:37:11.141575+00:00", "trace_id": "term_d5422b07", "action": "staging_source_materialization_wait_started", "data": {"nb_id": "nb-test", "subbatch_index": 1, "expected_total": 2}}
+{"timestamp": "2026-04-18T19:37:11.141952+00:00", "trace_id": "term_d5422b07", "action": "staging_source_materialization_wait_progress", "data": {"nb_id": "nb-test", "expected_total": 2, "observed_total": 0, "poll_count": 1, "elapsed_s": 0.0}}
+{"timestamp": "2026-04-18T19:37:11.142296+00:00", "trace_id": "term_d5422b07", "action": "staging_source_materialization_wait_succeeded", "data": {"nb_id": "nb-test", "subbatch_index": 1, "expected_total": 2, "observed_total": 2}}

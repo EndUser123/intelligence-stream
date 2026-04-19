@@ -15,6 +15,9 @@ import sys
 from pathlib import Path
 
 CSF_SOURCE = Path(__file__).parent / "csf-source"
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from csf.csf_logging import log_action
 
 
 def main() -> None:
@@ -75,7 +78,24 @@ def main() -> None:
             fetch_cmd.extend(["--source", args.source])
         if args.workers != 1:
             fetch_cmd.extend(["--workers", str(args.workers)])
+        log_action(
+            "yt_is_dispatch_started",
+            {
+                "command": "fetch",
+                "cwd": str(Path.cwd()),
+                "backend": str(CSF_SOURCE),
+                "argv": fetch_cmd,
+            },
+        )
         result = subprocess.run(fetch_cmd)
+        log_action(
+            "yt_is_dispatch_finished",
+            {
+                "command": "fetch",
+                "backend": str(CSF_SOURCE),
+                "returncode": result.returncode,
+            },
+        )
         sys.exit(result.returncode)
 
     else:

@@ -107,19 +107,19 @@ The `fetch` command implements automatic escalation for transcript downloading:
 **Recommended Workflow:**
 ```bash
 # 1. Discover new videos
-csf-source check-all
+python bin/csf-source check-all
 
 # 2. Download transcripts (all channels, automatic escalation)
-csf-source fetch
+python bin/csf-source fetch
 
 # 3. Or dry-run first to see what will be fetched
-csf-source fetch --dry-run
+python bin/csf-source fetch --dry-run
 
 # 4. Or process only one channel
-csf-source fetch --source "https://youtube.com/@channel"
+python bin/csf-source fetch --source "https://youtube.com/@channel"
 
 # 5. Or use parallel workers for faster processing
-csf-source fetch --workers 2
+python bin/csf-source fetch --workers 2
 ```
 
 ## Data Flow
@@ -132,7 +132,7 @@ channel_metadata table (SQLite)
   │                                                ▼
   │                                       batch_status table (pending)
   │
-  └─► csf-source fetch ──► ESCALATION CHAIN (yt-dlp → Selenium) ──► transcripts.sqlite
+  └─► python bin/csf-source fetch ──► ESCALATION CHAIN (yt-dlp → Selenium) ──► transcripts.sqlite
 ```
 
 ## Storage
@@ -145,6 +145,7 @@ All data is stored in `batch_status.sqlite`:
 
 - `P:/packages/yt-is/bin/yt-is` — CLI entry point (wrapper)
 - `P:/packages/yt-is/bin/csf-source` — Backend implementation (YouTube source management CLI)
+  - Prefer `python bin/csf-source ...` when launching from a shell inside the repo so you do not depend on PATH.
   - **Rename note**: If `csf-source` is renamed, update `required_first_command_patterns` (line 19) and all `csf-source` command references in this SKILL.md. Search for `csf-source` to find all occurrences.
 - `P:/packages/yt-is/csf/source_enumerator.py` — RSS + API enumeration
 - `P:/packages/yt-is/csf/batch_status.py` — SQLite storage

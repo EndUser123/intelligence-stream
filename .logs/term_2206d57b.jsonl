@@ -1,1 +1,10 @@
 {"timestamp": "2026-03-31T07:36:50.844250+00:00", "action": "batch_analyze_error", "data": {"video_id": "failTier2", "error": "NonFatalAnalysisError('Tier 2 OCR/CLIP failed')"}}
+{"timestamp": "2026-04-18T22:55:39.012327+00:00", "trace_id": "term_2206d57b", "action": "staging_source_add_started", "data": {"nb_id": "nb-test", "subbatch_index": 1, "subbatch_size": 3, "expected_total": 3}}
+{"timestamp": "2026-04-18T22:55:39.012698+00:00", "trace_id": "term_2206d57b", "action": "staging_source_add_completed", "data": {"nb_id": "nb-test", "subbatch_index": 1, "subbatch_size": 3, "expected_total": 3}}
+{"timestamp": "2026-04-18T22:55:39.012941+00:00", "trace_id": "term_2206d57b", "action": "staging_source_materialization_wait_started", "data": {"nb_id": "nb-test", "subbatch_index": 1, "expected_total": 3}}
+{"timestamp": "2026-04-18T22:55:39.013788+00:00", "trace_id": "term_2206d57b", "action": "staging_source_materialization_wait_succeeded", "data": {"nb_id": "nb-test", "subbatch_index": 1, "expected_total": 3, "observed_total": 3}}
+{"timestamp": "2026-04-18T22:55:39.015473+00:00", "trace_id": "term_2206d57b", "action": "staging_source_add_started", "data": {"nb_id": "nb-test", "subbatch_index": 1, "subbatch_size": 2, "expected_total": 2}}
+{"timestamp": "2026-04-18T22:55:39.015928+00:00", "trace_id": "term_2206d57b", "action": "staging_source_add_completed", "data": {"nb_id": "nb-test", "subbatch_index": 1, "subbatch_size": 2, "expected_total": 2}}
+{"timestamp": "2026-04-18T22:55:39.016158+00:00", "trace_id": "term_2206d57b", "action": "staging_source_materialization_wait_started", "data": {"nb_id": "nb-test", "subbatch_index": 1, "expected_total": 2}}
+{"timestamp": "2026-04-18T22:55:39.016480+00:00", "trace_id": "term_2206d57b", "action": "staging_source_materialization_wait_progress", "data": {"nb_id": "nb-test", "expected_total": 2, "observed_total": 0, "poll_count": 1, "elapsed_s": 0.0}}
+{"timestamp": "2026-04-18T22:55:39.016920+00:00", "trace_id": "term_2206d57b", "action": "staging_source_materialization_wait_succeeded", "data": {"nb_id": "nb-test", "subbatch_index": 1, "expected_total": 2, "observed_total": 2}}

@@ -1,0 +1,11 @@
+{"timestamp": "2026-04-18T22:14:16.863484+00:00", "trace_id": "term_e69d8249", "action": "fetch_invoked", "data": {"source_filter": null, "dry_run": false, "workers": 1}}
+{"timestamp": "2026-04-18T22:14:17.973106+00:00", "trace_id": "term_e69d8249", "action": "fetch_scan_started", "data": {"source_filter": null, "channels_tracked_total": 959, "channels_blocked_total": 153, "channels_active_total": 795, "progress_interval": 79}}
+{"timestamp": "2026-04-18T22:14:17.974039+00:00", "trace_id": "term_e69d8249", "action": "fetch_scan_progress", "data": {"source_filter": null, "channel_index": 1, "channels_active_total": 795, "pending_so_far": 0, "cached_so_far": 0, "elapsed_s": 0.001}}
+{"timestamp": "2026-04-18T22:14:18.211261+00:00", "trace_id": "term_e69d8249", "action": "first_download_started", "data": {"kind": "industrial", "elapsed_s": 1.348, "batch_index": 1, "batch_size": 300, "first_video_id": "Zlh1Uh8giOg"}}
+{"timestamp": "2026-04-18T22:14:18.357452+00:00", "trace_id": "term_e69d8249", "action": "selenium_preflight_cleanup_complete", "data": {"killed": 0, "failed": 0, "matched_pids": 0}}
+{"timestamp": "2026-04-18T22:14:41.578852+00:00", "trace_id": "term_e69d8249", "action": "nlm_auth_refreshed", "data": {"component": "nlm_scraper", "status": "mid_session_ok"}}
+{"timestamp": "2026-04-18T22:14:43.107670+00:00", "trace_id": "term_e69d8249", "action": "preflight_cleanup_complete", "data": {"deleted": 0, "failed": 0}}
+{"timestamp": "2026-04-18T22:14:44.536202+00:00", "trace_id": "term_e69d8249", "action": "nlm_auth_checked", "data": {"component": "nlm_scraper", "status": "ok"}}
+{"timestamp": "2026-04-18T22:14:44.536530+00:00", "trace_id": "term_e69d8249", "action": "staging_notebook_create_started", "data": {"name": "staging_1776550484", "attempt": 1}}
+{"timestamp": "2026-04-18T22:14:45.567481+00:00", "trace_id": "term_e69d8249", "action": "staging_notebook_create_succeeded", "data": {"name": "staging_1776550484", "attempt": 1}}
+{"timestamp": "2026-04-18T22:14:45.567901+00:00", "trace_id": "term_e69d8249", "action": "staging_source_add_started", "data": {"nb_id": "910654bb-f383-4c81-9573-331daa89305d", "subbatch_index": 1, "subbatch_size": 50, "expected_total": 50}}

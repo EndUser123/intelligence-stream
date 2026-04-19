@@ -101,6 +101,8 @@ csf-source sync <source>    # Process pending videos for a source
 csf-source fetch            # Download pending transcripts
 ```
 
+When launching from a shell inside the repo, prefer `python bin/csf-source ...` so the command does not depend on PATH.
+
 ## Data Flow
 
 ```
@@ -113,7 +115,7 @@ csf-source fetch            # Download pending transcripts
             ▼
     batch_status.sqlite: analysis_status (pending)
             │
-            ├─► /yt-is fetch ──► yt-dlp ──► transcripts.sqlite
+            ├─► /yt-is fetch ──► python bin/csf-source fetch ──► transcripts.sqlite
             │                              └─► Selenium ──► transcripts.sqlite
             │
             └─► /yt-nlm ──► NotebookLM batch ──► transcripts.sqlite

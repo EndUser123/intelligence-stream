@@ -65,14 +65,39 @@ def _ensure_nlm_auth() -> bool:
 
     # Auth expired — re-authenticate (auto-launches Chrome headless)
     print("[transcript] NLM auth expired, re-authenticating...")
+    login_started = time.perf_counter()
+    log_action(
+        "nlm_login_started",
+        {"component": "transcript", "mode": "standard", "status": "started"},
+    )
     login = subprocess.run(["nlm", "login"], capture_output=True, text=True)
+    login_elapsed = round(time.perf_counter() - login_started, 3)
     if login.returncode != 0:
+        log_action(
+            "nlm_login_failed",
+            {
+                "component": "transcript",
+                "mode": "standard",
+                "status": "failed",
+                "elapsed_s": login_elapsed,
+                "returncode": login.returncode,
+            },
+        )
         log_action(
             "nlm_auth_failed",
             {"component": "transcript", "status": "refresh_failed"},
         )
         print(f"[transcript] Re-auth failed: {login.stderr}")
         return False
+    log_action(
+        "nlm_login_completed",
+        {
+            "component": "transcript",
+            "mode": "standard",
+            "status": "ok",
+            "elapsed_s": login_elapsed,
+        },
+    )
     log_action("nlm_auth_refreshed", {"component": "transcript", "status": "ok"})
     return True
 
@@ -1382,15 +1407,40 @@ def _ensure_nlm_auth() -> bool:
     # 4. Auth expired — auto-recover with force login
     try:
         rate_limiter.record_call()
+        login_started = time.perf_counter()
+        log_action(
+            "nlm_login_started",
+            {"component": "transcript", "mode": "force", "status": "started"},
+        )
         login = subprocess.run(
             ["nlm", "login", "--force"],
             capture_output=True, timeout=120,
         )
+        login_elapsed = round(time.perf_counter() - login_started, 3)
         if login.returncode == 0:
+            log_action(
+                "nlm_login_completed",
+                {
+                    "component": "transcript",
+                    "mode": "force",
+                    "status": "ok",
+                    "elapsed_s": login_elapsed,
+                },
+            )
             log_action("nlm_auth_refreshed", {"component": "transcript", "status": "ok"})
             rate_limiter.record_auth_success()
             return True
         # Only --force failures count toward cooldown trigger
+        log_action(
+            "nlm_login_failed",
+            {
+                "component": "transcript",
+                "mode": "force",
+                "status": "failed",
+                "elapsed_s": login_elapsed,
+                "returncode": login.returncode,
+            },
+        )
         log_action(
             "nlm_auth_failed",
             {"component": "transcript", "status": "refresh_failed"},
@@ -1398,6 +1448,16 @@ def _ensure_nlm_auth() -> bool:
         rate_limiter.record_auth_failure()
         return False
     except Exception:
+        login_elapsed = round(time.perf_counter() - login_started, 3) if "login_started" in locals() else None
+        log_action(
+            "nlm_login_failed",
+            {
+                "component": "transcript",
+                "mode": "force",
+                "status": "exception",
+                "elapsed_s": login_elapsed,
+            },
+        )
         log_action(
             "nlm_auth_failed",
             {"component": "transcript", "status": "refresh_exception"},

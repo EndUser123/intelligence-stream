@@ -305,6 +305,11 @@ class _BatchStatusStorage:
                     conn.execute(f"SELECT {col} FROM channel_metadata LIMIT 1")
                 except sqlite3.OperationalError:
                     conn.execute(f"ALTER TABLE channel_metadata ADD COLUMN {col} {col_type}")
+            # Migration for user-assigned category (LLM-inferred)
+            try:
+                conn.execute("SELECT category FROM channel_metadata LIMIT 1")
+            except sqlite3.OperationalError:
+                conn.execute("ALTER TABLE channel_metadata ADD COLUMN category TEXT")
 
     def _ensure_nlm_export_state(self) -> None:
         """Create or migrate nlm_export_state table to current schema.
@@ -762,7 +767,7 @@ class _BatchStatusStorage:
                 "SELECT channel_url, playlist_id, video_count_estimate, last_checked, "
                 "last_full_enumeration, next_page_token, quota_exhausted_at, "
                 "channel_title, thumbnail_url, subscriber_count, view_count, "
-                "description, published_at, country, topic_categories "
+                "description, published_at, country, topic_categories, category "
                 "FROM channel_metadata WHERE channel_url = ?",
                 (channel_url,),
             )
@@ -789,6 +794,7 @@ class _BatchStatusStorage:
                     "keywords": None,
                     "custom_url": None,
                     "topic_categories": None,
+                    "category": None,
                 }
                 vals.update(kwargs)
                 conn.execute(
@@ -797,8 +803,8 @@ class _BatchStatusStorage:
                     "last_full_enumeration, next_page_token, quota_exhausted_at, "
                     "channel_title, thumbnail_url, subscriber_count, view_count, "
                     "description, published_at, country, keywords, custom_url, "
-                    "topic_categories, schema_version) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
+                    "topic_categories, category, schema_version) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
                     (
                         vals["channel_url"],
                         vals["playlist_id"],
@@ -817,6 +823,7 @@ class _BatchStatusStorage:
                         vals["keywords"],
                         vals["custom_url"],
                         vals["topic_categories"],
+                        vals["category"],
                     ),
                 )
             else:
@@ -837,6 +844,7 @@ class _BatchStatusStorage:
                     "published_at": row[12],
                     "country": row[13],
                     "topic_categories": row[14],
+                    "category": row[15],
                 }
                 for key in (
                     "playlist_id",
@@ -855,6 +863,7 @@ class _BatchStatusStorage:
                     "keywords",
                     "custom_url",
                     "topic_categories",
+                    "category",
                 ):
                     if key in kwargs:
                         existing[key] = kwargs[key]
@@ -866,7 +875,7 @@ class _BatchStatusStorage:
                     "last_full_enumeration=?, next_page_token=?, quota_exhausted_at=?, "
                     "channel_title=?, thumbnail_url=?, subscriber_count=?, view_count=?, "
                     "description=?, published_at=?, country=?, keywords=?, custom_url=?, "
-                    "topic_categories=? "
+                    "topic_categories=?, category=? "
                     "WHERE channel_url=?",
                     (
                         existing["playlist_id"],
@@ -885,6 +894,7 @@ class _BatchStatusStorage:
                         existing.get("keywords"),
                         existing.get("custom_url"),
                         existing.get("topic_categories"),
+                        existing.get("category"),
                         channel_url,
                     ),
                 )
@@ -936,15 +946,25 @@ class _BatchStatusStorage:
             )
 
     def block_channel(self, channel_url: str) -> None:
-        """Add a channel to the blocklist."""
+        """Add a channel to the blocklist and remove from active metadata."""
         self._ensure_channel_blocklist()
-        with self._conn() as conn:
+        self._ensure_channel_metadata()
+        conn = self._get_conn()
+        conn.execute("BEGIN IMMEDIATE")
+        try:
             now = datetime.now(timezone.utc).isoformat()
             conn.execute(
                 "INSERT OR REPLACE INTO channel_blocklist (channel_url, blocked_at) VALUES (?, ?)",
                 (channel_url, now),
             )
+            conn.execute("DELETE FROM channel_metadata WHERE channel_url = ?", (channel_url,))
+            conn.execute("DELETE FROM analysis_status WHERE source = ?", (channel_url,))
             conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def unblock_channel(self, channel_url: str) -> bool:
         """Remove a channel from the blocklist. Returns True if it was blocked."""

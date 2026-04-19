@@ -1,0 +1,4 @@
+{"timestamp": "2026-04-18T17:40:03.955998+00:00", "trace_id": "term_e5d1ed69", "action": "nlm_auth_checked", "data": {"component": "nlm_scraper", "status": "ok"}}
+{"timestamp": "2026-04-18T17:40:03.959321+00:00", "trace_id": "term_e5d1ed69", "action": "staging_source_add_started", "data": {"nb_id": "nb-test", "subbatch_index": 1, "subbatch_size": 2, "expected_total": 2}}
+{"timestamp": "2026-04-18T17:40:03.959814+00:00", "trace_id": "term_e5d1ed69", "action": "staging_source_materialization_wait_started", "data": {"nb_id": "nb-test", "subbatch_index": 1, "expected_total": 2}}
+{"timestamp": "2026-04-18T17:40:03.960574+00:00", "trace_id": "term_e5d1ed69", "action": "staging_source_materialization_wait_succeeded", "data": {"nb_id": "nb-test", "subbatch_index": 1, "expected_total": 2, "observed_total": 2}}

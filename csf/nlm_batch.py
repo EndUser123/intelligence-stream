@@ -19,6 +19,47 @@ from csf.display import format_result_row
 from csf.csf_logging import log_action
 
 
+_REUSABLE_NOTEBOOK_STATE_PATH = Path("P:/__csf/.data/yt-is/reusable_nlm_notebook.json")
+_REUSABLE_NOTEBOOK_TITLE = "yt-is::industrial::reusable"
+
+
+def _load_reusable_notebook_id() -> Optional[str]:
+    try:
+        if not _REUSABLE_NOTEBOOK_STATE_PATH.exists():
+            return None
+        data = json.loads(_REUSABLE_NOTEBOOK_STATE_PATH.read_text(encoding="utf-8"))
+        nb_id = (data.get("nb_id") or "").strip()
+        return nb_id or None
+    except Exception:
+        return None
+
+
+def _save_reusable_notebook_id(nb_id: str) -> None:
+    try:
+        _REUSABLE_NOTEBOOK_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _REUSABLE_NOTEBOOK_STATE_PATH.write_text(
+            json.dumps(
+                {
+                    "nb_id": nb_id,
+                    "title": _REUSABLE_NOTEBOOK_TITLE,
+                    "updated_at": time.time(),
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
+def _clear_reusable_notebook_state() -> None:
+    try:
+        if _REUSABLE_NOTEBOOK_STATE_PATH.exists():
+            _REUSABLE_NOTEBOOK_STATE_PATH.unlink()
+    except Exception:
+        pass
+
+
 def _ensure_nlm_auth() -> bool:
     """Verify nlm CLI auth is valid, auto-recover if expired.
 
@@ -36,12 +77,37 @@ def _ensure_nlm_auth() -> bool:
         return True
 
     # Auth expired — re-authenticate
+    login_started = time.perf_counter()
+    log_action(
+        "nlm_login_started",
+        {"component": "nlm_batch", "mode": "force", "status": "started"},
+    )
     login = subprocess.run(
         ["nlm", "login", "--force"], capture_output=True, text=True, timeout=120
     )
+    login_elapsed = round(time.perf_counter() - login_started, 3)
     if login.returncode == 0:
+        log_action(
+            "nlm_login_completed",
+            {
+                "component": "nlm_batch",
+                "mode": "force",
+                "status": "ok",
+                "elapsed_s": login_elapsed,
+            },
+        )
         log_action("nlm_auth_refreshed", {"component": "nlm_batch", "status": "ok"})
         return True
+    log_action(
+        "nlm_login_failed",
+        {
+            "component": "nlm_batch",
+            "mode": "force",
+            "status": "failed",
+            "elapsed_s": login_elapsed,
+            "returncode": login.returncode,
+        },
+    )
     log_action("nlm_auth_failed", {"component": "nlm_batch", "status": "refresh_failed"})
     return False
 
@@ -185,8 +251,10 @@ class NLMBatchIngestor:
         """
         import time
         start = time.time()
+        poll_count = 0
         while time.time() - start < timeout:
             res = self._run_cmd(["source", "list", self._nb_id, "--json"])
+            poll_count += 1
             if res.returncode == 0:
                 try:
                     sources = json.loads(res.stdout)
@@ -194,9 +262,52 @@ class NLMBatchIngestor:
                         sources = sources.get("sources", [])
                     if len(sources) >= expected_count:
                         return True
+                    if poll_count == 1 or poll_count % 3 == 0:
+                        log_action(
+                            "nlm_batch_source_materialization_wait_progress",
+                            {
+                                "nb_id": self._nb_id,
+                                "expected_total": expected_count,
+                                "observed_total": len(sources),
+                                "poll_count": poll_count,
+                                "elapsed_s": round(time.time() - start, 3),
+                            },
+                        )
                 except Exception:
-                    pass
+                    log_action(
+                        "nlm_batch_source_materialization_wait_poll_failed",
+                        {
+                            "nb_id": self._nb_id,
+                            "expected_total": expected_count,
+                            "poll_count": poll_count,
+                            "elapsed_s": round(time.time() - start, 3),
+                            "stdout": (res.stdout or "")[:200],
+                            "stderr": (res.stderr or "")[:200],
+                        },
+                    )
+            else:
+                log_action(
+                    "nlm_batch_source_materialization_wait_poll_failed",
+                    {
+                        "nb_id": self._nb_id,
+                        "expected_total": expected_count,
+                        "poll_count": poll_count,
+                        "elapsed_s": round(time.time() - start, 3),
+                        "returncode": res.returncode,
+                        "stdout": (res.stdout or "")[:200],
+                        "stderr": (res.stderr or "")[:200],
+                    },
+                )
             time.sleep(10)
+        log_action(
+            "nlm_batch_source_materialization_wait_timeout",
+            {
+                "nb_id": self._nb_id,
+                "expected_total": expected_count,
+                "poll_count": poll_count,
+                "elapsed_s": round(time.time() - start, 3),
+            },
+        )
         return False
 
     def _add_sources_in_subbatches(self, batch_ids: List[str], subbatch_size: int = 50):
@@ -218,10 +329,31 @@ class NLMBatchIngestor:
                 tracker._consecutive_failures = 0
                 tracker._current_delay = 0.0
             print(f"[NLM-Batch]   Adding sources {i+1}-{min(i+subbatch_size, total)}/{total}...")
+            log_action(
+                "nlm_batch_subbatch_add_started",
+                {
+                    "nb_id": self._nb_id,
+                    "subbatch_index": (i // subbatch_size) + 1,
+                    "subbatch_size": len(subbatch),
+                    "expected_total": i + len(subbatch),
+                },
+            )
             add_args = ["source", "add", self._nb_id, "--wait"]
             for vid in subbatch:
                 add_args.extend(["--url", f"https://www.youtube.com/watch?v={vid}"])
             res = self._run_cmd(add_args, timeout=600)
+            log_action(
+                "nlm_batch_subbatch_add_completed",
+                {
+                    "nb_id": self._nb_id,
+                    "subbatch_index": (i // subbatch_size) + 1,
+                    "subbatch_size": len(subbatch),
+                    "expected_total": i + len(subbatch),
+                    "returncode": res.returncode,
+                    "stdout": (res.stdout or "")[:200],
+                    "stderr": (res.stderr or "")[:200],
+                },
+            )
             if res.returncode != 0:
                 print(f"[NLM-Batch]   Sub-batch {i//subbatch_size + 1} add rc={res.returncode}")
                 if res.stderr:
@@ -229,12 +361,44 @@ class NLMBatchIngestor:
 
             # Heartbeat: wait for NLM async processing to complete before next sub-batch
             base_idx = i
+            log_action(
+                "nlm_batch_source_materialization_wait_started",
+                {
+                    "nb_id": self._nb_id,
+                    "subbatch_index": (i // subbatch_size) + 1,
+                    "expected_total": base_idx + len(subbatch),
+                },
+            )
             if not self._wait_for_sources_ready(base_idx + len(subbatch), timeout=120):
                 print(f"[NLM-Batch]   WARNING: after {120}s sources still not ready, continuing anyway...")
+                log_action(
+                    "nlm_batch_source_materialization_wait_failed",
+                    {
+                        "nb_id": self._nb_id,
+                        "subbatch_index": (i // subbatch_size) + 1,
+                        "expected_total": base_idx + len(subbatch),
+                    },
+                )
+            else:
+                log_action(
+                    "nlm_batch_source_materialization_wait_succeeded",
+                    {
+                        "nb_id": self._nb_id,
+                        "subbatch_index": (i // subbatch_size) + 1,
+                        "expected_total": base_idx + len(subbatch),
+                    },
+                )
 
     def create_batch_notebook(self, batch_ids: List[str]) -> Optional[str]:
-        nb_name = f"Industrial_Batch_{int(time.time())}"
+        nb_name = _REUSABLE_NOTEBOOK_TITLE
         print(f"[NLM-Batch] Creating notebook...")
+        log_action(
+            "nlm_batch_notebook_create_started",
+            {
+                "batch_size": len(batch_ids),
+                "nb_name": nb_name,
+            },
+        )
         res = self._run_cmd(["notebook", "create", nb_name])
 
         for line in res.stdout.split('\n'):
@@ -242,6 +406,25 @@ class NLMBatchIngestor:
                 self._nb_id = line.split("ID:")[1].strip()
                 break
         if not self._nb_id: self._nb_id = res.stdout.strip()
+        if self._nb_id:
+            log_action(
+                "nlm_batch_notebook_create_succeeded",
+                {
+                    "batch_size": len(batch_ids),
+                    "nb_id": self._nb_id,
+                    "nb_name": nb_name,
+                },
+            )
+        else:
+            log_action(
+                "nlm_batch_notebook_create_failed",
+                {
+                    "batch_size": len(batch_ids),
+                    "nb_name": nb_name,
+                    "stdout": (res.stdout or "")[:200],
+                    "stderr": (res.stderr or "")[:200],
+                },
+            )
 
         print(f"[NLM-Batch] Adding {len(batch_ids)} sources in sub-batches...")
         self._add_sources_in_subbatches(batch_ids)
@@ -249,6 +432,7 @@ class NLMBatchIngestor:
 
     def extract_transcripts(self, batch_ids: List[str]) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
         """Extract using high-speed 'source content' method."""
+        start = time.time()
         # 1. Get Source List
         res = self._run_cmd(["source", "list", self._nb_id, "--json"])
         if res.returncode != 0: return {vid: (False, None, "List failed") for vid in batch_ids}
@@ -265,6 +449,14 @@ class NLMBatchIngestor:
         source_id_list = [s['id'] for s in sources]
         
         results = {}
+        log_action(
+            "nlm_batch_extract_started",
+            {
+                "nb_id": self._nb_id,
+                "batch_size": len(batch_ids),
+                "sources_visible": len(sources),
+            },
+        )
         
         def _fetch_content(source_id: str, vid_hint: str):
             # The 'content' command is NOT an AI query. It's a direct data fetch.
@@ -299,7 +491,18 @@ class NLMBatchIngestor:
                     print(format_result_row(vid, True, f"{len(text)} chars", video_width))
                 else:
                     print(format_result_row(vid, False, error, video_width))
-        
+        succeeded = sum(1 for ok, _, _ in results.values() if ok)
+        log_action(
+            "nlm_batch_extract_completed",
+            {
+                "nb_id": self._nb_id,
+                "batch_size": len(batch_ids),
+                "succeeded": succeeded,
+                "failed": len(results) - succeeded,
+                "elapsed_s": round(time.time() - start, 3),
+            },
+        )
+
         return results
 
     def reset_sources(self):
@@ -336,26 +539,148 @@ class NLMReusableIngestor:
 
     def __init__(self, batch_size: int = 300):
         self._ingestor = NLMBatchIngestor(batch_size)
-        self._nb_id: Optional[str] = None
+        self._nb_id: Optional[str] = _load_reusable_notebook_id()
+        log_action(
+            "nlm_batch_reusable_state_loaded",
+            {
+                "nb_id": self._nb_id,
+                "state_path": str(_REUSABLE_NOTEBOOK_STATE_PATH),
+                "status": "loaded" if self._nb_id else "empty",
+            },
+        )
+
+    def _is_notebook_usable(self) -> bool:
+        if not self._nb_id:
+            return False
+        self._ingestor._nb_id = self._nb_id
+        res = self._ingestor._run_cmd(["source", "list", self._nb_id, "--json"], timeout=60)
+        return res.returncode == 0
+
+    def _ensure_notebook(self, batch_ids: List[str]) -> Tuple[bool, str]:
+        if self._nb_id and self._is_notebook_usable():
+            self._ingestor._nb_id = self._nb_id
+            return False, "reuse"
+
+        if self._nb_id:
+            log_action(
+                "nlm_batch_reusable_state_stale",
+                {
+                    "nb_id": self._nb_id,
+                    "state_path": str(_REUSABLE_NOTEBOOK_STATE_PATH),
+                },
+            )
+            self._nb_id = None
+            _clear_reusable_notebook_state()
+
+        self._nb_id = self._ingestor.create_batch_notebook(batch_ids)
+        if self._nb_id:
+            _save_reusable_notebook_id(self._nb_id)
+            log_action(
+                "nlm_batch_reusable_state_saved",
+                {
+                    "nb_id": self._nb_id,
+                    "state_path": str(_REUSABLE_NOTEBOOK_STATE_PATH),
+                },
+            )
+        return True, "create"
 
     def process_batch(self, video_ids: List[str]) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
-        if self._nb_id is None:
-            self._nb_id = self._ingestor.create_batch_notebook(video_ids)
-            if not self._nb_id:
-                return {vid: (False, None, "Notebook failed") for vid in video_ids}
-        else:
+        batch_started_at = time.monotonic()
+        notebook_reused = self._nb_id is not None
+        log_action(
+            "nlm_batch_reusable_process_started",
+            {
+                "batch_size": len(video_ids),
+                "nb_id": self._nb_id,
+                "notebook_reused": notebook_reused,
+                "subbatch_size": self._ingestor.batch_size,
+                "strategy": "reusable",
+            },
+        )
+
+        setup_started_at = time.monotonic()
+        created_new_notebook, setup_mode = self._ensure_notebook(video_ids)
+        if not self._nb_id:
+            log_action(
+                "nlm_batch_reusable_process_completed",
+                {
+                    "batch_size": len(video_ids),
+                    "nb_id": None,
+                    "notebook_reused": notebook_reused,
+                    "setup_mode": "create",
+                    "status": "notebook_create_failed",
+                    "subbatch_size": self._ingestor.batch_size,
+                    "strategy": "reusable",
+                    "total_elapsed_s": round(time.monotonic() - batch_started_at, 3),
+                },
+            )
+            return {vid: (False, None, "Notebook failed") for vid in video_ids}
+        if not created_new_notebook:
             # Notebook already exists — add sources to it in sub-batches
             self._ingestor._nb_id = self._nb_id
             print(f"[NLM-Batch] Adding {len(video_ids)} sources in sub-batches...")
             self._ingestor._add_sources_in_subbatches(video_ids)
+            setup_mode = "reuse_add"
+        setup_elapsed_s = round(time.monotonic() - setup_started_at, 3)
 
-        results = self._ingestor.extract_transcripts(video_ids)
-        self._ingestor.reset_sources()  # clear sources, keep notebook
+        extract_started_at = time.monotonic()
+        results: Dict[str, Tuple[bool, Optional[str], Optional[str]]]
+        cleanup_elapsed_s = 0.0
+        try:
+            results = self._ingestor.extract_transcripts(video_ids)
+            extract_elapsed_s = round(time.monotonic() - extract_started_at, 3)
+        finally:
+            cleanup_started_at = time.monotonic()
+            self._ingestor.reset_sources()  # clear sources, keep notebook
+            if self._nb_id:
+                _save_reusable_notebook_id(self._nb_id)
+                log_action(
+                    "nlm_batch_reusable_state_saved",
+                    {
+                        "nb_id": self._nb_id,
+                        "state_path": str(_REUSABLE_NOTEBOOK_STATE_PATH),
+                    },
+                )
+            cleanup_elapsed_s = round(time.monotonic() - cleanup_started_at, 3)
+
+        succeeded = sum(1 for success, transcript, _ in results.values() if success and transcript)
+        failed = len(results) - succeeded
+        total_elapsed_s = round(time.monotonic() - batch_started_at, 3)
+        log_action(
+            "nlm_batch_reusable_process_completed",
+            {
+                "batch_size": len(video_ids),
+                "nb_id": self._nb_id,
+                "notebook_reused": notebook_reused,
+                "setup_mode": setup_mode,
+                "setup_elapsed_s": setup_elapsed_s,
+                "extract_elapsed_s": extract_elapsed_s,
+                "cleanup_elapsed_s": cleanup_elapsed_s,
+                "succeeded": succeeded,
+                "failed": failed,
+                "subbatch_size": self._ingestor.batch_size,
+                "strategy": "reusable",
+                "total_elapsed_s": total_elapsed_s,
+            },
+        )
         return results
 
-    def close(self):
+    def close(self, delete: bool = False):
         self._ingestor._nb_id = self._nb_id
-        self._ingestor.close()
+        if delete:
+            self._ingestor.close()
+            _clear_reusable_notebook_state()
+            return
+        self._ingestor.cleanup()
+        if self._nb_id:
+            _save_reusable_notebook_id(self._nb_id)
+            log_action(
+                "nlm_batch_reusable_state_saved",
+                {
+                    "nb_id": self._nb_id,
+                    "state_path": str(_REUSABLE_NOTEBOOK_STATE_PATH),
+                },
+            )
 
 
 def process_industrial_batch(video_ids: List[str]) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
@@ -375,23 +700,27 @@ _reusable_ingestor: Optional[NLMReusableIngestor] = None
 def process_industrial_batch_reusable(
     video_ids: List[str],
 ) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
-    """Reuse a single notebook across multiple batch calls — call close() when done."""
+    """Reuse a single notebook across multiple batch calls."""
     global _reusable_ingestor
     if _reusable_ingestor is None:
         _reusable_ingestor = NLMReusableIngestor()
     try:
         return _reusable_ingestor.process_batch(video_ids)
     except Exception:
-        _reusable_ingestor.close()
+        _reusable_ingestor.close(delete=False)
         _reusable_ingestor = None
         raise
 
 
-def close_reusable_ingestor():
-    """Call this when the entire run is complete to delete the shared notebook."""
+def close_reusable_ingestor(delete: bool = False):
+    """Release the reusable notebook.
+
+    By default this keeps the notebook around for reuse across future runs and
+    only clears its sources. Pass delete=True for explicit destructive cleanup.
+    """
     global _reusable_ingestor
     if _reusable_ingestor is not None:
-        _reusable_ingestor.close()
+        _reusable_ingestor.close(delete=delete)
         _reusable_ingestor = None
 
 if __name__ == "__main__":

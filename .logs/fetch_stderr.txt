@@ -1,0 +1,156 @@
+Traceback (most recent call last):
+  File "P:\packages\yt-is\csf\nlm_scraper.py", line 138, in _init_driver
+    self._driver = webdriver.Chrome(options=opts)
+                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\selenium\webdriver\chrome\webdriver.py", line 45, in __init__
+    super().__init__(
+    ~~~~~~~~~~~~~~~~^
+        browser_name=DesiredCapabilities.CHROME["browserName"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        keep_alive=keep_alive,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\selenium\webdriver\chromium\webdriver.py", line 66, in __init__
+    super().__init__(command_executor=executor, options=self.options)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\selenium\webdriver\common\webdriver.py", line 25, in __init__
+    super().__init__(*args, **kwargs)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\selenium\webdriver\remote\webdriver.py", line 257, in __init__
+    self.start_session(capabilities)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\selenium\webdriver\remote\webdriver.py", line 352, in start_session
+    response = self.execute(Command.NEW_SESSION, caps)["value"]
+               ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\selenium\webdriver\remote\webdriver.py", line 432, in execute
+    self.error_handler.check_response(response)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\selenium\webdriver\remote\errorhandler.py", line 232, in check_response
+    raise exception_class(message, screen, stacktrace)
+selenium.common.exceptions.SessionNotCreatedException: Message: session not created: Chrome failed to start: crashed.
+  (session not created: DevToolsActivePort file doesn't exist)
+  (The process started from chrome location C:\Program Files\Google\Chrome\Application\chrome.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.); For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#sessionnotcreatedexception
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff630250245+146d5]
+	chromedriver!GetHandleVerifier [0x7ff6302502b0+14740]
+	chromedriver!(No symbol) [0x7ff62ffbd7cd]
+	chromedriver!(No symbol) [0x7ff62fffe28b]
+	chromedriver!(No symbol) [0x7ff62fff9559]
+	chromedriver!(No symbol) [0x7ff63004dc21]
+	chromedriver!(No symbol) [0x7ff63004d486]
+	chromedriver!(No symbol) [0x7ff630009018]
+	chromedriver!(No symbol) [0x7ff630009f03]
+	chromedriver!GetHandleVerifier [0x7ff6305658f9+329d89]
+	chromedriver!GetHandleVerifier [0x7ff63055fe46+3242d6]
+	chromedriver!GetHandleVerifier [0x7ff6305830b2+347542]
+	chromedriver!GetHandleVerifier [0x7ff63026d3d5+31865]
+	chromedriver!GetHandleVerifier [0x7ff63027600c+3a49c]
+	chromedriver!GetHandleVerifier [0x7ff630259634+1dac4]
+	chromedriver!GetHandleVerifier [0x7ff6302597e6+1dc76]
+	chromedriver!GetHandleVerifier [0x7ff63023e2f7+2787]
+	KERNEL32!BaseThreadInitThunk [0x7ffd253ae8d7+17]
+	ntdll!RtlUserThreadStart [0x7ffd26b0c3fc+2c]
+
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+TimeoutError: timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "P:\packages\yt-is\csf\nlm_scraper.py", line 185, in _init_driver
+    self._driver = webdriver.Firefox(options=opts)
+                   ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\selenium\webdriver\firefox\webdriver.py", line 69, in __init__
+    super().__init__(command_executor=executor, options=self.options)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\selenium\webdriver\common\webdriver.py", line 25, in __init__
+    super().__init__(*args, **kwargs)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\selenium\webdriver\remote\webdriver.py", line 257, in __init__
+    self.start_session(capabilities)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\selenium\webdriver\remote\webdriver.py", line 352, in start_session
+    response = self.execute(Command.NEW_SESSION, caps)["value"]
+               ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\selenium\webdriver\remote\webdriver.py", line 429, in execute
+    response = cast(RemoteConnection, self.command_executor).execute(driver_command, params)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\selenium\webdriver\remote\remote_connection.py", line 406, in execute
+    return self._request(command_info[0], url, body=data)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\selenium\webdriver\remote\remote_connection.py", line 430, in _request
+    response = self._conn.request(method, url, body=body, headers=headers, timeout=self._client_config.timeout)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\urllib3\_request_methods.py", line 143, in request
+    return self.request_encode_body(
+           ~~~~~~~~~~~~~~~~~~~~~~~~^
+        method, url, fields=fields, headers=headers, **urlopen_kw
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\urllib3\_request_methods.py", line 278, in request_encode_body
+    return self.urlopen(method, url, **extra_kw)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\urllib3\poolmanager.py", line 457, in urlopen
+    response = conn.urlopen(method, u.request_uri, **kw)
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\brsth\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPConnectionPool(host='localhost', port=60299): Read timed out. (read timeout=120)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "P:\packages\yt-is\bin\csf-source", line 1788, in <module>
+    cmd_list()
+    ^^
+  File "P:\packages\yt-is\bin\csf-source", line 1771, in main
+    history_parser.add_argument(
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "P:\packages\yt-is\bin\csf-source", line 1231, in cmd_fetch
+    print("[source] Method: NLM Selenium scraper (~18-28k vph)")
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "P:\packages\yt-is\csf\nlm_scraper.py", line 871, in scrape_with_staging
+    self._init_driver()
+    ~~~~~~~~~~~~~~~~~^^
+  File "P:\packages\yt-is\csf\nlm_scraper.py", line 188, in _init_driver
+    raise RuntimeError("Could not initialize any browser driver")
+RuntimeError: Could not initialize any browser driver

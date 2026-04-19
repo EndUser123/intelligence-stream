@@ -924,6 +924,8 @@ class TestNlmAuthLogging:
                 assert csf.transcript._ensure_nlm_auth() is True
 
         assert [c.args[0] for c in mock_log.call_args_list] == [
+            "nlm_login_started",
+            "nlm_login_completed",
             "nlm_auth_refreshed",
         ]
 

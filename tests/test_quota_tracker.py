@@ -74,6 +74,23 @@ class TestQuotaTracking:
         storage = _get_quota_storage()
         assert storage._is_free_only() is True
 
+    def test_increment_cli_calls_uses_atomic_storage_path(self, monkeypatch):
+        """increment_cli_calls should not call back through get_cli_calls_today."""
+        from csf.quota_tracker import _get_quota_storage
+
+        storage = _get_quota_storage()
+
+        def _boom() -> int:
+            raise AssertionError("increment_cli_calls must not call get_cli_calls_today")
+
+        monkeypatch.setattr(storage, "get_cli_calls_today", _boom)
+        assert storage.increment_cli_calls() == 1
+        conn = storage._get_conn()
+        try:
+            assert storage._get_value(conn, "cli_calls_today") == "1"
+        finally:
+            conn.close()
+
 
 class TestQuotaThreshold:
     """Test automatic free-only mode switch at threshold."""

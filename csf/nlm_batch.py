@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import fasteners
+from csf.batch_status import summarize_video_ids
 from csf.display import format_result_row
 from csf.csf_logging import log_action
 
@@ -293,6 +294,27 @@ _RATE_LIMIT_CODES = {429, 503}  # HTTP status codes indicating rate limiting
 _MAX_CONSECUTIVE_FAILURES = 3  # trigger backoff after this many failures
 
 
+def _classify_subbatch_add_failure(
+    res: subprocess.CompletedProcess,
+    *,
+    materialization_waited: bool,
+) -> str:
+    stderr = (res.stderr or "").lower()
+    stdout = (res.stdout or "").lower()
+    text = f"{stdout}\n{stderr}"
+    if "auth failed" in text or "authentication error" in text:
+        return "auth_failed"
+    if "could not add url sources" in text or "could not add" in text:
+        return "source_add_failed"
+    if "429" in text or "503" in text or "rate limit" in text:
+        return "rate_limited"
+    if materialization_waited and res.returncode == 0:
+        return "materialization_wait_failed"
+    if res.returncode != 0:
+        return "add_failed"
+    return "unknown"
+
+
 class _RateLimitTracker:
     """Thread-safe per-process rate limit tracker with exponential backoff.
 
@@ -361,6 +383,11 @@ class NLMBatchIngestor:
         self.batch_size = batch_size
         self._nb_id = None
         self._last_added_video_ids: List[str] = []
+        self._last_subbatch_metrics: list[dict[str, object]] = []
+        self._last_add_failure_reason: Optional[str] = None
+        self._last_add_returncode: Optional[int] = None
+        self._last_add_cmd_elapsed_s: float = 0.0
+        self._last_materialization_wait_elapsed_s: float = 0.0
 
     def _run_cmd(self, args: List[str], timeout: int = 300) -> subprocess.CompletedProcess:
         tracker = _get_tracker()
@@ -489,6 +516,7 @@ class NLMBatchIngestor:
         subbatch_index: int,
         expected_total: int,
         retry_depth: int = 0,
+        source_profile: Optional[dict[str, object]] = None,
     ) -> List[str]:
         """Add one chunk, recursively splitting on add failures.
 
@@ -500,6 +528,13 @@ class NLMBatchIngestor:
         if not batch_ids:
             return []
 
+        chunk_started_at = time.monotonic()
+        self._last_add_failure_reason = None
+        self._last_add_returncode = None
+        self._last_add_cmd_elapsed_s = 0.0
+        self._last_materialization_wait_elapsed_s = 0.0
+        if source_profile is None:
+            source_profile = summarize_video_ids(batch_ids)
         print(
             f"[NLM-Batch]   Adding sub-batch {subbatch_index} "
             f"({len(batch_ids)} sources, retry_depth={retry_depth})..."
@@ -512,12 +547,16 @@ class NLMBatchIngestor:
                 "subbatch_size": len(batch_ids),
                 "expected_total": expected_total,
                 "retry_depth": retry_depth,
+                "source_profile": source_profile,
             },
         )
         add_args = ["source", "add", self._nb_id, "--wait"]
         for vid in batch_ids:
             add_args.extend(["--url", f"https://www.youtube.com/watch?v={vid}"])
         res = self._run_cmd(add_args, timeout=600)
+        add_cmd_elapsed_s = round(time.monotonic() - chunk_started_at, 3)
+        self._last_add_cmd_elapsed_s = add_cmd_elapsed_s
+        self._last_add_returncode = res.returncode
         log_action(
             "nlm_batch_subbatch_add_completed",
             {
@@ -527,11 +566,14 @@ class NLMBatchIngestor:
                 "expected_total": expected_total,
                 "retry_depth": retry_depth,
                 "returncode": res.returncode,
+                "elapsed_s": add_cmd_elapsed_s,
+                "source_profile": source_profile,
                 "stdout": (res.stdout or "")[:200],
                 "stderr": (res.stderr or "")[:200],
             },
         )
         if res.returncode == 0:
+            wait_started_at = time.monotonic()
             log_action(
                 "nlm_batch_source_materialization_wait_started",
                 {
@@ -539,10 +581,15 @@ class NLMBatchIngestor:
                     "subbatch_index": subbatch_index,
                     "expected_total": expected_total,
                     "retry_depth": retry_depth,
+                    "source_profile": source_profile,
                 },
             )
-            if not self._wait_for_sources_ready(expected_total, timeout=120):
+            wait_succeeded = self._wait_for_sources_ready(expected_total, timeout=120)
+            wait_elapsed_s = round(time.monotonic() - wait_started_at, 3)
+            self._last_materialization_wait_elapsed_s = wait_elapsed_s
+            if not wait_succeeded:
                 print(f"[NLM-Batch]   WARNING: after {120}s sources still not ready, continuing anyway...")
+                self._last_add_failure_reason = "materialization_wait_failed"
                 log_action(
                     "nlm_batch_source_materialization_wait_failed",
                     {
@@ -550,6 +597,9 @@ class NLMBatchIngestor:
                         "subbatch_index": subbatch_index,
                         "expected_total": expected_total,
                         "retry_depth": retry_depth,
+                        "source_profile": source_profile,
+                        "failure_reason": "materialization_wait_failed",
+                        "elapsed_s": wait_elapsed_s,
                     },
                 )
             else:
@@ -560,6 +610,8 @@ class NLMBatchIngestor:
                         "subbatch_index": subbatch_index,
                         "expected_total": expected_total,
                         "retry_depth": retry_depth,
+                        "source_profile": source_profile,
+                        "elapsed_s": wait_elapsed_s,
                     },
                 )
             return list(batch_ids)
@@ -571,6 +623,7 @@ class NLMBatchIngestor:
         if res.stderr:
             print(f"[NLM-Batch]   stderr: {res.stderr[:200]}")
 
+        self._last_add_failure_reason = _classify_subbatch_add_failure(res, materialization_waited=False)
         log_action(
             "nlm_batch_subbatch_add_failed",
             {
@@ -580,6 +633,9 @@ class NLMBatchIngestor:
                 "expected_total": expected_total,
                 "retry_depth": retry_depth,
                 "returncode": res.returncode,
+                "elapsed_s": add_cmd_elapsed_s,
+                "source_profile": source_profile,
+                "failure_reason": _classify_subbatch_add_failure(res, materialization_waited=False),
                 "stdout": (res.stdout or "")[:200],
                 "stderr": (res.stderr or "")[:200],
             },
@@ -598,6 +654,7 @@ class NLMBatchIngestor:
         """
         total = len(batch_ids)
         added_ids: List[str] = []
+        self._last_subbatch_metrics = []
         current_subbatch_size = max(1, subbatch_size)
         next_index = 0
         subbatch_index = 0
@@ -612,6 +669,7 @@ class NLMBatchIngestor:
                 tracker._consecutive_failures = 0
                 tracker._current_delay = 0.0
             print(f"[NLM-Batch]   Adding sources {next_index+1}-{min(next_index+window_size, total)}/{total}...")
+            source_profile = summarize_video_ids(subbatch)
             log_action(
                 "nlm_batch_subbatch_size_selected",
                 {
@@ -626,8 +684,25 @@ class NLMBatchIngestor:
                 subbatch,
                 subbatch_index=subbatch_index,
                 expected_total=next_index + len(subbatch),
+                source_profile=source_profile,
             )
             added_ids.extend(added_chunk_ids)
+            subbatch_metrics = {
+                "subbatch_index": subbatch_index,
+                "subbatch_size": window_size,
+                "target_subbatch_size": current_subbatch_size,
+                "attempted_count": len(subbatch),
+                "added_count": len(added_chunk_ids),
+                "add_cmd_elapsed_s": float(getattr(self, "_last_add_cmd_elapsed_s", 0.0) or 0.0),
+                "materialization_wait_elapsed_s": float(getattr(self, "_last_materialization_wait_elapsed_s", 0.0) or 0.0),
+                "elapsed_s": float(
+                    (getattr(self, "_last_add_cmd_elapsed_s", 0.0) or 0.0)
+                    + (getattr(self, "_last_materialization_wait_elapsed_s", 0.0) or 0.0)
+                ),
+                "returncode": self._last_add_returncode,
+                "failure_reason": self._last_add_failure_reason,
+                "source_profile": source_profile,
+            }
             if len(added_chunk_ids) < len(subbatch):
                 log_action(
                     "nlm_batch_subbatch_add_shortfall",
@@ -637,9 +712,18 @@ class NLMBatchIngestor:
                         "subbatch_size": window_size,
                         "added_count": len(added_chunk_ids),
                         "attempted_count": len(subbatch),
+                        "elapsed_s": getattr(self, "_last_add_cmd_elapsed_s", 0.0)
+                        + getattr(self, "_last_materialization_wait_elapsed_s", 0.0),
+                        "source_profile": source_profile,
                         "sample_video_ids": subbatch[:5],
                     },
                 )
+                subbatch_metrics["status"] = "shortfall"
+            elif self._last_add_failure_reason:
+                subbatch_metrics["status"] = "warn"
+            else:
+                subbatch_metrics["status"] = "ok"
+            self._last_subbatch_metrics.append(subbatch_metrics)
             next_index += window_size
 
         self._last_added_video_ids = added_ids
@@ -649,6 +733,7 @@ class NLMBatchIngestor:
         nb_name = _get_reusable_notebook_title()
         notebooklm_profile = _get_notebooklm_profile()
         self._last_added_video_ids = []
+        self._last_subbatch_metrics = []
         print(f"[NLM-Batch] Creating notebook...")
         log_action(
             "nlm_batch_notebook_create_started",
@@ -903,6 +988,8 @@ class NLMReusableIngestor:
     def __init__(self, batch_size: int = 300):
         self._ingestor = NLMBatchIngestor(batch_size)
         self._nb_id: Optional[str] = _load_reusable_notebook_id()
+        self._last_prepare_metrics: dict[str, object] | None = None
+        self._last_process_metrics: dict[str, object] | None = None
         log_action(
             "nlm_batch_reusable_state_loaded",
             {
@@ -916,6 +1003,7 @@ class NLMReusableIngestor:
     def prepare(self) -> tuple[bool, str]:
         """Create or reuse the notebook, then clear it so the worker starts ready."""
         prep_started_at = time.monotonic()
+        self._last_prepare_metrics = None
         log_action(
             "nlm_batch_reusable_prep_started",
             {
@@ -935,10 +1023,25 @@ class NLMReusableIngestor:
                     "notebooklm_profile": _get_notebooklm_profile(),
                     "setup_mode": setup_mode,
                     "strategy": "reusable",
-                    "status": "notebook_create_failed",
-                    "elapsed_s": round(time.monotonic() - prep_started_at, 3),
-                },
-            )
+                "status": "notebook_create_failed",
+                "elapsed_s": round(time.monotonic() - prep_started_at, 3),
+            },
+        )
+            self._last_prepare_metrics = {
+                "created_new_notebook": created_new_notebook,
+                "setup_mode": setup_mode,
+                "notebook_check_elapsed_s": self._last_ensure_metrics.get("notebook_check_elapsed_s", 0.0)
+                if getattr(self, "_last_ensure_metrics", None)
+                else 0.0,
+                "create_elapsed_s": self._last_ensure_metrics.get("create_elapsed_s", 0.0)
+                if getattr(self, "_last_ensure_metrics", None)
+                else 0.0,
+                "retire_elapsed_s": self._last_ensure_metrics.get("retire_elapsed_s", 0.0)
+                if getattr(self, "_last_ensure_metrics", None)
+                else 0.0,
+                "cleanup_elapsed_s": 0.0,
+                "total_elapsed_s": round(time.monotonic() - prep_started_at, 3),
+            }
             return False, setup_mode
 
         cleanup_started_at = time.monotonic()
@@ -950,10 +1053,25 @@ class NLMReusableIngestor:
                 "nlm_batch_reusable_state_saved",
                 {
                     "nb_id": self._nb_id,
-                    "state_path": str(_get_reusable_notebook_state_path()),
-                    "notebooklm_profile": _get_notebooklm_profile(),
-                },
-            )
+                "state_path": str(_get_reusable_notebook_state_path()),
+                "notebooklm_profile": _get_notebooklm_profile(),
+            },
+        )
+        self._last_prepare_metrics = {
+            "created_new_notebook": created_new_notebook,
+            "setup_mode": setup_mode,
+            "notebook_check_elapsed_s": self._last_ensure_metrics.get("notebook_check_elapsed_s", 0.0)
+            if getattr(self, "_last_ensure_metrics", None)
+            else 0.0,
+            "create_elapsed_s": self._last_ensure_metrics.get("create_elapsed_s", 0.0)
+            if getattr(self, "_last_ensure_metrics", None)
+            else 0.0,
+            "retire_elapsed_s": self._last_ensure_metrics.get("retire_elapsed_s", 0.0)
+            if getattr(self, "_last_ensure_metrics", None)
+            else 0.0,
+            "cleanup_elapsed_s": round(time.monotonic() - cleanup_started_at, 3),
+            "total_elapsed_s": round(time.monotonic() - prep_started_at, 3),
+        }
         log_action(
             "nlm_batch_reusable_prep_completed",
             {
@@ -969,6 +1087,11 @@ class NLMReusableIngestor:
         )
         return True, setup_mode
 
+    def get_last_prepare_metrics(self) -> dict[str, object] | None:
+        if self._last_prepare_metrics is None:
+            return None
+        return dict(self._last_prepare_metrics)
+
     def _is_notebook_usable(self) -> bool:
         if not self._nb_id:
             return False
@@ -979,6 +1102,11 @@ class NLMReusableIngestor:
     def _ensure_notebook(self, batch_ids: List[str]) -> Tuple[bool, str]:
         if self._nb_id and self._is_notebook_usable():
             self._ingestor._nb_id = self._nb_id
+            self._last_ensure_metrics = {
+                "notebook_check_elapsed_s": 0.0,
+                "retire_elapsed_s": 0.0,
+                "create_elapsed_s": 0.0,
+            }
             return False, "reuse"
 
         if self._nb_id:
@@ -994,13 +1122,14 @@ class NLMReusableIngestor:
                 self._ingestor._nb_id = self._nb_id
                 stale_started = time.monotonic()
                 self._ingestor.close()
+                retire_elapsed_s = round(time.monotonic() - stale_started, 3)
                 log_action(
                     "nlm_batch_reusable_state_retired",
                     {
                         "nb_id": self._nb_id,
                         "state_path": str(_get_reusable_notebook_state_path()),
                         "notebooklm_profile": _get_notebooklm_profile(),
-                        "elapsed_s": round(time.monotonic() - stale_started, 3),
+                        "elapsed_s": retire_elapsed_s,
                     },
                 )
             except Exception as exc:
@@ -1015,23 +1144,39 @@ class NLMReusableIngestor:
                 )
             self._nb_id = None
             _clear_reusable_notebook_state()
+            self._last_ensure_metrics = {
+                "notebook_check_elapsed_s": 0.0,
+                "retire_elapsed_s": retire_elapsed_s if "retire_elapsed_s" in locals() else 0.0,
+                "create_elapsed_s": 0.0,
+            }
 
+        create_started_at = time.monotonic()
         self._nb_id = self._ingestor.create_batch_notebook(batch_ids)
+        create_elapsed_s = round(time.monotonic() - create_started_at, 3)
         if self._nb_id:
             _save_reusable_notebook_id(self._nb_id)
             log_action(
                 "nlm_batch_reusable_state_saved",
                 {
                     "nb_id": self._nb_id,
-                    "state_path": str(_get_reusable_notebook_state_path()),
-                    "notebooklm_profile": _get_notebooklm_profile(),
-                },
-            )
+                "state_path": str(_get_reusable_notebook_state_path()),
+                "notebooklm_profile": _get_notebooklm_profile(),
+            },
+        )
+        self._last_ensure_metrics = {
+            "notebook_check_elapsed_s": 0.0,
+            "retire_elapsed_s": self._last_ensure_metrics.get("retire_elapsed_s", 0.0)
+            if getattr(self, "_last_ensure_metrics", None)
+            else 0.0,
+            "create_elapsed_s": create_elapsed_s,
+        }
         return True, "create"
 
     def process_batch(self, video_ids: List[str]) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
         batch_started_at = time.monotonic()
         notebook_reused = self._nb_id is not None
+        self._last_process_metrics = None
+        self._last_process_stage_metrics = None
         log_action(
             "nlm_batch_reusable_process_started",
             {
@@ -1046,6 +1191,18 @@ class NLMReusableIngestor:
 
         setup_started_at = time.monotonic()
         created_new_notebook, setup_mode = self._ensure_notebook(video_ids)
+        log_action(
+            "nlm_batch_reusable_process_ready",
+            {
+                "batch_size": len(video_ids),
+                "nb_id": self._nb_id,
+                "notebook_reused": notebook_reused,
+                "created_new_notebook": created_new_notebook,
+                "setup_mode": setup_mode,
+                "notebooklm_profile": _get_notebooklm_profile(),
+                "strategy": "reusable",
+            },
+        )
         if not self._nb_id:
             log_action(
                 "nlm_batch_reusable_process_completed",
@@ -1062,12 +1219,17 @@ class NLMReusableIngestor:
                 },
             )
             return {vid: (False, None, "Notebook failed") for vid in video_ids}
+        add_sources_elapsed_s = 0.0
         if not created_new_notebook:
             # Notebook already exists — add sources to it in sub-batches
             self._ingestor._nb_id = self._nb_id
             print(f"[NLM-Batch] Adding {len(video_ids)} sources in sub-batches...")
+            add_sources_started_at = time.monotonic()
             self._ingestor._add_sources_in_subbatches(video_ids)
+            add_sources_elapsed_s = round(time.monotonic() - add_sources_started_at, 3)
             setup_mode = "reuse_add"
+        elif self._ingestor._last_added_video_ids is not None:
+            add_sources_elapsed_s = 0.0
         setup_elapsed_s = round(time.monotonic() - setup_started_at, 3)
 
         extract_started_at = time.monotonic()
@@ -1111,11 +1273,50 @@ class NLMReusableIngestor:
                 "notebooklm_profile": _get_notebooklm_profile(),
                 "succeeded": succeeded,
                 "failed": failed,
+                "add_sources_elapsed_s": add_sources_elapsed_s,
+                "ensure_notebook_elapsed_s": round(time.monotonic() - setup_started_at, 3),
+                "notebook_check_elapsed_s": self._last_ensure_metrics.get("notebook_check_elapsed_s", 0.0)
+                if getattr(self, "_last_ensure_metrics", None)
+                else 0.0,
+                "notebook_create_elapsed_s": self._last_ensure_metrics.get("create_elapsed_s", 0.0)
+                if getattr(self, "_last_ensure_metrics", None)
+                else 0.0,
+                "notebook_retire_elapsed_s": self._last_ensure_metrics.get("retire_elapsed_s", 0.0)
+                if getattr(self, "_last_ensure_metrics", None)
+                else 0.0,
                 "subbatch_size": self._ingestor.batch_size,
                 "strategy": "reusable",
                 "total_elapsed_s": total_elapsed_s,
             },
         )
+        self._last_process_metrics = {
+            "batch_size": len(video_ids),
+            "nb_id": self._nb_id,
+            "notebook_reused": notebook_reused,
+            "setup_mode": setup_mode,
+            "setup_elapsed_s": setup_elapsed_s,
+            "extract_elapsed_s": extract_elapsed_s,
+            "cleanup_elapsed_s": cleanup_elapsed_s,
+            "add_sources_elapsed_s": add_sources_elapsed_s,
+            "add_cmd_elapsed_s": float(self._ingestor._last_add_cmd_elapsed_s or 0.0),
+            "materialization_wait_elapsed_s": float(self._ingestor._last_materialization_wait_elapsed_s or 0.0),
+            "ensure_notebook_elapsed_s": round(time.monotonic() - setup_started_at, 3),
+            "notebook_check_elapsed_s": self._last_ensure_metrics.get("notebook_check_elapsed_s", 0.0)
+            if getattr(self, "_last_ensure_metrics", None)
+            else 0.0,
+            "notebook_create_elapsed_s": self._last_ensure_metrics.get("create_elapsed_s", 0.0)
+            if getattr(self, "_last_ensure_metrics", None)
+            else 0.0,
+            "notebook_retire_elapsed_s": self._last_ensure_metrics.get("retire_elapsed_s", 0.0)
+            if getattr(self, "_last_ensure_metrics", None)
+            else 0.0,
+            "succeeded": succeeded,
+            "failed": failed,
+            "subbatch_metrics": [dict(item) for item in self._ingestor._last_subbatch_metrics],
+            "subbatch_size": self._ingestor.batch_size,
+            "strategy": "reusable",
+            "total_elapsed_s": total_elapsed_s,
+        }
         return results
 
     def close(self, delete: bool = False):
@@ -1135,6 +1336,11 @@ class NLMReusableIngestor:
                     "notebooklm_profile": _get_notebooklm_profile(),
                 },
             )
+
+    def get_last_process_metrics(self) -> dict[str, object] | None:
+        if self._last_process_metrics is None:
+            return None
+        return dict(self._last_process_metrics)
 
 
 def process_industrial_batch(video_ids: List[str]) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
@@ -1157,6 +1363,12 @@ def process_industrial_batch(video_ids: List[str]) -> Dict[str, Tuple[bool, Opti
 _reusable_ingestor: Optional[NLMReusableIngestor] = None
 
 
+def set_reusable_ingestor(ingestor: Optional[NLMReusableIngestor]) -> None:
+    """Install a reusable ingestor instance for the current process."""
+    global _reusable_ingestor
+    _reusable_ingestor = ingestor
+
+
 def process_industrial_batch_reusable(
     video_ids: List[str],
 ) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
@@ -1170,6 +1382,20 @@ def process_industrial_batch_reusable(
         _reusable_ingestor.close(delete=False)
         _reusable_ingestor = None
         raise
+
+
+def get_last_reusable_process_metrics() -> dict[str, object] | None:
+    """Return the most recent reusable-batch timing summary, if available."""
+    if _reusable_ingestor is None:
+        return None
+    return _reusable_ingestor.get_last_process_metrics()
+
+
+def get_last_prepare_metrics() -> dict[str, object] | None:
+    """Return the most recent reusable prewarm timing summary, if available."""
+    if _reusable_ingestor is None:
+        return None
+    return _reusable_ingestor.get_last_prepare_metrics()
 
 
 def close_reusable_ingestor(delete: bool = False):

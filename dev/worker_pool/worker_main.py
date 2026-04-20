@@ -8,14 +8,18 @@ import os
 import subprocess
 import threading
 import time
+from collections import Counter
 from pathlib import Path
 
-from csf.batch_status import mark_complete
+from csf.batch_status import mark_complete, summarize_video_ids
 from csf.cache import set_cached_transcript
 from csf.csf_logging import log_action
 from csf.nlm_batch import (
     close_reusable_ingestor,
+    get_last_prepare_metrics,
+    get_last_reusable_process_metrics,
     process_industrial_batch_reusable,
+    set_reusable_ingestor,
     retire_reusable_notebook_state,
     NLMReusableIngestor,
 )
@@ -51,6 +55,42 @@ def _write_result_file(result_path: Path | None, data: dict[str, object]) -> Non
     tmp_path = result_path.with_suffix(result_path.suffix + ".tmp")
     tmp_path.write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
     tmp_path.replace(result_path)
+
+
+def _empty_source_profile_totals() -> dict[str, object]:
+    return {
+        "total": 0,
+        "matched": 0,
+        "missing": 0,
+        "source_class_counts": {},
+        "status_counts": {},
+        "privacy_status_counts": {},
+        "upload_status_counts": {},
+        "unavailable_reason_counts": {},
+        "failure_reason_counts": {},
+    }
+
+
+def _merge_source_profile_totals(
+    target: dict[str, object],
+    source: dict[str, object] | None,
+) -> dict[str, object]:
+    if not source:
+        return target
+    for key in ("total", "matched", "missing"):
+        target[key] = int(target.get(key, 0) or 0) + int(source.get(key, 0) or 0)
+    for key in (
+        "source_class_counts",
+        "status_counts",
+        "privacy_status_counts",
+        "upload_status_counts",
+        "unavailable_reason_counts",
+        "failure_reason_counts",
+    ):
+        merged = Counter(target.get(key, {}) or {})
+        merged.update(source.get(key, {}) or {})
+        target[key] = dict(merged)
+    return target
 
 
 def _parent_alive_windows(ppid: int) -> bool:
@@ -129,11 +169,30 @@ def main(argv: list[str] | None = None) -> int:
         "video_count": 0,
         "succeeded": 0,
         "failed": 0,
+        "source_profile": _empty_source_profile_totals(),
+        "subbatch_metrics": [],
+        "startup_retire_elapsed_s": 0.0,
+        "startup_notebook_check_elapsed_s": 0.0,
+        "startup_notebook_create_elapsed_s": 0.0,
+        "startup_prepare_cleanup_elapsed_s": 0.0,
+        "startup_prepare_total_elapsed_s": 0.0,
+        "setup_elapsed_s_total": 0.0,
+        "notebook_check_elapsed_s_total": 0.0,
+        "notebook_create_elapsed_s_total": 0.0,
+        "notebook_retire_elapsed_s_total": 0.0,
+        "add_sources_elapsed_s_total": 0.0,
+        "add_cmd_elapsed_s_total": 0.0,
+        "materialization_wait_elapsed_s_total": 0.0,
+        "extract_elapsed_s_total": 0.0,
+        "cleanup_elapsed_s_total": 0.0,
+        "batch_elapsed_s_total": 0.0,
         "notebooklm_profile": notebooklm_profile,
         "state_path": args.state_path,
         "notebook_title": args.notebook_title,
     }
 
+    worker_source_profile = _empty_source_profile_totals()
+    worker_subbatch_metrics: list[dict[str, object]] = []
     try:
         prewarm_started = time.monotonic()
         cleanup_info = retire_reusable_notebook_state()
@@ -185,12 +244,18 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         prepared, setup_mode = ingestor.prepare()
+        set_reusable_ingestor(ingestor)
         log_action(
             "worker_notebook_prewarm",
             {
                 "worker_id": args.worker_id,
                 "prepared": prepared,
                 "setup_mode": setup_mode,
+                "startup_retire_elapsed_s": 0.0,
+                "startup_notebook_check_elapsed_s": 0.0,
+                "startup_notebook_create_elapsed_s": 0.0,
+                "startup_prepare_cleanup_elapsed_s": 0.0,
+                "startup_prepare_total_elapsed_s": round(time.monotonic() - prewarm_started, 3),
                 "notebooklm_profile": notebooklm_profile,
                 "state_path": args.state_path,
                 "notebook_title": args.notebook_title,
@@ -212,6 +277,12 @@ def main(argv: list[str] | None = None) -> int:
                 separators=(",", ":"),
             )
         )
+        prepare_metrics = get_last_prepare_metrics() or {}
+        worker_result["startup_retire_elapsed_s"] = float(prepare_metrics.get("retire_elapsed_s") or 0.0)
+        worker_result["startup_notebook_check_elapsed_s"] = float(prepare_metrics.get("notebook_check_elapsed_s") or 0.0)
+        worker_result["startup_notebook_create_elapsed_s"] = float(prepare_metrics.get("create_elapsed_s") or 0.0)
+        worker_result["startup_prepare_cleanup_elapsed_s"] = float(prepare_metrics.get("cleanup_elapsed_s") or 0.0)
+        worker_result["startup_prepare_total_elapsed_s"] = float(prepare_metrics.get("total_elapsed_s") or 0.0)
         batches = _load_batches(args.input)
         total_video_count = 0
         total_succeeded = 0
@@ -219,6 +290,8 @@ def main(argv: list[str] | None = None) -> int:
         for batch_index, video_ids in enumerate(batches, 1):
             batch_started_at = time.monotonic()
             total_video_count += len(video_ids)
+            source_profile = summarize_video_ids(video_ids)
+            _merge_source_profile_totals(worker_source_profile, source_profile)
             log_action(
                 "worker_batch_started",
                 {
@@ -227,6 +300,7 @@ def main(argv: list[str] | None = None) -> int:
                     "batch_count": len(batches),
                     "batch_size": len(video_ids),
                     "video_count": len(video_ids),
+                    "source_profile": source_profile,
                     "notebooklm_profile": notebooklm_profile,
                     "state_path": args.state_path,
                     "notebook_title": args.notebook_title,
@@ -255,30 +329,117 @@ def main(argv: list[str] | None = None) -> int:
                     "succeeded": batch_succeeded,
                     "failed": batch_failed,
                     "elapsed_s": round(time.monotonic() - batch_started_at, 3),
+                    "source_profile": source_profile,
                     "notebooklm_profile": notebooklm_profile,
                     "state_path": args.state_path,
                     "notebook_title": args.notebook_title,
                 },
             )
-        log_action(
-            "worker_completed",
-            {
-                "worker_id": args.worker_id,
-                "batch_count": len(batches),
-                "video_count": total_video_count,
-                "succeeded": total_succeeded,
-                "failed": total_failed,
-                "notebooklm_profile": notebooklm_profile,
-                "state_path": args.state_path,
-                "notebook_title": args.notebook_title,
-            },
-        )
+            metrics = get_last_reusable_process_metrics() or {}
+            batch_elapsed_s = float(metrics.get("total_elapsed_s") or round(time.monotonic() - batch_started_at, 3))
+            setup_elapsed_s = float(metrics.get("setup_elapsed_s") or 0.0)
+            notebook_check_elapsed_s = float(metrics.get("notebook_check_elapsed_s") or 0.0)
+            notebook_create_elapsed_s = float(metrics.get("notebook_create_elapsed_s") or 0.0)
+            notebook_retire_elapsed_s = float(metrics.get("notebook_retire_elapsed_s") or 0.0)
+            add_sources_elapsed_s = float(metrics.get("add_sources_elapsed_s") or 0.0)
+            add_cmd_elapsed_s = float(metrics.get("add_cmd_elapsed_s") or 0.0)
+            materialization_wait_elapsed_s = float(metrics.get("materialization_wait_elapsed_s") or 0.0)
+            extract_elapsed_s = float(metrics.get("extract_elapsed_s") or 0.0)
+            cleanup_elapsed_s = float(metrics.get("cleanup_elapsed_s") or 0.0)
+            subbatch_metrics = list(metrics.get("subbatch_metrics") or [])
+            worker_subbatch_metrics.extend([dict(item) for item in subbatch_metrics if isinstance(item, dict)])
+            worker_result["setup_elapsed_s_total"] = float(worker_result["setup_elapsed_s_total"]) + setup_elapsed_s
+            worker_result["notebook_check_elapsed_s_total"] = float(worker_result["notebook_check_elapsed_s_total"]) + notebook_check_elapsed_s
+            worker_result["notebook_create_elapsed_s_total"] = float(worker_result["notebook_create_elapsed_s_total"]) + notebook_create_elapsed_s
+            worker_result["notebook_retire_elapsed_s_total"] = float(worker_result["notebook_retire_elapsed_s_total"]) + notebook_retire_elapsed_s
+            worker_result["add_sources_elapsed_s_total"] = float(worker_result["add_sources_elapsed_s_total"]) + add_sources_elapsed_s
+            worker_result["add_cmd_elapsed_s_total"] = float(worker_result.get("add_cmd_elapsed_s_total", 0.0)) + add_cmd_elapsed_s
+            worker_result["materialization_wait_elapsed_s_total"] = float(worker_result.get("materialization_wait_elapsed_s_total", 0.0)) + materialization_wait_elapsed_s
+            worker_result["extract_elapsed_s_total"] = float(worker_result["extract_elapsed_s_total"]) + extract_elapsed_s
+            worker_result["cleanup_elapsed_s_total"] = float(worker_result["cleanup_elapsed_s_total"]) + cleanup_elapsed_s
+            worker_result["batch_elapsed_s_total"] = float(worker_result["batch_elapsed_s_total"]) + batch_elapsed_s
+            log_action(
+                "worker_batch_metrics",
+                {
+                    "worker_id": args.worker_id,
+                    "batch_index": batch_index,
+                    "batch_count": len(batches),
+                    "batch_size": len(video_ids),
+                    "setup_mode": metrics.get("setup_mode"),
+                    "notebook_reused": metrics.get("notebook_reused"),
+                    "setup_elapsed_s": setup_elapsed_s,
+                    "notebook_check_elapsed_s": notebook_check_elapsed_s,
+                    "notebook_create_elapsed_s": notebook_create_elapsed_s,
+                    "notebook_retire_elapsed_s": notebook_retire_elapsed_s,
+                    "add_sources_elapsed_s": add_sources_elapsed_s,
+                    "add_cmd_elapsed_s": add_cmd_elapsed_s,
+                    "materialization_wait_elapsed_s": materialization_wait_elapsed_s,
+                    "extract_elapsed_s": extract_elapsed_s,
+                    "cleanup_elapsed_s": cleanup_elapsed_s,
+                    "batch_elapsed_s": batch_elapsed_s,
+                    "succeeded": batch_succeeded,
+                    "failed": batch_failed,
+                    "source_profile": source_profile,
+                    "subbatch_count": len(subbatch_metrics),
+                    "subbatch_metrics": subbatch_metrics,
+                    "notebooklm_profile": notebooklm_profile,
+                    "state_path": args.state_path,
+                    "notebook_title": args.notebook_title,
+                },
+            )
+            log_action(
+                "worker_completed",
+                {
+                    "worker_id": args.worker_id,
+                    "batch_count": len(batches),
+                    "video_count": total_video_count,
+                    "succeeded": total_succeeded,
+                    "failed": total_failed,
+                    "source_profile": worker_source_profile,
+                    "subbatch_metrics": worker_subbatch_metrics,
+                    "startup_retire_elapsed_s": worker_result["startup_retire_elapsed_s"],
+                    "startup_notebook_check_elapsed_s": worker_result["startup_notebook_check_elapsed_s"],
+                    "startup_notebook_create_elapsed_s": worker_result["startup_notebook_create_elapsed_s"],
+                    "startup_prepare_cleanup_elapsed_s": worker_result["startup_prepare_cleanup_elapsed_s"],
+                    "startup_prepare_total_elapsed_s": worker_result["startup_prepare_total_elapsed_s"],
+                    "setup_elapsed_s_total": worker_result["setup_elapsed_s_total"],
+                    "notebook_check_elapsed_s_total": worker_result["notebook_check_elapsed_s_total"],
+                    "notebook_create_elapsed_s_total": worker_result["notebook_create_elapsed_s_total"],
+                    "notebook_retire_elapsed_s_total": worker_result["notebook_retire_elapsed_s_total"],
+                    "add_sources_elapsed_s_total": worker_result["add_sources_elapsed_s_total"],
+                    "add_cmd_elapsed_s_total": worker_result["add_cmd_elapsed_s_total"],
+                    "materialization_wait_elapsed_s_total": worker_result["materialization_wait_elapsed_s_total"],
+                    "extract_elapsed_s_total": worker_result["extract_elapsed_s_total"],
+                    "cleanup_elapsed_s_total": worker_result["cleanup_elapsed_s_total"],
+                    "batch_elapsed_s_total": worker_result["batch_elapsed_s_total"],
+                    "notebooklm_profile": notebooklm_profile,
+                    "state_path": args.state_path,
+                    "notebook_title": args.notebook_title,
+                },
+            )
         worker_result.update(
             {
                 "batch_count": len(batches),
                 "video_count": total_video_count,
                 "succeeded": total_succeeded,
                 "failed": total_failed,
+                "source_profile": worker_source_profile,
+                "subbatch_metrics": worker_subbatch_metrics,
+                "startup_retire_elapsed_s": worker_result["startup_retire_elapsed_s"],
+                "startup_notebook_check_elapsed_s": worker_result["startup_notebook_check_elapsed_s"],
+                "startup_notebook_create_elapsed_s": worker_result["startup_notebook_create_elapsed_s"],
+                "startup_prepare_cleanup_elapsed_s": worker_result["startup_prepare_cleanup_elapsed_s"],
+                "startup_prepare_total_elapsed_s": worker_result["startup_prepare_total_elapsed_s"],
+                "setup_elapsed_s_total": worker_result["setup_elapsed_s_total"],
+                "notebook_check_elapsed_s_total": worker_result["notebook_check_elapsed_s_total"],
+                "notebook_create_elapsed_s_total": worker_result["notebook_create_elapsed_s_total"],
+                "notebook_retire_elapsed_s_total": worker_result["notebook_retire_elapsed_s_total"],
+                "add_sources_elapsed_s_total": worker_result["add_sources_elapsed_s_total"],
+                "add_cmd_elapsed_s_total": worker_result["add_cmd_elapsed_s_total"],
+                "materialization_wait_elapsed_s_total": worker_result["materialization_wait_elapsed_s_total"],
+                "extract_elapsed_s_total": worker_result["extract_elapsed_s_total"],
+                "cleanup_elapsed_s_total": worker_result["cleanup_elapsed_s_total"],
+                "batch_elapsed_s_total": worker_result["batch_elapsed_s_total"],
                 "status": "ok",
                 "returncode": 0,
             }

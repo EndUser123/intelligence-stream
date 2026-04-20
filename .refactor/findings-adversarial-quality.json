@@ -1,0 +1,126 @@
+{
+  "agent": "adversarial-quality",
+  "findings": [
+    {
+      "id": "QUAL-001",
+      "file": "P:/packages/yt-is/csf/batch_status.py",
+      "line": 550,
+      "type": "pattern",
+      "severity": "P2",
+      "description": "Duplicate _conn contextmanager method \u2014 second definition shadows the first. Two @contextmanager def _conn(self) methods exist in _BatchStatusStorage class. First at line 550, second at line 560. The first is unreachable dead code.",
+      "confidence": 95,
+      "evidence": "Duplicate _conn at lines 550 and 560 in _BatchStatusStorage"
+    },
+    {
+      "id": "QUAL-002",
+      "file": "P:/packages/yt-is/csf/transcript.py",
+      "line": 148,
+      "type": "type-hint",
+      "severity": "P2",
+      "description": "Module-level _external_provider uses bare callable instead of Callable from typing. Should use Callable[[str, str], tuple[bool, str | None, str | None]] | None.",
+      "confidence": 90,
+      "evidence": "_external_provider: callable | None = None (line 148) and def register_external_transcript_provider(provider: callable) (line 151) \u2014 both use bare callable"
+    },
+    {
+      "id": "QUAL-003",
+      "file": "P:/packages/yt-is/csf/nlm_scraper.py",
+      "line": 25,
+      "type": "type-hint",
+      "severity": "P3",
+      "description": "Module uses Dict, List, Tuple, Optional from typing without from __future__ import annotations. Inconsistent with codebase style which uses from __future__ import annotations in most files.",
+      "confidence": 85,
+      "evidence": "from typing import Optional, Dict, List, Tuple (line 25) \u2014 no from __future__ import annotations"
+    },
+    {
+      "id": "QUAL-004",
+      "file": "P:/packages/yt-is/csf/batch.py",
+      "line": 300,
+      "type": "pattern",
+      "severity": "P2",
+      "description": "Unreachable code: break at line 299 exits inner while before else branch at line 300 can execute. The futures assignment is permanently unreachable.",
+      "confidence": 95,
+      "evidence": "while futures loop: break exits before line 300 futures assignment. Comment at 301-302 describes intent but code can never reach there."
+    },
+    {
+      "id": "QUAL-005",
+      "file": "P:/packages/yt-is/csf/transcript.py",
+      "line": 164,
+      "type": "maintainability",
+      "severity": "P2",
+      "description": "Module-level mutable state _external_provider written by register_external_transcript_provider() with no thread-safety. Unpredictable behavior across imports or test ordering.",
+      "confidence": 90,
+      "evidence": "global _external_provider; _external_provider = provider (line 164) \u2014 no threading.Lock despite module-level mutable state"
+    },
+    {
+      "id": "QUAL-006",
+      "file": "P:/packages/yt-is/csf/orchestrator.py",
+      "line": 264,
+      "type": "pattern",
+      "severity": "P2",
+      "description": "Bare except Exception: pass swallows all exceptions including ValueError that select_provider() should raise for invalid inputs. Docstring says it raises ValueError on invalid video_id format but this block silently converts those to routing decisions.",
+      "confidence": 90,
+      "evidence": "try: from csf.batch_status import get_provider_scores; except Exception: pass (line 265)"
+    },
+    {
+      "id": "QUAL-007",
+      "file": "P:/packages/yt-is/csf/batch_status.py",
+      "line": 1011,
+      "type": "maintainability",
+      "severity": "P3",
+      "description": "delete_channel sets deleted = True unconditionally before except block. Return value is always True regardless of whether delete succeeded.",
+      "confidence": 85,
+      "evidence": "deleted = True (line 1011) fires even if commit() raises. except: conn.rollback(); raise. return deleted \u2014 always True."
+    },
+    {
+      "id": "QUAL-008",
+      "file": "P:/packages/yt-is/csf/nlm_batch.py",
+      "line": 369,
+      "type": "pattern",
+      "severity": "P2",
+      "description": "Returning manually-constructed subprocess.CompletedProcess with positional args. Style is confusing \u2014 explicit keyword args would be clearer.",
+      "confidence": 85,
+      "evidence": "return subprocess.CompletedProcess([\"nlm\"] + args, 1, \"\", \"Auth failed\") \u2014 positional args make field mapping unclear"
+    },
+    {
+      "id": "QUAL-009",
+      "file": "P:/packages/yt-is/csf/nlm_scraper.py",
+      "line": 1748,
+      "type": "type-hint",
+      "severity": "P3",
+      "description": "close() method has no return type annotation. Inconsistent with other methods. Also _cleanup_staging_on_close() (line 1815) missing annotation.",
+      "confidence": 70,
+      "evidence": "def close(self): (line 1748) \u2014 no -> None annotation"
+    },
+    {
+      "id": "QUAL-010",
+      "file": "P:/packages/yt-is/csf/csf_logging.py",
+      "line": 144,
+      "type": "pattern",
+      "severity": "P3",
+      "description": "Using lambda assigned to handler.emit bypasses proper inheritance pattern. Proper pattern is to subclass logging.Handler and override emit.",
+      "confidence": 75,
+      "evidence": "handler.emit = lambda record: _queue_emit(handler, record, log_queue)  # type: ignore[assignment] (line 144)"
+    },
+    {
+      "id": "QUAL-011",
+      "file": "P:/packages/yt-is/csf/orchestrator.py",
+      "line": 131,
+      "type": "pattern",
+      "severity": "P3",
+      "description": "Using global _gemini_available inside method while _gemini_lock is used correctly at module level. Global declaration is misleading about concurrency semantics.",
+      "confidence": 75,
+      "evidence": "with _gemini_lock: global _gemini_available; _gemini_available = False (lines 129-131)"
+    },
+    {
+      "id": "QUAL-012",
+      "file": "P:/packages/yt-is/csf/nlm_batch.py",
+      "line": 703,
+      "type": "pattern",
+      "severity": "P2",
+      "description": "Bare except: clause catches BaseException including SystemExit and KeyboardInterrupt. Should be except Exception: at minimum.",
+      "confidence": 90,
+      "evidence": "try: sources = json.loads(res.stdout); except: return {vid: (False, None, \"Parse failed\") for vid in batch_ids} (line 703)"
+    }
+  ],
+  "summary": "Found 12 issues across 8 files. Critical: batch_status.py duplicate _conn contextmanager (unreachable code); batch.py line 300 unreachable; nlm_batch.py line 703 bare except catching SystemExit. Medium: orchestrator.py line 265 bare except swallowing errors; transcript.py line 148 bare callable type; delete_channel always returns True. Minor: nlm_scraper.py typing imports inconsistent; nlm_scraper.py close() missing annotation; csf_logging.py lambda emit pattern."
+}

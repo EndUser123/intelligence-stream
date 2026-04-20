@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
 from csf.batch_status import (
     get_analysis_status,
     get_entries_for_source_details,
+    summarize_video_ids,
     is_complete,
     mark_complete,
     mark_failed,
@@ -249,3 +250,57 @@ class TestGetEntriesForSourceDetails:
         assert details[1]["video_id"] == "vid_audio"
         assert details[1]["duration"] == 133
         assert details[1]["upload_status"] == "processed"
+
+
+class TestSummarizeVideoIds:
+    """Test metadata profiling for NotebookLM batches."""
+
+    def setup_method(self):
+        reset_all(_TEST_DB_PATH)
+
+    def test_summarize_video_ids_groups_source_classes(self):
+        entries: list[BatchEntry] = [
+            BatchEntry(
+                video_id="vid_captioned",
+                status="pending",
+                source="https://youtube.com/channel/UC1",
+                has_captions=True,
+                privacy_status="public",
+                upload_status="processed",
+                is_live_content=False,
+                unavailable_reason=None,
+            ),
+            BatchEntry(
+                video_id="vid_terminal",
+                status="pending",
+                source="https://youtube.com/channel/UC1",
+                has_captions=False,
+                privacy_status="private",
+                upload_status="deleted",
+                is_live_content=False,
+                unavailable_reason="deleted",
+            ),
+            BatchEntry(
+                video_id="vid_live",
+                status="pending",
+                source="https://youtube.com/channel/UC1",
+                has_captions=None,
+                privacy_status="public",
+                upload_status="live",
+                is_live_content=True,
+                unavailable_reason=None,
+            ),
+        ]
+        set_status_batch(entries, db_path=_TEST_DB_PATH)
+
+        summary = summarize_video_ids(
+            ["vid_captioned", "vid_terminal", "vid_live", "vid_missing"],
+            db_path=_TEST_DB_PATH,
+        )
+
+        assert summary["total"] == 4
+        assert summary["matched"] == 3
+        assert summary["missing"] == 1
+        assert summary["source_class_counts"]["captioned"] == 1
+        assert summary["source_class_counts"]["terminal_deleted"] == 1
+        assert summary["source_class_counts"]["live"] == 1

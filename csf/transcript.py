@@ -49,59 +49,6 @@ def _get_scheduler() -> BatchScheduler:
 _nlm_scraper: "NLMIndustrialScraper | None" = None
 
 
-def _ensure_nlm_auth() -> bool:
-    """Verify nlm CLI authentication is valid, re-authenticating if expired.
-
-    Returns True if auth is valid (or was just refreshed).
-    """
-    import subprocess
-
-    check = subprocess.run(
-        ["nlm", "login", "--check"], capture_output=True, text=True
-    )
-    if check.returncode == 0:
-        log_action("nlm_auth_checked", {"component": "transcript", "status": "ok"})
-        return True
-
-    # Auth expired — re-authenticate (auto-launches Chrome headless)
-    print("[transcript] NLM auth expired, re-authenticating...")
-    login_started = time.perf_counter()
-    log_action(
-        "nlm_login_started",
-        {"component": "transcript", "mode": "standard", "status": "started"},
-    )
-    login = subprocess.run(["nlm", "login"], capture_output=True, text=True)
-    login_elapsed = round(time.perf_counter() - login_started, 3)
-    if login.returncode != 0:
-        log_action(
-            "nlm_login_failed",
-            {
-                "component": "transcript",
-                "mode": "standard",
-                "status": "failed",
-                "elapsed_s": login_elapsed,
-                "returncode": login.returncode,
-            },
-        )
-        log_action(
-            "nlm_auth_failed",
-            {"component": "transcript", "status": "refresh_failed"},
-        )
-        print(f"[transcript] Re-auth failed: {login.stderr}")
-        return False
-    log_action(
-        "nlm_login_completed",
-        {
-            "component": "transcript",
-            "mode": "standard",
-            "status": "ok",
-            "elapsed_s": login_elapsed,
-        },
-    )
-    log_action("nlm_auth_refreshed", {"component": "transcript", "status": "ok"})
-    return True
-
-
 def _get_nlm_scraper() -> "NLMIndustrialScraper":
     global _nlm_scraper
     if _nlm_scraper is None:
@@ -468,6 +415,33 @@ class TranscriptResult:
     error: str | None = None
     last_stage: str | None = None
     failure_reason: str | None = None
+    # YouTube engagement + content quality signals (populated during transcript fetch)
+    view_count: int | None = None
+    like_count: int | None = None
+    comment_count: int | None = None
+    duration: int | None = None
+    video_title: str | None = None
+    video_description: str | None = None
+
+
+def _extract_video_metadata(info: dict) -> dict:
+    """Pull engagement and content-quality fields from a yt-dlp info dict.
+
+    yt-dlp's extract_info returns a full video metadata dict on every call.
+    Capturing it here avoids re-fetching for quality metrics.
+
+    Returns a flat dict with only populated fields.
+    """
+    if not info:
+        return {}
+    return {
+        "view_count": info.get("view_count"),
+        "like_count": info.get("like_count"),
+        "comment_count": info.get("comment_count"),
+        "duration": info.get("duration"),
+        "title": info.get("title"),
+        "description": info.get("description"),
+    }
 
 
 def _validate_bcp47(lang: str) -> None:
@@ -720,7 +694,9 @@ def _fetch_via_youtubei(
         return (False, None, "youtubei timeout (>15s)")
 
 
-def _fetch_via_ytdlp(video_id: str, lang: str) -> tuple[bool, str | None, str | None]:
+def _fetch_via_ytdlp(
+    video_id: str, lang: str
+) -> tuple[bool, str | None, str | None, dict]:
     """Fetch transcript using yt-dlp Python API with Chrome TLS impersonation.
 
     Uses yt-dlp's Python API (not CLI subprocess) with WEB client + curl-cffi
@@ -729,6 +705,10 @@ def _fetch_via_ytdlp(video_id: str, lang: str) -> tuple[bool, str | None, str | 
     curl-cffi makes the request look like Chrome, bypassing it.
 
     Falls back gracefully if curl-cffi is not installed.
+
+    Returns:
+        (success, transcript, error, info_dict) — info_dict contains video metadata
+        (view_count, like_count, comment_count, duration, title, description) on success.
     """
     video_url = f"https://www.youtube.com/watch?v={video_id}"
 
@@ -835,37 +815,40 @@ def _fetch_via_ytdlp(video_id: str, lang: str) -> tuple[bool, str | None, str | 
 
         full_text = " ".join(t for t in text_parts if t != "\n")
         if not full_text.strip():
-            return (False, None, "subtitle file was empty")
+            return (False, None, "subtitle file was empty", {})
 
-        return (True, full_text.strip(), None)
+        return (True, full_text.strip(), None, info)
 
     except urllib.error.HTTPError as e:
         if e.code == 429:
-            return (False, None, "rate limited (429)")
-        return (False, None, f"yt-dlp HTTP error: {e.code}")
+            return (False, None, "rate limited (429)", {})
+        return (False, None, f"yt-dlp HTTP error: {e.code}", {})
     except subprocess.TimeoutExpired:
-        return (False, None, "yt-dlp timed out")
+        return (False, None, "yt-dlp timed out", {})
     except Exception as e:
         err_str = str(e).lower()
         if "429" in err_str or "too many requests" in err_str:
-            return (False, None, "rate limited (429)")
+            return (False, None, "rate limited (429)", {})
         if "no subtitles" in err_str or "does not have any subtitles" in err_str:
-            return (False, None, "no subtitles available")
+            return (False, None, "no subtitles available", {})
         if "sign in to confirm" in err_str or "not a bot" in err_str:
             # Bot-check triggered — try age-restricted approach with cookies + default extractor.
             # This is a second attempt inside the same function rather than a separate method.
             return _fetch_via_ytdlp_with_cookies(video_id, lang)
-        return (False, None, f"yt-dlp error: {e}")
+        return (False, None, f"yt-dlp error: {e}", {})
 
 
 def _fetch_via_ytdlp_with_cookies(
     video_id: str, lang: str
-) -> tuple[bool, str | None, str | None]:
+) -> tuple[bool, str | None, str | None, dict]:
     """Second-attempt transcript fetch with browser cookies for age-restricted videos.
 
     Called by _fetch_via_ytdlp when bot-check fires on the WEB client approach.
     Uses the default yt-dlp extractor (not WEB client) with Firefox browser cookies.
     Falls back gracefully if cookies are unavailable or extraction fails.
+
+    Returns:
+        (success, transcript, error, info_dict) — info_dict has video metadata on success.
     """
     video_url = f"https://www.youtube.com/watch?v={video_id}"
 
@@ -922,12 +905,12 @@ def _fetch_via_ytdlp_with_cookies(
 
         if not subs or len(subs) == 0:
             _release_cookie_file(cookie_file)
-            return (False, None, "no subtitles available")
+            return (False, None, "no subtitles available", {})
 
         sub_url = subs[0].get("url")
         if not sub_url:
             _release_cookie_file(cookie_file)
-            return (False, None, "no subtitle URL in yt-dlp response")
+            return (False, None, "no subtitle URL in yt-dlp response", {})
 
         # Fetch subtitle URL with curl_cffi Chrome impersonation
         try:
@@ -974,26 +957,26 @@ def _fetch_via_ytdlp_with_cookies(
         full_text = " ".join(t for t in text_parts if t != "\n")
         _release_cookie_file(cookie_file)
         if not full_text.strip():
-            return (False, None, "subtitle file was empty")
+            return (False, None, "subtitle file was empty", {})
 
-        return (True, full_text.strip(), None)
+        return (True, full_text.strip(), None, info)
 
     except urllib.error.HTTPError as e:
         _release_cookie_file(cookie_file)
         if e.code == 429:
-            return (False, None, "rate limited (429)")
-        return (False, None, f"yt-dlp-with-cookies HTTP error: {e.code}")
+            return (False, None, "rate limited (429)", {})
+        return (False, None, f"yt-dlp-with-cookies HTTP error: {e.code}", {})
     except subprocess.TimeoutExpired:
         _release_cookie_file(cookie_file)
-        return (False, None, "yt-dlp-with-cookies timed out")
+        return (False, None, "yt-dlp-with-cookies timed out", {})
     except Exception as e:
         _release_cookie_file(cookie_file)
         err_str = str(e).lower()
         if "429" in err_str or "too many requests" in err_str:
-            return (False, None, "rate limited (429)")
+            return (False, None, "rate limited (429)", {})
         if "sign in" in err_str or "age" in err_str or "login" in err_str:
-            return (False, None, "age-restricted or requires login")
-        return (False, None, f"yt-dlp-with-cookies error: {e}")
+            return (False, None, "age-restricted or requires login", {})
+        return (False, None, f"yt-dlp-with-cookies error: {e}", {})
 
 
 def _get_firefox_cookie_file() -> str | None:
@@ -1527,6 +1510,23 @@ def _fetch_via_direct_api(video_id: str) -> tuple[bool, str | None, str | None]:
     Returns:
         (success, transcript_text, error)
     """
+    def _summarize_direct_api_error(error: Exception | str) -> str:
+        raw = str(error).strip()
+        low = raw.lower()
+        if "subtitles are disabled" in low or "no subtitles" in low:
+            return "direct_api no_transcript: subtitles disabled"
+        if "removed by the uploader" in low:
+            return "direct_api unavailable: removed by uploader"
+        if "not available in your country" in low or "geo" in low:
+            return "direct_api unavailable: not available in your country"
+        if "unplayable" in low or "video unavailable" in low or "private video" in low:
+            return "direct_api unavailable: video unavailable"
+        if "transcript" in low and "not" in low:
+            return f"direct_api no_transcript: {raw}"
+        if "429" in low or "rate limit" in low or "quota" in low:
+            return f"direct_api quota_exceeded: {raw}"
+        return f"direct_api error: {raw}"
+
     try:
         import youtube_transcript_api
     except ImportError:
@@ -1535,8 +1535,25 @@ def _fetch_via_direct_api(video_id: str) -> tuple[bool, str | None, str | None]:
 
     try:
         api = youtube_transcript_api.YouTubeTranscriptApi()
+        api_type = type(api)
+        # Prefer the installed API shape: list(video_id) returns a TranscriptList.
+        # Older/newer releases have used slightly different names here, so we
+        # gracefully adapt rather than pinning the whole fallback path to one
+        # package version.
+        if callable(getattr(api_type, "list_transcripts", None)):
+            transcripts = api.list_transcripts(video_id)
+        elif callable(getattr(api_type, "list", None)):
+            transcripts = api.list(video_id)
+        else:
+            fetched = api.fetch(video_id, languages=["en"])
+            transcript_text = " ".join(
+                segment["text"] for segment in fetched.fetch()
+            )
+            if len(transcript_text) >= _NLM_MIN_CONTENT_CHARS:
+                return (True, transcript_text, None)
+            return (False, None, "no_transcript")
+
         # List available transcripts to find a non-generated English one first
-        transcripts = api.list_transcripts(video_id)
         for transcript in transcripts:
             # Prefer English, non-generated
             if transcript.language_code == "en" and not transcript.is_generated:
@@ -1557,10 +1574,15 @@ def _fetch_via_direct_api(video_id: str) -> tuple[bool, str | None, str | None]:
                     return (True, transcript_text, None)
         return (False, None, "no_transcript")
     except Exception as e:
-        return (False, None, f"direct_api error: {e}")
+        return (False, None, _summarize_direct_api_error(e))
 
 
-def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptResult:
+def fetch_transcript_chain(
+    video_id: str,
+    config: LanguageConfig,
+    *,
+    skip_notebooklm: bool = False,
+) -> TranscriptResult:
     """Fetch transcript using yt-dlp → Selenium → NotebookLM fallback chain.
 
     Chain order:
@@ -1572,6 +1594,8 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
     Args:
         video_id: YouTube video ID (must be 11 chars)
         config: LanguageConfig specifying prefer_lang and allow_translation
+        skip_notebooklm: If True, skip the NotebookLM stage and fall back to
+            Selenium, Whisper, and direct API only.
 
     Returns:
         TranscriptResult with all fields populated including detected_lang.
@@ -1664,11 +1688,12 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
     methods_to_try = [
         (_SOURCE_YTDLP, _fetch_via_ytdlp, STAGE_VERSION_YTDLP),
         (_SOURCE_YTDLP_EJS, _fetch_via_ytdlp_with_cookies, STAGE_VERSION_EJS),
-        (_SOURCE_NLM, _fetch_via_notebooklm, STAGE_VERSION_NOTEBOOKLM),
         (_SOURCE_SELENIUM, _fetch_via_selenium_firefox, STAGE_VERSION_SELENIUM),
         (_SOURCE_WHISPER, _fetch_via_whisper, None),  # audio fallback — no captions needed
         (_SOURCE_DIRECT_API, _fetch_via_direct_api, STAGE_VERSION_DIRECT_API),
     ]
+    if not skip_notebooklm:
+        methods_to_try.insert(2, (_SOURCE_NLM, _fetch_via_notebooklm, STAGE_VERSION_NOTEBOOKLM))
 
     for source, fetch_fn, stage in methods_to_try:
         if _is_source_rate_limited(source):
@@ -1741,9 +1766,20 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
                 # Use "en" as placeholder when lang is None (yt-dlp will use its default)
                 try_lang = lang if lang is not None else "en"
 
-                success, transcript, error = fetch_fn(video_id, try_lang)
+                result = fetch_fn(video_id, try_lang)
+                # Normalize 3-tuple (NotebookLM, Selenium, Whisper, direct_api) vs
+                # 4-tuple (yt-dlp, yt-dlp-with-cookies) which carries video metadata
+                if len(result) == 4:
+                    success, transcript, error, info_dict = result
+                else:
+                    success, transcript, error = result
+                    info_dict = {}
+
                 if success and transcript:
                     _record_source_success(source, video_id)
+
+                    # Extract engagement metrics from yt-dlp info dict when available
+                    video_metadata = _extract_video_metadata(info_dict)
 
                     # Determine actual language and whether translation is needed
                     raw_lang = lang if lang is not None else "en"
@@ -1771,6 +1807,12 @@ def fetch_transcript_chain(video_id: str, config: LanguageConfig) -> TranscriptR
                         error=None,
                         last_stage=source,
                         failure_reason=None,
+                        view_count=video_metadata.get("view_count"),
+                        like_count=video_metadata.get("like_count"),
+                        comment_count=video_metadata.get("comment_count"),
+                        duration=video_metadata.get("duration"),
+                        video_title=video_metadata.get("title"),
+                        video_description=video_metadata.get("description"),
                     )
 
                 last_error = error

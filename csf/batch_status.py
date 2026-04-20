@@ -10,7 +10,7 @@ Multi-terminal safe: all terminals share the same DB with WAL mode.
 import sqlite3
 import threading
 from contextlib import contextmanager
-from contextlib import contextmanager
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
@@ -57,6 +57,32 @@ class BatchEntry:
             self.last_stage,
             self.failure_reason,
         )
+
+
+def _classify_video_source_row(row: dict[str, object | None]) -> str:
+    """Classify a video row into a coarse source bucket for NotebookLM profiling."""
+    status = str(row.get("status") or "unknown").lower()
+    privacy_status = str(row.get("privacy_status") or "unknown").lower()
+    upload_status = str(row.get("upload_status") or "unknown").lower()
+    unavailable_reason = str(row.get("unavailable_reason") or "").lower()
+    has_captions = row.get("has_captions")
+    is_live_content = bool(row.get("is_live_content"))
+
+    if unavailable_reason in {"deleted", "removed"}:
+        return f"terminal_{unavailable_reason}"
+    if privacy_status == "private":
+        return "terminal_private"
+    if is_live_content or upload_status in {"live", "live_stream", "premiere"}:
+        return "live"
+    if has_captions in (True, 1):
+        return "captioned"
+    if has_captions in (False, 0):
+        return "no_captions"
+    if unavailable_reason:
+        return f"unavailable_{unavailable_reason}"
+    if status != "unknown":
+        return f"status_{status}"
+    return "unknown"
 
 # Status values
 _STATUS_PENDING = "pending"
@@ -174,6 +200,13 @@ class _BatchStatusStorage:
             conn.execute("SELECT failure_reason FROM analysis_status LIMIT 1")
         except sqlite3.OperationalError:
             conn.execute("ALTER TABLE analysis_status ADD COLUMN failure_reason TEXT")
+        # Migrate existing DBs that predate quality_metrics (YouTube engagement + content quality signals)
+        try:
+            conn.execute("SELECT quality_metrics FROM analysis_status LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute(
+                "ALTER TABLE analysis_status ADD COLUMN quality_metrics TEXT"
+            )
         # Index for get_pending_by_source queries (source, status) — avoids full table scan
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_analysis_status_source_status ON analysis_status(source, status)"
@@ -556,15 +589,6 @@ class _BatchStatusStorage:
         finally:
             conn.close()
 
-    @contextmanager
-    def _conn(self):
-        """Context manager that yields a connection and guarantees close."""
-        conn = self._get_conn()
-        try:
-            yield conn
-        finally:
-            conn.close()
-
     def get_status(self, video_id: str) -> str | None:
         """Get status for a video_id. Returns 'complete', 'failed', or None."""
         with self._conn() as conn:
@@ -596,6 +620,45 @@ class _BatchStatusStorage:
                 result[vid] = None
         return result
 
+    def _get_entries_for_video_ids_details(self, video_ids: list[str]) -> list[dict[str, object | None]]:
+        """Get all entries for specific video_ids with classification metadata."""
+        if not video_ids:
+            return []
+        with self._conn() as conn:
+            placeholders = ",".join("?" * len(video_ids))
+            cursor = conn.execute(
+                f"""
+                SELECT video_id, status, source, published_at, has_captions, title, description,
+                       channel_id, thumbnail, duration, privacy_status, upload_status,
+                       is_live_content, unavailable_reason, last_stage, failure_reason
+                FROM analysis_status
+                WHERE video_id IN ({placeholders})
+                """,
+                video_ids,
+            )
+            rows = cursor.fetchall()
+        return [
+            {
+                "video_id": row[0],
+                "status": row[1],
+                "source": row[2],
+                "published_at": row[3],
+                "has_captions": row[4],
+                "title": row[5],
+                "description": row[6],
+                "channel_id": row[7],
+                "thumbnail": row[8],
+                "duration": row[9],
+                "privacy_status": row[10],
+                "upload_status": row[11],
+                "is_live_content": row[12],
+                "unavailable_reason": row[13],
+                "last_stage": row[14],
+                "failure_reason": row[15],
+            }
+            for row in rows
+        ]
+
     def get_source(self, video_id: str) -> str | None:
         """Get source for a video_id. Returns channel URL or None."""
         with self._conn() as conn:
@@ -604,6 +667,36 @@ class _BatchStatusStorage:
             )
             row = cursor.fetchone()
         return row[0] if row else None
+
+    def summarize_video_ids(self, video_ids: list[str]) -> dict[str, object]:
+        """Summarize video_id metadata for NotebookLM source profiling."""
+        details = self._get_entries_for_video_ids_details(video_ids)
+        class_counts: Counter[str] = Counter()
+        status_counts: Counter[str] = Counter()
+        privacy_counts: Counter[str] = Counter()
+        upload_counts: Counter[str] = Counter()
+        unavailable_counts: Counter[str] = Counter()
+        failure_counts: Counter[str] = Counter()
+        for row in details:
+            class_counts[_classify_video_source_row(row)] += 1
+            status_counts[str(row.get("status") or "unknown").lower()] += 1
+            privacy_counts[str(row.get("privacy_status") or "unknown").lower()] += 1
+            upload_counts[str(row.get("upload_status") or "unknown").lower()] += 1
+            unavailable_counts[str(row.get("unavailable_reason") or "unknown").lower()] += 1
+            failure_counts[str(row.get("failure_reason") or "unknown").lower()] += 1
+        total = len(video_ids)
+        matched = len(details)
+        return {
+            "total": total,
+            "matched": matched,
+            "missing": max(0, total - matched),
+            "source_class_counts": dict(class_counts),
+            "status_counts": dict(status_counts),
+            "privacy_status_counts": dict(privacy_counts),
+            "upload_status_counts": dict(upload_counts),
+            "unavailable_reason_counts": dict(unavailable_counts),
+            "failure_reason_counts": dict(failure_counts),
+        }
 
     def get_published_at(self, video_id: str) -> str | None:
         """Get published_at for a video_id. Returns ISO timestamp or None."""
@@ -622,6 +715,7 @@ class _BatchStatusStorage:
         published_at: str | None = None,
         last_stage: str | None = None,
         failure_reason: str | None = None,
+        quality_metrics: str | None = None,
     ) -> None:
         """Set status for a video_id with current timestamp and optional source/published_at.
 
@@ -635,6 +729,7 @@ class _BatchStatusStorage:
             published_at: Optional ISO timestamp of video publish date.
             last_stage: Which fetch stage succeeded ('ytdlp', 'ytdlp_ejs', 'selenium', 'notebooklm').
             failure_reason: Why the video failed ('region_block', 'no_transcript', 'quota_exceeded', etc.).
+            quality_metrics: JSON string with engagement/content quality signals (like_rate, comment_rate, etc.).
         """
         conn = self._get_conn()
         conn.execute("BEGIN IMMEDIATE")
@@ -657,8 +752,8 @@ class _BatchStatusStorage:
                     if failure_reason is None:
                         failure_reason = row[3]
             conn.execute(
-                "INSERT OR REPLACE INTO analysis_status (video_id, status, updated_at, source, published_at, last_stage, failure_reason) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (video_id, status, now, source, published_at, last_stage, failure_reason),
+                "INSERT OR REPLACE INTO analysis_status (video_id, status, updated_at, source, published_at, last_stage, failure_reason, quality_metrics) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (video_id, status, now, source, published_at, last_stage, failure_reason, quality_metrics),
             )
             conn.commit()
         except Exception:
@@ -1260,6 +1355,7 @@ def mark_complete(
     source: str | None = None,
     published_at: str | None = None,
     last_stage: str | None = None,
+    quality_metrics: str | None = None,
     db_path: Path | None = None,
 ) -> None:
     """Mark video_id as successfully analyzed, optionally attributing a source.
@@ -1269,17 +1365,18 @@ def mark_complete(
         source: Optional channel URL or source identifier for attribution.
         published_at: Optional ISO timestamp of video publish date (for gap detection).
         last_stage: Which fetch stage succeeded ('ytdlp', 'ytdlp_ejs', 'selenium', 'notebooklm').
+        quality_metrics: Optional JSON string with engagement/content quality signals.
         db_path: Optional path to a non-default batch_status DB.
     """
     if db_path is None:
         _get_batch_status_storage().set_status(
             video_id, _STATUS_COMPLETE, source=source, published_at=published_at,
-            last_stage=last_stage,
+            last_stage=last_stage, quality_metrics=quality_metrics,
         )
     else:
         _BatchStatusStorage(db_path=db_path).set_status(
             video_id, _STATUS_COMPLETE, source=source, published_at=published_at,
-            last_stage=last_stage,
+            last_stage=last_stage, quality_metrics=quality_metrics,
         )
 
 
@@ -1504,6 +1601,24 @@ def get_entries_for_source_details(
     if db_path is None:
         return _get_batch_status_storage().get_entries_for_source_details(channel_url)
     return _BatchStatusStorage(db_path=db_path).get_entries_for_source_details(channel_url)
+
+
+def get_entries_for_video_ids_details(
+    video_ids: list[str], db_path: Path | None = None
+) -> list[dict[str, object | None]]:
+    """Get all entries for specific video_ids with metadata useful for profiling."""
+    if db_path is None:
+        return _get_batch_status_storage()._get_entries_for_video_ids_details(video_ids)
+    return _BatchStatusStorage(db_path=db_path)._get_entries_for_video_ids_details(video_ids)
+
+
+def summarize_video_ids(
+    video_ids: list[str], db_path: Path | None = None
+) -> dict[str, object]:
+    """Summarize metadata for specific video_ids."""
+    if db_path is None:
+        return _get_batch_status_storage().summarize_video_ids(video_ids)
+    return _BatchStatusStorage(db_path=db_path).summarize_video_ids(video_ids)
 
 
 def set_status_batch(

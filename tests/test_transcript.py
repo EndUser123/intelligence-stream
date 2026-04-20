@@ -953,7 +953,9 @@ class TestDirectApiFallback:
         mock_transcript.fetch.return_value = [{"text": "This is a valid transcript with sufficient length"}]
 
         mock_api = mock.Mock()
-        mock_api.list_transcripts.return_value = iter([mock_transcript])
+        mock_api.fetch.return_value.fetch.return_value = [
+            {"text": "This is a valid transcript with sufficient length"}
+        ]
 
         mock_ytapi = mock.Mock()
         mock_ytapi.YouTubeTranscriptApi.return_value = mock_api
@@ -965,3 +967,27 @@ class TestDirectApiFallback:
         assert success is True
         assert transcript == "This is a valid transcript with sufficient length"
         assert error is None
+
+    def test_direct_api_failure_is_summarized(self):
+        """direct_api failure text should be concise and reason-coded."""
+        import sys
+
+        mock_api = mock.Mock()
+        mock_api.fetch.side_effect = Exception(
+            "Could not retrieve a transcript for the video https://www.youtube.com/watch?v=dQw4w9WgXcQ! "
+            "Subtitles are disabled for this video"
+        )
+
+        mock_ytapi = mock.Mock()
+        mock_ytapi.YouTubeTranscriptApi.return_value = mock_api
+
+        sys.modules["youtube_transcript_api"] = mock_ytapi
+        try:
+            from csf.transcript import _fetch_via_direct_api
+
+            success, transcript, error = _fetch_via_direct_api("dQw4w9WgXcQ")
+            assert success is False
+            assert transcript is None
+            assert error == "direct_api no_transcript: subtitles disabled"
+        finally:
+            sys.modules.pop("youtube_transcript_api", None)

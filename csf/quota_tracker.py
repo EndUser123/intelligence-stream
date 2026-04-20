@@ -60,60 +60,94 @@ class _QuotaStorage:
         """Get a connection to the quota DB."""
         conn = sqlite3.connect(_SHARED_DB_PATH)
         conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
         return conn
 
-    def _get(self, key: str) -> str | None:
-        """Get a value from quota_state."""
-        conn = self._get_conn()
+    def _get_value(self, conn: sqlite3.Connection, key: str) -> str | None:
+        """Read a value from quota_state using an existing connection."""
         cursor = conn.execute("SELECT value FROM quota_state WHERE key = ?", (key,))
         row = cursor.fetchone()
-        conn.close()
         return row[0] if row else None
 
-    def _set(self, key: str, value: str) -> None:
-        """Set a value in quota_state."""
-        conn = self._get_conn()
+    def _set_value(self, conn: sqlite3.Connection, key: str, value: str) -> None:
+        """Write a value to quota_state using an existing connection."""
         conn.execute(
             "INSERT OR REPLACE INTO quota_state (key, value) VALUES (?, ?)",
             (key, value),
         )
-        conn.commit()
-        conn.close()
+
+    def _get(self, key: str) -> str | None:
+        """Get a value from quota_state."""
+        conn = self._get_conn()
+        try:
+            return self._get_value(conn, key)
+        finally:
+            conn.close()
+
+    def _set(self, key: str, value: str) -> None:
+        """Set a value in quota_state."""
+        conn = self._get_conn()
+        try:
+            conn.execute(
+                "INSERT OR REPLACE INTO quota_state (key, value) VALUES (?, ?)",
+                (key, value),
+            )
+            conn.commit()
+        finally:
+            conn.close()
 
     def get_cli_calls_today(self) -> int:
         """Get CLI call count for today, resetting if new day."""
         today = str(date.today())
-        last_reset = self._get("last_reset_date")
+        conn = self._get_conn()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            last_reset = self._get_value(conn, "last_reset_date")
+            if last_reset != today:
+                # New day — reset counter but preserve free_only mode
+                self._set_value(conn, "cli_calls_today", "0")
+                self._set_value(conn, "last_reset_date", today)
+                conn.commit()
+                return 0
 
-        if last_reset != today:
-            # New day — reset counter but preserve free_only mode
-            self._set("cli_calls_today", "0")
-            self._set("last_reset_date", today)
-            return 0
-
-        value = self._get("cli_calls_today")
-        return int(value) if value else 0
+            value = self._get_value(conn, "cli_calls_today")
+            conn.commit()
+            return int(value) if value else 0
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def increment_cli_calls(self) -> int:
         """Increment CLI call count. Auto-enables free-only if threshold exceeded."""
         today = str(date.today())
-        last_reset = self._get("last_reset_date")
-
-        if last_reset != today:
-            # New day — reset counter
-            self._set("cli_calls_today", "0")
-            self._set("last_reset_date", today)
-
-        current = self.get_cli_calls_today()
-        new_count = current + 1
-        self._set("cli_calls_today", str(new_count))
-
-        # Auto-switch to free-only if threshold exceeded
         threshold = int(_DEFAULT_DAILY_QUOTA * _THRESHOLD_FRACTION)
-        if new_count > threshold:
-            self._set("free_only_mode", "true")
+        conn = self._get_conn()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            last_reset = self._get_value(conn, "last_reset_date")
+            if last_reset != today:
+                # New day — reset counter
+                self._set_value(conn, "cli_calls_today", "0")
+                self._set_value(conn, "last_reset_date", today)
 
-        return new_count
+            current_value = self._get_value(conn, "cli_calls_today")
+            current = int(current_value) if current_value else 0
+            new_count = current + 1
+            self._set_value(conn, "cli_calls_today", str(new_count))
+
+            # Auto-switch to free-only if threshold exceeded
+            if new_count > threshold:
+                self._set_value(conn, "free_only_mode", "true")
+
+            conn.commit()
+            return new_count
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def _is_free_only(self) -> bool:
         """Check free_only_mode flag directly from storage."""

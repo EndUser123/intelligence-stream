@@ -28,6 +28,7 @@ _DEFAULT_INDUSTRIAL_WORKER_STATE_ROOT = Path("P:/__csf/.data/yt-is/industrial-wo
 _DEFAULT_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX = "yt-is::industrial::worker"
 _DEFAULT_NOTEBOOKLM_PROFILE = "default"
 _AUTH_LOCK_PATH = Path("P:/__csf/.data/yt-is/locks/nlm-auth.lock")
+_NOTEBOOK_SOURCE_CAP = 225  # Conservative threshold before 300 hard limit
 
 
 def _get_reusable_notebook_state_path() -> Path:
@@ -379,7 +380,7 @@ def _get_tracker() -> _RateLimitTracker:
 
 
 class NLMBatchIngestor:
-    def __init__(self, batch_size: int = 300):
+    def __init__(self, batch_size: int = 150):
         self.batch_size = batch_size
         self._nb_id = None
         self._last_added_video_ids: List[str] = []
@@ -388,6 +389,7 @@ class NLMBatchIngestor:
         self._last_add_returncode: Optional[int] = None
         self._last_add_cmd_elapsed_s: float = 0.0
         self._last_materialization_wait_elapsed_s: float = 0.0
+        self._current_source_count: int = 0
 
     def _run_cmd(self, args: List[str], timeout: int = 300) -> subprocess.CompletedProcess:
         tracker = _get_tracker()
@@ -535,9 +537,12 @@ class NLMBatchIngestor:
         self._last_materialization_wait_elapsed_s = 0.0
         if source_profile is None:
             source_profile = summarize_video_ids(batch_ids)
+        # Log source count before add — this is the diagnostic key for capacity correlation
+        source_count_before = self._get_current_source_count()
         print(
             f"[NLM-Batch]   Adding sub-batch {subbatch_index} "
-            f"({len(batch_ids)} sources, retry_depth={retry_depth})..."
+            f"({len(batch_ids)} sources, retry_depth={retry_depth}, "
+            f"nb_sources_before={source_count_before})..."
         )
         log_action(
             "nlm_batch_subbatch_add_started",
@@ -548,6 +553,7 @@ class NLMBatchIngestor:
                 "expected_total": expected_total,
                 "retry_depth": retry_depth,
                 "source_profile": source_profile,
+                "source_count_before": source_count_before,
             },
         )
         add_args = ["source", "add", self._nb_id, "--wait"]
@@ -557,6 +563,9 @@ class NLMBatchIngestor:
         add_cmd_elapsed_s = round(time.monotonic() - chunk_started_at, 3)
         self._last_add_cmd_elapsed_s = add_cmd_elapsed_s
         self._last_add_returncode = res.returncode
+        # Probe source count after add — key diagnostic for capacity correlation
+        source_count_after = self._get_current_source_count()
+        added_count = len(batch_ids) if res.returncode == 0 else 0
         log_action(
             "nlm_batch_subbatch_add_completed",
             {
@@ -566,8 +575,12 @@ class NLMBatchIngestor:
                 "expected_total": expected_total,
                 "retry_depth": retry_depth,
                 "returncode": res.returncode,
+                "added_count": added_count,
                 "elapsed_s": add_cmd_elapsed_s,
                 "source_profile": source_profile,
+                "source_count_before": source_count_before,
+                "source_count_after": source_count_after,
+                "failure_reason": self._last_add_failure_reason,
                 "stdout": (res.stdout or "")[:200],
                 "stderr": (res.stderr or "")[:200],
             },
@@ -582,6 +595,7 @@ class NLMBatchIngestor:
                     "expected_total": expected_total,
                     "retry_depth": retry_depth,
                     "source_profile": source_profile,
+                    "source_count_before_wait": source_count_after,
                 },
             )
             wait_succeeded = self._wait_for_sources_ready(expected_total, timeout=120)
@@ -600,6 +614,8 @@ class NLMBatchIngestor:
                         "source_profile": source_profile,
                         "failure_reason": "materialization_wait_failed",
                         "elapsed_s": wait_elapsed_s,
+                        "source_count_after_wait": self._get_current_source_count(),
+                        "source_count_before_wait": source_count_after,
                     },
                 )
             else:
@@ -612,6 +628,8 @@ class NLMBatchIngestor:
                         "retry_depth": retry_depth,
                         "source_profile": source_profile,
                         "elapsed_s": wait_elapsed_s,
+                        "source_count_after_wait": self._get_current_source_count(),
+                        "source_count_before_wait": source_count_after,
                     },
                 )
             return list(batch_ids)
@@ -635,6 +653,8 @@ class NLMBatchIngestor:
                 "returncode": res.returncode,
                 "elapsed_s": add_cmd_elapsed_s,
                 "source_profile": source_profile,
+                "source_count_before": source_count_before,
+                "source_count_after": source_count_after,
                 "failure_reason": _classify_subbatch_add_failure(res, materialization_waited=False),
                 "stdout": (res.stdout or "")[:200],
                 "stderr": (res.stderr or "")[:200],
@@ -642,12 +662,13 @@ class NLMBatchIngestor:
         )
         return []
 
-    def _add_sources_in_subbatches(self, batch_ids: List[str], subbatch_size: int = 300) -> List[str]:
+    def _add_sources_in_subbatches(self, batch_ids: List[str], subbatch_size: int = 150) -> List[str]:
         """Add sources in sub-batches to avoid NLM overload.
 
-        The reusable industrial path now defaults to a 300-source window, which
-        matches the measured fast path for this backlog shape. Smaller windows
-        can still be passed explicitly for sweeps or recovery if needed.
+        The reusable industrial path defaults to a 150-source window, which
+        has been the safer live setting for this backlog shape. Smaller or
+        larger windows can still be passed explicitly for sweeps or recovery
+        if needed.
         """
         total = len(batch_ids)
         added_ids: List[str] = []
@@ -658,6 +679,39 @@ class NLMBatchIngestor:
         while next_index < total:
             subbatch_index += 1
             window_size = min(current_subbatch_size, total - next_index)
+            source_count_before = self._get_current_source_count()
+            self._current_source_count = source_count_before
+            if source_count_before >= _NOTEBOOK_SOURCE_CAP:
+                log_action(
+                    "nlm_batch_subbatch_capacity_rotation_requested",
+                    {
+                        "nb_id": self._nb_id,
+                        "subbatch_index": subbatch_index,
+                        "current_source_count": source_count_before,
+                        "cap_threshold": _NOTEBOOK_SOURCE_CAP,
+                        "requested_subbatch_size": window_size,
+                        "remaining": total - next_index,
+                        "rotation_reason": "source_cap_near_threshold",
+                    },
+                )
+                self._rotate_notebook()
+                source_count_before = self._current_source_count
+            capacity_remaining = max(0, _NOTEBOOK_SOURCE_CAP - source_count_before)
+            if 0 < capacity_remaining < window_size:
+                log_action(
+                    "nlm_batch_subbatch_size_adjusted",
+                    {
+                        "nb_id": self._nb_id,
+                        "subbatch_index": subbatch_index,
+                        "requested_subbatch_size": window_size,
+                        "adjusted_subbatch_size": capacity_remaining,
+                        "current_source_count": source_count_before,
+                        "cap_threshold": _NOTEBOOK_SOURCE_CAP,
+                        "remaining": total - next_index,
+                        "rotation_reason": "capacity_headroom",
+                    },
+                )
+                window_size = capacity_remaining
             subbatch = batch_ids[next_index:next_index + window_size]
             # Reset throttle state at sub-batch boundary — prior failures shouldn't
             # penalize this independent sub-batch of NLM operations
@@ -683,6 +737,8 @@ class NLMBatchIngestor:
                 expected_total=next_index + len(subbatch),
                 source_profile=source_profile,
             )
+            # Track running source count after each subbatch
+            self._current_source_count = self._get_current_source_count()
             added_ids.extend(added_chunk_ids)
             subbatch_metrics = {
                 "subbatch_index": subbatch_index,
@@ -699,23 +755,41 @@ class NLMBatchIngestor:
                 "returncode": self._last_add_returncode,
                 "failure_reason": self._last_add_failure_reason,
                 "source_profile": source_profile,
+                "current_source_count": self._current_source_count,
             }
             if len(added_chunk_ids) < len(subbatch):
-                log_action(
-                    "nlm_batch_subbatch_add_shortfall",
-                    {
-                        "nb_id": self._nb_id,
-                        "subbatch_index": subbatch_index,
-                        "subbatch_size": window_size,
-                        "added_count": len(added_chunk_ids),
-                        "attempted_count": len(subbatch),
-                        "elapsed_s": getattr(self, "_last_add_cmd_elapsed_s", 0.0)
-                        + getattr(self, "_last_materialization_wait_elapsed_s", 0.0),
-                        "source_profile": source_profile,
-                        "sample_video_ids": subbatch[:5],
-                    },
-                )
-                subbatch_metrics["status"] = "shortfall"
+                if self._current_source_count >= _NOTEBOOK_SOURCE_CAP:
+                    log_action(
+                        "nlm_batch_subbatch_shortfall_cap_triggered",
+                        {
+                            "nb_id": self._nb_id,
+                            "subbatch_index": subbatch_index,
+                            "current_source_count": self._current_source_count,
+                            "cap_threshold": _NOTEBOOK_SOURCE_CAP,
+                            "added_count": len(added_chunk_ids),
+                            "attempted_count": len(subbatch),
+                            "rotation_reason": "shortfall_cap",
+                        },
+                    )
+                    self._rotate_notebook()
+                    subbatch_metrics["status"] = "shortfall_cap_rotated"
+                else:
+                    log_action(
+                        "nlm_batch_subbatch_add_shortfall",
+                        {
+                            "nb_id": self._nb_id,
+                            "subbatch_index": subbatch_index,
+                            "subbatch_size": window_size,
+                            "added_count": len(added_chunk_ids),
+                            "attempted_count": len(subbatch),
+                            "elapsed_s": getattr(self, "_last_add_cmd_elapsed_s", 0.0)
+                            + getattr(self, "_last_materialization_wait_elapsed_s", 0.0),
+                            "source_profile": source_profile,
+                            "sample_video_ids": subbatch[:5],
+                            "current_source_count": self._current_source_count,
+                        },
+                    )
+                    subbatch_metrics["status"] = "shortfall"
             elif self._last_add_failure_reason:
                 subbatch_metrics["status"] = "warn"
             else:
@@ -873,6 +947,56 @@ class NLMBatchIngestor:
         if self._nb_id:
             self._run_cmd(["notebook", "delete", self._nb_id, "--confirm"])
 
+    def _get_current_source_count(self) -> int:
+        """Query the current source count in the active notebook."""
+        if not self._nb_id:
+            return 0
+        res = self._run_cmd(["source", "list", self._nb_id, "--json"])
+        if res.returncode != 0:
+            return 0
+        try:
+            sources = json.loads(res.stdout)
+            if isinstance(sources, dict):
+                sources = sources.get("sources", [])
+            return len(sources)
+        except Exception:
+            return 0
+
+    def _rotate_notebook(self) -> None:
+        """Close the current notebook and create a fresh one, logging the rotation event."""
+        old_nb_id = self._nb_id
+        old_count = self._current_source_count
+        self.close()
+        log_action(
+            "nlm_batch_notebook_rotated",
+            {
+                "old_nb_id": old_nb_id,
+                "old_source_count": old_count,
+                "reason": "source_cap_near_threshold",
+                "cap_threshold": _NOTEBOOK_SOURCE_CAP,
+            },
+        )
+        # Create fresh notebook with a unique name to avoid collision
+        import datetime
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        nb_name = f"yt-is::industrial::worker::{ts}"
+        res = self._run_cmd(["notebook", "create", nb_name], timeout=60)
+        for line in res.stdout.split("\n"):
+            if "ID:" in line:
+                self._nb_id = line.split("ID:")[1].strip()
+                break
+        if not self._nb_id:
+            self._nb_id = res.stdout.strip()
+        self._current_source_count = 0
+        log_action(
+            "nlm_batch_notebook_rotated_new_created",
+            {
+                "old_nb_id": old_nb_id,
+                "new_nb_id": self._nb_id,
+                "old_source_count": old_count,
+            },
+        )
+
     def cleanup(self):
         """Delete all sources from the notebook (keeps notebook for reuse)."""
         self.reset_sources()
@@ -982,7 +1106,7 @@ class NLMBatchIngestor:
 class NLMReusableIngestor:
     """Holds a single notebook across multiple batches for reuse."""
 
-    def __init__(self, batch_size: int = 300):
+    def __init__(self, batch_size: int = 150):
         self._ingestor = NLMBatchIngestor(batch_size)
         self._nb_id: Optional[str] = _load_reusable_notebook_id()
         self._last_prepare_metrics: dict[str, object] | None = None

@@ -277,6 +277,35 @@ class TestNLMIndustrialScraperPerNotebook:
                 scraper.scrape_notebook("real-nb-id", ["vid1"])
                 mock_sw.assert_not_called()
 
+    def test_scrape_notebook_does_not_use_fixed_startup_sleep(self, scraper):
+        """The explicit notebook path should not wait a fixed 15 seconds before readiness checks."""
+        scraper._driver = mock.MagicMock()
+        with mock.patch.object(scraper, "get_source_ids", return_value=["src-1"]):
+            with mock.patch.object(scraper, "_init_driver"):
+                with mock.patch.object(scraper._driver, "get"):
+                    with mock.patch.object(scraper, "_ensure_sources_context", return_value=True):
+                        with mock.patch.object(scraper, "_poll_source_buttons_dom", return_value=1):
+                            with mock.patch.object(scraper._driver, "find_elements", return_value=[]):
+                                with mock.patch("csf.nlm_scraper.time.sleep") as mock_sleep:
+                                    scraper.scrape_notebook("real-nb-id", ["vid1"])
+
+        assert not any(call.args and call.args[0] == 15 for call in mock_sleep.call_args_list)
+
+    def test_scrape_notebook_does_not_double_navigate_sources_tab(self, scraper):
+        """The explicit notebook path should only establish Sources context once."""
+        scraper._driver = mock.MagicMock()
+        with mock.patch.object(scraper, "get_source_ids", return_value=["src-1"]):
+            with mock.patch.object(scraper, "_init_driver"):
+                with mock.patch.object(scraper._driver, "get"):
+                    with mock.patch.object(scraper, "_ensure_sources_context", return_value=True):
+                        with mock.patch.object(scraper, "_poll_source_buttons_dom", return_value=1):
+                            with mock.patch.object(scraper._driver, "find_elements", return_value=[]):
+                                with mock.patch.object(scraper, "_navigate_to_sources_tab") as nav:
+                                    with mock.patch("csf.nlm_scraper.time.sleep", return_value=None):
+                                        scraper.scrape_notebook("real-nb-id", ["vid1"])
+
+        nav.assert_not_called()
+
 
 class TestConsecutiveFailureBail:
     """Test Fix 3: consecutive notebook-creation failure counter."""
@@ -701,9 +730,11 @@ class TestBackNavPageStateGuard:
                             return []
 
                         scraper._driver.execute_script = lambda *a, **k: None
-                        with mock.patch.object(scraper._driver, "find_elements", side_effect=find_side_effect):
-                            with mock.patch.object(scraper, "_ensure_sources_context", return_value=True):
-                                result = scraper._scrape_sources({"vid1": "src-1"})
+                        with mock.patch("csf.nlm_scraper.time.sleep", return_value=None):
+                            with mock.patch.object(scraper._driver, "find_elements", side_effect=find_side_effect):
+                                with mock.patch.object(scraper, "_ensure_sources_context", return_value=True):
+                                    with mock.patch.object(scraper, "_poll_source_buttons_dom", return_value=1):
+                                        result = scraper._scrape_sources({"vid1": "src-1"})
 
         # current_url still has /source/ → guard sees it → skips back-nav
         back_button.click.assert_not_called()
@@ -735,9 +766,11 @@ class TestBackNavPageStateGuard:
                             return []
 
                         scraper._driver.execute_script = mock_execute_script
-                        with mock.patch.object(scraper._driver, "find_elements", side_effect=find_side_effect):
-                            with mock.patch.object(scraper, "_ensure_sources_context", return_value=True):
-                                result = scraper._scrape_sources({"vid1": "src-1"})
+                        with mock.patch("csf.nlm_scraper.time.sleep", return_value=None):
+                            with mock.patch.object(scraper._driver, "find_elements", side_effect=find_side_effect):
+                                with mock.patch.object(scraper, "_ensure_sources_context", return_value=True):
+                                    with mock.patch.object(scraper, "_poll_source_buttons_dom", return_value=1):
+                                        result = scraper._scrape_sources({"vid1": "src-1"})
 
         back_button.click.assert_called_once()
 
@@ -760,9 +793,11 @@ class TestBackNavPageStateGuard:
                             return []
 
                         scraper._driver.execute_script = lambda *a, **k: None
-                        with mock.patch.object(scraper._driver, "find_elements", side_effect=find_side_effect):
-                            with mock.patch.object(scraper, "_ensure_sources_context", return_value=True):
-                                result = scraper._scrape_sources({"vid1": "src-1"})
+                        with mock.patch("csf.nlm_scraper.time.sleep", return_value=None):
+                            with mock.patch.object(scraper._driver, "find_elements", side_effect=find_side_effect):
+                                with mock.patch.object(scraper, "_ensure_sources_context", return_value=True):
+                                    with mock.patch.object(scraper, "_poll_source_buttons_dom", return_value=1):
+                                        result = scraper._scrape_sources({"vid1": "src-1"})
 
         chat_button.click.assert_not_called()
         assert result["vid1"][0] is False
@@ -795,9 +830,11 @@ class TestBackNavPageStateGuard:
                             return []
 
                         scraper._driver.execute_script = lambda *a, **k: None
-                        with mock.patch.object(scraper._driver, "find_elements", side_effect=find_side_effect):
-                            with mock.patch.object(scraper, "_ensure_sources_context", return_value=True):
-                                result = scraper._scrape_sources({"vid1": "src-1"})
+                        with mock.patch("csf.nlm_scraper.time.sleep", return_value=None):
+                            with mock.patch.object(scraper._driver, "find_elements", side_effect=find_side_effect):
+                                with mock.patch.object(scraper, "_ensure_sources_context", return_value=True):
+                                    with mock.patch.object(scraper, "_poll_source_buttons_dom", return_value=1):
+                                        result = scraper._scrape_sources({"vid1": "src-1"})
 
         assert result["vid1"][0] is True
         assert result["vid1"][1] == "transcript text"
@@ -822,10 +859,27 @@ class TestBackNavPageStateGuard:
                         with mock.patch.object(scraper, "_collect_source_dom_candidates", return_value=[source_row]):
                             with mock.patch.object(scraper, "_is_source_element", return_value=False):
                                 scraper._driver.execute_script = lambda *a, **k: None
-                                result = scraper._scrape_sources({"vid1": "src-1"})
+                                with mock.patch("csf.nlm_scraper.time.sleep", return_value=None):
+                                    with mock.patch.object(scraper, "_poll_source_buttons_dom", return_value=1):
+                                        result = scraper._scrape_sources({"vid1": "src-1"})
 
         assert result["vid1"][0] is True
         assert result["vid1"][1] == "transcript text"
+
+    def test_scrape_sources_does_not_use_fixed_startup_sleep(self, scraper):
+        """The scrape startup path should not wait a fixed 15 seconds before checking readiness."""
+        scraper._staging_nb_id = "nb-test"
+        scraper._driver.current_url = "https://notebooklm.google.com/notebook/nb-test"
+
+        with mock.patch.object(scraper, "_init_driver"):
+            with mock.patch.object(scraper._driver, "get"):
+                with mock.patch.object(scraper, "_ensure_sources_context", return_value=True):
+                    with mock.patch.object(scraper, "_poll_source_buttons_dom", return_value=0):
+                        with mock.patch.object(scraper._driver, "find_elements", return_value=[]):
+                            with mock.patch("csf.nlm_scraper.time.sleep") as mock_sleep:
+                                scraper._scrape_sources({"vid1": "src-1"})
+
+        assert not any(call.args and call.args[0] == 15 for call in mock_sleep.call_args_list)
 
 
 class TestSourcesContextGuard:
@@ -897,7 +951,7 @@ class TestSourcesContextGuard:
         scraper._driver.current_url = "https://notebooklm.google.com/notebook/nb-test"
 
         vid_to_src = {f"vid{i}": f"src-{i}" for i in range(5)}
-        ensure_calls = [False, False, False, False, False, False, True]
+        ensure_calls = [False, False, False, False, False, False, True, True]
 
         def ensure_side_effect(*args, **kwargs):
             return ensure_calls.pop(0)
@@ -939,6 +993,126 @@ class TestSourcesContextGuard:
         assert methods == ["sources_tab", "sources_tab", "reload", "reload"]
         statuses = [c.args[1].get("status") for c in mock_log.call_args_list if c.args[0] == "sources_context_recovery_finished"]
         assert statuses == ["not_recovered", "ok"]
+
+    def test_ready_source_button_count_excludes_processing_rows_when_status_is_visible(self, scraper):
+        """A source row still showing Processing should not be treated as ready."""
+
+        class FakeElement:
+            def __init__(self, text="", attrs=None, children=None):
+                self._text = text
+                self._attrs = attrs or {}
+                self._children = children or []
+
+            @property
+            def text(self):
+                return self._text
+
+            def get_attribute(self, name):
+                return self._attrs.get(name, "")
+
+            def find_elements(self, by, selector):
+                if selector == '[aria-label], [title], [alt]':
+                    return self._children
+                return []
+
+        ready_row = FakeElement(
+            text="Episode 1",
+            attrs={
+                "aria-label": "Open source src-1 for youtube.com/watch?v=vid1",
+                "href": "https://notebooklm.google.com/notebook/nb-test/source/src-1",
+            },
+        )
+        processing_icon = FakeElement(attrs={"aria-label": "Processing"})
+        processing_row = FakeElement(
+            text="Episode 2",
+            attrs={
+                "aria-label": "Open source src-2 for youtube.com/watch?v=vid2",
+                "href": "https://notebooklm.google.com/notebook/nb-test/source/src-2",
+            },
+            children=[processing_icon],
+        )
+
+        with mock.patch.object(scraper, "_collect_source_dom_candidates", return_value=[ready_row, processing_row]):
+            assert scraper._count_ready_source_buttons_dom() == 1
+
+    def test_collect_source_dom_candidates_prefers_source_row_buttons_over_generic_chrome(self, scraper):
+        """Source-row discovery should not count generic Google chrome buttons."""
+
+        class FakeElement:
+            def __init__(self, text="", attrs=None):
+                self._text = text
+                self._attrs = attrs or {}
+
+            @property
+            def text(self):
+                return self._text
+
+            def get_attribute(self, name):
+                return self._attrs.get(name, "")
+
+        source_row = FakeElement(
+            attrs={
+                "class": "source-stretched-button ng-tns-c3169959573-2",
+                "aria-label": "Episode 1",
+            }
+        )
+        google_apps = FakeElement(
+            attrs={
+                "class": "gb_C",
+                "aria-label": "Google apps",
+                "href": "https://www.google.ca/intl/en-GB/about/products",
+            }
+        )
+
+        def find_side_effect(by, selector):
+            if selector == "button.source-stretched-button":
+                return [source_row]
+            if selector in ("button", '[role="button"]', "a"):
+                return [source_row, google_apps]
+            return []
+
+        with mock.patch.object(scraper._driver, "find_elements", side_effect=find_side_effect):
+            candidates = scraper._collect_source_dom_candidates()
+
+        assert candidates == [source_row]
+
+    def test_collect_source_dom_candidates_dedupes_identical_source_rows(self, scraper):
+        """Duplicate DOM mirrors of the same source row should count once."""
+
+        class FakeElement:
+            def __init__(self, text="", attrs=None):
+                self._text = text
+                self._attrs = attrs or {}
+
+            @property
+            def text(self):
+                return self._text
+
+            def get_attribute(self, name):
+                return self._attrs.get(name, "")
+
+        source_row_a = FakeElement(
+            attrs={
+                "class": "source-stretched-button ng-tns-c3169959573-2",
+                "aria-label": "Episode 1",
+            }
+        )
+        source_row_b = FakeElement(
+            attrs={
+                "class": "source-stretched-button ng-tns-c3169959573-2",
+                "aria-label": "Episode 1",
+            }
+        )
+
+        def find_side_effect(by, selector):
+            if selector == "button.source-stretched-button":
+                return [source_row_a, source_row_b]
+            return []
+
+        with mock.patch.object(scraper._driver, "find_elements", side_effect=find_side_effect):
+            candidates = scraper._collect_source_dom_candidates()
+
+        assert candidates == [source_row_a]
 
 
 class TestBatchSummaryLogging:

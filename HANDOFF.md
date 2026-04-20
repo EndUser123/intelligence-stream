@@ -68,6 +68,7 @@ Last updated: 2026-04-20
 - A large number of `oembed unavailable: HTTP 404` items should now be skipped cheaply and cached negatively.
 - `active_workers: 0` in transcript-fallback logs is expected; that lane is not the industrial NotebookLM worker pool.
 - If the next canary looks slow again, first check whether `no_captions` is still going to the wrong lane before changing batch size or retry tuning.
+- The current NotebookLM capacity note is at [docs/operations/nlm-canary-capacity-note.md](P:/packages/yt-is/docs/operations/nlm-canary-capacity-note.md).
 ## Debugging / Logging Rules That Matter
 - Quick pointer: [DEBUGGING_PLAYBOOK.md](P:/packages/yt-is/DEBUGGING_PLAYBOOK.md)
 - Do not trust the JSONL trace alone. Several important warnings surfaced only in live stderr/stdout.

@@ -405,6 +405,21 @@ class _BatchStatusStorage:
                 "CREATE INDEX IF NOT EXISTS idx_nlm_export_video_ids ON nlm_export_state(video_ids)"
             )
 
+    _NLM_EXPORT_COLUMNS = (
+        "composite_id",
+        "notebook_id",
+        "batch_key",
+        "video_ids",
+        "content_hash",
+        "word_count",
+        "nlm_source_id",
+        "created_at",
+        "updated_at",
+    )
+
+    def _row_to_nlm_export_dict(self, row: tuple) -> dict:
+        return dict(zip(self._NLM_EXPORT_COLUMNS, row))
+
     def _get_nlm_export_state(self, composite_id: str) -> dict | None:
         """Get nlm_export_state by composite_id. Returns dict or None."""
         self._ensure_nlm_export_state()
@@ -418,17 +433,7 @@ class _BatchStatusStorage:
             row = cursor.fetchone()
         if row is None:
             return None
-        return {
-            "composite_id": row[0],
-            "notebook_id": row[1],
-            "batch_key": row[2],
-            "video_ids": row[3],
-            "content_hash": row[4],
-            "word_count": row[5],
-            "nlm_source_id": row[6],
-            "created_at": row[7],
-            "updated_at": row[8],
-        }
+        return dict(zip(self._NLM_EXPORT_COLUMNS, row))
 
     def _upsert_nlm_export_state(
         self,
@@ -491,20 +496,7 @@ class _BatchStatusStorage:
                 "FROM nlm_export_state WHERE notebook_id IS NULL"
             )
             rows = cursor.fetchall()
-        return [
-            {
-                "composite_id": row[0],
-                "notebook_id": row[1],
-                "batch_key": row[2],
-                "video_ids": row[3],
-                "content_hash": row[4],
-                "word_count": row[5],
-                "nlm_source_id": row[6],
-                "created_at": row[7],
-                "updated_at": row[8],
-            }
-            for row in rows
-        ]
+        return [self._row_to_nlm_export_dict(row) for row in rows]
 
     def _get_nlm_exports_by_video(self, video_id: str) -> list[dict]:
         """Get all nlm_export_state rows that contain a given video_id."""
@@ -518,20 +510,7 @@ class _BatchStatusStorage:
                 (video_id, f"{video_id}|%", f"%|{video_id}|%", f"%|{video_id}"),
             )
             rows = cursor.fetchall()
-        return [
-            {
-                "composite_id": row[0],
-                "notebook_id": row[1],
-                "batch_key": row[2],
-                "video_ids": row[3],
-                "content_hash": row[4],
-                "word_count": row[5],
-                "nlm_source_id": row[6],
-                "created_at": row[7],
-                "updated_at": row[8],
-            }
-            for row in rows
-        ]
+        return [self._row_to_nlm_export_dict(row) for row in rows]
 
     # ---------------------------------------------------------------------------
     # provider_score — failure-aware routing

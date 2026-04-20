@@ -507,7 +507,7 @@ class NLMIndustrialScraper:
         start = time.time()
         while time.time() - start < timeout:
             try:
-                count = self._count_source_buttons_dom()
+                count = self._count_ready_source_buttons_dom()
                 if count >= expected:
                     return count
                 print(f"[Industrial] DOM poll: {count}/{expected} source buttons visible...")
@@ -516,6 +516,24 @@ class NLMIndustrialScraper:
             time.sleep(3)
         return None
 
+    def _prepare_sources_dom(self, notebook_id: str, expected_count: int) -> Optional[int]:
+        """Open Sources context and wait for the source rows to materialize."""
+        self._ensure_sources_context(notebook_id)
+        print(f"[Industrial] Waiting up to 120s for {expected_count} source buttons to render...")
+        dom_ready = self._poll_source_buttons_dom(expected=expected_count, timeout=120)
+        if dom_ready:
+            print(f"[Industrial] DOM buttons ready ({dom_ready} found)")
+        else:
+            print(f"[Industrial] DOM polling timed out — proceeding anyway (may fail)")
+        return dom_ready
+
+    def _open_notebook_and_prepare_sources(self, notebook_id: str, expected_count: int) -> Optional[int]:
+        """Open a notebook URL and wait for its Sources DOM to become ready."""
+        url = f"https://notebooklm.google.com/notebook/{notebook_id}"
+        print(f"[Industrial] Opening {url}...")
+        self._driver.get(url)
+        return self._prepare_sources_dom(notebook_id, expected_count)
+
     def _count_source_buttons_dom(self) -> int:
         """Return the current count of source-like buttons visible in the DOM."""
         try:
@@ -523,22 +541,103 @@ class NLMIndustrialScraper:
         except Exception:
             return 0
 
+    def _count_ready_source_buttons_dom(self) -> int:
+        """Return the count of source-like buttons whose rows are no longer processing."""
+        try:
+            return sum(
+                1
+                for elem in self._collect_source_dom_candidates()
+                if not self._is_processing_source_dom_candidate(elem)
+            )
+        except Exception:
+            return 0
+
+    def _is_processing_source_dom_candidate(self, elem: WebElement) -> bool:
+        """Return True when a source row still looks like it is loading or processing."""
+        labels: list[str] = []
+        for part in (
+            elem.text or "",
+            elem.get_attribute("aria-label") or "",
+            elem.get_attribute("title") or "",
+            elem.get_attribute("href") or "",
+        ):
+            text = part.strip()
+            if text:
+                labels.append(text)
+        try:
+            for child in elem.find_elements(By.CSS_SELECTOR, '[aria-label], [title], [alt]'):
+                for part in (
+                    child.text or "",
+                    child.get_attribute("aria-label") or "",
+                    child.get_attribute("title") or "",
+                    child.get_attribute("alt") or "",
+                ):
+                    text = part.strip()
+                    if text:
+                        labels.append(text)
+        except Exception:
+            pass
+
+        combined = " | ".join(labels).lower()
+        return any(
+            phrase in combined
+            for phrase in (
+                "processing",
+                "loading",
+                "in progress",
+                "still loading",
+                "still processing",
+            )
+        )
+
     def _collect_source_dom_candidates(self) -> list[WebElement]:
         """Collect candidate source-row elements from the current DOM."""
+        selectors = (
+            "div.source-panel-content button.source-stretched-button",
+            "div.source-panel-content a.source-stretched-button",
+            "source-picker button.source-stretched-button",
+            "source-picker a.source-stretched-button",
+            "div.tab-container.source-tab-container button.source-stretched-button",
+            "div.tab-container.source-tab-container a.source-stretched-button",
+        )
+        scoped = self._collect_source_dom_candidates_from_selectors(selectors)
+        if scoped:
+            return scoped
+
+        fallback_selectors = (
+            "button.source-stretched-button",
+            "a.source-stretched-button",
+            '[class*="source-stretched-button"]',
+            "button",
+            '[role="button"]',
+            "a",
+        )
+        return self._collect_source_dom_candidates_from_selectors(fallback_selectors)
+
+    def _collect_source_dom_candidates_from_selectors(self, selectors: tuple[str, ...]) -> list[WebElement]:
+        """Collect candidate source rows from a specific selector set."""
         candidates: list[WebElement] = []
-        seen: set[int] = set()
-        for selector in ("button", '[role="button"]', "a"):
+        seen: set[str] = set()
+        for selector in selectors:
             for elem in self._driver.find_elements(By.CSS_SELECTOR, selector):
-                marker = id(elem)
+                marker = self._source_dom_signature(elem)
                 if marker in seen:
                     continue
                 seen.add(marker)
                 candidates.append(elem)
-        source_candidates: list[WebElement] = []
-        for elem in candidates:
-            if self._is_source_dom_candidate(elem):
-                source_candidates.append(elem)
-        return source_candidates
+        return [elem for elem in candidates if self._is_source_dom_candidate(elem)]
+
+    def _source_dom_signature(self, elem: WebElement) -> str:
+        """Return a stable signature for deduping mirrored source-row nodes."""
+        parts = [
+            (elem.get_attribute("class") or "").strip().lower(),
+            (elem.get_attribute("aria-label") or "").strip(),
+            (elem.get_attribute("title") or "").strip(),
+            (elem.get_attribute("href") or "").strip(),
+            (elem.text or "").strip(),
+            (elem.get_attribute("outerHTML") or "").strip(),
+        ]
+        return "\u241f".join(parts)
 
     def _is_source_dom_candidate(self, elem: WebElement) -> bool:
         """Return True when an element looks like a NotebookLM source row."""
@@ -546,9 +645,12 @@ class NLMIndustrialScraper:
         aria = (elem.get_attribute("aria-label") or "").strip()
         title = (elem.get_attribute("title") or "").strip()
         href = (elem.get_attribute("href") or "").strip()
+        classes = (elem.get_attribute("class") or "").strip().lower()
         combined = " | ".join(part for part in (text, aria, title, href) if part)
         if not combined:
             return False
+        if "source-stretched-button" in classes:
+            return True
         lower = combined.lower()
         if any(
             phrase in lower
@@ -566,6 +668,9 @@ class NLMIndustrialScraper:
                 "send message",
                 "settings",
                 "create notebook",
+                "google apps",
+                "google account",
+                "notebooklm homepage",
             )
         ):
             return False
@@ -738,6 +843,9 @@ class NLMIndustrialScraper:
                 "scroll to top",
                 "scroll to bottom",
                 "send message",
+                "google apps",
+                "google account",
+                "notebooklm homepage",
             )
         ):
             return False
@@ -759,9 +867,12 @@ class NLMIndustrialScraper:
         aria = (elem.get_attribute("aria-label") or "").strip()
         title = (elem.get_attribute("title") or "").strip()
         href = (elem.get_attribute("href") or "").strip()
+        classes = (elem.get_attribute("class") or "").strip().lower()
         combined = " | ".join(part for part in (text, aria, title, href) if part)
         if not combined:
             return False
+        if "source-stretched-button" in classes:
+            return True
         lower = combined.lower()
         if any(
             phrase in lower
@@ -1248,12 +1359,7 @@ class NLMIndustrialScraper:
         if not self._staging_nb_id:
             return {vid: (False, None, "no staging notebook") for vid in vid_to_src}
 
-        url = f"https://notebooklm.google.com/notebook/{self._staging_nb_id}"
-        self._driver.get(url)
-        time.sleep(15)
-
-        # Navigate to Sources tab, then poll until source buttons render.
-        self._ensure_sources_context(self._staging_nb_id)
+        self._open_notebook_and_prepare_sources(self._staging_nb_id, len(vid_to_src))
         batch_started_at = time.monotonic()
         log_action(
             "industrial_scrape_batch_started",
@@ -1262,17 +1368,6 @@ class NLMIndustrialScraper:
                 "batch_size": len(vid_to_src),
             },
         )
-
-        # Poll DOM for source buttons until they appear or timeout.
-        # Unlike nlm_batch.py which uses `nlm source content` CLI directly,
-        # this scraper relies on the browser SPA rendering source buttons.
-        # The CLI confirms sources were added; we must confirm buttons exist.
-        print(f"[Industrial] Waiting up to 120s for {len(vid_to_src)} source buttons to render...")
-        dom_ready = self._poll_source_buttons_dom(expected=len(vid_to_src), timeout=120)
-        if dom_ready:
-            print(f"[Industrial] DOM buttons ready ({dom_ready} found)")
-        else:
-            print(f"[Industrial] DOM polling timed out — proceeding anyway (may fail)")
 
         results: Dict[str, Tuple[bool, Optional[str], Optional[str]]] = {}
         context_not_ready_streak = 0
@@ -1656,15 +1751,7 @@ class NLMIndustrialScraper:
             print(f"[Industrial] Warning: {len(missing)} video IDs have no source mapping")
 
         self._init_driver()
-        url = f"https://notebooklm.google.com/notebook/{notebook_id}"
-        print(f"[Industrial] Opening {url}...")
-        self._driver.get(url)
-
-        # Initial wait for heavy UI load
-        time.sleep(15)
-
-        # Click the Sources control to reveal the source list
-        self._navigate_to_sources_tab()
+        self._open_notebook_and_prepare_sources(notebook_id, len(vid_to_src))
 
         # Build button map ONCE before any clicking — stable DOM at this point.
         # Buttons are matched by source_id via aria-label, with positional fallback.

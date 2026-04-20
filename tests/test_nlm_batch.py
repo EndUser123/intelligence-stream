@@ -207,8 +207,8 @@ class TestReusableBatchLogging:
         assert completed["succeeded"] == 1
         assert completed["failed"] == 0
 
-    def test_reusable_batch_uses_300_source_subbatches_by_default(self):
-        """Reusable notebook processing should forward the 300-source subbatch size."""
+    def test_reusable_batch_uses_150_source_subbatches_by_default(self):
+        """Reusable notebook processing should forward the 150-source subbatch size."""
         batch_ids = ["vid1", "vid2", "vid3"]
 
         with mock.patch("csf.nlm_batch._load_reusable_notebook_id", return_value="nb-existing"):
@@ -483,13 +483,19 @@ class TestSubBatchFailureMode:
         """A failed add should log and return empty without retry splitting."""
         ingestor = nlm_batch.NLMBatchIngestor(batch_size=3)
         ingestor._nb_id = "nb-123"
-        response = type(
+        # _get_current_source_count calls source list --json twice (before and after add)
+        source_list_response = type(
+            "CompletedProcess",
+            (),
+            {"returncode": 0, "stdout": json.dumps({"sources": []}), "stderr": ""},
+        )()
+        add_response = type(
             "CompletedProcess",
             (),
             {"stdout": "", "stderr": "Could not add URL sources", "returncode": 1},
         )()
 
-        with mock.patch.object(ingestor, "_run_cmd", return_value=response) as mock_run_cmd:
+        with mock.patch.object(ingestor, "_run_cmd", side_effect=[source_list_response, add_response, source_list_response]) as mock_run_cmd:
             with mock.patch("csf.nlm_batch.log_action") as mock_log:
                 result = ingestor._add_sources_chunk(
                     ["vid1", "vid2", "vid3"],
@@ -498,7 +504,7 @@ class TestSubBatchFailureMode:
                 )
 
         assert result == []
-        mock_run_cmd.assert_called_once()
+        assert mock_run_cmd.call_count == 3
         log_names = [call.args[0] for call in mock_log.call_args_list]
         assert "nlm_batch_subbatch_add_failed" in log_names
 
@@ -524,6 +530,179 @@ class TestSubBatchFailureMode:
         log_names = [call.args[0] for call in mock_log.call_args_list]
         assert "nlm_batch_subbatch_add_shortfall" in log_names
         assert "nlm_batch_subbatch_size_adjusted" not in log_names
+
+
+class TestNotebookCapRotation:
+    """Notebook should rotate when source count approaches the cap threshold."""
+
+    def test_get_current_source_count_parses_json_list(self):
+        """_get_current_source_count should return the number of sources in the notebook."""
+        ingestor = nlm_batch.NLMBatchIngestor()
+        ingestor._nb_id = "nb-123"
+        mock_response = type(
+            "CompletedProcess",
+            (),
+            {"returncode": 0, "stdout": json.dumps({"sources": [{"id": "s1"}, {"id": "s2"}, {"id": "s3"}]}), "stderr": ""},
+        )()
+        with mock.patch.object(ingestor, "_run_cmd", return_value=mock_response):
+            count = ingestor._get_current_source_count()
+        assert count == 3
+
+    def test_get_current_source_count_returns_0_on_error(self):
+        """_get_current_source_count should return 0 when the list command fails."""
+        ingestor = nlm_batch.NLMBatchIngestor()
+        ingestor._nb_id = "nb-123"
+        with mock.patch.object(ingestor, "_run_cmd", return_value=type("CompletedProcess", (), {"returncode": 1, "stdout": "", "stderr": ""})()):
+            count = ingestor._get_current_source_count()
+        assert count == 0
+
+    def test_get_current_source_count_returns_0_when_no_nb_id(self):
+        """_get_current_source_count should return 0 when no notebook is active."""
+        ingestor = nlm_batch.NLMBatchIngestor()
+        assert ingestor._nb_id is None
+        assert ingestor._get_current_source_count() == 0
+
+    def test_rotate_notebook_closes_old_and_creates_new(self):
+        """_rotate_notebook should delete the old notebook and create a fresh one."""
+        ingestor = nlm_batch.NLMBatchIngestor()
+        ingestor._nb_id = "nb-old"
+        ingestor._current_source_count = 275
+        create_response = type(
+            "CompletedProcess",
+            (),
+            {"returncode": 0, "stdout": "Created\nID: nb-new\n", "stderr": ""},
+        )()
+
+        with mock.patch.object(ingestor, "close") as mock_close:
+            with mock.patch.object(ingestor, "_run_cmd", return_value=create_response) as mock_run_cmd:
+                with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                    ingestor._rotate_notebook()
+
+        mock_close.assert_called_once()
+        assert ingestor._nb_id == "nb-new"
+        assert ingestor._current_source_count == 0
+
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_batch_notebook_rotated" in log_names
+        assert "nlm_batch_notebook_rotated_new_created" in log_names
+        rotate_event = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_notebook_rotated")
+        assert rotate_event["old_nb_id"] == "nb-old"
+        assert rotate_event["old_source_count"] == 275
+        assert rotate_event["reason"] == "source_cap_near_threshold"
+        assert rotate_event["cap_threshold"] == nlm_batch._NOTEBOOK_SOURCE_CAP
+
+    def test_capacity_rotation_requests_before_add_when_at_cap(self):
+        """A notebook at capacity should rotate before attempting the next add."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
+        ingestor._nb_id = "nb-cap"
+        ingestor._current_source_count = 225
+
+        with mock.patch.object(ingestor, "_get_current_source_count", side_effect=[225, 225, 225, 225]):
+            with mock.patch.object(ingestor, "_add_sources_chunk", side_effect=[["v1", "v2"], ["v3", "v4"]]):
+                with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                    with mock.patch.object(ingestor, "_rotate_notebook") as mock_rotate:
+                        ingestor._add_sources_in_subbatches(["v1", "v2", "v3", "v4"], subbatch_size=2)
+
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_batch_subbatch_capacity_rotation_requested" in log_names
+        assert mock_rotate.call_count == 2
+        capacity_rotation = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_subbatch_capacity_rotation_requested")
+        assert capacity_rotation["current_source_count"] == 225
+        assert capacity_rotation["cap_threshold"] == nlm_batch._NOTEBOOK_SOURCE_CAP
+        assert capacity_rotation["rotation_reason"] == "source_cap_near_threshold"
+
+    def test_shortfall_does_not_rotate_when_below_cap(self):
+        """Subbatch shortfall below cap threshold should NOT trigger notebook rotation."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
+        ingestor._nb_id = "nb-fresh"
+        ingestor._current_source_count = 150
+
+        def fake_run_cmd(cmd, timeout=300):
+            if cmd[:2] == ["source", "list"]:
+                return type("CompletedProcess", (), {"returncode": 0, "stdout": json.dumps({"sources": [{"id": f"s{i}"} for i in range(151)]}), "stderr": ""})()
+            if cmd[:2] == ["source", "add"]:
+                return type("CompletedProcess", (), {"returncode": 1, "stdout": "Could not add URL sources", "stderr": "could not add"})()
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
+            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                with mock.patch.object(ingestor, "_rotate_notebook") as mock_rotate:
+                    result = ingestor._add_sources_in_subbatches(["v1", "v2"], subbatch_size=2)
+
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_batch_notebook_rotated" not in log_names
+        assert "nlm_batch_subbatch_add_shortfall" in log_names
+        mock_rotate.assert_not_called()
+
+    def test_subbatch_size_adjusts_to_remaining_capacity(self):
+        """Subbatch size should shrink to the remaining NotebookLM headroom."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=50)
+        ingestor._nb_id = "nb-room"
+        ingestor._current_source_count = 215
+        batch_ids = [f"v{i}" for i in range(60)]
+        add_calls = []
+
+        with mock.patch.object(ingestor, "_get_current_source_count", side_effect=[215, 215, 50, 50]):
+            with mock.patch.object(ingestor, "_add_sources_chunk", side_effect=lambda batch_ids, **kwargs: add_calls.append(list(batch_ids)) or list(batch_ids)):
+                with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                    ingestor._add_sources_in_subbatches(batch_ids, subbatch_size=50)
+
+        assert add_calls, "expected at least one add command"
+        assert len(add_calls[0]) == 10
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_batch_subbatch_size_adjusted" in log_names
+        adjusted = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_subbatch_size_adjusted")
+        assert adjusted["adjusted_subbatch_size"] == 10
+        assert adjusted["rotation_reason"] == "capacity_headroom"
+
+    def test_materialization_wait_logs_source_counts(self):
+        """Materialization wait logs should capture source counts around the wait."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=1)
+        ingestor._nb_id = "nb-wait"
+
+        def fake_run_cmd(cmd, timeout=300):
+            if cmd[:2] == ["source", "list"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 0, "stdout": json.dumps({"sources": [{"id": "s1"}]}), "stderr": ""},
+                )()
+            if cmd[:2] == ["source", "add"]:
+                return type("CompletedProcess", (), {"returncode": 0, "stdout": "added", "stderr": ""})()
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
+            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                ingestor._add_sources_chunk(["v1"], subbatch_index=1, expected_total=1)
+
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_batch_source_materialization_wait_started" in log_names
+        assert "nlm_batch_source_materialization_wait_succeeded" in log_names
+        wait_started = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_source_materialization_wait_started")
+        wait_succeeded = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_source_materialization_wait_succeeded")
+        assert wait_started["source_count_before_wait"] == 1
+        assert wait_succeeded["source_count_before_wait"] == 1
+        assert wait_succeeded["source_count_after_wait"] == 1
+
+    def test_source_count_tracked_in_subbatch_metrics(self):
+        """Subbatch metrics should include current_source_count after each subbatch."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
+        ingestor._nb_id = "nb-123"
+
+        def fake_run_cmd(cmd, timeout=300):
+            if cmd[:2] == ["source", "list"]:
+                return type("CompletedProcess", (), {"returncode": 0, "stdout": json.dumps({"sources": [{"id": f"s{i}"} for i in range(100)]}), "stderr": ""})()
+            if cmd[:2] == ["source", "add"]:
+                return type("CompletedProcess", (), {"returncode": 0, "stdout": "added", "stderr": ""})()
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
+            with mock.patch("csf.nlm_batch.log_action"):
+                ingestor._add_sources_in_subbatches(["v1", "v2", "v3", "v4"], subbatch_size=2)
+
+        for metric in ingestor._last_subbatch_metrics:
+            assert "current_source_count" in metric
+            assert metric["current_source_count"] == 100  # always 100 from mock
 
 
 class TestBackoffCalculation:

@@ -642,15 +642,12 @@ class NLMBatchIngestor:
         )
         return []
 
-    def _add_sources_in_subbatches(self, batch_ids: List[str], subbatch_size: int = 50) -> List[str]:
+    def _add_sources_in_subbatches(self, batch_ids: List[str], subbatch_size: int = 300) -> List[str]:
         """Add sources in sub-batches to avoid NLM overload.
 
-        Adding 300 sources at once causes partial failures even with --wait.
-        Breaking into ~50-source sub-batches with --wait between each gives NLM
-        time to properly process each batch before moving to the next.
-        Sub-batch size is intentionally fixed to preserve throughput; failed
-        windows are surfaced to the caller instead of recursively shrinking into
-        tiny retries.
+        The reusable industrial path now defaults to a 300-source window, which
+        matches the measured fast path for this backlog shape. Smaller windows
+        can still be passed explicitly for sweeps or recovery if needed.
         """
         total = len(batch_ids)
         added_ids: List[str] = []
@@ -773,7 +770,7 @@ class NLMBatchIngestor:
             )
 
         print(f"[NLM-Batch] Adding {len(batch_ids)} sources in sub-batches...")
-        self._add_sources_in_subbatches(batch_ids)
+        self._add_sources_in_subbatches(batch_ids, subbatch_size=self.batch_size)
         return self._nb_id
 
     def extract_transcripts(self, batch_ids: List[str]) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
@@ -1225,7 +1222,10 @@ class NLMReusableIngestor:
             self._ingestor._nb_id = self._nb_id
             print(f"[NLM-Batch] Adding {len(video_ids)} sources in sub-batches...")
             add_sources_started_at = time.monotonic()
-            self._ingestor._add_sources_in_subbatches(video_ids)
+            self._ingestor._add_sources_in_subbatches(
+                video_ids,
+                subbatch_size=self._ingestor.batch_size,
+            )
             add_sources_elapsed_s = round(time.monotonic() - add_sources_started_at, 3)
             setup_mode = "reuse_add"
         elif self._ingestor._last_added_video_ids is not None:

@@ -1521,6 +1521,12 @@ def _fetch_via_direct_api(video_id: str) -> tuple[bool, str | None, str | None]:
             return "direct_api unavailable: not available in your country"
         if "unplayable" in low or "video unavailable" in low or "private video" in low:
             return "direct_api unavailable: video unavailable"
+        if "transcript could not be retrieved" in low or "no transcript available" in low:
+            return "direct_api no_transcript: transcript unavailable"
+        if "could not retrieve a transcript" in low:
+            return "direct_api no_transcript: could not retrieve transcript"
+        if "youtube transcript api" in low and "error" in low:
+            return "direct_api error: youtube transcript api failure"
         if "transcript" in low and "not" in low:
             return f"direct_api no_transcript: {raw}"
         if "429" in low or "rate limit" in low or "quota" in low:

@@ -1,0 +1,102 @@
+# yt-is Handoff
+
+Last updated: 2026-04-20
+
+## Current state
+
+- The current canary is stopped.
+- The routing split was changed so:
+  - terminal/unavailable/private/deleted items stay sticky-skipped
+  - live / live_stream / premiere items go to `transcript_fallback`
+  - captioned and `no_captions` items go back to `notebooklm`
+- We added a durable note at `P:/packages/yt-is/CODEX_MEMORY.md` and linked it from `README.md`.
+- Whisper empty-output messages now say when the model thinks the audio was likely music or silence.
+
+## Why this matters
+
+- The previous canary had been sending the broad `no_captions` backlog into the slow transcript-fallback lane.
+- That was the throughput killer.
+- The current split is intended to push the large recoverable backlog back into NotebookLM while keeping live content out of that lane.
+
+## Files that matter
+
+- `P:/packages/yt-is/bin/csf-source`
+  - preflight routing split
+  - logging for fallback / NotebookLM counts
+  - canary orchestration
+- `P:/packages/yt-is/csf/transcript.py`
+  - oEmbed probe
+  - direct_api classification
+  - Whisper empty-result classification
+  - negative-cache persistence
+- `P:/packages/yt-is/csf/batch_status.py`
+  - transcript cache / negative cache / status persistence
+  - `mark_failed(..., source=...)` fix
+- `P:/packages/yt-is/tests/test_csf_source_fetch_timing.py`
+  - routing regression tests
+- `P:/packages/yt-is/tests/test_transcript.py`
+  - direct_api and Whisper regression tests
+
+## What we learned
+
+- NotebookLM industrial batches were much faster than the fallback lane when healthy.
+- The fallback lane is mostly Selenium and is much slower.
+- The backlog is large, so putting `no_captions` into fallback caused a big throughput collapse.
+- Whisper empty output is not proof of a bug; it usually means no speech, maybe music or silence, and is now labeled that way.
+
+## Validation status
+
+- `python -m py_compile` passed on the touched files.
+- `P:/packages/yt-is/tests/test_csf_source_fetch_timing.py` passed.
+- `P:/packages/yt-is/tests/test_transcript.py` passed.
+- The latest focused split tests passed.
+
+## Next action for the new session
+
+1. Restart the canary from `P:/packages/yt-is` with:
+   - `python bin/csf-source fetch --workers 4`
+2. Watch the trace file under `P:/packages/yt-is/.logs/term_*.jsonl`.
+3. Check whether the `notebooklm` lane now absorbs most `no_captions` items again.
+4. Compare:
+   - NotebookLM successes
+   - transcript-fallback successes
+   - negative-cache growth
+   - cache row growth in `P:/__csf/.data/yt-is/transcripts.sqlite`
+
+## Useful reminders
+
+- A large number of `oembed unavailable: HTTP 404` items should now be skipped cheaply and cached negatively.
+- `active_workers: 0` in transcript-fallback logs is expected; that lane is not the industrial NotebookLM worker pool.
+- If the next canary looks slow again, first check whether `no_captions` is still going to the wrong lane before changing batch size or retry tuning.
+## Debugging / Logging Rules That Matter
+- Quick pointer: [DEBUGGING_PLAYBOOK.md](P:/packages/yt-is/DEBUGGING_PLAYBOOK.md)
+- Do not trust the JSONL trace alone. Several important warnings surfaced only in live stderr/stdout.
+- When threading a new field through a wrapper, verify the callee signature before assuming it works. The `mark_failed(..., source=...)` bug was exactly this failure mode.
+- Treat the worker result file as the source of truth for completed work. Stdout summaries can be stale or incomplete.
+- If a canary emits warnings, check both structured trace events and raw terminal output because they do not always carry the same information.
+- For throughput questions, prefer completed-worker totals and stage timings over scan-progress or backlog-size-derived rates.
+- The most useful live signals have been:
+  - `fetch_worker_finished`
+  - `worker_completed`
+  - `worker_batch_metrics`
+  - `worker_source_profile_totals`
+  - `negative_cache_reason_counts`
+  - `add_cmd_elapsed_s` vs `materialization_wait_elapsed_s`
+- When a new logging field is added, smoke-test the exact path that writes it. If it only appears in one code path, the first bug is often a mismatch in another path.
+
+## Session Bootstrap
+- Read these first:
+  - [HANDOFF.md](P:/packages/yt-is/HANDOFF.md)
+  - [CODEX_MEMORY.md](P:/packages/yt-is/CODEX_MEMORY.md)
+  - [DEBUGGING_PLAYBOOK.md](P:/packages/yt-is/DEBUGGING_PLAYBOOK.md)
+- Key files:
+  - [bin/csf-source](P:/packages/yt-is/bin/csf-source)
+  - [csf/transcript.py](P:/packages/yt-is/csf/transcript.py)
+  - [csf/batch_status.py](P:/packages/yt-is/csf/batch_status.py)
+  - [csf/batch_scheduler.py](P:/packages/yt-is/csf/batch_scheduler.py)
+- Fast verification:
+  - `python -m py_compile P:\packages\yt-is\bin\csf-source P:\packages\yt-is\csf\transcript.py P:\packages\yt-is\csf\batch_status.py P:\packages\yt-is\csf\batch_scheduler.py`
+  - `PYTHONPATH=P:\packages\yt-is python -m pytest P:\packages\yt-is\tests\test_transcript.py -q`
+  - `PYTHONPATH=P:\packages\yt-is python -m pytest P:\packages\yt-is\tests\test_csf_source_fetch_timing.py -q`
+- Current intended canary:
+  - `python P:\packages\yt-is\bin\csf-source fetch --workers 4`

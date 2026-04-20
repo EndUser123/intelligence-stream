@@ -46,6 +46,14 @@ def _reset_test_db() -> None:
             video_id TEXT PRIMARY KEY, status TEXT NOT NULL,
             source TEXT, attempted_at REAL NOT NULL, error TEXT
         );
+        CREATE TABLE IF NOT EXISTS negative_video_cache (
+            video_id TEXT PRIMARY KEY,
+            reason TEXT NOT NULL,
+            source TEXT,
+            last_stage TEXT,
+            cached_at REAL NOT NULL,
+            expires_at REAL NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS channel_cooldown (
             source TEXT PRIMARY KEY, cooldown_until REAL NOT NULL
         );
@@ -198,6 +206,34 @@ def test_archive_skip_success() -> None:
     results = list(sched.yield_next())
     video_ids = [vid for vid, _ in results]
     assert "VID3" not in video_ids
+
+
+# ─── test_negative_cache_skip ───────────────────────────────────────────────
+
+def test_negative_cache_skip() -> None:
+    """Pre-insert active negative cache entry → verify video is not yielded."""
+    _seed([
+        ("VID_NEG", "pending", "https://youtube.com/channel/UC_X", "2025-01-01T00:00:00"),
+    ])
+    conn = sqlite3.connect(_TEST_DB)
+    conn.execute(
+        "INSERT OR REPLACE INTO negative_video_cache VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            "VID_NEG",
+            "no_transcript",
+            "https://youtube.com/channel/UC_X",
+            "direct_api",
+            time.time(),
+            time.time() + 3600,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    sched = BatchScheduler(db_path=_TEST_DB)
+    results = list(sched.yield_next())
+    video_ids = [vid for vid, _ in results]
+    assert "VID_NEG" not in video_ids
 
 
 # ─── test_cooldown_blocking ───────────────────────────────────────────────────
@@ -734,4 +770,3 @@ def test_schema_migration_removes_consecutive_429s() -> None:
         assert "consecutive_429s" not in content.lower(), (
             "consecutive_429s should not be referenced in batch_status source"
         )
-

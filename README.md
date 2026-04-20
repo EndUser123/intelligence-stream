@@ -6,6 +6,10 @@
 
 YouTube transcript ingestion and analysis pipeline — discover new videos, download transcripts with automatic escalation (yt-dlp → NotebookLM), and store results in CKS.
 
+## Operator Notes
+
+For implementation gotchas, recurring bugs, and lessons learned from live canaries, see [CODEX_MEMORY.md](CODEX_MEMORY.md).
+
 ## Quick Start
 
 ```powershell
@@ -227,3 +231,4 @@ graph TB
 - Configurable NLM batch size via `YTIS_NLM_MAX_SOURCES_PER_NOTEBOOK`
 - External transcript provider hook for custom sources
 - Multi-terminal safe batch processing with InterProcessLock
+- See [PLAYBOOK_LINKS.md](P:/packages/yt-is/PLAYBOOK_LINKS.md) for the debugging playbook, handoff, and memory pointers.

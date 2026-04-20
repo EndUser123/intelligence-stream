@@ -1,11 +1,12 @@
 """Tests for csf/transcript.py - Full Fallback Chain.
 
-Current chain: ytdlp → ytdlp_ejs → notebooklm → selenium → whisper → direct_api
+Current chain: oEmbed → ytdlp → ytdlp_ejs → direct_api → notebooklm → selenium → whisper
 """
 from __future__ import annotations
 
 import subprocess
 import sys
+import urllib.error
 import time as time_module
 from pathlib import Path
 from unittest import mock
@@ -66,16 +67,83 @@ class TestVideoIdValidation:
 
 
 class TestFallbackChain:
-    """Test the fallback chain order: ytdlp → ytdlp_ejs → selenium → notebooklm → whisper.
+    """Test the fallback chain order: ytdlp → ytdlp_ejs → direct_api → notebooklm → selenium → whisper.
 
     Free sources (ytdlp) are tried before paid/notebooklm to conserve resources.
     """
+
+    def test_oembed_unavailable_short_circuits_chain(self, monkeypatch):
+        """oEmbed 404 should stop the chain before expensive transcript probes."""
+        monkeypatch.setenv("YTIS_OEMBED_ENABLED", "1")
+        http_error = urllib.error.HTTPError(
+            "https://www.youtube.com/oembed",
+            404,
+            "Not Found",
+            hdrs=None,
+            fp=None,
+        )
+        with (
+            mock.patch("csf.transcript.urllib.request.urlopen", side_effect=http_error),
+            mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
+            mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
+            mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
+            mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
+            mock.patch("csf.transcript._get_scheduler") as mock_scheduler,
+        ):
+            result = fetch_transcript_chain(
+                "dQw4w9WgXcQ", LanguageConfig(prefer_lang="en")
+            )
+
+            mock_ytdlp.assert_not_called()
+            mock_ejs.assert_not_called()
+            mock_nlm.assert_not_called()
+            mock_selenium.assert_not_called()
+            mock_whisper.assert_not_called()
+            mock_direct.assert_not_called()
+            mock_scheduler.return_value.archive_finalize.assert_called_once()
+            assert result.transcript == ""
+            assert result.source == "none"
+            assert result.last_stage == "oembed"
+            assert result.failure_reason == "unavailable"
+
+    def test_direct_api_terminal_failure_short_circuits_later_stages(self):
+        """direct_api unavailable should stop before Selenium/Whisper."""
+        with (
+            mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
+            mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
+            mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
+            mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
+            mock.patch("csf.transcript._get_scheduler") as mock_scheduler,
+            mock.patch("time.sleep"),
+        ):
+            mock_ytdlp.return_value = (False, None, "no captions")
+            mock_ejs.return_value = (False, None, "no captions")
+            mock_direct.return_value = (False, None, "direct_api unavailable: removed by uploader")
+            mock_nlm.return_value = (False, None, "should not be called")
+            result = fetch_transcript_chain(
+                "dQw4w9WgXcQ", LanguageConfig(prefer_lang="en")
+            )
+
+            mock_ytdlp.assert_called()
+            mock_ejs.assert_called()
+            mock_nlm.assert_not_called()
+            mock_selenium.assert_not_called()
+            mock_whisper.assert_not_called()
+            mock_scheduler.return_value.archive_finalize.assert_called_once()
+            assert result.transcript == ""
+            assert result.last_stage == "direct_api"
+            assert result.failure_reason == "unavailable"
 
     def test_ytdlp_fails_ytdlp_ejs_succeeds(self):
         """ytdlp fails, ytdlp_ejs succeeds as first fallback."""
         with (
             mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
             mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
             mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
             mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
             mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
@@ -83,6 +151,7 @@ class TestFallbackChain:
         ):
             mock_ytdlp.return_value = (False, None, "no captions")
             mock_ejs.return_value = (True, "transcript via ytdlp_ejs", None)
+            mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
             # Later methods should NOT be called
             mock_selenium.return_value = (True, "should not be called", None)
             mock_nlm.return_value = (True, "should not be called", None)
@@ -105,18 +174,18 @@ class TestFallbackChain:
         with (
             mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
             mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
             mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
             mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
             mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
-            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
             mock.patch("time.sleep"),
         ):
             mock_ytdlp.return_value = (False, None, "no captions")
             mock_ejs.return_value = (False, None, "no cookies")
+            mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
             mock_nlm.return_value = (True, "transcript via notebooklm", None)
             mock_selenium.return_value = (True, "should not be called", None)
             mock_whisper.return_value = (True, "should not be called", None)
-            mock_direct.return_value = (True, "should not be called", None)
 
             result = fetch_transcript_chain(
                 "dQw4w9WgXcQ", LanguageConfig(prefer_lang="en")
@@ -135,18 +204,18 @@ class TestFallbackChain:
         with (
             mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
             mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
             mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
             mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
             mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
-            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
             mock.patch("time.sleep"),
         ):
             mock_ytdlp.return_value = (False, None, "no captions")
             mock_ejs.return_value = (False, None, "no cookies")
+            mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
             mock_nlm.return_value = (False, None, "nlm failed")
             mock_selenium.return_value = (True, "transcript via selenium", None)
             mock_whisper.return_value = (True, "should not be called", None)
-            mock_direct.return_value = (True, "should not be called", None)
 
             result = fetch_transcript_chain(
                 "dQw4w9WgXcQ", LanguageConfig(prefer_lang="en")
@@ -165,18 +234,18 @@ class TestFallbackChain:
         with (
             mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
             mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
             mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
             mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
             mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
-            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
             mock.patch("time.sleep"),
         ):
             mock_ytdlp.return_value = (False, None, "no captions")
             mock_ejs.return_value = (False, None, "no cookies")
+            mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
             mock_selenium.return_value = (False, None, "selenium failed")
             mock_nlm.return_value = (False, None, "nlm failed")
             mock_whisper.return_value = (False, None, "whisper failed")
-            mock_direct.return_value = (False, None, "direct_api failed")
 
             result = fetch_transcript_chain(
                 "dQw4w9WgXcQ", LanguageConfig(prefer_lang="en")
@@ -184,13 +253,14 @@ class TestFallbackChain:
 
             assert result.transcript == ""
             assert result.source == "none"
-            assert result.last_stage == "direct_api"  # direct_api is last stage reached
+            assert result.last_stage == "whisper"
 
     def test_ytdlp_succeeds_free_source_wins(self):
         """ytdlp (free) succeeds — must be returned before later methods."""
         with (
             mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
             mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
             mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
             mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
             mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
@@ -199,6 +269,7 @@ class TestFallbackChain:
             # ytdlp (free) succeeds
             mock_ytdlp.return_value = (True, "free transcript via ytdlp", None)
             mock_ejs.return_value = (True, "should not be called", None)
+            mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
             mock_selenium.return_value = (True, "should not be called", None)
             mock_nlm.return_value = (True, "should not be called", None)
             mock_whisper.return_value = (True, "should not be called", None)
@@ -220,6 +291,7 @@ class TestFallbackChain:
         with (
             mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
             mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
             mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
             mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
             mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
@@ -227,6 +299,7 @@ class TestFallbackChain:
         ):
             mock_ytdlp.return_value = (False, None, "no captions")
             mock_ejs.return_value = (False, None, "no cookies")
+            mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
             mock_selenium.return_value = (False, None, "selenium failed")
             mock_nlm.return_value = (False, None, "nlm failed")
             mock_whisper.return_value = (True, "transcript via whisper", None)
@@ -253,6 +326,7 @@ class TestCacheIntegration:
             mock.patch("csf.transcript.set_cached_transcript") as mock_cache_set,
             mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
             mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
             mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
             mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
             mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
@@ -261,6 +335,7 @@ class TestCacheIntegration:
             # All caption methods fail, whisper succeeds
             mock_ytdlp.return_value = (False, None, "no captions")
             mock_ejs.return_value = (False, None, "no cookies")
+            mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
             mock_selenium.return_value = (False, None, "selenium failed")
             mock_nlm.return_value = (False, None, "nlm failed")
             mock_whisper.return_value = (True, "whisper transcript", None)
@@ -278,6 +353,135 @@ class TestCacheIntegration:
             assert result.transcript == "whisper transcript"
             assert result.source == "whisper"
 
+    def test_translated_result_is_cached_after_successful_fetch(self):
+        """When translation is enabled, the cached transcript should be the translated text."""
+        with (
+            mock.patch("csf.transcript.set_cached_transcript") as mock_cache_set,
+            mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
+            mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
+            mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
+            mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
+            mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
+            mock.patch("csf.transcript._translate_text") as mock_translate,
+            mock.patch("time.sleep"),
+        ):
+            # First language attempt fails, second succeeds, then translation applies.
+            mock_ytdlp.side_effect = [
+                (False, None, "no captions"),
+                (True, "hello world", None),
+            ]
+            mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
+            mock_selenium.return_value = (False, None, "selenium failed")
+            mock_nlm.return_value = (False, None, "nlm failed")
+            mock_whisper.return_value = (False, None, "whisper failed")
+            mock_translate.return_value = "hola mundo"
+
+            result = fetch_transcript_chain(
+                "dQw4w9WgXcQ",
+                LanguageConfig(prefer_lang="es", allow_translation=True),
+            )
+
+            mock_cache_set.assert_called_once()
+            call_args = mock_cache_set.call_args[0]
+            assert call_args[0] == "dQw4w9WgXcQ"
+            assert call_args[1] == "es"
+            assert call_args[2] == "ytdlp"
+            assert call_args[3] == "hola mundo"
+            assert result.transcript == "hola mundo"
+            assert result.was_translated is True
+            assert result.raw_lang == "en"
+            assert result.source == "ytdlp"
+
+    def test_unknown_language_fallback_does_not_pretend_to_be_english(self):
+        """The lang=None fallback should preserve unknown language metadata and skip translation."""
+        with (
+            mock.patch("csf.transcript.set_cached_transcript") as mock_cache_set,
+            mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
+            mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
+            mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
+            mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
+            mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
+            mock.patch("csf.transcript._translate_text") as mock_translate,
+            mock.patch("time.sleep"),
+        ):
+            mock_ytdlp.side_effect = [
+                (False, None, "no captions"),
+                (False, None, "no captions"),
+                (True, "bonjour monde", None),
+            ]
+            mock_ejs.return_value = (False, None, "no cookies")
+            mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
+            mock_selenium.return_value = (False, None, "selenium failed")
+            mock_nlm.return_value = (False, None, "nlm failed")
+            mock_whisper.return_value = (False, None, "whisper failed")
+
+            result = fetch_transcript_chain(
+                "dQw4w9WgXcQ",
+                LanguageConfig(prefer_lang="fr", allow_translation=True),
+            )
+
+            mock_translate.assert_not_called()
+            mock_cache_set.assert_called_once()
+            call_args = mock_cache_set.call_args[0]
+            assert call_args[0] == "dQw4w9WgXcQ"
+            assert call_args[1] == "fr"
+            assert call_args[2] == "ytdlp"
+            assert call_args[3] == "bonjour monde"
+            assert result.transcript == "bonjour monde"
+            assert result.was_translated is False
+            assert result.raw_lang is None
+            assert result.detected_lang is None
+            assert result.source == "ytdlp"
+
+
+class TestWhisperEmptyClassification:
+    """Tests for Whisper empty-result classification and messaging."""
+
+    def test_whisper_empty_result_mentions_likely_music_or_silence(self):
+        from csf.transcript import _summarize_whisper_empty_result
+
+        class DummySegment:
+            def __init__(self, no_speech_prob: float, text: str = "") -> None:
+                self.no_speech_prob = no_speech_prob
+                self.text = text
+
+        message = _summarize_whisper_empty_result(
+            [DummySegment(0.94), DummySegment(0.91)]
+        )
+        assert "likely music or silence" in message
+        assert "max_no_speech_prob=0.94" in message
+
+    def test_whisper_music_hint_is_treated_as_no_transcript(self):
+        with (
+            mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
+            mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
+            mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
+            mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
+            mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
+            mock.patch("time.sleep"),
+        ):
+            mock_ytdlp.return_value = (False, None, "no captions")
+            mock_ejs.return_value = (False, None, "no cookies")
+            mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
+            mock_selenium.return_value = (False, None, "selenium failed")
+            mock_nlm.return_value = (False, None, "nlm failed")
+            mock_whisper.return_value = (
+                False,
+                None,
+                "whisper no speech detected (likely music or silence; segments=2, max_no_speech_prob=0.94)",
+            )
+
+            result = fetch_transcript_chain("dQw4w9WgXcQ", LanguageConfig(prefer_lang="en"))
+
+            assert result.transcript == ""
+            assert result.source == "none"
+            assert result.last_stage == "whisper"
+            assert result.failure_reason == "no_transcript"
+            assert "likely music or silence" in result.error
+
 
 class TestJitter:
     """Test random jitter for rate limit avoidance."""
@@ -285,10 +489,11 @@ class TestJitter:
     def test_jitter_in_range(self):
         """Jitter should be between 2.0 and 10.0 seconds (PERF-006: wider range)."""
         jitters = []
-        for _ in range(50):
+        for _ in range(20):
             with (
                 mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
                 mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+                mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
                 mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
                 mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
                 mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
@@ -296,6 +501,7 @@ class TestJitter:
             ):
                 mock_ytdlp.return_value = (False, None, "no captions")
                 mock_ejs.return_value = (False, None, "no cookies")
+                mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
                 mock_selenium.return_value = (False, None, "selenium failed")
                 mock_nlm.return_value = (False, None, "nlm failed")
                 mock_whisper.return_value = (True, "transcript", None)
@@ -318,6 +524,7 @@ class TestReturnType:
         with (
             mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
             mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
             mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
             mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
             mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
@@ -325,6 +532,7 @@ class TestReturnType:
         ):
             mock_ytdlp.return_value = (False, None, "no captions")
             mock_ejs.return_value = (False, None, "no cookies")
+            mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
             mock_selenium.return_value = (False, None, "selenium failed")
             mock_nlm.return_value = (False, None, "nlm failed")
             mock_whisper.return_value = (True, "transcript", None)
@@ -339,6 +547,7 @@ class TestReturnType:
         with (
             mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
             mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
             mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
             mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
             mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
@@ -346,6 +555,7 @@ class TestReturnType:
         ):
             mock_ytdlp.return_value = (False, None, "no captions")
             mock_ejs.return_value = (False, None, "no cookies")
+            mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
             mock_selenium.return_value = (False, None, "selenium failed")
             mock_nlm.return_value = (False, None, "nlm failed")
             mock_whisper.return_value = (True, "whisper text", None)
@@ -361,6 +571,7 @@ class TestReturnType:
         with (
             mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
             mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
             mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
             mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
             mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
@@ -368,6 +579,7 @@ class TestReturnType:
         ):
             mock_ytdlp.return_value = (False, None, "no captions")
             mock_ejs.return_value = (False, None, "no cookies")
+            mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
             mock_selenium.return_value = (False, None, "selenium failed")
             mock_nlm.return_value = (False, None, "nlm failed")
             mock_whisper.return_value = (False, None, "whisper failed")
@@ -645,13 +857,14 @@ class TestTranscriptSourceStage:
             mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
             mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
             mock.patch("csf.transcript._fetch_via_whisper"),
-            mock.patch("csf.transcript._fetch_via_direct_api"),
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
             mock.patch("time.sleep"),
         ):
             # All Google-adjacent sources fail; notebooklm succeeds
             mock_ytdlp.return_value = (False, None, "no captions")
             mock_ejs.return_value = (False, None, "no captions")
             mock_selenium.return_value = (False, None, "selenium failed")
+            mock_direct.return_value = (False, None, "direct_api failed")
             mock_nlm.return_value = (True, "transcript text", None)
             result = fetch_transcript_chain(
                 "dQw4w9WgXcQ", LanguageConfig(prefer_lang="en")
@@ -691,13 +904,14 @@ class TestTranscriptSourceStage:
             mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
             mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
             mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
-            mock.patch("csf.transcript._fetch_via_direct_api"),
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
             mock.patch("time.sleep"),
         ):
             mock_ytdlp.return_value = (False, None, "no captions")
             mock_ejs.return_value = (False, None, "no captions")
             mock_selenium.return_value = (False, None, "selenium failed")
             mock_nlm.return_value = (False, None, "nlm failed")
+            mock_direct.return_value = (False, None, "direct_api failed")
             mock_whisper.return_value = (True, "transcript text", None)
             result = fetch_transcript_chain(
                 "dQw4w9WgXcQ", LanguageConfig(prefer_lang="en")

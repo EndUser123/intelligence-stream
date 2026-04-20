@@ -1,6 +1,7 @@
 """Transcript fetching with full fallback chain.
 
-Fallback order: gemini CLI → youtube_transcript_api → youtubei → Gemini SDK.
+Fallback order:
+oEmbed → ytdlp → ytdlp_ejs → direct_api → notebooklm → selenium → whisper.
 Each method returns: (success: bool, transcript: str | None, error: str | None).
 """
 
@@ -16,13 +17,18 @@ import subprocess
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, TYPE_CHECKING
 
-from csf.batch_status import get_source as _get_source_for_video
+from csf.batch_status import (
+    get_source as _get_source_for_video,
+    mark_failed as _mark_failed_video,
+    set_negative_cache as _set_negative_cache,
+)
 from csf.batch_scheduler import BatchScheduler
 from csf.cache import set_cached_transcript
 from csf.csf_logging import log_action
@@ -35,6 +41,9 @@ if TYPE_CHECKING:
 # Module-level singleton — avoids repeated _recover_stale_attempting() +
 # PRAGMA wal_checkpoint overhead when many 429s/successes fire under concurrency.
 _scheduler: BatchScheduler | None = None
+
+_NEGATIVE_CACHE_SOFT_TTL_SECONDS = 24 * 3600
+_NEGATIVE_CACHE_TERMINAL_TTL_SECONDS = 3650 * 24 * 3600
 
 
 def _get_scheduler() -> BatchScheduler:
@@ -1248,9 +1257,10 @@ def _fetch_via_whisper(video_id: str, lang: str) -> tuple[bool, str | None, str 
         segments, _ = model.transcribe(
             audio_file, language=lang if lang != "en" else None
         )
+        segments = list(segments)
         text = " ".join(segment.text for segment in segments)
         if not text.strip():
-            return (False, None, "whisper produced empty transcript")
+            return (False, None, _summarize_whisper_empty_result(segments))
         return (True, text.strip(), None)
 
     except subprocess.TimeoutExpired:
@@ -1264,6 +1274,42 @@ def _fetch_via_whisper(video_id: str, lang: str) -> tuple[bool, str | None, str 
             _shutil.rmtree(tmp_dir)
         except Exception:
             pass
+
+
+def _summarize_whisper_empty_result(segments: list[object]) -> str:
+    """Describe an empty Whisper result with a conservative speech-vs-music hint.
+
+    We cannot prove that the audio is music, but faster-whisper exposes
+    per-segment `no_speech_prob`. When that is high across the returned
+    segments, the audio was likely silence, music, or otherwise speech-free.
+    """
+
+    no_speech_probs: list[float] = []
+    for segment in segments:
+        try:
+            prob = getattr(segment, "no_speech_prob", None)
+        except Exception:
+            prob = None
+        if prob is not None:
+            try:
+                no_speech_probs.append(float(prob))
+            except (TypeError, ValueError):
+                continue
+
+    max_no_speech_prob = max(no_speech_probs) if no_speech_probs else None
+    segment_count = len(segments)
+
+    if max_no_speech_prob is not None and max_no_speech_prob >= 0.75:
+        return (
+            "whisper no speech detected (likely music or silence; "
+            f"segments={segment_count}, max_no_speech_prob={max_no_speech_prob:.2f})"
+        )
+    if max_no_speech_prob is not None:
+        return (
+            "whisper produced empty transcript "
+            f"(segments={segment_count}, max_no_speech_prob={max_no_speech_prob:.2f})"
+        )
+    return f"whisper produced empty transcript (segments={segment_count})"
 
 
 def _fetch_via_selenium_firefox(
@@ -1583,6 +1629,96 @@ def _fetch_via_direct_api(video_id: str) -> tuple[bool, str | None, str | None]:
         return (False, None, _summarize_direct_api_error(e))
 
 
+def _persist_terminal_failure(video_id: str, error: str | None, last_stage: str | None) -> None:
+    """Persist an early terminal/unavailable result so future scans skip it."""
+    source = None
+    try:
+        source = _get_source_for_video(video_id)
+    except Exception:
+        source = None
+    try:
+        _get_scheduler().archive_finalize(video_id, "failed", None, error)
+    except Exception as e:
+        logging.warning(f"[transcript] Failed to archive terminal failure for {video_id}: {e}")
+    try:
+        _mark_failed_video(video_id, source=source, failure_reason="unavailable")
+    except Exception as e:
+        logging.warning(f"[transcript] Failed to mark terminal failure for {video_id}: {e}")
+    try:
+        _set_negative_cache(
+            video_id,
+            "unavailable",
+            source=source,
+            last_stage=last_stage,
+            ttl_seconds=_NEGATIVE_CACHE_TERMINAL_TTL_SECONDS,
+        )
+    except Exception as e:
+        logging.warning(f"[transcript] Failed to set terminal negative cache for {video_id}: {e}")
+
+
+def _record_soft_negative(
+    video_id: str,
+    reason: str,
+    *,
+    last_stage: str | None,
+    error: str | None,
+) -> None:
+    """Record a temporary negative cache entry without permanently failing the video."""
+    source = None
+    try:
+        source = _get_source_for_video(video_id)
+    except Exception:
+        source = None
+    try:
+        _get_scheduler().archive_finalize(video_id, "failed", None, error)
+    except Exception as e:
+        logging.warning(f"[transcript] Failed to archive soft failure for {video_id}: {e}")
+    try:
+        _set_negative_cache(
+            video_id,
+            reason,
+            source=source,
+            last_stage=last_stage,
+            ttl_seconds=_NEGATIVE_CACHE_SOFT_TTL_SECONDS,
+        )
+    except Exception as e:
+        logging.warning(f"[transcript] Failed to set soft negative cache for {video_id}: {e}")
+
+
+def _probe_oembed(video_id: str) -> tuple[bool, str | None]:
+    """Cheap reachability probe for obvious unavailable/private/removed videos."""
+    oembed_url = "https://www.youtube.com/oembed?" + urllib.parse.urlencode(
+        {
+            "url": f"https://www.youtube.com/watch?v={video_id}",
+            "format": "json",
+        }
+    )
+    req = urllib.request.Request(
+        oembed_url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            if getattr(resp, "status", 200) == 200:
+                return (True, None)
+            return (False, f"oembed unavailable: HTTP {getattr(resp, 'status', 'unknown')}")
+    except urllib.error.HTTPError as e:
+        if e.code in {401, 403, 404, 410}:
+            return (False, f"oembed unavailable: HTTP {e.code}")
+        if e.code == 429:
+            return (False, "oembed rate limited (429)")
+        return (False, f"oembed error: HTTP {e.code}")
+    except Exception as e:
+        return (False, f"oembed error: {e}")
+
+
 def fetch_transcript_chain(
     video_id: str,
     config: LanguageConfig,
@@ -1592,10 +1728,12 @@ def fetch_transcript_chain(
     """Fetch transcript using yt-dlp → Selenium → NotebookLM fallback chain.
 
     Chain order:
-      1. yt-dlp (WEB client, curl_cffi TLS) — High Fidelity, Fastest Local
-      2. NotebookLM Industrial (Cloud) — High Fidelity, Cleanest Data, Best for Backlog
-      3. Selenium Firefox — Dirty Scraper (Polluted with page noise), Slow
-      4. Whisper — Audio Fallback
+      1. oEmbed reachability probe — cheap early skip for removed/private videos
+      2. yt-dlp (WEB client, curl_cffi TLS) — High Fidelity, Fastest Local
+      3. direct_api — cheap terminal/no-transcript discriminator
+      4. NotebookLM Industrial (Cloud) — High Fidelity, Cleanest Data, Best for Backlog
+      5. Selenium Firefox — Dirty Scraper (Polluted with page noise), Slow
+      6. Whisper — Audio Fallback
 
     Args:
         video_id: YouTube video ID (must be 11 chars)
@@ -1659,6 +1797,10 @@ def fetch_transcript_chain(
             return "timeout"
         if "no transcript" in err_lower or "transcript unavailable" in err_lower:
             return "no_transcript"
+        if "no speech detected" in err_lower or "likely music or silence" in err_lower:
+            return "no_transcript"
+        if "whisper produced empty transcript" in err_lower:
+            return "no_transcript"
         if "unavailable" in err_lower or "deleted" in err_lower or "private" in err_lower:
             return "unavailable"
         if "not found" in err_lower or "404" in err_lower:
@@ -1681,6 +1823,29 @@ def fetch_transcript_chain(
             failure_reason=_classify_failure(last_err, last_stage or ""),
         )
 
+    def _archive_failed_result(
+        last_err: str | None, last_stage: str | None
+    ) -> TranscriptResult:
+        failure_reason = _classify_failure(last_err, last_stage or "")
+        if failure_reason == "unavailable":
+            _persist_terminal_failure(video_id, last_err, last_stage)
+        else:
+            _record_soft_negative(
+                video_id,
+                failure_reason,
+                last_stage=last_stage,
+                error=last_err,
+            )
+        return _none_result(last_err, last_stage)
+
+    if os.getenv("YTIS_OEMBED_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}:
+        oembed_ok, oembed_error = _probe_oembed(video_id)
+        if not oembed_ok and oembed_error:
+            oembed_error_lower = oembed_error.lower()
+            if "oembed unavailable" in oembed_error_lower:
+                _persist_terminal_failure(video_id, oembed_error, "oembed")
+                return _none_result(oembed_error, "oembed")
+
     # Language fallback order: prefer_lang → en → None (any available)
     lang_fallbacks: list[str | None] = [prefer_lang]
     if prefer_lang != "en":
@@ -1694,12 +1859,12 @@ def fetch_transcript_chain(
     methods_to_try = [
         (_SOURCE_YTDLP, _fetch_via_ytdlp, STAGE_VERSION_YTDLP),
         (_SOURCE_YTDLP_EJS, _fetch_via_ytdlp_with_cookies, STAGE_VERSION_EJS),
+        (_SOURCE_DIRECT_API, _fetch_via_direct_api, STAGE_VERSION_DIRECT_API),
         (_SOURCE_SELENIUM, _fetch_via_selenium_firefox, STAGE_VERSION_SELENIUM),
         (_SOURCE_WHISPER, _fetch_via_whisper, None),  # audio fallback — no captions needed
-        (_SOURCE_DIRECT_API, _fetch_via_direct_api, STAGE_VERSION_DIRECT_API),
     ]
     if not skip_notebooklm:
-        methods_to_try.insert(2, (_SOURCE_NLM, _fetch_via_notebooklm, STAGE_VERSION_NOTEBOOKLM))
+        methods_to_try.insert(3, (_SOURCE_NLM, _fetch_via_notebooklm, STAGE_VERSION_NOTEBOOKLM))
 
     for source, fetch_fn, stage in methods_to_try:
         if _is_source_rate_limited(source):
@@ -1767,6 +1932,13 @@ def fetch_transcript_chain(
                     failure_reason=None,
                 )
             last_error = error
+            if error and (
+                "unavailable" in error.lower()
+                or "removed" in error.lower()
+                or "private" in error.lower()
+            ):
+                _persist_terminal_failure(video_id, error, source)
+                return _none_result(error, source)
         else:
             for lang in lang_fallbacks:
                 # Use "en" as placeholder when lang is None (yt-dlp will use its default)
@@ -1787,20 +1959,23 @@ def fetch_transcript_chain(
                     # Extract engagement metrics from yt-dlp info dict when available
                     video_metadata = _extract_video_metadata(info_dict)
 
-                    # Determine actual language and whether translation is needed
-                    raw_lang = lang if lang is not None else "en"
+                    # Determine actual language and whether translation is needed.
+                    # When lang is None we only know the transcript came from the
+                    # generic fallback, so keep the language unknown instead of
+                    # pretending it is English.
+                    raw_lang = lang
                     detected_lang = raw_lang
                     final_transcript = transcript
                     was_translated = False
 
-                    # Translate if raw_lang != prefer_lang and translation is enabled
-                    if raw_lang != prefer_lang and config.allow_translation:
+                    # Only translate when the source language is known.
+                    if raw_lang is not None and raw_lang != prefer_lang and config.allow_translation:
                         final_transcript = _translate_text(
                             transcript, raw_lang, prefer_lang, config.translation_provider
                         )
                         was_translated = True
 
-                    set_cached_transcript(video_id, prefer_lang, source, transcript)
+                    set_cached_transcript(video_id, prefer_lang, source, final_transcript)
                     return TranscriptResult(
                         video_id=video_id,
                         lang=prefer_lang,

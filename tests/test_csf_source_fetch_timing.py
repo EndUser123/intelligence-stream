@@ -191,11 +191,16 @@ def test_cmd_fetch_merges_worker_source_profile_totals():
         channels_active_total=1,
         pending_total=3,
         cached_total=0,
+        negative_cache_count=0,
         cached_hit_rate=0.0,
         cached_sample=[],
+        negative_cache_reason_counts={},
+        negative_cache_sample=[],
         industrial_batches_processed=1,
-        transcript_fallback_count=0,
+        transcript_fallback_processed_count=0,
+        transcript_fallback_queued_count=0,
         terminal_count=0,
+        terminal_reason_counts={},
         worker_cleanup_deleted=0,
         worker_cleanup_failed=0,
         success_count=3,
@@ -211,6 +216,62 @@ def test_cmd_fetch_merges_worker_source_profile_totals():
     assert payload["worker_source_profile_totals"]["total"] == 3
     assert payload["worker_source_profile_totals"]["source_class_counts"]["captioned"] == 1
     assert payload["worker_source_profile_totals"]["source_class_counts"]["no_captions"] == 2
+    assert payload["industrial_batches_processed"] == 1
+
+
+def test_cmd_fetch_skips_active_negative_cache_before_routing():
+    """cmd_fetch should skip active negative-cache videos before routing them again."""
+    mod = _load_csf_source_module()
+    pending_entries = [
+        {
+            "video_id": "vid-good",
+            "status": "pending",
+            "has_captions": True,
+            "privacy_status": "public",
+            "upload_status": "uploaded",
+            "is_live_content": False,
+            "unavailable_reason": None,
+            "source": "https://www.youtube.com/@example",
+        },
+        {
+            "video_id": "vid-negative",
+            "status": "pending",
+            "has_captions": False,
+            "privacy_status": "public",
+            "upload_status": "uploaded",
+            "is_live_content": False,
+            "unavailable_reason": None,
+            "source": "https://www.youtube.com/@example",
+        },
+    ]
+
+    with mock.patch.object(mod, "_get_batch_status_storage", return_value=mock.MagicMock()):
+        with mock.patch.object(mod, "get_channel_metadata", return_value={"playlist_id": "pl-1"}):
+            with mock.patch.object(mod, "is_channel_blocked", return_value=False):
+                with mock.patch.object(mod, "get_entries_for_source_details", return_value=pending_entries):
+                    with mock.patch.object(mod, "get_negative_cache") as mock_negative_cache:
+                        mock_negative_cache.side_effect = lambda video_id, db_path=None: (
+                            {"video_id": video_id, "reason": "no_transcript", "source": None, "last_stage": "direct_api"}
+                            if video_id == "vid-negative"
+                            else None
+                        )
+                        with mock.patch.object(mod, "has_cached_transcript", return_value=False):
+                            with mock.patch.object(mod.subprocess, "run") as mock_run:
+                                mock_run.return_value = mock.MagicMock(returncode=0, stdout="", stderr="")
+                                with mock.patch.object(mod, "log_action") as mock_log:
+                                    mod.cmd_fetch(
+                                        source_filter="https://www.youtube.com/@example",
+                                        dry_run=True,
+                                        workers=1,
+                                    )
+
+    triage = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "fetch_triage_summary")
+    scan = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "fetch_scan_completed")
+    assert triage["negative_cache_count"] == 1
+    assert scan["negative_cache_count"] == 1
+    assert triage["notebooklm_pending_count"] == 1
+    assert triage["transcript_fallback_processed_count"] == 0
+    assert triage["transcript_fallback_queued_count"] == 0
 
 
 def test_cmd_fetch_uses_transcript_fallback_env_names():
@@ -627,8 +688,8 @@ def test_cmd_fetch_skips_blocked_channels_in_preflight_scan():
     assert completed["channels_active_total"] == 1
 
 
-def test_cmd_fetch_routes_non_captioned_items_to_transcript_fallback_first():
-    """Non-captioned items should route to transcript fallback before NotebookLM."""
+def test_cmd_fetch_routes_non_captioned_items_to_notebooklm_first():
+    """Non-captioned items should stay on the NotebookLM lane before fallback."""
     mod = _load_csf_source_module()
     channel_rows = [("https://www.youtube.com/@active", "pl-1")]
     pending_entries = [
@@ -683,10 +744,82 @@ def test_cmd_fetch_routes_non_captioned_items_to_transcript_fallback_first():
                     ):
                         with mock.patch.object(mod.subprocess, "run") as mock_run:
                             mock_run.return_value = mock.MagicMock(returncode=0, stdout="", stderr="")
+                            notebooklm_results = {
+                                f"vid{i:03d}": (True, "notebooklm transcript", None)
+                                for i in range(300)
+                            }
+                            with mock.patch.object(mod, "process_industrial_batch_reusable", return_value=notebooklm_results) as mock_process:
+                                with mock.patch.object(mod, "close_reusable_ingestor"):
+                                    with mock.patch.object(mod, "set_cached_transcript"):
+                                        with mock.patch.object(mod, "mark_complete"):
+                                            with mock.patch.object(mod, "log_action") as mock_log:
+                                                mod.cmd_fetch(dry_run=False, workers=1)
+
+    log_names = [call.args[0] for call in mock_log.call_args_list]
+    assert "fetch_completed" in log_names
+    assert mock_process.call_count == 1
+    assert "transcript_fallback_queued" not in log_names
+
+
+def test_cmd_fetch_routes_live_items_to_transcript_fallback_first():
+    """Live items should bypass NotebookLM and go to transcript fallback."""
+    mod = _load_csf_source_module()
+    channel_rows = [("https://www.youtube.com/@active", "pl-1")]
+    pending_entries = [
+        {
+            "video_id": "vid-live",
+            "status": "pending",
+            "has_captions": False,
+            "privacy_status": "public",
+            "upload_status": "live",
+            "is_live_content": True,
+            "unavailable_reason": None,
+            "source": "https://www.youtube.com/@active",
+        }
+    ]
+
+    class FakeCursor:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def fetchall(self):
+            return self._rows
+
+    class FakeConn:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def execute(self, *_args, **_kwargs):
+            return FakeCursor(self._rows)
+
+        def close(self):
+            return None
+
+    class FakeStorage:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def _get_conn(self):
+            return FakeConn(self._rows)
+
+    with mock.patch.object(mod, "_get_batch_status_storage", return_value=FakeStorage(channel_rows)):
+        with mock.patch.object(mod, "is_channel_blocked", return_value=False):
+            with mock.patch.object(mod, "get_entries_for_source_details", return_value=pending_entries):
+                with mock.patch.object(mod, "has_cached_transcript", return_value=False):
+                    with mock.patch.dict(
+                        mod.os.environ,
+                        {
+                            "YTIS_TRANSCRIPT_FALLBACK_MIN_START_INTERVAL_S": "0",
+                            "YTIS_TRANSCRIPT_FALLBACK_WORKERS": "4",
+                        },
+                        clear=False,
+                    ):
+                        with mock.patch.object(mod.subprocess, "run") as mock_run:
+                            mock_run.return_value = mock.MagicMock(returncode=0, stdout="", stderr="")
                             transcript_result = mock.Mock(
-                                transcript="fallback transcript",
+                                transcript="live fallback transcript",
                                 lang="en",
-                                source="ytdlp",
+                                source="selenium",
                                 view_count=None,
                                 like_count=None,
                                 comment_count=None,
@@ -706,7 +839,7 @@ def test_cmd_fetch_routes_non_captioned_items_to_transcript_fallback_first():
     log_names = [call.args[0] for call in mock_log.call_args_list]
     assert "fetch_completed" in log_names
     assert mock_process.call_count == 0
-    assert mock_fetch.call_count == 300
+    assert mock_fetch.call_count == 1
     assert all(call.kwargs.get("skip_notebooklm") is True for call in mock_fetch.call_args_list)
 
 

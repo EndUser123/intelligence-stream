@@ -71,6 +71,7 @@ from csf.batch_status import (
     upsert_channel,
     get_entries_for_source,
     get_pending_by_source,
+    get_negative_cache,
     mark_complete,
     set_status,
     set_status_batch,
@@ -160,8 +161,9 @@ def _build_fetch_completed_payload(
     cached_hit_rate: float,
     cached_sample: list[dict[str, object]],
     industrial_batches_processed: int,
-    transcript_fallback_count: int,
+    transcript_fallback_processed_count: int,
     terminal_count: int,
+    negative_cache_count: int,
     worker_cleanup_deleted: int,
     worker_cleanup_failed: int,
     success_count: int,
@@ -173,7 +175,10 @@ def _build_fetch_completed_payload(
     worker_stage_totals: dict[str, float] | None = None,
     worker_source_profile_totals: dict[str, object] | None = None,
     notebooklm_pending_count: int = 0,
-    transcript_fallback_pending_count: int = 0,
+    transcript_fallback_queued_count: int = 0,
+    terminal_reason_counts: dict[str, int] | None = None,
+    negative_cache_reason_counts: dict[str, int] | None = None,
+    negative_cache_sample: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     return {
         "source_filter": source_filter,
@@ -191,9 +196,13 @@ def _build_fetch_completed_payload(
         "cached_sample": cached_sample,
         "industrial_batches_processed": industrial_batches_processed,
         "notebooklm_pending_count": notebooklm_pending_count,
-        "transcript_fallback_count": transcript_fallback_count,
-        "transcript_fallback_pending_count": transcript_fallback_pending_count,
+        "transcript_fallback_processed_count": transcript_fallback_processed_count,
+        "transcript_fallback_queued_count": transcript_fallback_queued_count,
         "terminal_count": terminal_count,
+        "negative_cache_count": negative_cache_count,
+        "terminal_reason_counts": terminal_reason_counts or {},
+        "negative_cache_reason_counts": negative_cache_reason_counts or {},
+        "negative_cache_sample": negative_cache_sample or [],
         "worker_cleanup_deleted": worker_cleanup_deleted,
         "worker_cleanup_failed": worker_cleanup_failed,
         "worker_stage_totals": worker_stage_totals or {},
@@ -261,8 +270,9 @@ def _log_fetch_completed(
     cached_hit_rate: float,
     cached_sample: list[dict[str, object]],
     industrial_batches_processed: int,
-    transcript_fallback_count: int,
+    transcript_fallback_processed_count: int,
     terminal_count: int,
+    negative_cache_count: int,
     worker_cleanup_deleted: int,
     worker_cleanup_failed: int,
     success_count: int,
@@ -273,7 +283,10 @@ def _log_fetch_completed(
     worker_stage_totals: dict[str, float] | None = None,
     worker_source_profile_totals: dict[str, object] | None = None,
     notebooklm_pending_count: int = 0,
-    transcript_fallback_pending_count: int = 0,
+    transcript_fallback_queued_count: int = 0,
+    terminal_reason_counts: dict[str, int] | None = None,
+    negative_cache_reason_counts: dict[str, int] | None = None,
+    negative_cache_sample: list[dict[str, object]] | None = None,
 ) -> None:
     processed_count = success_count + fail_count + skip_count
     log_action(
@@ -293,14 +306,18 @@ def _log_fetch_completed(
             cached_hit_rate=cached_hit_rate,
             cached_sample=cached_sample,
             industrial_batches_processed=industrial_batches_processed,
-            transcript_fallback_count=transcript_fallback_count,
+            transcript_fallback_processed_count=transcript_fallback_processed_count,
             terminal_count=terminal_count,
+            negative_cache_count=negative_cache_count,
             worker_cleanup_deleted=worker_cleanup_deleted,
             worker_cleanup_failed=worker_cleanup_failed,
             worker_stage_totals=worker_stage_totals,
             worker_source_profile_totals=worker_source_profile_totals,
             notebooklm_pending_count=notebooklm_pending_count,
-            transcript_fallback_pending_count=transcript_fallback_pending_count,
+            transcript_fallback_queued_count=transcript_fallback_queued_count,
+            terminal_reason_counts=terminal_reason_counts,
+            negative_cache_reason_counts=negative_cache_reason_counts,
+            negative_cache_sample=negative_cache_sample,
             success_count=success_count,
             fail_count=fail_count,
             skip_count=skip_count,
@@ -1475,6 +1492,7 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             _env_int("YTIS_TRANSCRIPT_FALLBACK_WORKERS", "YTIS_AUDIO_FALLBACK_WORKERS", workers),
         ),
     )
+    os.environ.setdefault("YTIS_OEMBED_ENABLED", "1")
     transcript_fallback_min_start_interval_s = float(
         _env_float(
             "YTIS_TRANSCRIPT_FALLBACK_MIN_START_INTERVAL_S",
@@ -1494,10 +1512,11 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     success_count = 0
     fail_count = 0
     skip_count = 0
-    transcript_fallback_count = 0
+    transcript_fallback_processed_count = 0
     terminal_count = 0
+    negative_cache_count = 0
     notebooklm_pending_count = 0
-    transcript_fallback_pending_count = 0
+    transcript_fallback_queued_count = 0
     startup_retire_elapsed_s_total = 0.0
     startup_notebook_check_elapsed_s_total = 0.0
     startup_notebook_create_elapsed_s_total = 0.0
@@ -1514,6 +1533,9 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     industrial_source_profile_totals = _empty_source_profile_totals()
     terminal_entries: list[BatchEntry] = []
     terminal_sample: list[dict[str, object]] = []
+    terminal_reason_counts: Counter[str] = Counter()
+    negative_cache_reason_counts: Counter[str] = Counter()
+    negative_cache_sample: list[dict[str, object]] = []
 
     def _terminal_failure_reason(entry: dict[str, object | None]) -> str | None:
         unavailable_reason = str(entry.get("unavailable_reason") or "").strip().lower()
@@ -1532,10 +1554,16 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
         terminal_reason = _terminal_failure_reason(entry)
         if terminal_reason:
             return "terminal", terminal_reason
+        is_live_content = bool(entry.get("is_live_content"))
+        upload_status = str(entry.get("upload_status") or "").strip().lower()
+        if is_live_content or upload_status in {"live", "live_stream", "premiere"}:
+            return "transcript_fallback", "live"
         has_captions = entry.get("has_captions")
         if has_captions in (True, 1):
             return "notebooklm", "captioned"
-        return "transcript_fallback", "no_captions"
+        if has_captions in (False, 0):
+            return "notebooklm", "no_captions"
+        return "notebooklm", "unknown"
 
     log_action(
         "fetch_scan_started",
@@ -1912,7 +1940,7 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             industrial_worker_slots_in_use[future] = slot_id
 
     def _process_industrial_batch(batch_items: list[tuple[str, str]]) -> None:
-        nonlocal industrial_batches_processed, success_count, fail_count, transcript_fallback_queue, transcript_fallback_count
+        nonlocal industrial_batches_processed, success_count, fail_count, transcript_fallback_queue, transcript_fallback_processed_count
         if not batch_items:
             return
         industrial_batches_processed += 1
@@ -1949,7 +1977,7 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
                                 "queue_depth": len(transcript_fallback_queue) + 1,
                             },
                         )
-                        transcript_fallback_count += 1
+                        transcript_fallback_processed_count += 1
                         transcript_fallback_queue.append((vid, source_url, True))
 
     def _process_transcript_fallback(
@@ -2089,10 +2117,27 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
                         }
                     )
                 continue
+            neg_cache = get_negative_cache(video_id)
+            if neg_cache:
+                negative_cache_count += 1
+                reason = str(neg_cache.get("reason") or "unknown").lower()
+                negative_cache_reason_counts[reason] += 1
+                if len(negative_cache_sample) < 10:
+                    negative_cache_sample.append(
+                        {
+                            "video_id": video_id,
+                            "source": channel_url,
+                            "channel_index": channel_index,
+                            "reason": reason,
+                            "last_stage": neg_cache.get("last_stage"),
+                        }
+                    )
+                continue
 
             bucket, reason = _classify_pending_entry(entry)
             if bucket == "terminal":
                 terminal_count += 1
+                terminal_reason_counts[str(reason or "unavailable").lower()] += 1
                 if len(terminal_sample) < 10:
                     terminal_sample.append(
                         {
@@ -2124,11 +2169,10 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
                 notebooklm_pending_count += 1
                 pending_buffer.append((video_id, channel_url))
             else:
-                transcript_fallback_pending_count += 1
-                transcript_fallback_count += 1
+                transcript_fallback_queued_count += 1
                 transcript_fallback_queue.append((video_id, channel_url, True))
 
-            if notebooklm_pending_count >= backlog_threshold or transcript_fallback_pending_count >= backlog_threshold:
+            if notebooklm_pending_count >= backlog_threshold or transcript_fallback_queued_count >= backlog_threshold:
                 industrial_selected = True
 
             if not dry_run and industrial_selected and len(pending_buffer) >= batch_size:
@@ -2151,6 +2195,7 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
                 "[source] Preflight scan progress: "
                 f"{channel_index}/{channel_count} channels, "
                 f"pending={pending_discovered_total}, cached={cached_count}, "
+                f"neg_cache={negative_cache_count}, "
                 f"elapsed={elapsed_s}s"
             )
             log_action(
@@ -2160,6 +2205,12 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
                     "channel_index": channel_index,
                     "channels_active_total": channel_count,
                     "pending_so_far": pending_discovered_total,
+                    "cached_total": cached_count,
+                    "negative_cache_count": negative_cache_count,
+                    "negative_cache_reason_counts": dict(negative_cache_reason_counts),
+                    "negative_cache_sample": negative_cache_sample,
+                    "terminal_count": terminal_count,
+                    "terminal_reason_counts": dict(terminal_reason_counts),
                     "elapsed_s": elapsed_s,
                 },
             )
@@ -2186,11 +2237,15 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             if (cached_count + pending_discovered_total + terminal_count)
             else 0.0,
             "cached_sample": cached_sample,
+            "negative_cache_count": negative_cache_count,
+            "negative_cache_reason_counts": dict(negative_cache_reason_counts),
+            "negative_cache_sample": negative_cache_sample,
             "terminal_count": terminal_count,
-            "transcript_fallback_count": transcript_fallback_count,
-            "transcript_fallback_pending_count": transcript_fallback_pending_count,
+            "terminal_reason_counts": dict(terminal_reason_counts),
+            "transcript_fallback_processed_count": transcript_fallback_processed_count,
+            "transcript_fallback_queued_count": transcript_fallback_queued_count,
             "notebooklm_pending_count": notebooklm_pending_count,
-            "industrial_pending_count": notebooklm_pending_count,
+            "industrial_batches_processed": industrial_batches_processed,
         },
     )
 
@@ -2198,12 +2253,12 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     use_industrial = (
         industrial_selected
         or notebooklm_pending_count >= backlog_threshold
-        or transcript_fallback_pending_count > 0
+        or transcript_fallback_queued_count > 0
     )
     if notebooklm_pending_count > 0:
         strategy_name = "industrial_cli_batch" if use_industrial else "surgical_chain"
         backend_name = "notebooklm_cli_batch"
-    elif transcript_fallback_pending_count > 0:
+    elif transcript_fallback_queued_count > 0:
         strategy_name = "transcript_fallback_chain"
         backend_name = "yt_dlp_plus_selenium"
     else:
@@ -2224,9 +2279,13 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             if (cached_count + total_pending + terminal_count)
             else 0.0,
             "cached_sample": cached_sample,
+            "negative_cache_count": negative_cache_count,
+            "negative_cache_reason_counts": dict(negative_cache_reason_counts),
+            "negative_cache_sample": negative_cache_sample,
             "terminal_count": terminal_count,
-            "transcript_fallback_count": transcript_fallback_count,
-            "transcript_fallback_pending_count": transcript_fallback_pending_count,
+            "terminal_reason_counts": dict(terminal_reason_counts),
+            "transcript_fallback_processed_count": transcript_fallback_processed_count,
+            "transcript_fallback_queued_count": transcript_fallback_queued_count,
             "notebooklm_pending_count": notebooklm_pending_count,
             "elapsed_s": round(time.monotonic() - scan_started_at, 3),
         },
@@ -2234,12 +2293,15 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     print(
         f"[source] Preflight scan complete: {channel_count} active channels, "
         f"{total_pending} pending, {cached_count} cached, "
-        f"{terminal_count} terminal, {notebooklm_pending_count} notebooklm, "
-        f"{transcript_fallback_pending_count} transcript-fallback"
+        f"{negative_cache_count} neg-cache, {terminal_count} terminal, {notebooklm_pending_count} notebooklm, "
+        f"{transcript_fallback_queued_count} transcript-fallback"
     )
     if cached_sample:
         cached_ids = ", ".join(item["video_id"] for item in cached_sample)
         print(f"[source] Cached sample: {cached_ids}")
+    if negative_cache_sample:
+        neg_ids = ", ".join(item["video_id"] for item in negative_cache_sample)
+        print(f"[source] Negative-cache sample: {neg_ids}")
     if not dry_run and industrial_selected and pending_buffer:
         industrial_batch_queue.append([vid for vid, _src in pending_buffer])
         pending_buffer.clear()
@@ -2251,6 +2313,10 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     if cached_sample:
         cached_ids = ", ".join(item["video_id"] for item in cached_sample)
         print(f"[source] Cached sample: {cached_ids}")
+    print(f"[source] Negative-cache skips: {negative_cache_count}")
+    if negative_cache_sample:
+        neg_ids = ", ".join(item["video_id"] for item in negative_cache_sample)
+        print(f"[source] Negative-cache sample: {neg_ids}")
     print(f"[source] Pending extraction: {total_pending}")
     print(f"[source] Mode: {'DRY RUN' if dry_run else 'LIVE'}")
     if dry_run:
@@ -2271,11 +2337,15 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             if (cached_count + total_pending + terminal_count)
             else 0.0,
             cached_sample=cached_sample,
+            negative_cache_count=negative_cache_count,
+            negative_cache_reason_counts=dict(negative_cache_reason_counts),
+            negative_cache_sample=negative_cache_sample,
             industrial_batches_processed=industrial_batches_processed,
             notebooklm_pending_count=notebooklm_pending_count,
-            transcript_fallback_count=transcript_fallback_count,
-            transcript_fallback_pending_count=transcript_fallback_pending_count,
+            transcript_fallback_processed_count=transcript_fallback_processed_count,
+            transcript_fallback_queued_count=transcript_fallback_queued_count,
             terminal_count=terminal_count,
+            terminal_reason_counts=dict(terminal_reason_counts),
             worker_cleanup_deleted=deleted,
             worker_cleanup_failed=failed,
             success_count=success_count,
@@ -2289,12 +2359,12 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     use_industrial = (
         industrial_selected
         or notebooklm_pending_count >= backlog_threshold
-        or transcript_fallback_pending_count > 0
+        or transcript_fallback_queued_count > 0
     )
     if notebooklm_pending_count > 0:
         strategy_name = "industrial_cli_batch" if use_industrial else "surgical_chain"
         backend_name = "notebooklm_cli_batch"
-    elif transcript_fallback_pending_count > 0:
+    elif transcript_fallback_queued_count > 0:
         strategy_name = "transcript_fallback_chain"
         backend_name = "yt_dlp_plus_selenium"
     else:
@@ -2318,10 +2388,15 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             if (cached_count + total_pending + terminal_count)
             else 0.0,
             "cached_sample": cached_sample,
+            "negative_cache_count": negative_cache_count,
+            "negative_cache_reason_counts": dict(negative_cache_reason_counts),
+            "negative_cache_sample": negative_cache_sample,
+            "terminal_count": terminal_count,
+            "terminal_reason_counts": dict(terminal_reason_counts),
             "industrial_selected": industrial_selected,
             "use_industrial": use_industrial,
             "notebooklm_pending_count": notebooklm_pending_count,
-            "transcript_fallback_pending_count": transcript_fallback_pending_count,
+            "transcript_fallback_queued_count": transcript_fallback_queued_count,
         },
     )
     deleted = 0
@@ -2344,11 +2419,15 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             if (cached_count + total_pending + terminal_count)
             else 0.0,
             cached_sample=cached_sample,
+            negative_cache_count=negative_cache_count,
+            negative_cache_reason_counts=dict(negative_cache_reason_counts),
+            negative_cache_sample=negative_cache_sample,
             industrial_batches_processed=industrial_batches_processed,
             notebooklm_pending_count=notebooklm_pending_count,
-            transcript_fallback_count=transcript_fallback_count,
-            transcript_fallback_pending_count=transcript_fallback_pending_count,
+            transcript_fallback_processed_count=transcript_fallback_processed_count,
+            transcript_fallback_queued_count=transcript_fallback_queued_count,
             terminal_count=terminal_count,
+            terminal_reason_counts=dict(terminal_reason_counts),
             worker_cleanup_deleted=deleted,
             worker_cleanup_failed=failed,
             success_count=success_count,
@@ -2361,11 +2440,11 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
         return
     if notebooklm_pending_count > 0 and use_industrial:
         print("[source] Strategy: Industrial (Batch NLM)")
-        print("[source] Method: NotebookLM CLI batch (~18k vph) + transcript fallback")
+        print("[source] Method: NotebookLM CLI batch for captioned/no-captions items; live items use transcript fallback")
     elif notebooklm_pending_count > 0:
         print("[source] Strategy: Surgical (Chain)")
-        print("[source] Method: captioned items use NotebookLM chain; non-captioned items use transcript fallback")
-    elif transcript_fallback_pending_count > 0:
+        print("[source] Method: captioned/no-captions items use NotebookLM chain; live items use transcript fallback")
+    elif transcript_fallback_queued_count > 0:
         print("[source] Strategy: Transcript Fallback")
         print("[source] Method: transcript fallback chain")
     else:
@@ -2528,9 +2607,20 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     print(f"[source] Successfully extracted: {success_count}")
     print(f"[source] Failed: {fail_count}")
     print(f"[source] Skipped (cached): {skip_count}")
+    print(f"[source] Skipped (negative cache): {negative_cache_count}")
     print(f"[source] Skipped (terminal): {terminal_count}")
     print(f"[source] NotebookLM-eligible: {notebooklm_pending_count}")
-    print(f"[source] Routed to transcript fallback: {transcript_fallback_count}")
+    print(f"[source] Routed to transcript fallback: {transcript_fallback_processed_count}")
+    if terminal_reason_counts:
+        top_terminal_reasons = ", ".join(
+            f"{name}={count}" for name, count in terminal_reason_counts.most_common(5)
+        )
+        print(f"[source] Terminal reasons: {top_terminal_reasons}")
+    if negative_cache_reason_counts:
+        top_negative_reasons = ", ".join(
+            f"{name}={count}" for name, count in negative_cache_reason_counts.most_common(5)
+        )
+        print(f"[source] Negative-cache reasons: {top_negative_reasons}")
     if workers > 1:
         print(f"[source] Worker notebook cleanup: {deleted} deleted, {failed} failed")
     if stage_totals["batch_elapsed_s_total"] > 0:
@@ -2572,11 +2662,15 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
         if (cached_count + total_pending + terminal_count)
         else 0.0,
         cached_sample=cached_sample,
+        negative_cache_count=negative_cache_count,
+        negative_cache_reason_counts=dict(negative_cache_reason_counts),
+        negative_cache_sample=negative_cache_sample,
         industrial_batches_processed=industrial_batches_processed,
         notebooklm_pending_count=notebooklm_pending_count,
-        transcript_fallback_count=transcript_fallback_count,
-        transcript_fallback_pending_count=transcript_fallback_pending_count,
+        transcript_fallback_processed_count=transcript_fallback_processed_count,
+        transcript_fallback_queued_count=transcript_fallback_queued_count,
         terminal_count=terminal_count,
+        terminal_reason_counts=dict(terminal_reason_counts),
         worker_cleanup_deleted=deleted,
         worker_cleanup_failed=failed,
         worker_stage_totals=stage_totals,

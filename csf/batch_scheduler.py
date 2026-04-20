@@ -95,8 +95,11 @@ class BatchScheduler:
             """SELECT video_id FROM analysis_status
                WHERE source=? AND status='pending'
                AND video_id NOT IN (SELECT video_id FROM download_archive)
+               AND video_id NOT IN (
+                   SELECT video_id FROM negative_video_cache WHERE expires_at > ?
+               )
                ORDER BY published_at ASC""",
-            (source,),
+            (source, time.time()),
         )
         for row in cursor:
             yield row[0]
@@ -244,11 +247,15 @@ self, video_id: str, status: str, source: str | None = None, error: str | None =
                        WHERE source=? AND status='pending'
                        AND video_id NOT IN (
                            SELECT video_id FROM download_archive 
-                           WHERE status IN ('success', 'attempting')
+                           WHERE status IN ('success', 'attempting', 'skipped')
                            OR (status='failed' AND attempted_at > ?)
                        )
+                       AND video_id NOT IN (
+                           SELECT video_id FROM negative_video_cache
+                           WHERE expires_at > ?
+                       )
                        ORDER BY published_at ASC LIMIT 1""",
-                    (channel, retry_cutoff),
+                    (channel, retry_cutoff, time.time()),
                 )
                 row = cursor.fetchone()
                 conn.close()

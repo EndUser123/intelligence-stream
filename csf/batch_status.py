@@ -8,6 +8,7 @@ Multi-terminal safe: all terminals share the same DB with WAL mode.
 """
 
 import sqlite3
+import time
 import threading
 from contextlib import contextmanager
 from collections import Counter
@@ -88,6 +89,8 @@ def _classify_video_source_row(row: dict[str, object | None]) -> str:
 _STATUS_PENDING = "pending"
 _STATUS_COMPLETE = "complete"
 _STATUS_FAILED = "failed"
+_NEGATIVE_CACHE_DEFAULT_TTL_SECONDS = 86400
+_NEGATIVE_CACHE_TERMINAL_TTL_SECONDS = 3650 * 24 * 3600
 
 # Default DB path — separate from transcript cache and quota DBs
 _DEFAULT_DB_DIR = Path("P:/__csf/.data/yt-is")
@@ -206,6 +209,26 @@ class _BatchStatusStorage:
         except sqlite3.OperationalError:
             conn.execute(
                 "ALTER TABLE analysis_status ADD COLUMN quality_metrics TEXT"
+            )
+        # Negative cache for terminal or temporary transcript failures.
+        try:
+            conn.execute("SELECT reason FROM negative_video_cache LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS negative_video_cache (
+                    video_id TEXT PRIMARY KEY,
+                    reason TEXT NOT NULL,
+                    source TEXT,
+                    last_stage TEXT,
+                    cached_at REAL NOT NULL,
+                    expires_at REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_negative_video_cache_expires
+                    ON negative_video_cache(expires_at);
+                CREATE INDEX IF NOT EXISTS idx_negative_video_cache_source
+                    ON negative_video_cache(source);
+                """
             )
         # Index for get_pending_by_source queries (source, status) — avoids full table scan
         conn.execute(
@@ -755,6 +778,11 @@ class _BatchStatusStorage:
                 "INSERT OR REPLACE INTO analysis_status (video_id, status, updated_at, source, published_at, last_stage, failure_reason, quality_metrics) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (video_id, status, now, source, published_at, last_stage, failure_reason, quality_metrics),
             )
+            if status == _STATUS_COMPLETE:
+                conn.execute(
+                    "DELETE FROM negative_video_cache WHERE video_id = ?",
+                    (video_id,),
+                )
             conn.commit()
         except Exception:
             conn.rollback()
@@ -766,13 +794,61 @@ class _BatchStatusStorage:
         """Remove entry for a video_id."""
         with self._conn() as conn:
             conn.execute("DELETE FROM analysis_status WHERE video_id = ?", (video_id,))
+            conn.execute("DELETE FROM negative_video_cache WHERE video_id = ?", (video_id,))
             conn.commit()
 
     def clear_all(self) -> None:
         """Remove all entries."""
         with self._conn() as conn:
             conn.execute("DELETE FROM analysis_status")
+            conn.execute("DELETE FROM negative_video_cache")
             conn.commit()
+
+    def set_negative_cache(
+        self,
+        video_id: str,
+        reason: str,
+        *,
+        source: str | None = None,
+        last_stage: str | None = None,
+        ttl_seconds: int = _NEGATIVE_CACHE_DEFAULT_TTL_SECONDS,
+    ) -> None:
+        """Record a temporary or terminal negative-cache entry."""
+        expires_at = time.time() + max(0, ttl_seconds)
+        now = time.time()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO negative_video_cache
+                (video_id, reason, source, last_stage, cached_at, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (video_id, reason, source, last_stage, now, expires_at),
+            )
+            conn.commit()
+
+    def get_negative_cache(self, video_id: str) -> dict[str, object] | None:
+        """Get an active negative-cache entry, if present."""
+        with self._conn() as conn:
+            cursor = conn.execute(
+                """
+                SELECT video_id, reason, source, last_stage, cached_at, expires_at
+                FROM negative_video_cache
+                WHERE video_id = ? AND expires_at > ?
+                """,
+                (video_id, time.time()),
+            )
+            row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "video_id": row[0],
+            "reason": row[1],
+            "source": row[2],
+            "last_stage": row[3],
+            "cached_at": row[4],
+            "expires_at": row[5],
+        }
 
     # ---------------------------------------------------------------------------
     # channel_metadata table
@@ -1004,8 +1080,18 @@ class _BatchStatusStorage:
         """Get all pending video_ids for a given channel/source."""
         with self._conn() as conn:
             cursor = conn.execute(
-                "SELECT video_id FROM analysis_status WHERE source = ? AND status = ?",
-                (channel_url, _STATUS_PENDING),
+                """
+                SELECT video_id
+                FROM analysis_status
+                WHERE source = ?
+                  AND status = ?
+                  AND video_id NOT IN (
+                      SELECT video_id
+                      FROM negative_video_cache
+                      WHERE expires_at > ?
+                  )
+                """,
+                (channel_url, _STATUS_PENDING, time.time()),
             )
             rows = cursor.fetchall()
         return [row[0] for row in rows]
@@ -1100,6 +1186,10 @@ class _BatchStatusStorage:
         conn = self._get_conn()
         conn.execute("BEGIN IMMEDIATE")
         try:
+            conn.execute(
+                "DELETE FROM negative_video_cache WHERE source = ?",
+                (channel_url,),
+            )
             conn.execute("DELETE FROM analysis_status WHERE source = ?", (channel_url,))
             conn.execute("DELETE FROM channel_metadata WHERE channel_url = ?", (channel_url,))
             conn.commit()
@@ -1247,6 +1337,11 @@ class _BatchStatusStorage:
                             last_stage, failure_reason,
                         ),
                     )
+                    if status == _STATUS_COMPLETE:
+                        conn.execute(
+                            "DELETE FROM negative_video_cache WHERE video_id = ?",
+                            (video_id,),
+                        )
                     count += 1
                 except Exception:
                     # Best-effort: skip bad entries, continue with the rest
@@ -1382,6 +1477,7 @@ def mark_complete(
 
 def mark_failed(
     video_id: str,
+    source: str | None = None,
     published_at: str | None = None,
     failure_reason: str | None = None,
     db_path: Path | None = None,
@@ -1390,18 +1486,19 @@ def mark_failed(
 
     Args:
         video_id: The YouTube video ID.
+        source: Optional channel URL or source identifier for attribution.
         published_at: Optional ISO timestamp of video publish date.
         failure_reason: Why the video failed ('region_block', 'no_transcript', 'quota_exceeded', etc.).
         db_path: Optional path to a non-default batch_status DB.
     """
     if db_path is None:
         _get_batch_status_storage().set_status(
-            video_id, _STATUS_FAILED, published_at=published_at,
+            video_id, _STATUS_FAILED, source=source, published_at=published_at,
             failure_reason=failure_reason,
         )
     else:
         _BatchStatusStorage(db_path=db_path).set_status(
-            video_id, _STATUS_FAILED, published_at=published_at,
+            video_id, _STATUS_FAILED, source=source, published_at=published_at,
             failure_reason=failure_reason,
         )
 
@@ -1412,6 +1509,43 @@ def reset_status(video_id: str, db_path: Path | None = None) -> None:
         _get_batch_status_storage().clear_video(video_id)
     else:
         _BatchStatusStorage(db_path=db_path).clear_video(video_id)
+
+
+def set_negative_cache(
+    video_id: str,
+    reason: str,
+    *,
+    source: str | None = None,
+    last_stage: str | None = None,
+    ttl_seconds: int = _NEGATIVE_CACHE_DEFAULT_TTL_SECONDS,
+    db_path: Path | None = None,
+) -> None:
+    """Record a temporary or terminal negative-cache entry."""
+    if db_path is None:
+        _get_batch_status_storage().set_negative_cache(
+            video_id,
+            reason,
+            source=source,
+            last_stage=last_stage,
+            ttl_seconds=ttl_seconds,
+        )
+    else:
+        _BatchStatusStorage(db_path=db_path).set_negative_cache(
+            video_id,
+            reason,
+            source=source,
+            last_stage=last_stage,
+            ttl_seconds=ttl_seconds,
+        )
+
+
+def get_negative_cache(
+    video_id: str, db_path: Path | None = None
+) -> dict[str, object] | None:
+    """Return an active negative-cache entry, if present."""
+    if db_path is None:
+        return _get_batch_status_storage().get_negative_cache(video_id)
+    return _BatchStatusStorage(db_path=db_path).get_negative_cache(video_id)
 
 
 def reset_all(db_path: Path | None = None) -> None:

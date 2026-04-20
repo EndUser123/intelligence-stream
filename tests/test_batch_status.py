@@ -12,12 +12,16 @@ sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
 from csf.batch_status import (
     get_analysis_status,
     get_entries_for_source_details,
+    get_negative_cache,
+    get_pending_by_source,
+    get_source,
     summarize_video_ids,
     is_complete,
     mark_complete,
     mark_failed,
     reset_status,
     reset_all,
+    set_negative_cache,
     set_status_batch,
     get_status_batch,
     BatchEntry,
@@ -48,6 +52,12 @@ class TestAnalysisStatusTable:
         mark_failed("dQw4w9WgXcQ", db_path=_TEST_DB_PATH)
         status = get_analysis_status("dQw4w9WgXcQ", db_path=_TEST_DB_PATH)
         assert status == "failed"
+
+    def test_mark_failed_accepts_source(self):
+        """mark_failed should preserve source attribution when provided."""
+        mark_failed("dQw4w9WgXcQ", source="https://www.youtube.com/@example", db_path=_TEST_DB_PATH)
+        source = get_source("dQw4w9WgXcQ", db_path=_TEST_DB_PATH)
+        assert source == "https://www.youtube.com/@example"
 
     def test_get_analysis_status_returns_none_for_unknown(self):
         """Unknown video_id returns None."""
@@ -116,6 +126,36 @@ class TestBatchIdempotency:
         to_process = [v for v in pending if not is_complete(v, db_path=_TEST_DB_PATH)]
         # failed is NOT skipped - is_complete returns False for failed
         assert "dQw4w9WgXcQ" in to_process
+
+    def test_negative_cache_skips_pending_videos_temporarily(self):
+        """Active negative-cache entries should keep pending videos out of the queue."""
+        entries: list[BatchEntry] = [
+            BatchEntry(
+                video_id="dQw4w9WgXcQ",
+                status="pending",
+                source="https://youtube.com/channel/UC1",
+                published_at="2026-01-01T00:00:00Z",
+                has_captions=False,
+            ),
+            BatchEntry(
+                video_id="dQw4w9WgXcR",
+                status="pending",
+                source="https://youtube.com/channel/UC1",
+                published_at="2026-01-02T00:00:00Z",
+                has_captions=False,
+            ),
+        ]
+        set_status_batch(entries, db_path=_TEST_DB_PATH)
+        set_negative_cache(
+            "dQw4w9WgXcR",
+            "no_transcript",
+            ttl_seconds=3600,
+            db_path=_TEST_DB_PATH,
+        )
+
+        pending = get_pending_by_source("https://youtube.com/channel/UC1", db_path=_TEST_DB_PATH)
+        assert pending == ["dQw4w9WgXcQ"]
+        assert get_negative_cache("dQw4w9WgXcR", db_path=_TEST_DB_PATH) is not None
 
 
 class TestSetStatusBatch:

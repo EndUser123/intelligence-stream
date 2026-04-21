@@ -36,7 +36,7 @@ def test_cmd_fetch_logs_fetch_start_and_first_download_started_industrial():
             "unavailable_reason": None,
             "source": "https://www.youtube.com/@example",
         }
-        for i in range(300)
+        for i in range(200)
     ]
 
     with mock.patch.object(mod, "_get_batch_status_storage", return_value=mock.MagicMock()):
@@ -73,9 +73,79 @@ def test_cmd_fetch_logs_fetch_start_and_first_download_started_industrial():
     first_payload = mock_log.call_args_list[log_names.index("first_download_started")].args[1]
     assert first_payload["kind"] == "industrial_cli_batch"
     assert first_payload["batch_index"] == 1
-    assert first_payload["batch_size"] == 300
+    assert first_payload["batch_size"] == 200
     assert first_payload["first_video_id"] == "vid000"
     assert "elapsed_s" in first_payload
+
+
+def test_cmd_fetch_limit_caps_selected_pending_items():
+    """cmd_fetch should stop after the requested pending-item limit and log it."""
+    mod = _load_csf_source_module()
+    channel_rows = [("https://www.youtube.com/@example", "pl-1")]
+    pending_entries = [
+        {
+            "video_id": f"vid{i:03d}",
+            "status": "pending",
+            "has_captions": True,
+            "privacy_status": "public",
+            "upload_status": "uploaded",
+            "is_live_content": False,
+            "unavailable_reason": None,
+            "source": "https://www.youtube.com/@example",
+        }
+        for i in range(200)
+    ]
+
+    class FakeCursor:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def fetchall(self):
+            return self._rows
+
+    class FakeConn:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def execute(self, *_args, **_kwargs):
+            return FakeCursor(self._rows)
+
+        def close(self):
+            return None
+
+    class FakeStorage:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def _get_conn(self):
+            return FakeConn(self._rows)
+
+    with mock.patch.object(mod, "_get_batch_status_storage", return_value=FakeStorage(channel_rows)):
+        with mock.patch.object(mod, "get_channel_metadata", return_value={"playlist_id": "pl-1"}):
+            with mock.patch.object(mod, "is_channel_blocked", return_value=False):
+                with mock.patch.object(mod, "get_entries_for_source_details", return_value=pending_entries):
+                    with mock.patch.object(mod, "has_cached_transcript", return_value=False):
+                        with mock.patch.object(mod.subprocess, "run") as mock_run:
+                            mock_run.return_value = mock.MagicMock(returncode=0, stdout="", stderr="")
+                            with mock.patch.object(mod, "process_industrial_batch_reusable") as mock_process:
+                                mock_process.return_value = {
+                                    f"vid{i:03d}": (True, "transcript", None) for i in range(100)
+                                }
+                                with mock.patch.object(mod, "close_reusable_ingestor"):
+                                    with mock.patch.object(mod, "set_cached_transcript"):
+                                        with mock.patch.object(mod, "mark_complete"):
+                                            with mock.patch.object(mod, "log_action") as mock_log:
+                                                mod.cmd_fetch(dry_run=False, workers=1, max_items=100)
+
+    invoked = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "fetch_invoked")
+    completed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "fetch_completed")
+    assert invoked["max_items"] == 100
+    assert completed["max_items"] == 100
+    assert mock_process.call_count == 1
+    queued_ids = mock_process.call_args.args[0]
+    assert len(queued_ids) == 100
+    assert queued_ids[0] == "vid000"
+    assert queued_ids[-1] == "vid099"
 
 
 def test_cmd_fetch_logs_cached_sample_and_hit_rate():
@@ -703,7 +773,7 @@ def test_cmd_fetch_routes_non_captioned_items_to_notebooklm_first():
             "unavailable_reason": None,
             "source": "https://www.youtube.com/@active",
         }
-        for i in range(300)
+        for i in range(200)
     ]
 
     class FakeCursor:
@@ -746,7 +816,7 @@ def test_cmd_fetch_routes_non_captioned_items_to_notebooklm_first():
                             mock_run.return_value = mock.MagicMock(returncode=0, stdout="", stderr="")
                             notebooklm_results = {
                                 f"vid{i:03d}": (True, "notebooklm transcript", None)
-                                for i in range(300)
+                                for i in range(200)
                             }
                             with mock.patch.object(mod, "process_industrial_batch_reusable", return_value=notebooklm_results) as mock_process:
                                 with mock.patch.object(mod, "close_reusable_ingestor"):
@@ -858,7 +928,7 @@ def test_cmd_fetch_logs_worker_prewarm_summary_before_dispatch(tmp_path):
             "unavailable_reason": None,
             "source": "https://www.youtube.com/@chan1",
         }
-        for i in range(300)
+        for i in range(200)
     ]
 
     class FakeCursor:
@@ -891,11 +961,11 @@ def test_cmd_fetch_logs_worker_prewarm_summary_before_dispatch(tmp_path):
             result_path.write_text(
                 json.dumps(
                     {
-                        "worker_id": "worker-01",
-                        "input": "batches.json",
-                        "batch_count": 1,
-                        "video_count": 300,
-                        "succeeded": 300,
+                            "worker_id": "worker-01",
+                            "input": "batches.json",
+                            "batch_count": 1,
+                            "video_count": 200,
+                            "succeeded": 200,
                         "failed": 0,
                         "startup_retire_elapsed_s": 0.25,
                         "startup_notebook_check_elapsed_s": 0.5,
@@ -946,14 +1016,14 @@ def test_cmd_fetch_logs_worker_prewarm_summary_before_dispatch(tmp_path):
     assert summary["cleanup_deleted"] == 3
     assert summary["cleanup_failed"] == 1
     worker_finished = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "fetch_worker_finished")
-    assert worker_finished["summary"]["succeeded"] == 300
+    assert worker_finished["summary"]["succeeded"] == 200
     assert worker_finished["summary"]["failed"] == 0
     completed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "fetch_completed")
     assert completed["worker_cleanup_deleted"] == 3
     assert completed["worker_cleanup_failed"] == 1
-    assert completed["success_count"] == 300
+    assert completed["success_count"] == 200
     assert completed["fail_count"] == 0
-    assert completed["processed_count"] == 300
+    assert completed["processed_count"] == 200
     assert completed["processed_per_min"] is not None
     assert completed["worker_stage_totals"]["batch_elapsed_s_total"] == 25.75
     assert completed["worker_stage_totals"]["add_sources_elapsed_s_total"] == 4.75

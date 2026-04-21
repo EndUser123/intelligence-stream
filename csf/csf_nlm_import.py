@@ -224,7 +224,20 @@ def import_notebook_transcripts(
 
         # Cache the transcript
         try:
-            set_cached_transcript(video_id, "en", "notebooklm", transcript)
+            set_cached_transcript(
+                video_id,
+                "en",
+                "notebooklm",
+                transcript,
+                metadata={
+                    "notebook_name": notebook_name,
+                    "notebook_id": notebook_id,
+                    "source_id": source_id,
+                    "source_title": title,
+                    "source_video_id": video_id,
+                    "importer": "csf_nlm_import",
+                },
+            )
             print("OK", flush=True)
             stats["imported"] += 1
         except Exception as e:

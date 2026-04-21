@@ -100,7 +100,18 @@ def _fetch_via_selenium_only(
 
         if success and transcript:
             _record_source_success(_SOURCE_SELENIUM, video_id)
-            set_cached_transcript(video_id, try_lang_str, _SOURCE_SELENIUM, transcript)
+            set_cached_transcript(
+                video_id,
+                try_lang_str,
+                _SOURCE_SELENIUM,
+                transcript,
+                metadata={
+                    "fetch_method": "selenium_firefox",
+                    "source_url": source,
+                    "requested_lang": try_lang_str,
+                    "source_kind": "channel",
+                },
+            )
             return (video_id, True, _SOURCE_SELENIUM, "")
 
         # Handle rate limit

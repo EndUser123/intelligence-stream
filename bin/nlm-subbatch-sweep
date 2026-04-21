@@ -25,14 +25,15 @@ from csf.batch_status import _get_batch_status_storage
 
 def get_pending_video_ids(count: int) -> list[str]:
     """Fetch <count> pending video IDs from the batch status DB."""
-    storage = _get_batch_status_storage()
-    conn = storage._conn
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT video_id FROM analysis_status WHERE status=? ORDER BY rowid LIMIT ?",
-        ("pending", count),
-    )
-    return [row[0] for row in cur.fetchall()]
+    from csf.batch_status import _BatchStatusStorage, _STATUS_PENDING
+    storage = _BatchStatusStorage()
+    with storage._conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT video_id FROM analysis_status WHERE status=? ORDER BY rowid LIMIT ?",
+            (_STATUS_PENDING, count),
+        )
+        return [row[0] for row in cur.fetchall()]
 
 
 def run_sweep(video_ids: list[str], sizes: list[int]) -> list[dict]:

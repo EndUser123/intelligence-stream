@@ -488,6 +488,12 @@ def gemini_video_analyze(video_id: str, video_url: str) -> dict:
             lang="en",
             source="youtube_transcript_api",
             transcript=transcript_text,
+            metadata={
+                "pipeline": "csf-analyze",
+                "video_url": video_url,
+                "model": model,
+                "transcript_source": "youtube_transcript_api",
+            },
         )
     except Exception:
         # Caching failures are non-critical — don't crash the analysis result

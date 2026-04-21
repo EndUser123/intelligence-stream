@@ -28,7 +28,10 @@ _DEFAULT_INDUSTRIAL_WORKER_STATE_ROOT = Path("P:/__csf/.data/yt-is/industrial-wo
 _DEFAULT_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX = "yt-is::industrial::worker"
 _DEFAULT_NOTEBOOKLM_PROFILE = "default"
 _AUTH_LOCK_PATH = Path("P:/__csf/.data/yt-is/locks/nlm-auth.lock")
-_NOTEBOOK_SOURCE_CAP = 225  # Conservative threshold before 300 hard limit
+_NOTEBOOK_SOURCE_CAP = 225  # Notebook-level: rotation guard threshold (75-source buffer below 300 hard limit).
+                            # NOTE: 225 is also the per-request limit for a single `nlm source add` call —
+                            # a request with ≥225 sources fails immediately with rc=1 regardless of notebook state.
+                            # Keep subbatch_size comfortably below 225 (e.g. 200) to avoid triggering this cliff.
 
 
 def _get_reusable_notebook_state_path() -> Path:
@@ -86,6 +89,61 @@ def _clear_reusable_notebook_state() -> None:
         pass
 
 
+def _delete_notebook_with_retries(
+    ingestor,
+    nb_id: str,
+    *,
+    timeout: int = 120,
+    retries: int = 2,
+    purpose: str = "cleanup",
+) -> subprocess.CompletedProcess:
+    """Delete a notebook with bounded retries for transient NotebookLM failures."""
+    last_result: subprocess.CompletedProcess | None = None
+    total_attempts = retries + 1
+    for attempt in range(1, total_attempts + 1):
+        log_action(
+            "nlm_batch_notebook_delete_attempt",
+            {
+                "nb_id": nb_id,
+                "attempt": attempt,
+                "total_attempts": total_attempts,
+                "timeout_s": timeout,
+                "purpose": purpose,
+            },
+        )
+        try:
+            result = ingestor._run_cmd(["notebook", "delete", nb_id, "--confirm"], timeout=timeout)
+        except Exception as exc:
+            result = subprocess.CompletedProcess(
+                ["nlm", "notebook", "delete", nb_id, "--confirm"],
+                1,
+                "",
+                str(exc),
+            )
+        last_result = result
+        if result.returncode == 0:
+            return result
+        if attempt < total_attempts:
+            time.sleep(min(5 * attempt, 15))
+    log_action(
+        "nlm_batch_notebook_delete_failed",
+        {
+            "nb_id": nb_id,
+            "attempts": total_attempts,
+            "timeout_s": timeout,
+            "purpose": purpose,
+            "returncode": None if last_result is None else last_result.returncode,
+            "stderr": "" if last_result is None else (last_result.stderr or "")[:200],
+        },
+    )
+    return last_result or subprocess.CompletedProcess(
+        ["nlm", "notebook", "delete", nb_id, "--confirm"],
+        1,
+        "",
+        "delete failed",
+    )
+
+
 def retire_reusable_notebook_state() -> dict[str, object]:
     """Delete the currently recorded reusable notebook and clear its state file.
 
@@ -110,7 +168,13 @@ def retire_reusable_notebook_state() -> dict[str, object]:
     ingestor._nb_id = nb_id
     try:
         started = time.monotonic()
-        res = ingestor._run_cmd(["notebook", "delete", nb_id, "--confirm"], timeout=60)
+        res = _delete_notebook_with_retries(
+            ingestor,
+            nb_id,
+            timeout=120,
+            retries=2,
+            purpose="retire_reusable",
+        )
         result["returncode"] = res.returncode
         result["elapsed_s"] = round(time.monotonic() - started, 3)
         result["status"] = "deleted" if res.returncode == 0 else "delete_failed"
@@ -203,7 +267,13 @@ def cleanup_stale_worker_notebooks() -> tuple[int, int]:
         if nb_id in active_nb_ids:
             continue
         print(f"[NLM-Batch]   Removing stale worker notebook '{name}' ({nb_id})...")
-        result = ingestor._run_cmd(["notebook", "delete", nb_id, "--confirm"], timeout=30)
+        result = _delete_notebook_with_retries(
+            ingestor,
+            nb_id,
+            timeout=120,
+            retries=2,
+            purpose="cleanup_stale_worker_notebooks",
+        )
         if result.returncode == 0:
             deleted += 1
         else:
@@ -945,7 +1015,7 @@ class NLMBatchIngestor:
     def close(self):
         """Delete the notebook entirely (final cleanup after all batches)."""
         if self._nb_id:
-            self._run_cmd(["notebook", "delete", self._nb_id, "--confirm"])
+            _delete_notebook_with_retries(self, self._nb_id, timeout=120, retries=2, purpose="close")
 
     def _get_current_source_count(self) -> int:
         """Query the current source count in the active notebook."""
@@ -976,10 +1046,9 @@ class NLMBatchIngestor:
                 "cap_threshold": _NOTEBOOK_SOURCE_CAP,
             },
         )
-        # Create fresh notebook with a unique name to avoid collision
-        import datetime
-        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        nb_name = f"yt-is::industrial::worker::{ts}"
+        # Recreate the notebook under the same logical title so cleanup can
+        # retire the current worker notebook deterministically on restart.
+        nb_name = _get_reusable_notebook_title()
         res = self._run_cmd(["notebook", "create", nb_name], timeout=60)
         for line in res.stdout.split("\n"):
             if "ID:" in line:
@@ -988,12 +1057,23 @@ class NLMBatchIngestor:
         if not self._nb_id:
             self._nb_id = res.stdout.strip()
         self._current_source_count = 0
+        if self._nb_id:
+            _save_reusable_notebook_id(self._nb_id)
+            log_action(
+                "nlm_batch_reusable_state_saved",
+                {
+                    "nb_id": self._nb_id,
+                    "state_path": str(_get_reusable_notebook_state_path()),
+                    "notebooklm_profile": _get_notebooklm_profile(),
+                },
+            )
         log_action(
             "nlm_batch_notebook_rotated_new_created",
             {
                 "old_nb_id": old_nb_id,
                 "new_nb_id": self._nb_id,
                 "old_source_count": old_count,
+                "nb_name": nb_name,
             },
         )
 

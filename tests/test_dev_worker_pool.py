@@ -52,6 +52,7 @@ class TestWorkerMain:
 
         prewarm_calls: list[str] = []
         reset_calls: list[dict[str, str]] = []
+        cleanup_calls: list[bool] = []
         result_path = tmp_path / "result.json"
         log_calls: list[tuple[str, dict[str, object]]] = []
 
@@ -228,7 +229,7 @@ class TestWorkerMain:
         monkeypatch.setattr(worker_main, "set_reusable_ingestor", lambda ingestor: installed_ingestors.append(ingestor))
         monkeypatch.setattr(worker_main, "NLMReusableIngestor", DummyReusableIngestor)
         monkeypatch.setattr(worker_main, "retire_reusable_notebook_state", lambda: reset_calls.append({"status": "deleted"}) or {"status": "deleted"})
-        monkeypatch.setattr(worker_main, "close_reusable_ingestor", lambda delete=False: None)
+        monkeypatch.setattr(worker_main, "close_reusable_ingestor", lambda delete=False: cleanup_calls.append(delete))
         monkeypatch.setattr(
             worker_main,
             "summarize_video_ids",
@@ -303,6 +304,11 @@ class TestWorkerMain:
         assert any(name == "worker_cleanup_ingestor_close_started" for name, _ in log_calls)
         assert any(name == "worker_cleanup_ingestor_close_completed" for name, _ in log_calls)
         assert any(name == "worker_cleanup_completed" for name, _ in log_calls)
+        assert cleanup_calls == [True]
+        cleanup_started = next(payload for name, payload in log_calls if name == "worker_cleanup_ingestor_close_started")
+        cleanup_completed = next(payload for name, payload in log_calls if name == "worker_cleanup_ingestor_close_completed")
+        assert cleanup_started["delete"] is True
+        assert cleanup_completed["delete"] is True
         output = output_lines[-1]
         summary = json.loads(output)
         assert summary["batch_count"] == 2
@@ -359,6 +365,7 @@ class TestWorkerMain:
 
         init_calls: list[int] = []
         reset_calls: list[dict[str, str]] = []
+        cleanup_calls: list[bool] = []
         result_path = tmp_path / "result.json"
 
         class DummyReusableIngestor:
@@ -386,7 +393,7 @@ class TestWorkerMain:
         })
         monkeypatch.setattr(worker_main, "NLMReusableIngestor", DummyReusableIngestor)
         monkeypatch.setattr(worker_main, "retire_reusable_notebook_state", lambda: reset_calls.append({"status": "deleted"}) or {"status": "deleted"})
-        monkeypatch.setattr(worker_main, "close_reusable_ingestor", lambda delete=False: None)
+        monkeypatch.setattr(worker_main, "close_reusable_ingestor", lambda delete=False: cleanup_calls.append(delete))
         monkeypatch.setattr(worker_main, "set_cached_transcript", lambda *args, **kwargs: None)
         monkeypatch.setattr(worker_main, "mark_complete", lambda *args, **kwargs: None)
 
@@ -410,6 +417,7 @@ class TestWorkerMain:
         assert rc == 0
         assert init_calls == [1]
         assert reset_calls == [{"status": "deleted"}]
+        assert cleanup_calls == [True]
         output_lines = capsys.readouterr().out.strip().splitlines()
         assert any('"event":"worker_notebook_reset_started"' in line for line in output_lines)
         assert any('"event":"worker_notebook_reset_completed"' in line for line in output_lines)

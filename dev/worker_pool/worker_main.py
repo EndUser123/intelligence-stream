@@ -495,9 +495,10 @@ def main(argv: list[str] | None = None) -> int:
                     "notebooklm_profile": notebooklm_profile,
                     "state_path": args.state_path,
                     "notebook_title": args.notebook_title,
+                    "delete": True,
                 },
             )
-            close_reusable_ingestor(delete=False)
+            close_reusable_ingestor(delete=True)
             log_action(
                 "worker_cleanup_ingestor_close_completed",
                 {
@@ -506,6 +507,7 @@ def main(argv: list[str] | None = None) -> int:
                     "notebooklm_profile": notebooklm_profile,
                     "state_path": args.state_path,
                     "notebook_title": args.notebook_title,
+                    "delete": True,
                 },
             )
         finally:

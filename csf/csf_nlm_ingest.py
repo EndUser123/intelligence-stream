@@ -159,7 +159,18 @@ def ingest_video(video_id: str, video_url: str, output_dir: Path) -> bool:
     try:
         with open(output_path, 'r', encoding='utf-8') as f:
             transcript_content = f.read()
-        set_cached_transcript(video_id, "en", "notebooklm", transcript_content)
+        set_cached_transcript(
+            video_id,
+            "en",
+            "notebooklm",
+            transcript_content,
+            metadata={
+                "notebook_id": notebook_id,
+                "video_url": video_url,
+                "output_path": str(output_path),
+                "importer": "csf_nlm_ingest",
+            },
+        )
         print(f"✓ {video_id} cached to database")
     except Exception as e:
         print(f"Warning: Failed to cache {video_id} to database: {e}")

@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from csf.batch_status import _get_batch_status_storage, get_entries_for_source
 from csf.cache import has_cached_transcript, set_cached_transcript
-from csf.transcript import fetch_transcript_chain, LanguageConfig
+from csf.transcript import build_transcript_cache_metadata, fetch_transcript_chain, LanguageConfig
 from csf.batch_scheduler import BatchScheduler
 
 
@@ -48,7 +48,19 @@ def _fetch_one_transcript(
 
     if result.transcript:
         # Cache the transcript
-        set_cached_transcript(video_id, result.lang, result.source, result.transcript)
+        set_cached_transcript(
+            video_id,
+            result.lang,
+            result.source,
+            result.transcript,
+            metadata=build_transcript_cache_metadata(
+                result,
+                extra={
+                    "pipeline": "csf-transcript-fetch",
+                    "source_url": source,
+                },
+            ),
+        )
         return (video_id, True, result.source, "")
     else:
         error_msg = result.error or f"no transcript (source: {result.source or 'none'})"

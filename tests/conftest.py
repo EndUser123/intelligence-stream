@@ -28,7 +28,7 @@ def clean_shared_cache():
 
     # 2. Now delete the DB files
     # CI-aware: skip if P:/__csf/ does not exist (ubuntu-latest has no P: drive)
-    db_path = Path("P:/__csf/.data/intelligence-stream/transcripts/transcripts.sqlite")
+    db_path = Path("P:/__csf/.data/yt-is/transcripts.sqlite")
     if db_path.parent.exists():
         if db_path.exists():
             try:

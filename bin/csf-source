@@ -64,7 +64,11 @@ from csf.nlm_batch import (
     close_reusable_ingestor,
     cleanup_stale_worker_notebooks,
 )
-from csf.transcript import fetch_transcript_chain, LanguageConfig
+from csf.transcript import (
+    LanguageConfig,
+    build_transcript_cache_metadata,
+    fetch_transcript_chain,
+)
 from csf.batch_status import (
     get_channel_metadata,
     set_channel_metadata,
@@ -172,6 +176,7 @@ def _build_fetch_completed_payload(
     processed_count: int,
     elapsed_s: float,
     status: str,
+    max_items: int | None = None,
     worker_stage_totals: dict[str, float] | None = None,
     worker_source_profile_totals: dict[str, object] | None = None,
     notebooklm_pending_count: int = 0,
@@ -186,6 +191,7 @@ def _build_fetch_completed_payload(
         "backend": backend,
         "backlog_threshold": backlog_threshold,
         "batch_size": batch_size,
+        "max_items": max_items,
         "workers": workers,
         "channels_tracked_total": channels_tracked_total,
         "channels_blocked_total": channels_blocked_total,
@@ -280,6 +286,7 @@ def _log_fetch_completed(
     skip_count: int,
     elapsed_s: float,
     status: str,
+    max_items: int | None = None,
     worker_stage_totals: dict[str, float] | None = None,
     worker_source_profile_totals: dict[str, object] | None = None,
     notebooklm_pending_count: int = 0,
@@ -297,6 +304,7 @@ def _log_fetch_completed(
             backend=backend,
             backlog_threshold=backlog_threshold,
             batch_size=batch_size,
+            max_items=max_items,
             workers=workers,
             channels_tracked_total=channels_tracked_total,
             channels_blocked_total=channels_blocked_total,
@@ -1345,7 +1353,12 @@ def cmd_sync(source_id_or_url: str) -> None:
         print(f"[source] Failed video IDs: {', '.join(failed)}")
 
 
-def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: int = 1) -> None:
+def cmd_fetch(
+    source_filter: str | None = None,
+    dry_run: bool = False,
+    workers: int = 1,
+    max_items: int | None = None,
+) -> None:
     """Fetch transcripts for pending videos using escalation chain (yt-dlp → Selenium).
 
     This is the ESCALATION BATCH PROCESS - tries fastest methods first, falls back
@@ -1355,6 +1368,7 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
         source_filter: Optional channel URL to process only that source.
         dry_run: If True, show what would be fetched without actually fetching.
         workers: Number of parallel workers (default: 1).
+        max_items: Optional cap on pending items to process in this run.
     """
     from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
     from csf.transcript import fetch_transcript_chain, LanguageConfig
@@ -1382,6 +1396,7 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             "source_filter": source_filter,
             "dry_run": dry_run,
             "workers": workers,
+            "max_items": max_items,
             "transcript_fallback_workers": max(
                 1,
                 min(
@@ -1472,9 +1487,12 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
     tracked_count = len(tracked_channels)
     channel_count = len(channels)
     scan_progress_interval = max(1, channel_count // 10)
-    batch_size = 300
+    batch_size = 200
     backlog_threshold = 50
+    if max_items is not None and max_items < 0:
+        raise ValueError("max_items must be >= 0")
     industrial_selected = False
+    max_items_reached = False
     industrial_scraper = None
     industrial_batches_processed = 0
     industrial_batch_queue: list[list[str]] = []
@@ -1959,7 +1977,19 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
         results = process_industrial_batch_reusable(batch)
         for vid, (success, transcript, error) in results.items():
                 if success and transcript:
-                    set_cached_transcript(vid, "en", "notebooklm", transcript)
+                    set_cached_transcript(
+                        vid,
+                        "en",
+                        "notebooklm",
+                        transcript,
+                        metadata={
+                            "pipeline": "csf-source",
+                            "route": "industrial_cli_batch",
+                            "source_url": source_map.get(vid, ""),
+                            "batch_index": industrial_batches_processed,
+                            "batch_size": len(batch),
+                        },
+                    )
                     mark_complete(vid, last_stage="notebooklm")
                     success_count += 1
                     print(f"  ✓ {vid} (notebooklm)")
@@ -2014,7 +2044,18 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
         config = LanguageConfig(prefer_lang="en", allow_translation=False)
         result = fetch_transcript_chain(video_id, config, skip_notebooklm=skip_notebooklm)
         if result.transcript:
-            set_cached_transcript(video_id, result.lang or "en", result.source, result.transcript)
+            set_cached_transcript(
+                video_id,
+                result.lang or "en",
+                result.source,
+                result.transcript,
+                metadata={
+                    "pipeline": "csf-source",
+                    "route": "transcript_fallback",
+                    "source_url": source_url,
+                    "skip_notebooklm": skip_notebooklm,
+                },
+            )
             qm = None
             if result.view_count:
                 import json as _json
@@ -2175,12 +2216,29 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             if notebooklm_pending_count >= backlog_threshold or transcript_fallback_queued_count >= backlog_threshold:
                 industrial_selected = True
 
+            if max_items is not None and pending_discovered_total >= max_items:
+                max_items_reached = True
+                break
+
             if not dry_run and industrial_selected and len(pending_buffer) >= batch_size:
                 while len(pending_buffer) >= batch_size:
                     batch_items = [pending_buffer.popleft() for _ in range(batch_size)]
                     industrial_batch_queue.append([vid for vid, _src in batch_items])
                     if industrial_parallel_enabled:
                         _service_industrial_workers(wait_for_completion=False)
+        if max_items_reached:
+            print(f"[source] Pending item limit reached at {pending_discovered_total}; stopping scan early.")
+            log_action(
+                "fetch_scan_limit_reached",
+                {
+                    "source_filter": source_filter,
+                    "max_items": max_items,
+                    "pending_discovered_total": pending_discovered_total,
+                    "notebooklm_pending_count": notebooklm_pending_count,
+                    "transcript_fallback_queued_count": transcript_fallback_queued_count,
+                },
+            )
+            break
 
         if transcript_fallback_queue:
             _service_transcript_fallback_workers(wait_for_completion=False)
@@ -2232,6 +2290,8 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             "source_filter": source_filter,
             "channels_active_total": channel_count,
             "pending_total": pending_discovered_total,
+            "max_items": max_items,
+            "max_items_reached": max_items_reached,
             "cached_total": cached_count,
             "cached_hit_rate": round(cached_count / (cached_count + pending_discovered_total + terminal_count), 4)
             if (cached_count + pending_discovered_total + terminal_count)
@@ -2274,6 +2334,8 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             "channels_blocked_total": blocked_count,
             "channels_active_total": channel_count,
             "pending_total": total_pending,
+            "max_items": max_items,
+            "max_items_reached": max_items_reached,
             "cached_total": cached_count,
             "cached_hit_rate": round(cached_count / (cached_count + total_pending + terminal_count), 4)
             if (cached_count + total_pending + terminal_count)
@@ -2318,6 +2380,8 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
         neg_ids = ", ".join(item["video_id"] for item in negative_cache_sample)
         print(f"[source] Negative-cache sample: {neg_ids}")
     print(f"[source] Pending extraction: {total_pending}")
+    if max_items is not None:
+        print(f"[source] Run limit: {max_items} pending items")
     print(f"[source] Mode: {'DRY RUN' if dry_run else 'LIVE'}")
     if dry_run:
         print("[source] Dry run complete. Use without --dry-run to fetch transcripts.")
@@ -2327,6 +2391,7 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             backend=backend_name,
             backlog_threshold=backlog_threshold,
             batch_size=batch_size,
+            max_items=max_items,
             workers=workers,
             channels_tracked_total=tracked_count,
             channels_blocked_total=blocked_count,
@@ -2409,6 +2474,7 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             backend=backend_name,
             backlog_threshold=backlog_threshold,
             batch_size=batch_size,
+            max_items=max_items,
             workers=workers,
             channels_tracked_total=tracked_count,
             channels_blocked_total=blocked_count,
@@ -2556,7 +2622,21 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
             result = fetch_transcript_chain(video_id, config, skip_notebooklm=skip_notebooklm)
 
             if result.transcript:
-                set_cached_transcript(video_id, result.lang or "en", result.source, result.transcript)
+                set_cached_transcript(
+                    video_id,
+                    result.lang or "en",
+                    result.source,
+                    result.transcript,
+                    metadata=build_transcript_cache_metadata(
+                        result,
+                        extra={
+                            "pipeline": "csf-source",
+                            "route": "surgical",
+                            "source_url": source_url,
+                            "skip_notebooklm": skip_notebooklm,
+                        },
+                    ),
+                )
                 # Build quality metrics JSON from engagement fields captured during fetch
                 qm = None
                 if result.view_count:
@@ -2652,6 +2732,7 @@ def cmd_fetch(source_filter: str | None = None, dry_run: bool = False, workers: 
         backend=backend_name,
         backlog_threshold=backlog_threshold,
         batch_size=batch_size,
+        max_items=max_items,
         workers=workers,
         channels_tracked_total=tracked_count,
         channels_blocked_total=blocked_count,
@@ -3110,6 +3191,7 @@ def main() -> None:
     fetch_parser.add_argument("--source", help="Process only this channel URL")
     fetch_parser.add_argument("--dry-run", action="store_true", help="Show what would be fetched without fetching")
     fetch_parser.add_argument("--workers", type=int, default=1, help="Number of parallel workers (default: 1)")
+    fetch_parser.add_argument("--limit", type=int, help="Stop after this many pending items have been queued for fetching")
 
     # block command
     block_parser = subparsers.add_parser("block", help="Add a channel to the blocklist")
@@ -3160,7 +3242,12 @@ def main() -> None:
     elif args.command == "quota":
         cmd_quota()
     elif args.command == "fetch":
-        cmd_fetch(source_filter=args.source, dry_run=args.dry_run, workers=args.workers)
+        cmd_fetch(
+            source_filter=args.source,
+            dry_run=args.dry_run,
+            workers=args.workers,
+            max_items=args.limit,
+        )
     elif args.command == "block":
         cmd_block(args.url)
     elif args.command == "unblock":

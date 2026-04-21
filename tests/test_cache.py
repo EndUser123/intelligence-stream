@@ -66,7 +66,7 @@ class TestCacheHitWithoutApiCall:
 
         Uses mock.patch to assert the API is NOT called on cache hit.
         """
-        video_id = "dQw4w9WgXcQ"
+        video_id = "ZyX98765432"
         lang = "en"
         source = "cli"
         terminal_id = "test_terminal_cache_hit"
@@ -105,7 +105,7 @@ class TestCacheMiss:
         from pathlib import Path
 
         # Delete the database to simulate first run on empty DB
-        db_path = Path("P:/__csf/.data/intelligence-stream/transcripts/transcripts.sqlite")
+        db_path = Path("P:/__csf/.data/yt-is/transcripts.sqlite")
         if db_path.exists():
             db_path.unlink()
 
@@ -163,6 +163,41 @@ class TestTranscriptCacheDataclass:
         assert isinstance(cache.cached_at, datetime)
 
 
+class TestTranscriptMetadataRoundTrip:
+    """Test that cache entries preserve arbitrary metadata payloads."""
+
+    def test_metadata_round_trip_preserves_payload(self):
+        """Metadata should survive a SQLite write/read round trip unchanged."""
+        video_id = "ZyX98765432"
+        lang = "en"
+        source = "notebooklm"
+        metadata = {
+            "notebook_id": "nb-123",
+            "source_id": "src-456",
+            "source_title": "Episode 1",
+            "source_url": "https://www.youtube.com/watch?v=ZyX98765432",
+            "content_length": 12345,
+            "quality_metrics": {
+                "view_count": 100,
+                "like_count": 10,
+            },
+        }
+
+        with mock.patch.dict(os.environ, {"TERMINAL_ID": "test_term_metadata"}):
+            set_cached_transcript(
+                video_id,
+                lang,
+                source,
+                "Complete transcript text",
+                metadata=metadata,
+            )
+            cached = get_cached_transcript(video_id, lang, source)
+
+        assert cached is not None
+        assert cached.transcript == "Complete transcript text"
+        assert cached.metadata == metadata
+
+
 class TestCacheIntegrationWithTranscriptChain:
     """Test cache integration with the full fetch_transcript_chain.
 
@@ -200,8 +235,18 @@ class TestCacheIntegrationWithTranscriptChain:
                 assert result.source == "ytdlp"
                 assert result.lang == "en"
                 mock_ytdlp.assert_called_once_with(video_id, "en")
-                mock_cache_set.assert_called_once_with(
-                    video_id, "en", "ytdlp", "transcript via yt-dlp"
+                mock_cache_set.assert_called_once()
+                call_args = mock_cache_set.call_args
+                assert call_args.args == (
+                    video_id,
+                    "en",
+                    "ytdlp",
+                    "transcript via yt-dlp",
+                )
+                assert call_args.kwargs["metadata"]["source"] == "ytdlp"
+                assert call_args.kwargs["metadata"]["lang"] == "en"
+                assert call_args.kwargs["metadata"]["transcript_chars"] == len(
+                    "transcript via yt-dlp"
                 )
 
     def test_fetch_transcript_chain_no_cache_call_on_all_fail(self):
@@ -222,12 +267,16 @@ class TestCacheIntegrationWithTranscriptChain:
                 mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
                 mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ytdlp_cookies,
                 mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
+                mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
+                mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
                 mock.patch("csf.transcript._is_source_rate_limited", return_value=False),
             ):
                 # All fetch methods fail
                 mock_ytdlp.return_value = (False, None, "ytdlp blocked")
                 mock_ytdlp_cookies.return_value = (False, None, "cookies blocked")
                 mock_selenium.return_value = (False, None, "selenium blocked")
+                mock_nlm.return_value = (False, None, "nlm blocked")
+                mock_whisper.return_value = (False, None, "whisper blocked")
 
                 result = fetch_transcript_chain(video_id, lang_config)
 

@@ -5,12 +5,14 @@ All terminals can read any cached transcript; writes go to a shared DB.
 Transcripts are immutable - once cached, they don't expire.
 """
 
+import json
 import re
 import sqlite3
 import threading
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Mapping
 
 # Validation
 _VIDEO_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{11}$")
@@ -36,6 +38,18 @@ class TranscriptCache:
     transcript: str
     cached_at: datetime
     terminal_id: str  # Which terminal wrote this entry
+    metadata_json: str = "{}"
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Return parsed transcript metadata, or an empty dict on bad JSON."""
+        if not self.metadata_json:
+            return {}
+        try:
+            parsed = json.loads(self.metadata_json)
+        except json.JSONDecodeError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
 
 
 class _CacheStorage:
@@ -53,23 +67,7 @@ class _CacheStorage:
         _SHARED_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(_SHARED_DB_PATH)
         conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS transcript_cache (
-                cache_key TEXT PRIMARY KEY,
-                video_id TEXT NOT NULL,
-                lang TEXT NOT NULL,
-                source TEXT NOT NULL,
-                transcript TEXT NOT NULL,
-                cached_at TEXT NOT NULL,
-                terminal_id TEXT NOT NULL
-            )
-            """
-        )
-        # Index on video_id for has_cached_transcript lookups (batch pre-check)
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_transcript_cache_video_id ON transcript_cache(video_id)"
-        )
+        _ensure_transcript_cache_schema(conn)
         conn.commit()
         conn.close()
 
@@ -81,6 +79,7 @@ class _CacheStorage:
         source: str,
         transcript: str,
         cached_at: datetime,
+        metadata_json: str,
     ) -> None:
         """Write a single entry to the database synchronously."""
         self._ensure_table()
@@ -90,8 +89,8 @@ class _CacheStorage:
             conn.execute(
                 """
                 INSERT OR IGNORE INTO transcript_cache
-                (cache_key, video_id, lang, source, transcript, cached_at, terminal_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (cache_key, video_id, lang, source, transcript, metadata_json, cached_at, terminal_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     cache_key,
@@ -99,6 +98,7 @@ class _CacheStorage:
                     lang,
                     source,
                     transcript,
+                    metadata_json,
                     cached_at.isoformat(),
                     self._terminal_id,
                 ),
@@ -118,9 +118,18 @@ class _CacheStorage:
         source: str,
         transcript: str,
         cached_at: datetime,
+        metadata_json: str,
     ) -> None:
         """Write a transcript entry to the database synchronously."""
-        self._write_entry(cache_key, video_id, lang, source, transcript, cached_at)
+        self._write_entry(
+            cache_key,
+            video_id,
+            lang,
+            source,
+            transcript,
+            cached_at,
+            metadata_json,
+        )
 
     def _read_entry(self, cache_key: str) -> TranscriptCache | None:
         """Read a single entry from the shared database."""
@@ -129,7 +138,7 @@ class _CacheStorage:
         conn.execute("PRAGMA journal_mode=WAL")
         cursor = conn.execute(
             """
-            SELECT video_id, lang, source, transcript, cached_at, terminal_id
+            SELECT video_id, lang, source, transcript, cached_at, terminal_id, metadata_json
             FROM transcript_cache
             WHERE cache_key = ?
             """,
@@ -146,6 +155,7 @@ class _CacheStorage:
             transcript=row[3],
             cached_at=datetime.fromisoformat(row[4]),
             terminal_id=row[5],
+            metadata_json=row[6] if len(row) > 6 and row[6] is not None else "{}",
         )
 
     def get(self, cache_key: str) -> TranscriptCache | None:
@@ -184,6 +194,47 @@ def _validate_video_id(video_id: str) -> bool:
     return bool(_VIDEO_ID_PATTERN.match(video_id))
 
 
+def _normalize_metadata(metadata: Mapping[str, Any] | None) -> str:
+    """Serialize metadata to a stable JSON string for storage."""
+    if metadata is None:
+        return "{}"
+    try:
+        return json.dumps(metadata, ensure_ascii=False, sort_keys=True, default=str)
+    except TypeError:
+        # Fall back to a stringified wrapper only if the structure is not JSON-safe.
+        return json.dumps({"value": str(metadata)}, ensure_ascii=False, sort_keys=True)
+
+
+def _ensure_transcript_cache_schema(conn: sqlite3.Connection) -> None:
+    """Create or migrate the transcript cache schema."""
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS transcript_cache (
+            cache_key TEXT PRIMARY KEY,
+            video_id TEXT NOT NULL,
+            lang TEXT NOT NULL,
+            source TEXT NOT NULL,
+            transcript TEXT NOT NULL,
+            metadata_json TEXT NOT NULL DEFAULT '{}',
+            cached_at TEXT NOT NULL,
+            terminal_id TEXT NOT NULL
+        )
+        """
+    )
+    columns = {
+        row[1]
+        for row in conn.execute("PRAGMA table_info(transcript_cache)").fetchall()
+    }
+    if "metadata_json" not in columns:
+        conn.execute(
+            "ALTER TABLE transcript_cache ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'"
+        )
+    # Index on video_id for has_cached_transcript lookups (batch pre-check)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_transcript_cache_video_id ON transcript_cache(video_id)"
+    )
+
+
 def get_cached_transcript(
     video_id: str, lang: str, source: str
 ) -> TranscriptCache | None:
@@ -213,7 +264,12 @@ def get_cached_transcript(
 
 
 def set_cached_transcript(
-    video_id: str, lang: str, source: str, transcript: str
+    video_id: str,
+    lang: str,
+    source: str,
+    transcript: str,
+    *,
+    metadata: Mapping[str, Any] | None = None,
 ) -> None:
     """Cache a transcript entry.
 
@@ -224,6 +280,7 @@ def set_cached_transcript(
         lang: ISO 639-1 language code
         source: Transcript source ('cli', 'youtube_transcript_api', 'youtubei', 'sdk')
         transcript: The transcript text to cache
+        metadata: Optional structured metadata payload to persist losslessly as JSON.
 
     Raises:
         Silently ignored for invalid video_id (no exception raised).
@@ -236,6 +293,7 @@ def set_cached_transcript(
     terminal_id = resolve_tid()
     cache_key = _make_cache_key(video_id, lang, source)
     now = datetime.now()
+    metadata_json = _normalize_metadata(metadata)
 
     storage = _get_storage(terminal_id)
     storage.enqueue_write(
@@ -245,6 +303,7 @@ def set_cached_transcript(
         source=source,
         transcript=transcript,
         cached_at=now,
+        metadata_json=metadata_json,
     )
 
 
@@ -253,23 +312,7 @@ def _ensure_db_initialized() -> None:
     _SHARED_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(_SHARED_DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS transcript_cache (
-            cache_key TEXT PRIMARY KEY,
-            video_id TEXT NOT NULL,
-            lang TEXT NOT NULL,
-            source TEXT NOT NULL,
-            transcript TEXT NOT NULL,
-            cached_at TEXT NOT NULL,
-            terminal_id TEXT NOT NULL
-        )
-        """
-    )
-    # Index on video_id for has_cached_transcript lookups (batch pre-check)
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_transcript_cache_video_id ON transcript_cache(video_id)"
-    )
+    _ensure_transcript_cache_schema(conn)
     conn.close()
 
 
@@ -290,7 +333,7 @@ def list_cached_transcripts(lang: str | None = None) -> list[TranscriptCache]:
     if lang:
         cursor = conn.execute(
             """
-            SELECT video_id, lang, source, transcript, cached_at, terminal_id
+            SELECT video_id, lang, source, transcript, cached_at, terminal_id, metadata_json
             FROM transcript_cache
             WHERE lang = ?
             ORDER BY cached_at DESC
@@ -300,7 +343,7 @@ def list_cached_transcripts(lang: str | None = None) -> list[TranscriptCache]:
     else:
         cursor = conn.execute(
             """
-            SELECT video_id, lang, source, transcript, cached_at, terminal_id
+            SELECT video_id, lang, source, transcript, cached_at, terminal_id, metadata_json
             FROM transcript_cache
             ORDER BY cached_at DESC
             """
@@ -315,6 +358,7 @@ def list_cached_transcripts(lang: str | None = None) -> list[TranscriptCache]:
             transcript=row[3],
             cached_at=datetime.fromisoformat(row[4]),
             terminal_id=row[5],
+            metadata_json=row[6] if len(row) > 6 and row[6] is not None else "{}",
         )
         for row in rows
     ]
@@ -338,19 +382,7 @@ def has_cached_transcript(video_id: str) -> bool:
     conn = sqlite3.connect(_SHARED_DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
     # Ensure table exists before querying (may not exist on first use)
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS transcript_cache (
-            cache_key TEXT PRIMARY KEY,
-            video_id TEXT NOT NULL,
-            lang TEXT NOT NULL,
-            source TEXT NOT NULL,
-            transcript TEXT NOT NULL,
-            cached_at TEXT NOT NULL,
-            terminal_id TEXT NOT NULL
-        )
-        """
-    )
+    _ensure_transcript_cache_schema(conn)
     cursor = conn.execute(
         "SELECT 1 FROM transcript_cache WHERE video_id = ? LIMIT 1",
         (video_id,),

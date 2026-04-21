@@ -20,7 +20,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Literal, TYPE_CHECKING
 
@@ -451,6 +451,18 @@ def _extract_video_metadata(info: dict) -> dict:
         "title": info.get("title"),
         "description": info.get("description"),
     }
+
+
+def build_transcript_cache_metadata(
+    result: TranscriptResult, extra: dict[str, object] | None = None
+) -> dict[str, object]:
+    """Build a lossless metadata payload for the transcript cache."""
+    metadata = {field.name: getattr(result, field.name, None) for field in fields(TranscriptResult)}
+    metadata.pop("transcript", None)
+    metadata["transcript_chars"] = len(result.transcript)
+    if extra:
+        metadata.update(extra)
+    return metadata
 
 
 def _validate_bcp47(lang: str) -> None:
@@ -1897,8 +1909,7 @@ def fetch_transcript_chain(
                     )
                     was_translated = True
 
-                set_cached_transcript(video_id, prefer_lang, source, final_transcript)
-                return TranscriptResult(
+                result = TranscriptResult(
                     video_id=video_id,
                     lang=prefer_lang,
                     raw_lang=raw_lang,
@@ -1911,14 +1922,21 @@ def fetch_transcript_chain(
                     last_stage=source,
                     failure_reason=None,
                 )
+                set_cached_transcript(
+                    video_id,
+                    prefer_lang,
+                    source,
+                    final_transcript,
+                    metadata=build_transcript_cache_metadata(result),
+                )
+                return result
             last_error = error
         # direct_api uses different signature (no lang arg)
         elif source == _SOURCE_DIRECT_API:
             success, transcript, error = fetch_fn(video_id)
             if success and transcript:
                 _record_source_success(source, video_id)
-                set_cached_transcript(video_id, prefer_lang, source, transcript)
-                return TranscriptResult(
+                result = TranscriptResult(
                     video_id=video_id,
                     lang=prefer_lang,
                     raw_lang=prefer_lang,
@@ -1931,6 +1949,14 @@ def fetch_transcript_chain(
                     last_stage=source,
                     failure_reason=None,
                 )
+                set_cached_transcript(
+                    video_id,
+                    prefer_lang,
+                    source,
+                    transcript,
+                    metadata=build_transcript_cache_metadata(result),
+                )
+                return result
             last_error = error
             if error and (
                 "unavailable" in error.lower()
@@ -1975,8 +2001,7 @@ def fetch_transcript_chain(
                         )
                         was_translated = True
 
-                    set_cached_transcript(video_id, prefer_lang, source, final_transcript)
-                    return TranscriptResult(
+                    result = TranscriptResult(
                         video_id=video_id,
                         lang=prefer_lang,
                         raw_lang=raw_lang,
@@ -1995,6 +2020,17 @@ def fetch_transcript_chain(
                         video_title=video_metadata.get("title"),
                         video_description=video_metadata.get("description"),
                     )
+                    set_cached_transcript(
+                        video_id,
+                        prefer_lang,
+                        source,
+                        final_transcript,
+                        metadata=build_transcript_cache_metadata(
+                            result,
+                            extra={"yt_dlp_info_dict": info_dict},
+                        ),
+                    )
+                    return result
 
                 last_error = error
                 if error and ("429" in error.lower() or "rate limited" in error.lower()):
@@ -2011,8 +2047,7 @@ def fetch_transcript_chain(
         last_stage_reached = _SOURCE_EXTERNAL
         success, transcript, error = _external_provider(video_id, prefer_lang)
         if success and transcript:
-            set_cached_transcript(video_id, prefer_lang, _SOURCE_EXTERNAL, transcript)
-            return TranscriptResult(
+            result = TranscriptResult(
                 video_id=video_id,
                 lang=prefer_lang,
                 raw_lang=prefer_lang,
@@ -2025,6 +2060,14 @@ def fetch_transcript_chain(
                 last_stage=_SOURCE_EXTERNAL,
                 failure_reason=None,
             )
+            set_cached_transcript(
+                video_id,
+                prefer_lang,
+                _SOURCE_EXTERNAL,
+                transcript,
+                metadata=build_transcript_cache_metadata(result),
+            )
+            return result
         last_error = error
 
     # All methods failed — non-fatal

@@ -345,11 +345,15 @@ class TestCacheIntegration:
             )
 
             mock_cache_set.assert_called_once()
-            call_args = mock_cache_set.call_args[0]
-            assert call_args[0] == "dQw4w9WgXcQ"  # video_id
-            assert call_args[1] == "en"  # lang
-            assert call_args[2] == "whisper"  # source
-            assert call_args[3] == "whisper transcript"  # transcript
+            call_args = mock_cache_set.call_args
+            assert call_args.args[0] == "dQw4w9WgXcQ"  # video_id
+            assert call_args.args[1] == "en"  # lang
+            assert call_args.args[2] == "whisper"  # source
+            assert call_args.args[3] == "whisper transcript"  # transcript
+            metadata = call_args.kwargs["metadata"]
+            assert metadata["source"] == "whisper"
+            assert metadata["lang"] == "en"
+            assert metadata["transcript_chars"] == len("whisper transcript")
             assert result.transcript == "whisper transcript"
             assert result.source == "whisper"
 
@@ -383,11 +387,16 @@ class TestCacheIntegration:
             )
 
             mock_cache_set.assert_called_once()
-            call_args = mock_cache_set.call_args[0]
-            assert call_args[0] == "dQw4w9WgXcQ"
-            assert call_args[1] == "es"
-            assert call_args[2] == "ytdlp"
-            assert call_args[3] == "hola mundo"
+            call_args = mock_cache_set.call_args
+            assert call_args.args[0] == "dQw4w9WgXcQ"
+            assert call_args.args[1] == "es"
+            assert call_args.args[2] == "ytdlp"
+            assert call_args.args[3] == "hola mundo"
+            metadata = call_args.kwargs["metadata"]
+            assert metadata["source"] == "ytdlp"
+            assert metadata["lang"] == "es"
+            assert metadata["was_translated"] is True
+            assert metadata["transcript_chars"] == len("hola mundo")
             assert result.transcript == "hola mundo"
             assert result.was_translated is True
             assert result.raw_lang == "en"
@@ -424,11 +433,16 @@ class TestCacheIntegration:
 
             mock_translate.assert_not_called()
             mock_cache_set.assert_called_once()
-            call_args = mock_cache_set.call_args[0]
-            assert call_args[0] == "dQw4w9WgXcQ"
-            assert call_args[1] == "fr"
-            assert call_args[2] == "ytdlp"
-            assert call_args[3] == "bonjour monde"
+            call_args = mock_cache_set.call_args
+            assert call_args.args[0] == "dQw4w9WgXcQ"
+            assert call_args.args[1] == "fr"
+            assert call_args.args[2] == "ytdlp"
+            assert call_args.args[3] == "bonjour monde"
+            metadata = call_args.kwargs["metadata"]
+            assert metadata["source"] == "ytdlp"
+            assert metadata["lang"] == "fr"
+            assert metadata["raw_lang"] is None
+            assert metadata["was_translated"] is False
             assert result.transcript == "bonjour monde"
             assert result.was_translated is False
             assert result.raw_lang is None

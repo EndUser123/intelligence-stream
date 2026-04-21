@@ -448,6 +448,61 @@ class TestWorkerNotebookCleanup:
         assert cleanup_complete["status"] == "ok"
         assert cleanup_complete["deleted"] == 1
 
+    def test_cleanup_retries_transient_delete_failure(self, tmp_path, monkeypatch):
+        """A transient delete failure should be retried before cleanup gives up."""
+        state_root = tmp_path / "worker-states"
+        state_root.mkdir()
+        (state_root / "worker-01.json").write_text(json.dumps({"nb_id": "keep-1"}), encoding="utf-8")
+        monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_STATE_ROOT", str(state_root))
+        monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX", "yt-is::industrial::worker")
+
+        notebooks = {
+            "notebooks": [
+                {"id": "stale-1", "name": "yt-is::industrial::worker::worker-03"},
+            ]
+        }
+        calls: list[list[str]] = []
+
+        def mock_run_cmd(self, args, timeout=300):
+            calls.append(args)
+            if args[:3] == ["notebook", "list", "--json"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"stdout": json.dumps(notebooks), "stderr": "", "returncode": 0},
+                )()
+            if args[:3] == ["notebook", "delete", "stale-1"]:
+                delete_attempts = len(
+                    [call for call in calls if call[:3] == ["notebook", "delete", "stale-1"]]
+                )
+                if delete_attempts == 1:
+                    return type(
+                        "CompletedProcess",
+                        (),
+                        {"stdout": "", "stderr": "read operation timed out", "returncode": 1},
+                    )()
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"stdout": "", "stderr": "", "returncode": 0},
+                )()
+            return type(
+                "CompletedProcess",
+                (),
+                {"stdout": "", "stderr": "unexpected", "returncode": 1},
+            )()
+
+        monkeypatch.setattr(nlm_batch.NLMBatchIngestor, "_run_cmd", mock_run_cmd)
+        with mock.patch("csf.nlm_batch.log_action"):
+            deleted, failed = nlm_batch.cleanup_stale_worker_notebooks()
+
+        assert deleted == 1
+        assert failed == 0
+        assert [call for call in calls if call[:3] == ["notebook", "delete", "stale-1"]] == [
+            ["notebook", "delete", "stale-1", "--confirm"],
+            ["notebook", "delete", "stale-1", "--confirm"],
+        ]
+
 
 class TestReusableNotebookPrewarm:
     """Reusable notebooks should be warmed and cleared before worker batches."""
@@ -574,22 +629,27 @@ class TestNotebookCapRotation:
         )()
 
         with mock.patch.object(ingestor, "close") as mock_close:
-            with mock.patch.object(ingestor, "_run_cmd", return_value=create_response) as mock_run_cmd:
-                with mock.patch("csf.nlm_batch.log_action") as mock_log:
-                    ingestor._rotate_notebook()
+            with mock.patch("csf.nlm_batch._save_reusable_notebook_id") as mock_save:
+                with mock.patch.object(ingestor, "_run_cmd", return_value=create_response) as mock_run_cmd:
+                    with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                        ingestor._rotate_notebook()
 
         mock_close.assert_called_once()
         assert ingestor._nb_id == "nb-new"
         assert ingestor._current_source_count == 0
+        mock_save.assert_called_once_with("nb-new")
 
         log_names = [call.args[0] for call in mock_log.call_args_list]
         assert "nlm_batch_notebook_rotated" in log_names
         assert "nlm_batch_notebook_rotated_new_created" in log_names
+        assert "nlm_batch_reusable_state_saved" in log_names
         rotate_event = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_notebook_rotated")
         assert rotate_event["old_nb_id"] == "nb-old"
         assert rotate_event["old_source_count"] == 275
         assert rotate_event["reason"] == "source_cap_near_threshold"
         assert rotate_event["cap_threshold"] == nlm_batch._NOTEBOOK_SOURCE_CAP
+        created_event = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_notebook_rotated_new_created")
+        assert created_event["nb_name"] == nlm_batch._get_reusable_notebook_title()
 
     def test_capacity_rotation_requests_before_add_when_at_cap(self):
         """A notebook at capacity should rotate before attempting the next add."""

@@ -66,7 +66,18 @@ def import_first_3():
             print(f"    Preview: {transcript[:200]}...")
 
             # Cache it
-            set_cached_transcript(video_id, "en", "notebooklm", transcript)
+            set_cached_transcript(
+                video_id,
+                "en",
+                "notebooklm",
+                transcript,
+                metadata={
+                    "notebook_id": NOTEBOOK_ID,
+                    "source_id": source_id,
+                    "source_title": title,
+                    "importer": "csf.test_nlm_import",
+                },
+            )
             print(f"    ✓ Cached to database")
 
         except Exception as e:

@@ -1,0 +1,432 @@
+#!/usr/bin/env python3
+"""
+NotebookLM browser automation via Playwright.
+
+Usage:
+    python nlm-playwright                    # Interactive: create test notebook, add sources, delete all
+    python nlm-playwright --list             # List all notebooks
+    python nlm-playwright --delete-worker    # Delete all worker notebooks
+
+Requires:
+    pip install playwright
+    playwright install chromium  # or: playwright install --with-deps chromium
+
+On first run, log in manually in the browser window. After that, the session
+persists (cookies saved to the session directory).
+
+Use --chrome-profile to use your actual Chrome profile instead of a fresh one.
+This avoids Google's "insecure browser" OAuth block since your existing session
+cookies are used directly. Chrome must be fully closed before using --chrome-profile.
+
+Examples:
+    # Fresh session (may prompt for login if not cached):
+    python nlm-playwright --list
+
+    # Use your actual Chrome profile (Chrome must be closed first):
+    python nlm-playwright --chrome-profile --list
+"""
+from __future__ import annotations
+
+import argparse
+import shutil
+import sys
+import time
+from pathlib import Path
+
+# Add csf to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from playwright.sync_api import sync_playwright
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+SESSION_DIR = Path("P:/__csf/.data/yt-is/notebooklm-browser-session")
+SESSION_DIR.mkdir(parents=True, exist_ok=True)
+
+# Default Chrome profile path on Windows
+DEFAULT_CHROME_PROFILE = Path(
+    "C:/Users/brsth/AppData/Local/Google/Chrome/User Data/Default"
+)
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def wait_for_login(page, timeout=120):
+    """Wait for user to complete Google login. Returns True if logged in."""
+    print("[auth] Waiting for login (manual step in browser)...")
+    # Wait for URL to leave Google sign-in
+    start = time.time()
+    while time.time() - start < timeout:
+        url = page.url
+        if "accounts.google.com" not in url and "signin" not in url.lower():
+            print(f"[auth] Logged in! URL: {url}")
+            return True
+        time.sleep(2)
+    return False
+
+
+def ensure_notebooklm(page) -> bool:
+    """Navigate to NotebookLM, handling login flow. Returns True on success."""
+    page.goto("https://notebooklm.google.com")
+    page.wait_for_timeout(2000)
+
+    # Check if on sign-in page
+    if "accounts.google.com" in page.url or "signin" in page.url.lower():
+        if not wait_for_login(page):
+            print("[auth] Timeout waiting for login.")
+            return False
+        page.wait_for_timeout(2000)
+
+    # Now on NotebookLM main page
+    print(f"[ui] On: {page.url}")
+    return True
+
+
+def get_notebooks(page) -> list[dict]:
+    """Return list of notebook dicts from the main page."""
+    # Click "Notebooks" in sidebar if not already showing
+    try:
+        sidebar = page.query_selector('nav, [aria-label="Notebooks"], .nav')
+    except Exception:
+        sidebar = None
+
+    notebooks = []
+    # Look for notebook list items in the main content area
+    # NotebookLM shows notebooks as cards or list items
+    cards = page.query_selector_all('[data-testid*="notebook"], .notebook-item, [role="listitem"]')
+    for card in cards:
+        try:
+            title_el = card.query_selector('h1, h2, h3, [role="heading"], .title')
+            title = title_el.inner_text().strip() if title_el else ""
+            id_val = card.get_attribute('data-notebook-id') or card.get_attribute('id') or ""
+            # Try to get link
+            link = card.query_selector('a[href*="notebook"]')
+            href = link.get_attribute('href') if link else ""
+            notebooks.append({"title": title, "id": id_val, "href": href, "element": card})
+        except Exception:
+            pass
+
+    # Also check the notebook list from the source
+    items = page.query_selector_all('.responsibility-list-item, [aria-label*="notebook"]')
+    for item in items:
+        try:
+            title_el = item.query_selector('span, div')
+            title = title_el.inner_text().strip() if title_el else ""
+            id_val = item.get_attribute('data-id') or ""
+            notebooks.append({"title": title, "id": id_val, "href": "", "element": item})
+        except Exception:
+            pass
+
+    return notebooks
+
+
+def click_delete_notebook(page, notebook_card) -> bool:
+    """Click delete on a notebook card. Returns True on success."""
+    try:
+        # Find delete button - usually three-dot menu
+        menu_btn = notebook_card.query_selector('[aria-label*="delete"], [aria-label*="Delete"], [aria-label*="menu"], button[aria-label*="More"]')
+        if not menu_btn:
+            # Try three-dot menu pattern
+            menu_btn = notebook_card.query_selector('button:last-child, [role="button"]')
+
+        if menu_btn:
+            menu_btn.click()
+            page.wait_for_timeout(500)
+
+        # Look for delete option in dropdown
+        delete_btn = page.query_selector('[role="menuitem"]:has-text("Delete"), [aria-label*="Delete"]:has-text("Delete")')
+        if delete_btn:
+            delete_btn.click()
+            page.wait_for_timeout(1000)
+            return True
+    except Exception as e:
+        print(f"  [warn] Delete click failed: {e}")
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Commands
+# ---------------------------------------------------------------------------
+
+def cmd_list(page) -> None:
+    """List all notebooks."""
+    if not ensure_notebooklm(page):
+        return
+
+    print("\n=== Notebooks ===")
+    # Wait for notebook list to load
+    page.wait_for_timeout(3000)
+    notebooks = get_notebooks(page)
+
+    # Also fetch via JS to get full list
+    try:
+        js_notebooks = page.evaluate("""
+            () => {
+                // Try to get notebooks from the app state
+                const els = document.querySelectorAll('[data-testid*="notebook"]');
+                return Array.from(els).map(el => ({
+                    title: el.querySelector('h2, h3, [role="heading"]')?.innerText || '',
+                    href: el.querySelector('a')?.href || ''
+                }));
+            }
+        """)
+    except Exception:
+        js_notebooks = []
+
+    if js_notebooks:
+        for nb in js_notebooks:
+            print(f"  {nb['title'] or '(untitled)':50s}  {nb['href']}")
+    elif notebooks:
+        for nb in notebooks:
+            print(f"  {nb['title'] or '(untitled)':50s}  {nb['href']}")
+    else:
+        print("  (no notebooks found in UI)")
+
+
+def cmd_delete_worker(page) -> None:
+    """Delete all notebooks with 'worker' in the title."""
+    if not ensure_notebooklm(page):
+        return
+
+    print("\n[info] Looking for worker notebooks...")
+    page.wait_for_timeout(3000)
+
+    # Get all notebook cards
+    cards = page.query_selector_all('[data-testid*="notebook"]')
+
+    deleted = 0
+    skipped = 0
+
+    for card in cards:
+        try:
+            title_el = card.query_selector('h2, h3, [role="heading"]')
+            title = title_el.inner_text().strip() if title_el else ""
+            if 'worker' not in title.lower():
+                continue
+
+            print(f"  Deleting: {title}")
+            # Click menu
+            menu = card.query_selector('button[aria-label*="More"], [aria-label*="menu"], [data-testid*="menu"]')
+            if not menu:
+                menu = card.query_selector('button:last-child')
+            if menu:
+                menu.click()
+                page.wait_for_timeout(500)
+
+            # Click delete
+            del_btn = page.query_selector('[role="menuitem"]:has-text("Delete permanently")')
+            if not del_btn:
+                del_btn = page.query_selector('[aria-label*="Delete"]')
+            if del_btn:
+                del_btn.click()
+                page.wait_for_timeout(1000)
+                # Confirm in dialog if present
+                confirm_btn = page.query_selector('[role="alertdialog"] button:has-text("Delete"), [aria-label*="confirm"]')
+                if confirm_btn:
+                    confirm_btn.click()
+                    page.wait_for_timeout(500)
+                deleted += 1
+                print(f"    ✓ deleted")
+            else:
+                print(f"    ✗ could not find delete button")
+                skipped += 1
+
+        except Exception as e:
+            print(f"    ✗ error: {e}")
+            skipped += 1
+
+    print(f"\nDone: {deleted} deleted, {skipped} skipped")
+
+
+def cmd_test_workflow(page) -> None:
+    """Full test: create notebook, add sources, delete sources, delete notebook."""
+    if not ensure_notebooklm(page):
+        return
+
+    print("\n=== Test Workflow ===")
+
+    # --- Create notebook ---
+    print("\n[1/5] Creating test notebook...")
+    # Look for "New notebook" or "Create" button
+    new_btn = page.query_selector('[aria-label*="new notebook"], [aria-label*="New notebook"], button:has-text("New notebook"), [data-testid*="create"]')
+    if not new_btn:
+        # Try finding it in sidebar or top bar
+        all_btns = page.query_selector_all('button')
+        for btn in all_btns:
+            txt = btn.inner_text().strip().lower()
+            if 'new' in txt and 'notebook' in txt:
+                new_btn = btn
+                break
+
+    if new_btn:
+        new_btn.click()
+        page.wait_for_timeout(1000)
+        print("  ✓ Clicked new notebook")
+    else:
+        print("  ✗ Could not find new notebook button")
+        return
+
+    # Wait for notebook to be created and get its ID from URL
+    page.wait_for_timeout(2000)
+    notebook_url = page.url
+    print(f"  URL: {notebook_url}")
+
+    # --- Add a source ---
+    print("\n[2/5] Adding YouTube source...")
+    # Look for "Add source" or "+" button in the notebook view
+    add_source_btn = page.query_selector('[aria-label*="Add source"], [aria-label*="add source"], button:has-text("Add"), [data-testid*="add-source"]')
+    if not add_source_btn:
+        all_btns = page.query_selector_all('button')
+        for btn in all_btns:
+            txt = btn.inner_text().strip().lower()
+            if 'add' in txt and ('source' in txt or 'url' in txt or 'youtube' in txt):
+                add_source_btn = btn
+                break
+
+    if add_source_btn:
+        add_source_btn.click()
+        page.wait_for_timeout(1000)
+        print("  ✓ Clicked add source")
+    else:
+        print("  ⚠ Could not find add source button (trying anyway)")
+
+    # Enter a YouTube URL
+    url_input = page.query_selector('input[type="url"], input[placeholder*="url"], input[placeholder*="URL"], input[aria-label*="url"]')
+    if url_input:
+        url_input.fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        page.wait_for_timeout(500)
+
+        # Look for confirm/add button
+        add_btn = page.query_selector('button:has-text("Add"), button:has-text("Continue"), [aria-label*="Add"]')
+        if add_btn:
+            add_btn.click()
+            page.wait_for_timeout(3000)
+            print("  ✓ Added YouTube source")
+        else:
+            print("  ✗ Could not find add button for URL")
+    else:
+        print("  ⚠ Could not find URL input")
+
+    # --- List sources ---
+    print("\n[3/5] Verifying source was added...")
+    page.wait_for_timeout(2000)
+    sources = page.query_selector_all('[data-testid*="source"], .source-item, [aria-label*="source"]')
+    print(f"  Found {len(sources)} sources")
+
+    # --- Delete sources ---
+    print("\n[4/5] Deleting sources...")
+    for src in sources:
+        try:
+            menu = src.query_selector('button:last-child, [aria-label*="More"], [aria-label*="menu"]')
+            if menu:
+                menu.click()
+                page.wait_for_timeout(300)
+            del_btn = src.query_selector('[aria-label*="Delete"], [role="menuitem"]:has-text("Delete")')
+            if del_btn:
+                del_btn.click()
+                page.wait_for_timeout(500)
+                print(f"  ✓ Deleted a source")
+            # Confirm if dialog
+            confirm = page.query_selector('[role="alertdialog"] button:has-text("Delete")')
+            if confirm:
+                confirm.click()
+                page.wait_for_timeout(300)
+        except Exception as e:
+            print(f"  ⚠ Error: {e}")
+
+    # --- Delete notebook ---
+    print("\n[5/5] Deleting test notebook...")
+    # Navigate back to main view
+    page.goto("https://notebooklm.google.com")
+    page.wait_for_timeout(2000)
+
+    # Find our test notebook card
+    cards = page.query_selector_all('[data-testid*="notebook"]')
+    for card in cards:
+        try:
+            title_el = card.query_selector('h2, h3, [role="heading"]')
+            title = title_el.inner_text().strip() if title_el else ""
+            # Find the notebook we just created (might be at top)
+            if "test" in title.lower() or "untitled" in title.lower() or not title:
+                print(f"  Deleting: {title or '(untitled)'}")
+                menu = card.query_selector('button[aria-label*="More"], button:last-child')
+                if menu:
+                    menu.click()
+                    page.wait_for_timeout(500)
+                del_btn = page.query_selector('[role="menuitem"]:has-text("Delete permanently")')
+                if del_btn:
+                    del_btn.click()
+                    page.wait_for_timeout(1000)
+                    confirm = page.query_selector('[role="alertdialog"] button:has-text("Delete")')
+                    if confirm:
+                        confirm.click()
+                        page.wait_for_timeout(500)
+                    print("  ✓ Notebook deleted")
+                break
+        except Exception as e:
+            print(f"  ⚠ {e}")
+
+    print("\n=== Test workflow complete ===")
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="NotebookLM browser automation via Playwright")
+    parser.add_argument("--list", action="store_true", help="List all notebooks")
+    parser.add_argument("--delete-worker", action="store_true", help="Delete all worker notebooks")
+    parser.add_argument("--test", action="store_true", help="Run full test workflow")
+    parser.add_argument(
+        "--chrome-profile",
+        action="store_true",
+        help="Use your actual Chrome profile (avoids auth issues). Chrome must be closed first.",
+    )
+    parser.add_argument(
+        "--chrome-profile-path",
+        type=str,
+        help="Path to Chrome profile directory (default: Windows default)",
+    )
+    args = parser.parse_args()
+
+    if not any([args.list, args.delete_worker, args.test]):
+        args.test = True  # Default: run test workflow
+
+    # Determine user data dir
+    if args.chrome_profile or args.chrome_profile_path:
+        profile_path = Path(args.chrome_profile_path) if args.chrome_profile_path else DEFAULT_CHROME_PROFILE
+        if not profile_path.exists():
+            print(f"[error] Chrome profile not found at: {profile_path}")
+            print("  Make sure Chrome is installed and you're logged in.")
+            sys.exit(1)
+        user_data_dir = str(profile_path)
+        print(f"[info] Using Chrome profile: {profile_path}")
+    else:
+        user_data_dir = str(SESSION_DIR)
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch_persistent_context(
+            user_data_dir,
+            headless=False,
+            args=["--disable-blink-images"],
+        )
+
+        page = browser.new_page()
+
+        if args.list:
+            cmd_list(page)
+        elif args.delete_worker:
+            cmd_delete_worker(page)
+        elif args.test:
+            cmd_test_workflow(page)
+
+        # Keep browser open for inspection
+        print("\n[done] Browser open for inspection. Close it manually.")
+        # browser.close()  # Don't auto-close for debugging
+
+
+if __name__ == "__main__":
+    main()

@@ -13,7 +13,12 @@ from typing import Literal
 
 from csf.retry_queue import get_retry_entry
 from csf.terminal_context import resolve_tid
-from csf.transcript import LanguageConfig, TranscriptResult, fetch_transcript_chain
+from csf.transcript import (
+    LanguageConfig,
+    TranscriptResult,
+    build_transcript_cache_metadata,
+    fetch_transcript_chain,
+)
 from csf.cache import set_cached_transcript
 
 logger = logging.getLogger(__name__)
@@ -115,7 +120,13 @@ def fetch_with_circuit_breaker(
         # Success - cache full transcript, then apply overflow handling
         if result.transcript:
             # Cache the full transcript before chopping
-            set_cached_transcript(video_id, result.lang, result.source, result.transcript)
+            set_cached_transcript(
+                video_id,
+                result.lang,
+                result.source,
+                result.transcript,
+                metadata=build_transcript_cache_metadata(result),
+            )
 
             # Apply overflow handling with summarize strategy (default)
             result.transcript = handle_overflow(

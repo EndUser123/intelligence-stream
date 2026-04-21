@@ -278,6 +278,7 @@ def cleanup_stale_worker_notebooks() -> tuple[int, int]:
 
     deleted = 0
     failed = 0
+    cdp_needed = False  # True if any CLI delete failed — run CDP once at end
     for nb in notebooks:
         name = ""
         if isinstance(nb, dict):
@@ -312,42 +313,64 @@ def cleanup_stale_worker_notebooks() -> tuple[int, int]:
         if result.returncode == 0:
             deleted += 1
         else:
-            # CLI delete timed out — fall back to CDP-based browser automation.
-            # nlm-puppeteer.js drives Chrome directly and reliably deletes via
-            # the 3-step UI click (menu → delete → confirm), bypassing the API
-            # layer that times out on the CLI path.
-            cdp_script = Path(__file__).parent.parent / "bin" / "nlm-puppeteer.js"
-            try:
-                cdp_res = subprocess.run(
-                    ["node", str(cdp_script), "--delete-worker"],
-                    capture_output=True,
-                    text=True,
-                    timeout=300,
-                )
-                if cdp_res.returncode == 0:
-                    deleted += 1
-                    failed -= 1  # CDP succeeded where CLI failed
+            failed += 1
+            cdp_needed = True
+
+    # CDP fallback: run exactly once after all CLI attempts if any failed.
+    # nlm-puppeteer.js --delete-worker finds all stale worker notebooks and
+    # deletes them via 3-step UI click, bypassing the API layer that times out
+    # on the CLI path. Safe to run even if all CLI deletes succeeded (it's a
+    # no-op when no stale notebooks remain).
+    if cdp_needed:
+        cdp_script = Path(__file__).parent.parent / "bin" / "nlm-puppeteer.js"
+        try:
+            cdp_res = subprocess.run(
+                ["node", str(cdp_script), "--delete-worker"],
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if cdp_res.returncode == 0:
+                # CDP deleted all stale worker notebooks in one pass.
+                # Re-scan to get accurate deleted/failed counts.
+                res2 = ingestor._run_cmd(["notebook", "list", "--json"], timeout=30)
+                if res2.returncode == 0:
+                    try:
+                        remaining = json.loads(res2.stdout)
+                        if isinstance(remaining, dict):
+                            remaining = remaining.get("notebooks", [])
+                    except Exception:
+                        remaining = []
+                    stale_after = [
+                        nb for nb in remaining
+                        if isinstance(nb, dict) and
+                        (nb.get("name") or nb.get("title") or "").strip().startswith(prefix)
+                        and (nb.get("id") or "").strip() not in active_nb_ids
+                    ]
+                    deleted = (len(remaining) - len(stale_after)) if remaining else 0
+                    failed = len(stale_after)
                     log_action(
                         "nlm_worker_notebook_cleanup_cdp_fallback",
                         {
-                            "nb_id": nb_id,
-                            "cdp_stdout": (cdp_res.stdout or "")[:200],
+                            "cdp_stdout": (cdp_res.stdout or "")[:300],
+                            "stale_remaining": len(stale_after),
                         },
                     )
                 else:
                     log_action(
-                        "nlm_worker_notebook_cleanup_cdp_fallback_failed",
-                        {
-                            "nb_id": nb_id,
-                            "cdp_stderr": (cdp_res.stderr or "")[:200],
-                        },
+                        "nlm_worker_notebook_cleanup_cdp_fallback_rescan_failed",
+                        {"cdp_stderr": (cdp_res.stderr or "")[:200]},
                     )
-            except Exception as exc:
+            else:
                 log_action(
-                    "nlm_worker_notebook_cleanup_cdp_fallback_error",
-                    {"nb_id": nb_id, "error": str(exc)},
+                    "nlm_worker_notebook_cleanup_cdp_fallback_failed",
+                    {"cdp_stderr": (cdp_res.stderr or "")[:200]},
                 )
-            failed += 1
+        except Exception as exc:
+            log_action(
+                "nlm_worker_notebook_cleanup_cdp_fallback_error",
+                {"error": str(exc)},
+            )
 
     log_action(
         "nlm_worker_notebook_cleanup_complete",

@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""
+Subbatch size sweep: measure NotebookLM materialization throughput and acceptance
+across a range of subbatch sizes against real pending videos.
+
+Usage:
+    python nlm-subbatch-sweep [--sizes 150,200,225,250,300] [--count 300]
+
+Results are printed as a table and also logged to .logs/nlm_subbatch_sweep_<ts>.json.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+from pathlib import Path
+
+# Add csf to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from csf import batch as batch_mod
+from csf.batch_status import _get_batch_status_storage
+
+
+def get_pending_video_ids(count: int) -> list[str]:
+    """Fetch <count> pending video IDs from the batch status DB."""
+    storage = _get_batch_status_storage()
+    conn = storage._conn
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT video_id FROM analysis_status WHERE status=? ORDER BY rowid LIMIT ?",
+        ("pending", count),
+    )
+    return [row[0] for row in cur.fetchall()]
+
+
+def run_sweep(video_ids: list[str], sizes: list[int]) -> list[dict]:
+    """Run subbatch acceptance sweep using NLMBatchIngestor.experiment_add_acceptance."""
+    from csf.nlm_batch import NLMBatchIngestor
+
+    ingestor = NLMBatchIngestor(batch_size=300)
+    results = ingestor.experiment_add_acceptance(
+        video_ids,
+        sizes,
+        notebook_title=f"yt-is::sweep::{int(time.time())}",
+    )
+    return results
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="NotebookLM subbatch size sweep")
+    parser.add_argument(
+        "--sizes",
+        default="150,200,225,250,300",
+        help="Comma-separated subbatch sizes to test (default: 150,200,225,250,300)",
+    )
+    parser.add_argument(
+        "--count",
+        type=int,
+        default=300,
+        help="Number of pending videos to use (default: 300)",
+    )
+    args = parser.parse_args()
+
+    sizes = [int(s.strip()) for s in args.sizes.split(",") if s.strip()]
+    print(f"[sweep] Fetching {args.count} pending video IDs...")
+    video_ids = get_pending_video_ids(args.count)
+    if len(video_ids) < args.count:
+        print(f"[sweep] WARNING: only {len(video_ids)} pending videos available")
+    if not video_ids:
+        print("[sweep] ERROR: no pending videos found")
+        sys.exit(1)
+    print(f"[sweep] Got {len(video_ids)} video IDs")
+    print(f"[sweep] Subbatch sizes: {sizes}")
+
+    print(f"[sweep] Starting sweep...")
+    started_at = time.time()
+    results = run_sweep(video_ids, sizes)
+    total_elapsed = time.time() - started_at
+
+    # --- Print summary table ---
+    print()
+    print(f"{'size':>6} {'added':>7} {'attempted':>9} {'rate%':>6} {'elapsed_s':>10} {'s/source':>8}")
+    print("-" * 52)
+    for r in results:
+        rate = r.get("acceptance_rate", 0)
+        elapsed = r.get("elapsed_s", 0)
+        attempted = r.get("attempted_count", 0)
+        s_per_source = elapsed / attempted if attempted else 0
+        print(
+            f"{r['subbatch_size']:>6} {r['added_count']:>7} {attempted:>9} "
+            f"{rate:>6.2f} {elapsed:>10.3f} {s_per_source:>8.4f}"
+        )
+    print("-" * 52)
+    print(f"Total sweep time: {total_elapsed:.1f}s")
+
+    # --- Compute throughput ranking ---
+    print()
+    print("Throughput ranking (sources/second):")
+    ranked = sorted(results, key=lambda r: r["attempted_count"] / max(r["elapsed_s"], 0.001), reverse=True)
+    for r in ranked:
+        throughput = r["attempted_count"] / max(r["elapsed_s"], 0.001)
+        print(f"  {r['subbatch_size']:>6} → {throughput:>7.2f} sources/sec  (rate={r['acceptance_rate']:.1f}%)")
+
+    # --- Save results ---
+    ts = int(time.time())
+    out_path = Path(f"P:/packages/yt-is/.logs/nlm_subbatch_sweep_{ts}.json")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "sweep_ts": ts,
+        "video_count": len(video_ids),
+        "video_ids": video_ids,
+        "sizes": sizes,
+        "results": results,
+        "total_elapsed_s": round(total_elapsed, 3),
+    }
+    with open(out_path, "w") as f:
+        json.dump(payload, f, indent=2)
+    print(f"\nResults saved to {out_path}")
+
+
+if __name__ == "__main__":
+    main()

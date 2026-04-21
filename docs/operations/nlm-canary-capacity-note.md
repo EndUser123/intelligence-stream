@@ -20,6 +20,11 @@ NotebookLM's documented notebook cap is 300 sources, so the live question is how
 
 The failure is in the NotebookLM add boundary, not in routing, Selenium scraping, or transcript fallback.
 
+The current shared code constants are:
+
+- `DEFAULT_NOTEBOOKLM_BATCH_SIZE = 200`
+- `DEFAULT_NOTEBOOKLM_SOURCE_CAP = 225`
+
 ## What this means
 
 - The live bottleneck is NotebookLM notebook reuse / add capacity, not the browser automation ADR ideas.
@@ -29,7 +34,7 @@ The failure is in the NotebookLM add boundary, not in routing, Selenium scraping
 ## Practical guidance
 
 1. Keep the NotebookLM add window below the size that triggers `source_add_failed` in live canaries.
-2. Rotate to a fresh notebook before the reusable notebook approaches the 300-source NotebookLM cap.
+2. Rotate to a fresh notebook before the reusable notebook approaches the shared cap constant in `csf/nlm_batch.py`.
 3. Log notebook id and current source count before each add attempt so failures can be correlated with notebook fullness.
 4. Keep using completed-worker totals and transcript-cache growth as throughput truth.
 

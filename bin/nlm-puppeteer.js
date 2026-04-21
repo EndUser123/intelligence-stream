@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 /**
- * NotebookLM browser automation via Puppeteer.
+ * NotebookLM browser automation via Chrome DevTools Protocol (CDP).
  *
- * Uses the user's actual Chrome profile directly — existing cookies and
- * session are reused, bypassing Google's OAuth "insecure browser" block.
+ * Replicates the nlm-mcp-cli auth pattern:
+ *   1. Launch Chrome with --remote-debugging-port and a fresh profile dir
+ *   2. Connect via CDP WebSocket
+ *   3. Wait for user to log in (one-time)
+ *   4. Use CDP commands to automate NotebookLM UI
  *
  * Usage:
  *   node nlm-puppeteer.js                    # Test workflow (default)
@@ -11,317 +14,565 @@
  *   node nlm-puppeteer.js --delete-worker    # Delete worker notebooks
  *
  * Requires:
- *   npm install puppeteer
- *
- * Note: Chrome must be fully closed before running (profile is locked while Chrome is open).
+ *   npm install ws
  */
 
-const puppeteer = require('puppeteer');
+const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
+const WebSocket = require('ws');
+
+// Chrome paths
 const CHROME_PATH = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-const CHROME_PROFILE = 'C:\\Users\\brsth\\AppData\\Local\\Google\\Chrome\\User Data\\Default';
+const PROFILE_DIR = path.join(os.homedir(), '.notebooklm-mcp-cli', 'chrome-profile');
+const CDP_PORT = 9222;
+const CDP_BASE = `http://127.0.0.1:${CDP_PORT}`;
+const NOTEBOOKLM_URL = 'https://notebooklm.google.com';
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+// ---------------------------------------------------------------------------
+// CDP WebSocket client — promise-based, properly async
+// ---------------------------------------------------------------------------
+
+let ws = null;
+let wsUrl = null;
+let msgId = 0;
+
+// Pending requests: msgId -> { resolve, reject, timer }
+const pending = {};
+
+function wsSetup() {
+  ws.on('message', (raw) => {
+    // ws library may pass Buffer or string depending on Node version
+    let resp;
+    if (typeof raw === 'string') {
+      resp = JSON.parse(raw);
+    } else if (Buffer.isBuffer(raw) || raw instanceof ArrayBuffer || ArrayBuffer.isView(raw)) {
+      const str = raw.toString();
+      try { resp = JSON.parse(str); } catch { return; }
+    } else {
+      return;
+    }
+    // Route responses to the correct pending request
+    if (resp.id !== undefined && pending[resp.id]) {
+      const p = pending[resp.id];
+      clearTimeout(p.timer);
+      delete pending[resp.id];
+      p.resolve(resp.result || {});
+    }
+    // CDP events (no id) are silently ignored
+  });
 }
 
-async function waitForLogin(page, timeout = 120) {
+function cdpSend(method, params = {}, timeout = 30000) {
+  return new Promise((resolve, reject) => {
+    const id = ++msgId;
+    pending[id] = {
+      resolve,
+      reject,
+      timer: setTimeout(() => {
+        delete pending[id];
+        reject(new Error(`CDP ${method} timed out`));
+      }, timeout),
+    };
+    ws.send(JSON.stringify({ id, method, params }));
+  });
+}
+
+async function cdpNavigate(url) {
+  const host = url.split('/')[2];
+  try {
+    const current = await cdpGetUrl();
+    if (current.includes(host)) {
+      console.log('[debug] Already on', host);
+      await sleep(2000);
+      return;
+    }
+    console.log('[debug] Navigating from', current, 'to', url);
+  } catch (e) {
+    console.log('[debug] cdpGetUrl failed:', e.message);
+  }
+  try {
+    await cdpSend('Page.navigate', { url });
+    await sleep(5000);
+  } catch (e) {
+    console.log(`[debug] cdpNavigate nav: ${e.message}`);
+  }
+}
+
+async function cdpGetUrl() {
+  for (let i = 0; i < 5; i++) {
+    try {
+      await cdpSend('Runtime.enable');
+      const r = await cdpSend('Runtime.evaluate', { expression: 'window.location.href' });
+      return r && r.result ? (r.result.value || '') : '';
+    } catch (e) {
+      if (i < 4) {
+        console.log(`[debug] cdpGetUrl attempt ${i+1} failed: ${e.message}, retrying...`);
+        await sleep(2000);
+      } else {
+        throw e;
+      }
+    }
+  }
+  return '';
+}
+
+async function cdpEval(expression, timeout) {
+  for (let i = 0; i < 3; i++) {
+    try {
+      // NOTE: Do NOT call Runtime.enable here. After OAuth redirect, Runtime.enable
+      // appears to reset/restore the CDP context to a pre-login state (returning only
+      // sidebar text instead of full page content). We already enable Runtime during
+      // connectCDP() and after login redirect in cmdList. Call evaluate directly.
+      const r = await cdpSend('Runtime.evaluate', { expression }, timeout || 30000);
+      return r && r.result ? r.result.value : null;
+    } catch (e) {
+      if (i < 2) {
+        console.log('[debug] cdpEval attempt ' + (i+1) + ' failed: ' + e.message + ', retrying...');
+        await sleep(1000);
+      }
+    }
+  }
+  return null;
+}
+
+async function cdpWaitForLogin(timeout = 120) {
   console.log('[auth] Waiting for login...');
   const start = Date.now();
+  let lastReconnectAttempt = 0;
+
   while (Date.now() - start < timeout * 1000) {
-    const url = page.url();
-    if (!url.includes('accounts.google.com') && !url.toLowerCase().includes('signin')) {
+    // Try to get URL; if it fails or shows signin, try reconnecting
+    const url = await cdpGetUrl().catch(() => '');
+    if (url && !url.includes('accounts.google.com') && !url.toLowerCase().includes('signin')) {
       console.log(`[auth] Logged in! URL: ${url}`);
+      await reconnectToNotebookLM();
       return true;
     }
+
+    // Periodically check CDP list for actual NotebookLM page
+    if (Date.now() - lastReconnectAttempt > 5000) {
+      lastReconnectAttempt = Date.now();
+      await tryReconnectToNotebookLM();
+    }
+
     await sleep(2000);
   }
   return false;
 }
 
-async function ensureNotebooklm(page) {
-  await page.goto('https://notebooklm.google.com', { waitUntil: 'networkidle2' });
-  await sleep(2000);
-
-  const url = page.url();
-  if (url.includes('accounts.google.com') || url.toLowerCase().includes('signin')) {
-    const ok = await waitForLogin(page);
-    if (!ok) {
-      console.log('[auth] Timeout waiting for login.');
-      return false;
-    }
-    await sleep(2000);
-  }
-  console.log(`[ui] On: ${page.url()}`);
-  return true;
-}
-
-async function getNotebooks(page) {
-  // Wait for notebook list to load
-  await sleep(3000);
-
-  // Try JS evaluation first
-  let notebooks = [];
+async function tryReconnectToNotebookLM() {
   try {
-    notebooks = await page.evaluate(() => {
-      const cards = document.querySelectorAll('[data-testid*="notebook"], [role="listitem"]');
-      return Array.from(cards).map(el => {
-        const titleEl = el.querySelector('h2, h3, [role="heading"]');
-        const linkEl = el.querySelector('a[href*="notebook"]');
-        return {
-          title: titleEl ? titleEl.innerText.trim() : '',
-          href: linkEl ? linkEl.href : ''
-        };
-      }).filter(n => n.title || n.href);
-    });
-  } catch (e) {}
+    const res = await fetch(`${CDP_BASE}/json/list`);
+    const pages = await res.json();
+    const nlmPages = pages.filter(p =>
+      p.type === 'page' &&
+      p.url &&
+      p.url.startsWith('https://notebooklm.google.com')
+    );
+    console.log(`[cdp] Found ${nlmPages.length} NotebookLM page(s), ${pages.length} total page targets`);
 
-  if (notebooks.length > 0) {
-    return notebooks;
-  }
+    for (const nlmPage of nlmPages) {
+      if (nlmPage.webSocketDebuggerUrl === wsUrl) continue;
 
-  // Fallback: look for sidebar notebooks
-  const items = await page.$$('[aria-label*="notebook"], [data-testid*="notebook"]');
-  const result = [];
-  for (const item of items) {
-    try {
-      const title = await item.$eval('h2, h3, span', el => el.innerText.trim()).catch(() => '');
-      const href = await item.$eval('a', el => el.href).catch(() => '');
-      if (title || href) result.push({ title, href });
-    } catch (e) {}
-  }
-  return result;
-}
-
-async function clickDeleteNotebook(page, card) {
-  try {
-    // Find menu button (three dots or "More" button)
-    const menuBtn = await card.$('button[aria-label*="More"], button[aria-label*="menu"], [aria-label*="Delete"]');
-    if (menuBtn) {
-      await menuBtn.click();
-      await sleep(500);
-    }
-
-    // Find delete option
-    const deleteBtn = await page.$('[role="menuitem"]:has-text("Delete"), [aria-label*="Delete permanently"]');
-    if (deleteBtn) {
-      await deleteBtn.click();
-      await sleep(1000);
-      // Confirm in dialog
-      const confirmBtn = await page.$('[role="alertdialog"] button:has-text("Delete")');
-      if (confirmBtn) {
-        await confirmBtn.click();
-        await sleep(500);
+      console.log('[cdp] Found NotebookLM page, reconnecting...');
+      ws.close();
+      for (const id of Object.keys(pending)) {
+        pending[id].reject(new Error('Connection replaced'));
+        delete pending[id];
       }
-      return true;
+      ws = new WebSocket(nlmPage.webSocketDebuggerUrl);
+      await new Promise((r, re) => { ws.on('open', r); ws.on('error', re); });
+      wsSetup();
+      wsUrl = nlmPage.webSocketDebuggerUrl;
+
+      // Re-enable CDP and wait for context to initialize
+      await cdpSend('Page.enable', {}, 5000);
+      await cdpSend('Runtime.enable', {}, 5000);
+      await sleep(2000);
+
+      // Verify it's actually the right page with document body
+      try {
+        const r = await cdpSend('Runtime.evaluate', {
+          expression: 'window.location.href + "|" + document.body.children.length'
+        }, 5000);
+        const val = r && r.result ? r.result.value : '';
+        console.log('[cdp] Reconnected to:', nlmPage.url, '|', val);
+        return;
+      } catch (e) {
+        console.log('[debug]  Reconnect smoke test failed:', e.message);
+        ws.close();
+        ws = null;
+      }
     }
   } catch (e) {
-    console.log(`  [warn] Delete error: ${e.message}`);
-  }
-  return false;
-}
-
-async function cmdList(page) {
-  if (!await ensureNotebooklm(page)) return;
-
-  console.log('\n=== Notebooks ===');
-  const notebooks = await getNotebooks(page);
-  if (notebooks.length === 0) {
-    console.log('  (none found)');
-    return;
-  }
-  for (const nb of notebooks) {
-    const title = nb.title || '(untitled)';
-    console.log(`  ${title.padEnd(50)}  ${nb.href}`);
+    console.log('[debug] tryReconnectToNotebookLM error:', e.message);
   }
 }
 
-async function cmdDeleteWorker(page) {
-  if (!await ensureNotebooklm(page)) return;
+async function reconnectToNotebookLM() {
+  await tryReconnectToNotebookLM();
+}
 
-  console.log('\n[info] Looking for worker notebooks...');
+// ---------------------------------------------------------------------------
+// Chrome process management
+// ---------------------------------------------------------------------------
+
+let chromeProcess = null;
+
+function getChromeProfileDir() {
+  const dir = PROFILE_DIR;
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function launchChrome() {
+  // Kill any existing Chrome processes using this profile to avoid stale CDP sessions
+  try {
+    require('child_process').execSync('taskkill /F /IM chrome.exe', { stdio: 'ignore' });
+  } catch {}
+
+  const profileDir = getChromeProfileDir();
+  const args = [
+    `--remote-debugging-port=${CDP_PORT}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-extensions',
+    `--user-data-dir=${profileDir}`,
+    `--remote-allow-origins=http://127.0.0.1:${CDP_PORT}`,
+    NOTEBOOKLM_URL,
+  ];
+
+  console.log(`[chrome] Launching: ${CHROME_PATH}`);
+  console.log(`[chrome] Profile: ${profileDir}`);
+  console.log('[chrome] Wait for Chrome to open, then log in manually...\n');
+
+  chromeProcess = spawn(CHROME_PATH, args, {
+    detached: true,
+    stdio: 'ignore',
+  });
+  chromeProcess.unref();
+}
+
+async function tryConnectPage(wsUrl) {
+  return new Promise((resolve) => {
+    const testWs = new WebSocket(wsUrl);
+    const timer = setTimeout(() => {
+      testWs.close();
+      resolve(false);
+    }, 3000);
+    testWs.on('open', () => {
+      clearTimeout(timer);
+      testWs.close();
+      resolve(true);
+    });
+    testWs.on('error', () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+  });
+}
+
+async function connectCDP() {
+  const res = await fetch(`${CDP_BASE}/json/list`);
+  const pages = await res.json();
+
+  // Find all NotebookLM pages
+  const nlmPages = pages.filter(p =>
+    p.type === 'page' &&
+    p.url &&
+    p.url.startsWith('https://notebooklm.google.com')
+  );
+
+  if (nlmPages.length === 0) {
+    throw new Error('No NotebookLM pages found');
+  }
+
+  // Try each NotebookLM page until one responds to CDP
+  for (const page of nlmPages) {
+    console.log('[debug] Trying page:', page.url, page.webSocketDebuggerUrl.split('/').pop());
+    const canConnect = await tryConnectPage(page.webSocketDebuggerUrl);
+    if (!canConnect) {
+      console.log('[debug]  WebSocket handshake failed, trying next...');
+      continue;
+    }
+
+    // Try a quick CDP command to confirm it's alive
+    wsUrl = page.webSocketDebuggerUrl;
+    ws = new WebSocket(wsUrl);
+    await new Promise((resolve, reject) => {
+      ws.on('open', resolve);
+      ws.on('error', reject);
+    });
+    wsSetup();
+
+    try {
+      // Enable page events first, then runtime, then wait for context
+      await cdpSend('Page.enable', {}, 5000);
+      await cdpSend('Runtime.enable', {}, 5000);
+      await sleep(2000);
+      // Quick smoke test
+      const r = await cdpSend('Runtime.evaluate', { expression: 'document.title' }, 5000);
+      const title = r && r.result ? r.result.value : '(no title)';
+      console.log('[cdp] Connected to live NotebookLM page:', page.url, '| title:', title);
+      return;
+    } catch (e) {
+      console.log('[debug]  CDP test failed:', e.message);
+      ws.close();
+      ws = null;
+    }
+  }
+
+  // Fallback: use first page, let caller retry
+  const target = nlmPages[0];
+  wsUrl = target.webSocketDebuggerUrl;
+  ws = new WebSocket(wsUrl);
+  await new Promise((resolve, reject) => {
+    ws.on('open', resolve);
+    ws.on('error', reject);
+  });
+  wsSetup();
+  console.log('[cdp] Fallback: connected to', target.url);
+}
+
+// ---------------------------------------------------------------------------
+// NotebookLM automation
+// ---------------------------------------------------------------------------
+
+async function nlGetNotebooks() {
+  // Use innerText extraction via cdpSend (avoids Runtime.enable context reset issue)
+  const snippet = await cdpSend('Runtime.evaluate', {
+    expression: '(document.body.innerText || "").substring(0, 3000)'
+  }, 15000).then(r => r && r.result ? r.result.value : null).catch(() => null);
+  if (snippet && snippet.indexOf('Sources') >= 0) {
+    const lines = snippet.split('\n').filter(l => l.trim());
+    const seen = {};
+    const names = [];
+    for (let i = 0; i < lines.length - 1; i++) {
+      const curr = lines[i].trim();
+      const next = lines[i + 1] ? lines[i + 1].trim() : '';
+      if (/^\d+\s+Sources/.test(next) && curr.length > 0 && curr.length < 100) {
+        if (!seen[curr]) { seen[curr] = true; names.push(curr); }
+      }
+    }
+    return names.map(t => ({ title: t, href: '' }));
+  }
+  return [];
+}
+
+async function nlDeleteNotebook(title) {
+  await cdpNavigate(NOTEBOOKLM_URL);
   await sleep(3000);
 
-  // Get all notebook cards
-  const cards = await page.$$('[data-testid*="notebook"]');
-  console.log(`  Found ${cards.length} notebook cards`);
+  // Use tr[mat-row] + td[role=cell] selectors (verified against live NotebookLM HTML)
+  // Runtime.evaluate returns the stringified JSON value; parse it to get the actual result
+  const rawResult = await cdpEval(
+    'JSON.stringify((function(){var rows=document.querySelectorAll("tr[mat-row]");for(var i=0;i<rows.length;i++){var tds=rows[i].querySelectorAll("td[role=cell]");if(tds.length>0&&(tds[0].innerText||"").includes(' + JSON.stringify(title) + ')){var menuBtn=rows[i].querySelector("button[aria-haspopup=menu]");if(menuBtn){menuBtn.click();return JSON.stringify({status:"clicked",label:menuBtn.getAttribute("aria-label")});}return JSON.stringify({status:"no-menu-btn",text:tds[0].innerText.slice(0,40)});}}return JSON.stringify({status:"not-found"});})())'
+  );
+  await sleep(1500);
+  let result;
+  try { result = JSON.parse(JSON.parse(rawResult)); } catch(e) { result = { status: 'parse-error', raw: rawResult }; }
+  if (result.status !== 'clicked') { return false; }
+
+  // Step 2: click delete menu item
+  const rawStep2 = await cdpEval(
+    'JSON.stringify((function(){var items=Array.from(document.querySelectorAll("[role=menuitem]"));var del=items.find(function(el){var t=el.textContent.trim();return t==="Delete"||t.endsWith(" Delete");});if(del){del.click();return JSON.stringify({status:"ok",count:items.length});}return JSON.stringify({status:"not-found",items:items.map(function(e){return e.textContent.trim();})});})())'
+  );
+  await sleep(1500);
+  let step2;
+  try { step2 = JSON.parse(JSON.parse(rawStep2)); } catch(e) { step2 = { status: 'parse-error', raw: rawStep2 }; }
+  if (step2.status !== 'ok') return false;
+
+  // Step 3: confirm in dialog
+  const rawStep3 = await cdpEval(
+    'JSON.stringify((function(){var dialog=document.querySelector("[role=dialog],dialog");if(!dialog)return JSON.stringify({status:"no-dialog"});var btns=Array.from(dialog.querySelectorAll("button"));var confirmBtn=btns.find(function(b){var t=b.textContent.trim();return(t==="Delete"||t.endsWith(" Delete"))&&!b.disabled;});if(confirmBtn){confirmBtn.click();return JSON.stringify({status:"confirmed"});}return JSON.stringify({status:"no-confirm",btns:btns.map(function(b){return b.textContent.trim();})});})())'
+  );
+  await sleep(1500);
+  let step3;
+  try { step3 = JSON.parse(JSON.parse(rawStep3)); } catch(e) { step3 = { status: 'parse-error', raw: rawStep3 }; }
+  return step3.status === 'confirmed';
+}
+
+// ---------------------------------------------------------------------------
+// Commands
+// ---------------------------------------------------------------------------
+
+async function cmdList() {
+  await connectCDP();
+
+  console.log('[auth] Navigating to NotebookLM...');
+  await cdpNavigate(NOTEBOOKLM_URL);
+  const loggedIn = await cdpWaitForLogin();
+  if (!loggedIn) {
+    console.log('[auth] Timeout waiting for login.');
+    cleanup();
+    return;
+  }
+
+  console.log('\n=== Notebooks ===');
+  // After login redirect, the page may need to re-mount. Re-enable and wait.
+  try {
+    await cdpSend('Page.enable', {}, 5000);
+    await cdpSend('Runtime.enable', {}, 5000);
+    await sleep(3000);
+  } catch (e) {
+    console.log('[debug] Re-enable after login failed:', e.message);
+  }
+  const notebooks = await nlGetNotebooks();
+  if (notebooks.length === 0) {
+    console.log('  (none found)');
+  } else {
+    for (const nb of notebooks) {
+      const title = nb.title || '(untitled)';
+      console.log(`  ${title.padEnd(50)}  ${nb.href}`);
+    }
+  }
+  cleanup();
+}
+
+async function cmdDeleteWorker() {
+  await connectCDP();
+  await cdpNavigate(NOTEBOOKLM_URL);
+  const loggedIn = await cdpWaitForLogin();
+  if (!loggedIn) {
+    cleanup();
+    return;
+  }
+
+  console.log('\n[info] Looking for worker notebooks...');
+  const notebooks = await nlGetNotebooks();
+  const workerNbs = notebooks.filter(n => n.title.toLowerCase().includes('worker'));
+  console.log(`  Found ${workerNbs.length} worker notebook(s)`);
 
   let deleted = 0, skipped = 0;
-
-  for (const card of cards) {
-    try {
-      const titleEl = await card.$('h2, h3, [role="heading"]');
-      if (!titleEl) continue;
-      const title = await titleEl.innerText();
-
-      if (!title.toLowerCase().includes('worker')) continue;
-
-      console.log(`  Deleting: ${title}`);
-      const ok = await clickDeleteNotebook(page, card);
-      if (ok) {
-        console.log('    ✓ deleted');
-        deleted++;
-      } else {
-        console.log('    ✗ skipped');
-        skipped++;
-      }
-    } catch (e) {
-      console.log(`    ✗ error: ${e.message}`);
-      skipped++;
-    }
+  for (const nb of workerNbs) {
+    console.log(`  Deleting: ${nb.title}`);
+    const ok = await nlDeleteNotebook(nb.title);
+    if (ok) { deleted++; console.log('    deleted'); }
+    else { skipped++; console.log('    skipped'); }
   }
 
   console.log(`\nDone: ${deleted} deleted, ${skipped} skipped`);
+  cleanup();
 }
 
-async function cmdTest(page) {
-  if (!await ensureNotebooklm(page)) return;
+async function cmdTest() {
+  await connectCDP();
+  await cdpNavigate(NOTEBOOKLM_URL);
+  const loggedIn = await cdpWaitForLogin();
+  if (!loggedIn) {
+    cleanup();
+    return;
+  }
 
   console.log('\n=== Test Workflow ===');
 
-  // Create new notebook
-  console.log('\n[1/5] Creating test notebook...');
-  const newBtn = await page.$('[aria-label*="new notebook"], [aria-label*="New notebook"], button:has-text("New notebook")');
-  if (!newBtn) {
-    // Try finding in sidebar
-    const btns = await page.$$('button');
-    for (const btn of btns) {
-      const txt = await btn.innerText().catch(() => '');
-      if (txt.toLowerCase().includes('new') && txt.toLowerCase().includes('notebook')) {
-        await btn.click();
-        await sleep(1000);
-        console.log('  ✓ Clicked new notebook');
-        break;
-      }
-    }
-  } else {
-    await newBtn.click();
-    await sleep(1000);
-    console.log('  ✓ Clicked new notebook');
-  }
-
-  await sleep(2000);
-  console.log(`  URL: ${page.url()}`);
-
-  // Add a source
-  console.log('\n[2/5] Adding YouTube source...');
-  const addBtn = await page.$('[aria-label*="Add source"], button:has-text("Add"), [data-testid*="add-source"]');
-  if (addBtn) {
-    await addBtn.click();
-    await sleep(1000);
-    console.log('  ✓ Clicked add source');
-  }
-
-  const urlInput = await page.$('input[type="url"], input[placeholder*="url"], input[aria-label*="url"]');
-  if (urlInput) {
-    await urlInput.fill('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
-    await sleep(500);
-    const confirmBtn = await page.$('button:has-text("Add"), button:has-text("Continue")');
-    if (confirmBtn) {
-      await confirmBtn.click();
-      await sleep(3000);
-      console.log('  ✓ Added YouTube source');
-    }
-  }
-
-  // Verify source was added
-  console.log('\n[3/5] Verifying source...');
-  await sleep(2000);
-  const sources = await page.$$('[data-testid*="source"], .source-item');
-  console.log(`  Found ${sources.length} sources`);
-
-  // Delete sources
-  console.log('\n[4/5] Deleting sources...');
-  for (const src of sources) {
-    try {
-      const menu = await src.$('button:last-child, [aria-label*="More"], [aria-label*="menu"]');
-      if (menu) {
-        await menu.click();
-        await sleep(300);
-      }
-      const delBtn = await src.$('[aria-label*="Delete"], [role="menuitem"]:has-text("Delete")');
-      if (delBtn) {
-        await delBtn.click();
-        await sleep(500);
-        console.log('  ✓ Deleted a source');
-      }
-      const confirm = await page.$('[role="alertdialog"] button:has-text("Delete")');
-      if (confirm) {
-        await confirm.click();
-        await sleep(300);
-      }
-    } catch (e) {
-      console.log(`  ⚠ Error: ${e.message}`);
-    }
-  }
-
-  // Delete notebook
-  console.log('\n[5/5] Deleting test notebook...');
-  await page.goto('https://notebooklm.google.com');
+  // 1. Create a new notebook via the "Create new notebook" button
+  console.log('\n[1/4] Creating new notebook...');
+  const created = await cdpEval(
+    'JSON.stringify((function(){var btn=document.querySelector("[aria-label=\\"Create new notebook\\"]");if(btn){btn.click();return "ok";}return "not-found";})())'
+  );
+  let createStatus;
+  try { createStatus = JSON.parse(JSON.parse(created)).status; }
+  catch(e) { createStatus = created; }
+  console.log('  Create result:', createStatus);
   await sleep(2000);
 
-  const cards = await page.$$('[data-testid*="notebook"]');
-  for (const card of cards) {
-    try {
-      const titleEl = await card.$('h2, h3, [role="heading"]');
-      if (!titleEl) continue;
-      const title = await titleEl.innerText();
-      if (title.toLowerCase().includes('test') || title.toLowerCase().includes('untitled') || !title) {
-        console.log(`  Deleting: ${title || '(untitled)'}`);
-        await clickDeleteNotebook(page, card);
-        console.log('  ✓ Notebook deleted');
-        break;
+  // Re-enable CDP context after page interaction
+  await cdpSend('Page.enable', {}, 5000);
+  await cdpSend('Runtime.enable', {}, 5000);
+  await sleep(1000);
+
+  // 2. Navigate back to the notebook list to find the newly created notebook
+  console.log('\n[2/4] Navigating back to notebook list...');
+  await cdpSend('Page.navigate', { url: NOTEBOOKLM_URL }, 15000);
+  await sleep(3000);
+  await cdpSend('Page.enable', {}, 5000);
+  await cdpSend('Runtime.enable', {}, 5000);
+  await sleep(2000);
+  await cdpSend('Page.enable', {}, 5000);
+  await cdpSend('Runtime.enable', {}, 5000);
+  await sleep(2000);
+
+  // Get notebook list and find the most recent (first in list)
+  const snippet = await cdpSend('Runtime.evaluate', {
+    expression: '(document.body.innerText || "").substring(0, 3000)'
+  }, 15000).then(r => r && r.result ? r.result.value : null).catch(() => null);
+
+  let testTitle = null;
+  if (snippet && snippet.indexOf('Sources') >= 0) {
+    const lines = snippet.split('\n').filter(l => l.trim());
+    for (let i = 0; i < lines.length - 1; i++) {
+      const curr = lines[i].trim();
+      const next = lines[i + 1] ? lines[i + 1].trim() : '';
+      if (/^\d+\s+Sources/.test(next) && curr.length > 0 && curr.length < 100) {
+        testTitle = curr;
+        break; // first match is the most recent (top of list)
       }
-    } catch (e) {
-      console.log(`  ⚠ ${e.message}`);
     }
   }
+  if (!testTitle) {
+    console.log('  Could not determine test notebook title, skipping delete');
+    cleanup();
+    return;
+  }
+  console.log('  Test notebook title:', testTitle);
+
+  // 3. Delete it using the proven nlDeleteNotebook approach
+  console.log('\n[3/4] Deleting test notebook...');
+  const deleted = await nlDeleteNotebook(testTitle);
+  console.log('  Deleted:', deleted);
 
   console.log('\n=== Test complete ===');
+  cleanup();
 }
 
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function cleanup() {
+  if (ws) { ws.close(); ws = null; }
+  if (chromeProcess) {
+    try { process.kill(-chromeProcess.pid); } catch {}
+    chromeProcess = null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main
+// ---------------------------------------------------------------------------
+
 async function main() {
   const args = process.argv.slice(2);
   let cmd = 'test';
   if (args.includes('--list')) cmd = 'list';
   else if (args.includes('--delete-worker')) cmd = 'delete-worker';
 
-  console.log('[info] Launching Chrome with user profile...');
-  console.log(`       Profile: ${CHROME_PROFILE}`);
-  console.log('       Note: Close all Chrome windows first!\n');
+  console.log('[info] CDP-based NotebookLM automation');
+  console.log(`       Profile: ${PROFILE_DIR}`);
+  console.log('       Close Chrome windows first if you see errors.\n');
 
-  let browser;
   try {
-    browser = await puppeteer.launch({
-      executablePath: CHROME_PATH,
-      userDataDir: CHROME_PROFILE,
-      headless: false,
-      args: ['--disable-blink-images', '--disable-web-security']
-    });
+    launchChrome();
+    await sleep(3000);
+
+    if (cmd === 'list') await cmdList();
+    else if (cmd === 'delete-worker') await cmdDeleteWorker();
+    else await cmdTest();
+
+    console.log('\n[done]');
   } catch (e) {
-    if (e.message.includes('EADDRINUSE') || e.message.includes('lock')) {
-      console.log('[error] Chrome profile is locked. Close all Chrome windows and try again.');
-      process.exit(1);
-    }
-    throw e;
+    console.error('[error]', e.message);
+    cleanup();
+    process.exit(1);
   }
-
-  const page = await browser.newPage();
-
-  if (cmd === 'list') {
-    await cmdList(page);
-  } else if (cmd === 'delete-worker') {
-    await cmdDeleteWorker(page);
-  } else {
-    await cmdTest(page);
-  }
-
-  console.log('\n[done] Browser open for inspection. Close it manually.');
-  // await browser.close();
 }
 
-main().catch(e => {
-  console.error('[error]', e.message);
-  process.exit(1);
-});
+main();

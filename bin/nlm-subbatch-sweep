@@ -4,7 +4,7 @@ Subbatch size sweep: measure NotebookLM materialization throughput and acceptanc
 across a range of subbatch sizes against real pending videos.
 
 Usage:
-    python nlm-subbatch-sweep [--sizes 150,200,225,250,300] [--count 300]
+    python nlm-subbatch-sweep [--sizes 200,150,225,250,300] [--count 300]
 
 Results are printed as a table and also logged to .logs/nlm_subbatch_sweep_<ts>.json.
 """
@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from csf import batch as batch_mod
 from csf.batch_status import _get_batch_status_storage
+from csf.nlm_batch import DEFAULT_NOTEBOOKLM_BATCH_SIZE
 
 
 def get_pending_video_ids(count: int) -> list[str]:
@@ -40,7 +41,7 @@ def run_sweep(video_ids: list[str], sizes: list[int]) -> list[dict]:
     """Run subbatch acceptance sweep using NLMBatchIngestor.experiment_add_acceptance."""
     from csf.nlm_batch import NLMBatchIngestor
 
-    ingestor = NLMBatchIngestor(batch_size=300)
+    ingestor = NLMBatchIngestor(batch_size=DEFAULT_NOTEBOOKLM_BATCH_SIZE)
     results = ingestor.experiment_add_acceptance(
         video_ids,
         sizes,
@@ -53,8 +54,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="NotebookLM subbatch size sweep")
     parser.add_argument(
         "--sizes",
-        default="150,200,225,250,300",
-        help="Comma-separated subbatch sizes to test (default: 150,200,225,250,300)",
+        default=f"{DEFAULT_NOTEBOOKLM_BATCH_SIZE},150,225,250,300",
+        help=f"Comma-separated subbatch sizes to test (default: {DEFAULT_NOTEBOOKLM_BATCH_SIZE},150,225,250,300)",
     )
     parser.add_argument(
         "--count",

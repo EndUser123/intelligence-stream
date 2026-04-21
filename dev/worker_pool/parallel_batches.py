@@ -13,6 +13,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -57,6 +58,7 @@ def _run_worker(
     worker_id: int,
     state_root: Path,
     notebook_prefix: str,
+    run_id: str,
 ) -> subprocess.CompletedProcess[str]:
     state_root.mkdir(parents=True, exist_ok=True)
     state_path = state_root / f"worker-{worker_id:02d}.json"
@@ -65,6 +67,7 @@ def _run_worker(
     env = os.environ.copy()
     env["YTIS_NLM_REUSABLE_STATE_PATH"] = str(state_path)
     env["YTIS_NLM_REUSABLE_NOTEBOOK_TITLE"] = notebook_title
+    env["YTIS_INDUSTRIAL_RUN_ID"] = run_id
     env["NOTEBOOKLM_PROFILE"] = notebooklm_profile
     cmd = [
         sys.executable,
@@ -97,6 +100,7 @@ def main(argv: list[str] | None = None) -> int:
         print("No batches found.")
         return 1
 
+    run_id = uuid.uuid4().hex
     with tempfile.TemporaryDirectory(prefix="ytis-workerpool-") as td:
         workdir = Path(td)
         grouped_batches = _group_batches_for_workers(batches, args.workers)
@@ -104,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
         results: list[tuple[int, subprocess.CompletedProcess[str]]] = []
         with ThreadPoolExecutor(max_workers=max(1, min(args.workers, len(batch_files)))) as executor:
             futures = {
-                executor.submit(_run_worker, batch_file, idx, args.state_root, args.notebook_prefix): idx
+                executor.submit(_run_worker, batch_file, idx, args.state_root, args.notebook_prefix, run_id): idx
                 for idx, batch_file in enumerate(batch_files, 1)
             }
             for future in as_completed(futures):

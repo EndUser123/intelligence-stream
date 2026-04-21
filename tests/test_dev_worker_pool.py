@@ -49,6 +49,8 @@ class TestWorkerMain:
         """A worker should process multiple batches sequentially and summarize totals."""
         input_path = tmp_path / "batches.json"
         input_path.write_text(json.dumps([["a"], ["b", "c"]]), encoding="utf-8")
+        state_path = tmp_path / "state.json"
+        state_path.write_text(json.dumps({"nb_id": "stale-nb", "run_id": "old-run"}), encoding="utf-8")
 
         prewarm_calls: list[str] = []
         reset_calls: list[dict[str, str]] = []
@@ -255,7 +257,7 @@ class TestWorkerMain:
                 "--input",
                 str(input_path),
                 "--state-path",
-                str(tmp_path / "state.json"),
+                str(state_path),
                 "--notebook-title",
                 "yt-is::dev::worker-01",
                 "--notebooklm-profile",
@@ -268,6 +270,7 @@ class TestWorkerMain:
         )
 
         assert rc == 0
+        assert not state_path.exists()
         assert prewarm_calls == ["init", "prepare"]
         assert len(installed_ingestors) == 1
         assert isinstance(installed_ingestors[0], DummyReusableIngestor)

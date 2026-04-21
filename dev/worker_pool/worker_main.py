@@ -472,6 +472,7 @@ def main(argv: list[str] | None = None) -> int:
                 "notebook_title": args.notebook_title,
             },
         )
+        state_path = Path(args.state_path)
         try:
             _write_result_file(args.result_path, worker_result)
             log_action(
@@ -511,6 +512,27 @@ def main(argv: list[str] | None = None) -> int:
                 },
             )
         finally:
+            try:
+                state_path.unlink(missing_ok=True)
+                log_action(
+                    "worker_cleanup_state_cleared",
+                    {
+                        "worker_id": args.worker_id,
+                        "notebooklm_profile": notebooklm_profile,
+                        "state_path": args.state_path,
+                        "removed": True,
+                    },
+                )
+            except Exception as exc:
+                log_action(
+                    "worker_cleanup_state_clear_failed",
+                    {
+                        "worker_id": args.worker_id,
+                        "notebooklm_profile": notebooklm_profile,
+                        "state_path": args.state_path,
+                        "error": str(exc),
+                    },
+                )
             log_action(
                 "worker_cleanup_completed",
                 {

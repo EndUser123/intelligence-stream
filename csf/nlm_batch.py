@@ -28,10 +28,9 @@ _DEFAULT_INDUSTRIAL_WORKER_STATE_ROOT = Path("P:/__csf/.data/yt-is/industrial-wo
 _DEFAULT_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX = "yt-is::industrial::worker"
 _DEFAULT_NOTEBOOKLM_PROFILE = "default"
 _AUTH_LOCK_PATH = Path("P:/__csf/.data/yt-is/locks/nlm-auth.lock")
-_NOTEBOOK_SOURCE_CAP = 225  # Notebook-level: rotation guard threshold (75-source buffer below 300 hard limit).
-                            # NOTE: 225 is also the per-request limit for a single `nlm source add` call —
-                            # a request with ≥225 sources fails immediately with rc=1 regardless of notebook state.
-                            # Keep subbatch_size comfortably below 225 (e.g. 200) to avoid triggering this cliff.
+DEFAULT_NOTEBOOKLM_BATCH_SIZE = 200
+DEFAULT_NOTEBOOKLM_SOURCE_CAP = 225
+_NOTEBOOK_SOURCE_CAP = DEFAULT_NOTEBOOKLM_SOURCE_CAP  # Rotate before the 300-source notebook ceiling and stay below the single-call add cliff.
 
 
 def _get_reusable_notebook_state_path() -> Path:
@@ -42,6 +41,10 @@ def _get_reusable_notebook_state_path() -> Path:
 def _get_reusable_notebook_title() -> str:
     override = os.getenv("YTIS_NLM_REUSABLE_NOTEBOOK_TITLE", "").strip()
     return override or _DEFAULT_REUSABLE_NOTEBOOK_TITLE
+
+
+def _get_worker_run_id() -> str:
+    return os.getenv("YTIS_INDUSTRIAL_RUN_ID", "").strip()
 
 
 def _get_notebooklm_profile() -> str:
@@ -70,6 +73,7 @@ def _save_reusable_notebook_id(nb_id: str) -> None:
                 {
                     "nb_id": nb_id,
                     "title": _get_reusable_notebook_title(),
+                    "run_id": _get_worker_run_id() or None,
                     "updated_at": time.time(),
                 },
                 indent=2,
@@ -199,14 +203,27 @@ def _get_worker_notebook_prefix() -> str:
     return override or _DEFAULT_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX
 
 
+def _infer_worker_profile_from_notebook_name(name: str) -> str:
+    match = re.search(r"worker-(\d+)$", name.strip())
+    if not match:
+        return _get_notebooklm_profile()
+    worker_idx = int(match.group(1))
+    return f"ytis-worker-{worker_idx:02d}"
+
+
 def _load_current_worker_notebook_ids() -> set[str]:
     state_root = _get_worker_state_root()
+    expected_run_id = _get_worker_run_id()
     ids: set[str] = set()
     if not state_root.exists():
         return ids
     for state_path in state_root.glob("worker-*.json"):
         try:
             data = json.loads(state_path.read_text(encoding="utf-8"))
+            if expected_run_id:
+                run_id = (data.get("run_id") or "").strip()
+                if run_id != expected_run_id:
+                    continue
             nb_id = (data.get("nb_id") or "").strip()
             if nb_id:
                 ids.add(nb_id)
@@ -220,11 +237,13 @@ def cleanup_stale_worker_notebooks() -> tuple[int, int]:
     ingestor = NLMBatchIngestor()
     active_nb_ids = _load_current_worker_notebook_ids()
     prefix = _get_worker_notebook_prefix()
+    run_id = _get_worker_run_id()
     log_action(
         "nlm_worker_notebook_cleanup_started",
         {
             "state_root": str(_get_worker_state_root()),
             "notebook_prefix": prefix,
+            "run_id": run_id or None,
             "active_nb_ids": len(active_nb_ids),
         },
     )
@@ -260,23 +279,74 @@ def cleanup_stale_worker_notebooks() -> tuple[int, int]:
     deleted = 0
     failed = 0
     for nb in notebooks:
-        name = (nb.get("name") or "") if isinstance(nb, dict) else ""
+        name = ""
+        if isinstance(nb, dict):
+            name = (nb.get("name") or nb.get("title") or nb.get("notebookTitle") or "").strip()
         nb_id = (nb.get("id") or nb.get("notebookId") or "").strip() if isinstance(nb, dict) else ""
         if not nb_id or not name.startswith(prefix):
             continue
         if nb_id in active_nb_ids:
             continue
         print(f"[NLM-Batch]   Removing stale worker notebook '{name}' ({nb_id})...")
-        result = _delete_notebook_with_retries(
-            ingestor,
-            nb_id,
-            timeout=120,
-            retries=2,
-            purpose="cleanup_stale_worker_notebooks",
-        )
+        worker_profile = _infer_worker_profile_from_notebook_name(name)
+        old_profile = _get_notebooklm_profile()
+        try:
+            os.environ["NOTEBOOKLM_PROFILE"] = worker_profile
+            ingestor._nb_id = nb_id
+            try:
+                ingestor.reset_sources()
+            except Exception:
+                pass
+            result = _delete_notebook_with_retries(
+                ingestor,
+                nb_id,
+                timeout=180,
+                retries=3,
+                purpose="cleanup_stale_worker_notebooks",
+            )
+        finally:
+            if old_profile:
+                os.environ["NOTEBOOKLM_PROFILE"] = old_profile
+            else:
+                os.environ.pop("NOTEBOOKLM_PROFILE", None)
         if result.returncode == 0:
             deleted += 1
         else:
+            # CLI delete timed out — fall back to CDP-based browser automation.
+            # nlm-puppeteer.js drives Chrome directly and reliably deletes via
+            # the 3-step UI click (menu → delete → confirm), bypassing the API
+            # layer that times out on the CLI path.
+            cdp_script = Path(__file__).parent.parent / "bin" / "nlm-puppeteer.js"
+            try:
+                cdp_res = subprocess.run(
+                    ["node", str(cdp_script), "--delete-worker"],
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                )
+                if cdp_res.returncode == 0:
+                    deleted += 1
+                    failed -= 1  # CDP succeeded where CLI failed
+                    log_action(
+                        "nlm_worker_notebook_cleanup_cdp_fallback",
+                        {
+                            "nb_id": nb_id,
+                            "cdp_stdout": (cdp_res.stdout or "")[:200],
+                        },
+                    )
+                else:
+                    log_action(
+                        "nlm_worker_notebook_cleanup_cdp_fallback_failed",
+                        {
+                            "nb_id": nb_id,
+                            "cdp_stderr": (cdp_res.stderr or "")[:200],
+                        },
+                    )
+            except Exception as exc:
+                log_action(
+                    "nlm_worker_notebook_cleanup_cdp_fallback_error",
+                    {"nb_id": nb_id, "error": str(exc)},
+                )
             failed += 1
 
     log_action(
@@ -287,6 +357,7 @@ def cleanup_stale_worker_notebooks() -> tuple[int, int]:
             "status": "ok",
             "active_nb_ids": len(active_nb_ids),
             "notebook_prefix": prefix,
+            "run_id": run_id or None,
         },
     )
     return (deleted, failed)
@@ -450,7 +521,7 @@ def _get_tracker() -> _RateLimitTracker:
 
 
 class NLMBatchIngestor:
-    def __init__(self, batch_size: int = 150):
+    def __init__(self, batch_size: int = DEFAULT_NOTEBOOKLM_BATCH_SIZE):
         self.batch_size = batch_size
         self._nb_id = None
         self._last_added_video_ids: List[str] = []
@@ -732,13 +803,13 @@ class NLMBatchIngestor:
         )
         return []
 
-    def _add_sources_in_subbatches(self, batch_ids: List[str], subbatch_size: int = 150) -> List[str]:
+    def _add_sources_in_subbatches(self, batch_ids: List[str], subbatch_size: int = DEFAULT_NOTEBOOKLM_BATCH_SIZE) -> List[str]:
         """Add sources in sub-batches to avoid NLM overload.
 
-        The reusable industrial path defaults to a 150-source window, which
-        has been the safer live setting for this backlog shape. Smaller or
-        larger windows can still be passed explicitly for sweeps or recovery
-        if needed.
+        The reusable industrial path defaults to a 200-source window, which
+        was measured as the throughput-optimal setting for this backlog shape.
+        Smaller or larger windows can still be passed explicitly for sweeps or
+        recovery if needed.
         """
         total = len(batch_ids)
         added_ids: List[str] = []
@@ -1006,9 +1077,12 @@ class NLMBatchIngestor:
             if not sources:
                 return
             source_ids = [s["id"] for s in sources]
-            # Bulk delete all at once
-            delete_cmd = ["source", "delete", self._nb_id, "--confirm"] + source_ids
-            self._run_cmd(delete_cmd, timeout=300)
+            # Delete in smaller chunks so NotebookLM does not time out on large notebooks.
+            chunk_size = 25
+            for start in range(0, len(source_ids), chunk_size):
+                chunk = source_ids[start:start + chunk_size]
+                delete_cmd = ["source", "delete", self._nb_id, "--confirm"] + chunk
+                self._run_cmd(delete_cmd, timeout=300)
         except Exception:
             pass
 
@@ -1186,7 +1260,7 @@ class NLMBatchIngestor:
 class NLMReusableIngestor:
     """Holds a single notebook across multiple batches for reuse."""
 
-    def __init__(self, batch_size: int = 150):
+    def __init__(self, batch_size: int = DEFAULT_NOTEBOOKLM_BATCH_SIZE):
         self._ingestor = NLMBatchIngestor(batch_size)
         self._nb_id: Optional[str] = _load_reusable_notebook_id()
         self._last_prepare_metrics: dict[str, object] | None = None

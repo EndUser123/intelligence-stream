@@ -20,6 +20,10 @@ Last updated: 2026-04-20
 
 ## Files that matter
 
+- `P:/packages/yt-is/csf/nlm_batch.py`
+  - `DEFAULT_NOTEBOOKLM_BATCH_SIZE = 200`
+  - `DEFAULT_NOTEBOOKLM_SOURCE_CAP = 225`
+  - reusable notebook rotation and source-add subbatch sizing
 - `P:/packages/yt-is/bin/csf-source`
   - preflight routing split
   - logging for fallback / NotebookLM counts
@@ -76,6 +80,7 @@ Last updated: 2026-04-20
 - Treat the worker result file as the source of truth for completed work. Stdout summaries can be stale or incomplete.
 - If a canary emits warnings, check both structured trace events and raw terminal output because they do not always carry the same information.
 - For throughput questions, prefer completed-worker totals and stage timings over scan-progress or backlog-size-derived rates.
+- If a long scan looks silent, `YTIS_SCAN_STATUS_INTERVAL_S` controls the heartbeat cadence for `/yt-is sync` and fetch scans.
 - The most useful live signals have been:
   - `fetch_worker_finished`
   - `worker_completed`
@@ -90,6 +95,7 @@ Last updated: 2026-04-20
   - [HANDOFF.md](P:/packages/yt-is/HANDOFF.md)
   - [CODEX_MEMORY.md](P:/packages/yt-is/CODEX_MEMORY.md)
   - [DEBUGGING_PLAYBOOK.md](P:/packages/yt-is/DEBUGGING_PLAYBOOK.md)
+- If you are touching NotebookLM throughput, check `P:/packages/yt-is/csf/nlm_batch.py` first for the shared batch and cap constants before grepping for magic numbers.
 - Key files:
   - [bin/csf-source](P:/packages/yt-is/bin/csf-source)
   - [csf/transcript.py](P:/packages/yt-is/csf/transcript.py)

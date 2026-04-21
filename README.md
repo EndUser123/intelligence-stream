@@ -176,6 +176,7 @@ channel_metadata table (SQLite)
 | `YOUTUBE_API_KEY` | For gap resolution | YouTube Data API v3 key for filling RSS gaps |
 | `NLM_AUTH_TOKEN` | For NotebookLM | NotebookLM session token |
 | `NLM_PROJECT_ID` | For NotebookLM | GCP project ID for NotebookLM |
+| `YTIS_SCAN_STATUS_INTERVAL_S` | Optional | Emit scan status heartbeats this often during `/yt-is sync` and `csf-source fetch` scans (default: 30) |
 
 ## Development
 
@@ -226,7 +227,7 @@ graph TB
 
 **Key features:**
 - Automatic escalation chain for transcript download
-- Batch NotebookLM workflow (300 sources per notebook)
+- Batch NotebookLM workflow with shared defaults in `csf/nlm_batch.py` (`DEFAULT_NOTEBOOKLM_BATCH_SIZE = 200`, `DEFAULT_NOTEBOOKLM_SOURCE_CAP = 225`)
 - Auth auto-recovery for NotebookLM sessions
 - Configurable NLM batch size via `YTIS_NLM_MAX_SOURCES_PER_NOTEBOOK`
 - External transcript provider hook for custom sources

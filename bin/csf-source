@@ -46,6 +46,7 @@ import sys
 import threading
 import time
 import tempfile
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -58,6 +59,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from csf import batch
 from csf.csf_logging import log_user_message, log_action
+from csf.nlm_batch import DEFAULT_NOTEBOOKLM_BATCH_SIZE
 from csf.cache import has_cached_transcript, set_cached_transcript
 from csf.nlm_batch import (
     process_industrial_batch_reusable,
@@ -1122,6 +1124,10 @@ def cmd_check_all(verbose: bool = False) -> None:
     from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
     from csf.batch_status import _get_batch_status_storage
 
+    scan_started_at = time.monotonic()
+    scan_last_status_at = scan_started_at
+    scan_status_interval_s = float(os.getenv("YTIS_SCAN_STATUS_INTERVAL_S") or os.getenv("YTIS_FETCH_STATUS_INTERVAL_S") or 30.0)
+
     storage = _get_batch_status_storage()
     storage._ensure_channel_metadata()
     conn = storage._get_conn()
@@ -1139,6 +1145,29 @@ def cmd_check_all(verbose: bool = False) -> None:
 
     total_new_videos = 0
     total_videos_all = 0
+    completed_channels = 0
+
+    def _emit_check_status(trigger: str) -> None:
+        nonlocal scan_last_status_at
+        elapsed_s = round(time.monotonic() - scan_started_at, 3)
+        scan_last_status_at = time.monotonic()
+        print(
+            "[source] Sync status: "
+            f"{completed_channels}/{len(rows)} channels complete, "
+            f"new={total_new_videos}, total={total_videos_all}, "
+            f"elapsed={elapsed_s}s, trigger={trigger}"
+        )
+        log_action(
+            "sync_scan_progress",
+            {
+                "channels_total": len(rows),
+                "channels_completed": completed_channels,
+                "new_videos": total_new_videos,
+                "total_videos": total_videos_all,
+                "elapsed_s": elapsed_s,
+                "trigger": trigger,
+            },
+        )
 
     # Parallel discovery using 5 workers (conservative to avoid YouTube API thundering herd)
     with ThreadPoolExecutor(max_workers=5) as executor:
@@ -1155,6 +1184,16 @@ def cmd_check_all(verbose: bool = False) -> None:
             except Exception as e:
                 url = futures[future]
                 print(f"[source] Error checking {url}: {e}")
+            completed_channels += 1
+            elapsed_since_status = time.monotonic() - scan_last_status_at
+            if completed_channels == len(rows):
+                _emit_check_status("final_channel")
+            elif completed_channels == 1:
+                _emit_check_status("first_channel")
+            elif elapsed_since_status >= scan_status_interval_s:
+                _emit_check_status("elapsed_interval")
+            elif completed_channels % max(1, len(rows) // 10) == 0:
+                _emit_check_status("channel_checkpoint")
 
     # Print summary and stats
     print(f"\n[source] Discovery complete. Found {total_new_videos} new videos across {len(rows)} channels.")
@@ -1487,7 +1526,9 @@ def cmd_fetch(
     tracked_count = len(tracked_channels)
     channel_count = len(channels)
     scan_progress_interval = max(1, channel_count // 10)
-    batch_size = 200
+    scan_status_interval_s = float(_env_float("YTIS_SCAN_STATUS_INTERVAL_S", "YTIS_FETCH_STATUS_INTERVAL_S", 30.0))
+    scan_last_status_at = scan_started_at
+    batch_size = DEFAULT_NOTEBOOKLM_BATCH_SIZE
     backlog_threshold = 50
     if max_items is not None and max_items < 0:
         raise ValueError("max_items must be >= 0")
@@ -1597,6 +1638,36 @@ def cmd_fetch(
         f"[source] Preflight scan: checking {channel_count} active channels "
         f"({blocked_count} blocked skipped) for pending videos..."
     )
+
+    def _emit_scan_status(channel_index: int, trigger: str) -> None:
+        nonlocal scan_last_status_at
+        elapsed_s = round(time.monotonic() - scan_started_at, 3)
+        scan_last_status_at = time.monotonic()
+        print(
+            "[source] Scan status: "
+            f"{channel_index}/{channel_count} channels, "
+            f"pending={pending_discovered_total}, cached={cached_count}, "
+            f"neg_cache={negative_cache_count}, terminal={terminal_count}, "
+            f"notebooklm={notebooklm_pending_count}, fallback={transcript_fallback_queued_count}, "
+            f"elapsed={elapsed_s}s, trigger={trigger}"
+        )
+        log_action(
+            "fetch_scan_progress",
+            {
+                "source_filter": source_filter,
+                "channel_index": channel_index,
+                "channels_active_total": channel_count,
+                "pending_so_far": pending_discovered_total,
+                "cached_total": cached_count,
+                "negative_cache_count": negative_cache_count,
+                "negative_cache_reason_counts": dict(negative_cache_reason_counts),
+                "negative_cache_sample": negative_cache_sample,
+                "terminal_count": terminal_count,
+                "terminal_reason_counts": dict(terminal_reason_counts),
+                "elapsed_s": elapsed_s,
+                "trigger": trigger,
+            },
+        )
 
     def _ensure_industrial_scraper():
         nonlocal industrial_scraper
@@ -2243,35 +2314,15 @@ def cmd_fetch(
         if transcript_fallback_queue:
             _service_transcript_fallback_workers(wait_for_completion=False)
 
-        if (
-            channel_index == 1
-            or channel_index == channel_count
-            or channel_index % scan_progress_interval == 0
-        ):
-            elapsed_s = round(time.monotonic() - scan_started_at, 3)
-            print(
-                "[source] Preflight scan progress: "
-                f"{channel_index}/{channel_count} channels, "
-                f"pending={pending_discovered_total}, cached={cached_count}, "
-                f"neg_cache={negative_cache_count}, "
-                f"elapsed={elapsed_s}s"
-            )
-            log_action(
-                "fetch_scan_progress",
-                {
-                    "source_filter": source_filter,
-                    "channel_index": channel_index,
-                    "channels_active_total": channel_count,
-                    "pending_so_far": pending_discovered_total,
-                    "cached_total": cached_count,
-                    "negative_cache_count": negative_cache_count,
-                    "negative_cache_reason_counts": dict(negative_cache_reason_counts),
-                    "negative_cache_sample": negative_cache_sample,
-                    "terminal_count": terminal_count,
-                    "terminal_reason_counts": dict(terminal_reason_counts),
-                    "elapsed_s": elapsed_s,
-                },
-            )
+        elapsed_since_status = time.monotonic() - scan_last_status_at
+        if channel_index == channel_count:
+            _emit_scan_status(channel_index, "final_channel")
+        elif elapsed_since_status >= scan_status_interval_s:
+            _emit_scan_status(channel_index, "elapsed_interval")
+        elif channel_index == 1:
+            _emit_scan_status(channel_index, "first_channel")
+        elif channel_index % scan_progress_interval == 0:
+            _emit_scan_status(channel_index, "channel_checkpoint")
 
     if terminal_entries and not dry_run:
         set_status_batch(terminal_entries)
@@ -2536,6 +2587,9 @@ def cmd_fetch(
             sys.exit(1)
         print("[source] NLM re-authenticated.", file=sys.stderr)
 
+    industrial_run_id = uuid.uuid4().hex
+    os.environ["YTIS_INDUSTRIAL_RUN_ID"] = industrial_run_id
+
     if workers > 1:
         deleted, failed = cleanup_stale_worker_notebooks()
         print(
@@ -2551,6 +2605,7 @@ def cmd_fetch(
                 "prewarm_expected": workers,
                 "cleanup_deleted": deleted,
                 "cleanup_failed": failed,
+                "run_id": industrial_run_id,
                 "state_root": os.getenv(
                     "YTIS_INDUSTRIAL_WORKER_STATE_ROOT",
                     "P:/__csf/.data/yt-is/industrial-worker-states",

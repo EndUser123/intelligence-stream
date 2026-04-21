@@ -78,6 +78,158 @@ def test_cmd_fetch_logs_fetch_start_and_first_download_started_industrial():
     assert "elapsed_s" in first_payload
 
 
+def test_cmd_fetch_emits_elapsed_scan_status_heartbeat():
+    """Long scans should emit a time-based scan status heartbeat, not only channel checkpoints."""
+    mod = _load_csf_source_module()
+    channel_rows = [
+        ("https://www.youtube.com/@chan1", "pl-1"),
+        ("https://www.youtube.com/@chan2", "pl-2"),
+        ("https://www.youtube.com/@chan3", "pl-3"),
+    ]
+
+    class FakeCursor:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def fetchall(self):
+            return self._rows
+
+    class FakeConn:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def execute(self, *_args, **_kwargs):
+            return FakeCursor(self._rows)
+
+        def close(self):
+            return None
+
+    class FakeStorage:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def _get_conn(self):
+            return FakeConn(self._rows)
+
+    monotonic_value = {"current": 0.0}
+
+    def fake_monotonic():
+        monotonic_value["current"] += 31.0
+        return monotonic_value["current"]
+
+    with mock.patch.object(mod, "_get_batch_status_storage", return_value=FakeStorage(channel_rows)):
+        with mock.patch.object(mod, "is_channel_blocked", return_value=False):
+            with mock.patch.object(mod, "get_entries_for_source_details", return_value=[]):
+                with mock.patch.object(mod, "has_cached_transcript", return_value=False):
+                    with mock.patch.object(mod.subprocess, "run") as mock_run:
+                        mock_run.return_value = mock.MagicMock(returncode=0, stdout="", stderr="")
+                        with mock.patch.object(mod.time, "monotonic", side_effect=fake_monotonic):
+                            with mock.patch.object(mod, "log_action") as mock_log:
+                                mod.cmd_fetch(dry_run=False, workers=1)
+
+    log_names = [call.args[0] for call in mock_log.call_args_list]
+    assert "fetch_scan_started" in log_names
+    assert "fetch_scan_completed" in log_names
+    assert "fetch_scan_progress" in log_names
+    heartbeat_payloads = [
+        call.args[1]
+        for call in mock_log.call_args_list
+        if call.args[0] == "fetch_scan_progress" and call.args[1].get("trigger") == "elapsed_interval"
+    ]
+    assert heartbeat_payloads, "expected a time-based scan heartbeat"
+    assert heartbeat_payloads[0]["channels_active_total"] == 3
+
+
+def test_cmd_check_all_emits_elapsed_scan_status_heartbeat():
+    """/yt-is sync should emit a time-based scan heartbeat while checking channels."""
+    mod = _load_csf_source_module()
+    channel_rows = [
+        ("https://www.youtube.com/@chan1", "pl-1", 0, None),
+        ("https://www.youtube.com/@chan2", "pl-2", 0, None),
+        ("https://www.youtube.com/@chan3", "pl-3", 0, None),
+    ]
+
+    summary_rows = [
+        ("https://www.youtube.com/@chan1", 0, None, None),
+        ("https://www.youtube.com/@chan2", 0, None, None),
+        ("https://www.youtube.com/@chan3", 0, None, None),
+    ]
+
+    class FakeCursor:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def fetchall(self):
+            return self._rows
+
+    class FakeConn:
+        def __init__(self, channel_rows, summary_rows):
+            self._channel_rows = channel_rows
+            self._summary_rows = summary_rows
+
+        def execute(self, query, *_args, **_kwargs):
+            if "ORDER BY last_checked ASC" in query:
+                return FakeCursor(self._channel_rows)
+            if "ORDER BY CASE WHEN category IS NULL" in query:
+                return FakeCursor(self._summary_rows)
+            return FakeCursor([])
+
+        def close(self):
+            return None
+
+    class FakeStorage:
+        def __init__(self, channel_rows, summary_rows):
+            self._channel_rows = channel_rows
+            self._summary_rows = summary_rows
+
+        def _ensure_channel_metadata(self):
+            return None
+
+        def _get_conn(self):
+            return FakeConn(self._channel_rows, self._summary_rows)
+
+    monotonic_value = {"current": 0.0}
+
+    def fake_monotonic():
+        monotonic_value["current"] += 31.0
+        return monotonic_value["current"]
+
+    class FakeExecutor:
+        def __init__(self, max_workers):
+            self.max_workers = max_workers
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def submit(self, fn, *args, **kwargs):
+            fut = Future()
+            fut.set_result(fn(*args, **kwargs))
+            return fut
+
+    with mock.patch("csf.batch_status._get_batch_status_storage", return_value=FakeStorage(channel_rows, summary_rows)):
+        with mock.patch.object(mod, "_process_channel_check", side_effect=[(1, 10), (0, 20), (2, 30)]):
+            with mock.patch.object(mod, "get_entries_for_source", return_value=[]):
+                with mock.patch.object(mod, "has_cached_transcript", return_value=False):
+                    with mock.patch("concurrent.futures.ThreadPoolExecutor", FakeExecutor):
+                        with mock.patch("concurrent.futures.as_completed", lambda futures: list(futures)):
+                            with mock.patch.object(mod.time, "monotonic", side_effect=fake_monotonic):
+                                with mock.patch.object(mod, "log_action") as mock_log:
+                                    mod.cmd_check_all(verbose=False)
+
+    log_names = [call.args[0] for call in mock_log.call_args_list]
+    assert "sync_scan_progress" in log_names
+    heartbeat_payloads = [
+        call.args[1]
+        for call in mock_log.call_args_list
+        if call.args[0] == "sync_scan_progress" and call.args[1].get("trigger") == "elapsed_interval"
+    ]
+    assert heartbeat_payloads, "expected a time-based sync heartbeat"
+    assert heartbeat_payloads[0]["channels_total"] == 3
+
+
 def test_cmd_fetch_limit_caps_selected_pending_items():
     """cmd_fetch should stop after the requested pending-item limit and log it."""
     mod = _load_csf_source_module()

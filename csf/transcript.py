@@ -22,7 +22,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Literal, TYPE_CHECKING
+from typing import Callable, Literal, TYPE_CHECKING
 
 from csf.batch_status import (
     get_source as _get_source_for_video,
@@ -101,10 +101,10 @@ STAGE_VERSION_DIRECT_API = 2
 # Set via register_external_transcript_provider().
 # Signature: (video_id: str, lang: str) -> tuple[bool, str | None, str | None]
 # Returns: (success, transcript_text, error)
-_external_provider: callable | None = None
+_external_provider: Callable[[str, str], tuple[bool, str | None, str | None]] | None = None
 
 
-def register_external_transcript_provider(provider: callable) -> None:
+def register_external_transcript_provider(provider: Callable[[str, str], tuple[bool, str | None, str | None]]) -> None:
     """Register an external transcript provider as the final fallback.
 
     The provider is called after all built-in stages fail.

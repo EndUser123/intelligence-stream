@@ -22,8 +22,8 @@ from csf.display import format_result_row
 from csf.csf_logging import log_action
 
 
-_DEFAULT_REUSABLE_NOTEBOOK_STATE_PATH = Path("P:/__csf/.data/yt-is/reusable_nlm_notebook.json")
-_DEFAULT_REUSABLE_NOTEBOOK_TITLE = "yt-is::industrial::reusable"
+_DEFAULT_OWNER_NOTEBOOK_STATE_PATH = Path("P:/__csf/.data/yt-is/owner_nlm_notebook.json")
+_DEFAULT_OWNER_NOTEBOOK_TITLE = "yt-is::industrial::worker::worker-01"
 _DEFAULT_INDUSTRIAL_WORKER_STATE_ROOT = Path("P:/__csf/.data/yt-is/industrial-worker-states")
 _DEFAULT_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX = "yt-is::industrial::worker"
 _DEFAULT_NOTEBOOKLM_PROFILE = "default"
@@ -33,14 +33,28 @@ DEFAULT_NOTEBOOKLM_SOURCE_CAP = 225
 _NOTEBOOK_SOURCE_CAP = DEFAULT_NOTEBOOKLM_SOURCE_CAP  # Rotate before the 300-source notebook ceiling and stay below the single-call add cliff.
 
 
+def _get_owner_notebook_state_path() -> Path:
+    override = os.getenv("YTIS_NLM_OWNER_STATE_PATH", "").strip()
+    legacy_override = os.getenv("YTIS_NLM_REUSABLE_STATE_PATH", "").strip()
+    if override:
+        return Path(override)
+    if legacy_override:
+        return Path(legacy_override)
+    return _DEFAULT_OWNER_NOTEBOOK_STATE_PATH
+
+
 def _get_reusable_notebook_state_path() -> Path:
-    override = os.getenv("YTIS_NLM_REUSABLE_STATE_PATH", "").strip()
-    return Path(override) if override else _DEFAULT_REUSABLE_NOTEBOOK_STATE_PATH
+    return _get_owner_notebook_state_path()
+
+
+def _get_owner_notebook_title() -> str:
+    override = os.getenv("YTIS_NLM_OWNER_NOTEBOOK_TITLE", "").strip()
+    legacy_override = os.getenv("YTIS_NLM_REUSABLE_NOTEBOOK_TITLE", "").strip()
+    return override or legacy_override or _DEFAULT_OWNER_NOTEBOOK_TITLE
 
 
 def _get_reusable_notebook_title() -> str:
-    override = os.getenv("YTIS_NLM_REUSABLE_NOTEBOOK_TITLE", "").strip()
-    return override or _DEFAULT_REUSABLE_NOTEBOOK_TITLE
+    return _get_owner_notebook_title()
 
 
 def _get_worker_run_id() -> str:
@@ -54,7 +68,7 @@ def _get_notebooklm_profile() -> str:
 
 def _load_reusable_notebook_id() -> Optional[str]:
     try:
-        state_path = _get_reusable_notebook_state_path()
+        state_path = _get_owner_notebook_state_path()
         if not state_path.exists():
             return None
         data = json.loads(state_path.read_text(encoding="utf-8"))
@@ -66,13 +80,13 @@ def _load_reusable_notebook_id() -> Optional[str]:
 
 def _save_reusable_notebook_id(nb_id: str) -> None:
     try:
-        state_path = _get_reusable_notebook_state_path()
+        state_path = _get_owner_notebook_state_path()
         state_path.parent.mkdir(parents=True, exist_ok=True)
         state_path.write_text(
             json.dumps(
                 {
                     "nb_id": nb_id,
-                    "title": _get_reusable_notebook_title(),
+                    "title": _get_owner_notebook_title(),
                     "run_id": _get_worker_run_id() or None,
                     "updated_at": time.time(),
                 },
@@ -86,9 +100,13 @@ def _save_reusable_notebook_id(nb_id: str) -> None:
 
 def _clear_reusable_notebook_state() -> None:
     try:
-        state_path = _get_reusable_notebook_state_path()
-        if state_path.exists():
-            state_path.unlink()
+        for state_path in {
+            _get_owner_notebook_state_path(),
+            _DEFAULT_OWNER_NOTEBOOK_STATE_PATH,
+            Path("P:/__csf/.data/yt-is/reusable_nlm_notebook.json"),
+        }:
+            if state_path.exists():
+                state_path.unlink()
     except Exception:
         pass
 
@@ -211,6 +229,48 @@ def _infer_worker_profile_from_notebook_name(name: str) -> str:
     return f"ytis-worker-{worker_idx:02d}"
 
 
+def _notebook_entry_title(nb: object) -> str:
+    if not isinstance(nb, dict):
+        return ""
+    return (nb.get("title") or nb.get("name") or nb.get("notebookTitle") or "").strip()
+
+
+def _notebook_entry_id(nb: object) -> str:
+    if not isinstance(nb, dict):
+        return ""
+    return (nb.get("id") or nb.get("notebookId") or "").strip()
+
+
+def _find_notebooks_with_title(notebooks: list[object], title: str) -> list[dict[str, object]]:
+    exact_title = title.strip()
+    if not exact_title:
+        return []
+    matches: list[dict[str, object]] = []
+    for nb in notebooks:
+        if not isinstance(nb, dict):
+            continue
+        if _notebook_entry_title(nb) == exact_title:
+            matches.append(nb)
+    return matches
+
+
+def _choose_notebook_keeper(matches: list[dict[str, object]], preferred_id: str = "") -> dict[str, object] | None:
+    if not matches:
+        return None
+    preferred_id = preferred_id.strip()
+    if preferred_id:
+        for nb in matches:
+            if _notebook_entry_id(nb) == preferred_id:
+                return nb
+    return max(matches, key=lambda nb: (_notebook_entry_title(nb), _notebook_entry_id(nb)))
+
+
+def _delete_worker_notebooks_by_title_with_cdp(title: str) -> subprocess.CompletedProcess[str]:
+    cdp_script = Path(__file__).parent.parent / "bin" / "nlm-puppeteer.js"
+    cmd = ["node", str(cdp_script), "--delete-title", title]
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+
+
 def _load_current_worker_notebook_ids() -> set[str]:
     state_root = _get_worker_state_root()
     expected_run_id = _get_worker_run_id()
@@ -276,114 +336,89 @@ def cleanup_stale_worker_notebooks() -> tuple[int, int]:
         )
         return (0, 0)
 
-    deleted = 0
-    failed = 0
-    cdp_needed = False  # True if any CLI delete failed — run CDP once at end
-    for nb in notebooks:
-        name = ""
-        if isinstance(nb, dict):
-            name = (nb.get("name") or nb.get("title") or nb.get("notebookTitle") or "").strip()
-        nb_id = (nb.get("id") or nb.get("notebookId") or "").strip() if isinstance(nb, dict) else ""
-        if not nb_id or not name.startswith(prefix):
-            continue
-        if nb_id in active_nb_ids:
-            continue
-        print(f"[NLM-Batch]   Removing stale worker notebook '{name}' ({nb_id})...")
-        worker_profile = _infer_worker_profile_from_notebook_name(name)
-        old_profile = _get_notebooklm_profile()
-        try:
-            os.environ["NOTEBOOKLM_PROFILE"] = worker_profile
-            ingestor._nb_id = nb_id
-            try:
-                ingestor.reset_sources()
-            except Exception:
-                pass
-            result = _delete_notebook_with_retries(
-                ingestor,
-                nb_id,
-                timeout=180,
-                retries=3,
-                purpose="cleanup_stale_worker_notebooks",
-            )
-        finally:
-            if old_profile:
-                os.environ["NOTEBOOKLM_PROFILE"] = old_profile
-            else:
-                os.environ.pop("NOTEBOOKLM_PROFILE", None)
-        if result.returncode == 0:
-            deleted += 1
-        else:
-            failed += 1
-            cdp_needed = True
-
-    # CDP fallback: run exactly once after all CLI attempts if any failed.
-    # nlm-puppeteer.js --delete-worker finds all stale worker notebooks and
-    # deletes them via 3-step UI click, bypassing the API layer that times out
-    # on the CLI path. Safe to run even if all CLI deletes succeeded (it's a
-    # no-op when no stale notebooks remain).
-    if cdp_needed:
-        cdp_script = Path(__file__).parent.parent / "bin" / "nlm-puppeteer.js"
-        try:
-            cdp_res = subprocess.run(
-                ["node", str(cdp_script), "--delete-worker"],
-                capture_output=True,
-                text=True,
-                timeout=300,
-            )
-            if cdp_res.returncode == 0:
-                # CDP deleted all stale worker notebooks in one pass.
-                # Re-scan to get accurate deleted/failed counts.
-                res2 = ingestor._run_cmd(["notebook", "list", "--json"], timeout=30)
-                if res2.returncode == 0:
-                    try:
-                        remaining = json.loads(res2.stdout)
-                        if isinstance(remaining, dict):
-                            remaining = remaining.get("notebooks", [])
-                    except Exception:
-                        remaining = []
-                    stale_after = [
-                        nb for nb in remaining
-                        if isinstance(nb, dict) and
-                        (nb.get("name") or nb.get("title") or "").strip().startswith(prefix)
-                        and (nb.get("id") or "").strip() not in active_nb_ids
-                    ]
-                    deleted = (len(remaining) - len(stale_after)) if remaining else 0
-                    failed = len(stale_after)
-                    log_action(
-                        "nlm_worker_notebook_cleanup_cdp_fallback",
-                        {
-                            "cdp_stdout": (cdp_res.stdout or "")[:300],
-                            "stale_remaining": len(stale_after),
-                        },
-                    )
-                else:
-                    log_action(
-                        "nlm_worker_notebook_cleanup_cdp_fallback_rescan_failed",
-                        {"cdp_stderr": (cdp_res.stderr or "")[:200]},
-                    )
+    # CDP handles everything in one pass — faster and more reliable than per-notebook
+    # CLI retries, which can silently timeout and get stuck for hours.
+    cdp_script = Path(__file__).parent.parent / "bin" / "nlm-puppeteer.js"
+    try:
+        cdp_res = subprocess.run(
+            ["node", str(cdp_script), "--delete-worker"],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if cdp_res.returncode == 0:
+            # Re-scan to get accurate deleted/failed counts.
+            res2 = ingestor._run_cmd(["notebook", "list", "--json"], timeout=30)
+            if res2.returncode == 0:
+                try:
+                    remaining = json.loads(res2.stdout)
+                    if isinstance(remaining, dict):
+                        remaining = remaining.get("notebooks", [])
+                except Exception:
+                    remaining = []
+                stale_before = [
+                    nb for nb in notebooks
+                    if isinstance(nb, dict) and
+                    (nb.get("name") or nb.get("title") or "").strip().startswith(prefix)
+                    and (nb.get("id") or "").strip() not in active_nb_ids
+                ]
+                stale_after = [
+                    nb for nb in remaining
+                    if isinstance(nb, dict) and
+                    (nb.get("name") or nb.get("title") or "").strip().startswith(prefix)
+                    and (nb.get("id") or "").strip() not in active_nb_ids
+                ]
+                deleted = max(0, len(stale_before) - len(stale_after))
+                failed = len(stale_after)
+                log_action(
+                    "nlm_worker_notebook_cleanup_cdp_primary",
+                    {
+                        "cdp_stdout": (cdp_res.stdout or "")[:300],
+                        "stale_before": len(stale_before),
+                        "stale_remaining": len(stale_after),
+                        "method": "cdp_primary",
+                    },
+                )
+                log_action(
+                    "nlm_worker_notebook_cleanup_complete",
+                    {
+                        "deleted": deleted,
+                        "failed": failed,
+                        "status": "ok",
+                        "active_nb_ids": len(active_nb_ids),
+                        "notebook_prefix": prefix,
+                        "run_id": run_id or None,
+                    },
+                )
+                return (deleted, failed)
             else:
                 log_action(
-                    "nlm_worker_notebook_cleanup_cdp_fallback_failed",
+                    "nlm_worker_notebook_cleanup_cdp_primary_rescan_failed",
                     {"cdp_stderr": (cdp_res.stderr or "")[:200]},
                 )
-        except Exception as exc:
+        else:
             log_action(
-                "nlm_worker_notebook_cleanup_cdp_fallback_error",
-                {"error": str(exc)},
+                "nlm_worker_notebook_cleanup_cdp_primary_failed",
+                {"cdp_stderr": (cdp_res.stderr or "")[:200]},
             )
+    except Exception as exc:
+        log_action(
+            "nlm_worker_notebook_cleanup_cdp_primary_error",
+            {"error": str(exc)},
+        )
 
     log_action(
         "nlm_worker_notebook_cleanup_complete",
         {
-            "deleted": deleted,
-            "failed": failed,
-            "status": "ok",
+            "deleted": 0,
+            "failed": 0,
+            "status": "cdp_failed",
             "active_nb_ids": len(active_nb_ids),
             "notebook_prefix": prefix,
             "run_id": run_id or None,
         },
     )
-    return (deleted, failed)
+    return (0, 0)
 
 
 def _ensure_nlm_auth() -> bool:
@@ -1398,14 +1433,57 @@ class NLMReusableIngestor:
         return res.returncode == 0
 
     def _ensure_notebook(self, batch_ids: List[str]) -> Tuple[bool, str]:
-        if self._nb_id and self._is_notebook_usable():
-            self._ingestor._nb_id = self._nb_id
-            self._last_ensure_metrics = {
-                "notebook_check_elapsed_s": 0.0,
-                "retire_elapsed_s": 0.0,
-                "create_elapsed_s": 0.0,
-            }
-            return False, "reuse"
+        target_title = _get_reusable_notebook_title()
+        list_started_at = time.monotonic()
+        notebooks: list[dict[str, object]] = []
+        res = self._ingestor._run_cmd(["notebook", "list", "--json"], timeout=30)
+        if res.returncode == 0:
+            try:
+                parsed = json.loads(res.stdout)
+                if isinstance(parsed, dict):
+                    parsed = parsed.get("notebooks", [])
+                if isinstance(parsed, list):
+                    notebooks = [nb for nb in parsed if isinstance(nb, dict)]
+            except Exception:
+                notebooks = []
+        title_matches = _find_notebooks_with_title(notebooks, target_title)
+        if title_matches:
+            if len(title_matches) == 1:
+                keeper = _choose_notebook_keeper(title_matches, preferred_id=self._nb_id or "")
+                keeper_id = _notebook_entry_id(keeper) if keeper else ""
+                if keeper_id:
+                    self._nb_id = keeper_id
+                    if self._is_notebook_usable():
+                        self._ingestor._nb_id = self._nb_id
+                        self._last_ensure_metrics = {
+                            "notebook_check_elapsed_s": round(time.monotonic() - list_started_at, 3),
+                            "retire_elapsed_s": 0.0,
+                            "create_elapsed_s": 0.0,
+                        }
+                        return False, "reuse"
+            duplicate_count = max(0, len(title_matches) - 1)
+            if duplicate_count > 0:
+                log_action(
+                    "nlm_batch_reusable_title_duplicates_detected",
+                    {
+                        "nb_title": target_title,
+                        "duplicate_count": duplicate_count,
+                        "notebooklm_profile": _get_notebooklm_profile(),
+                    },
+                )
+                cdp_res = _delete_worker_notebooks_by_title_with_cdp(target_title)
+                log_action(
+                    "nlm_batch_reusable_title_duplicates_cdp_completed",
+                    {
+                        "nb_title": target_title,
+                        "duplicate_count": duplicate_count,
+                        "returncode": cdp_res.returncode,
+                        "stdout": (cdp_res.stdout or "")[:300],
+                        "stderr": (cdp_res.stderr or "")[:300],
+                        "notebooklm_profile": _get_notebooklm_profile(),
+                    },
+                )
+                self._nb_id = None
 
         if self._nb_id:
             log_action(
@@ -1623,8 +1701,10 @@ class NLMReusableIngestor:
     def close(self, delete: bool = False):
         self._ingestor._nb_id = self._nb_id
         if delete:
-            self._ingestor.close()
-            _clear_reusable_notebook_state()
+            try:
+                _delete_worker_notebooks_by_title_with_cdp(_get_reusable_notebook_title())
+            finally:
+                _clear_reusable_notebook_state()
             return
         self._ingestor.cleanup()
         if self._nb_id:

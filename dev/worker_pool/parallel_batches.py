@@ -67,6 +67,8 @@ def _run_worker(
     env = os.environ.copy()
     env["YTIS_NLM_REUSABLE_STATE_PATH"] = str(state_path)
     env["YTIS_NLM_REUSABLE_NOTEBOOK_TITLE"] = notebook_title
+    env["YTIS_NLM_OWNER_STATE_PATH"] = str(state_path)
+    env["YTIS_NLM_OWNER_NOTEBOOK_TITLE"] = notebook_title
     env["YTIS_INDUSTRIAL_RUN_ID"] = run_id
     env["NOTEBOOKLM_PROFILE"] = notebooklm_profile
     cmd = [

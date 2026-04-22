@@ -3,9 +3,9 @@
 **Date:** 2026-04-20  
 **Status:** Active operational note
 
-## What the canary showed
+## What the worker run showed
 
-The current yt-is backlog canary is hitting a NotebookLM add failure in the reusable industrial path.
+The current yt-is worker run is hitting a NotebookLM add failure in the reusable industrial path.
 
 Observed pattern:
 
@@ -27,13 +27,13 @@ The current shared code constants are:
 
 ## What this means
 
-- The live bottleneck is NotebookLM notebook reuse / add capacity, not the browser automation ADR ideas.
+- The live bottleneck is NotebookLM worker-notebook reuse / add capacity, not the browser automation ADR ideas.
 - The earlier browser-automation ADR is now stale for this issue and should not be used as the next action guide.
 - The reusable notebook path needs a capacity guard, not a larger add window.
 
 ## Practical guidance
 
-1. Keep the NotebookLM add window below the size that triggers `source_add_failed` in live canaries.
+1. Keep the NotebookLM add window below the size that triggers `source_add_failed` in live worker runs.
 2. Rotate to a fresh notebook before the reusable notebook approaches the shared cap constant in `csf/nlm_batch.py`.
 3. Log notebook id and current source count before each add attempt so failures can be correlated with notebook fullness.
 4. Keep using completed-worker totals and transcript-cache growth as throughput truth.
@@ -41,7 +41,7 @@ The current shared code constants are:
 ## What not to do
 
 - Do not increase the add window again until notebook-capacity behavior is understood.
-- Do not use the stale browser-automation ADR as the primary reference for this canary failure.
+- Do not use the stale browser-automation ADR as the primary reference for this worker-run failure.
 - Do not treat backlog-derived scan rates as throughput.
 
 ## Evidence to consult

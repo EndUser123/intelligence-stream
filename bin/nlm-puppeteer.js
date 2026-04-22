@@ -458,6 +458,32 @@ async function cmdDeleteWorker() {
   cleanup();
 }
 
+async function cmdDeleteTitle(title) {
+  await connectCDP();
+  await cdpNavigate(NOTEBOOKLM_URL);
+  const loggedIn = await cdpWaitForLogin();
+  if (!loggedIn) {
+    cleanup();
+    return;
+  }
+
+  console.log(`\n[info] Looking for notebook title: ${title}`);
+  const notebooks = await nlGetNotebooks();
+  const exactMatches = notebooks.filter(n => n.title === title);
+  console.log(`  Found ${exactMatches.length} exact notebook(s)`);
+
+  let deleted = 0, skipped = 0;
+  for (const nb of exactMatches) {
+    console.log(`  Deleting: ${nb.title}`);
+    const ok = await nlDeleteNotebook(title);
+    if (ok) { deleted++; console.log('    deleted'); }
+    else { skipped++; console.log('    skipped'); }
+  }
+
+  console.log(`\nDone: ${deleted} deleted, ${skipped} skipped`);
+  cleanup();
+}
+
 async function cmdTest() {
   await connectCDP();
   await cdpNavigate(NOTEBOOKLM_URL);
@@ -552,8 +578,13 @@ function cleanup() {
 async function main() {
   const args = process.argv.slice(2);
   let cmd = 'test';
+  let deleteTitle = '';
   if (args.includes('--list')) cmd = 'list';
   else if (args.includes('--delete-worker')) cmd = 'delete-worker';
+  else if (args.includes('--delete-title')) {
+    cmd = 'delete-title';
+    deleteTitle = args[args.indexOf('--delete-title') + 1] || '';
+  }
 
   console.log('[info] CDP-based NotebookLM automation');
   console.log(`       Profile: ${PROFILE_DIR}`);
@@ -563,9 +594,10 @@ async function main() {
     launchChrome();
     await sleep(3000);
 
-    if (cmd === 'list') await cmdList();
-    else if (cmd === 'delete-worker') await cmdDeleteWorker();
-    else await cmdTest();
+      if (cmd === 'list') await cmdList();
+      else if (cmd === 'delete-worker') await cmdDeleteWorker();
+      else if (cmd === 'delete-title') await cmdDeleteTitle(deleteTitle);
+      else await cmdTest();
 
     console.log('\n[done]');
   } catch (e) {

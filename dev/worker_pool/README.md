@@ -21,7 +21,7 @@ industrial pipeline:
 
 The live path currently shows:
 
-- one reusable notebook worker
+- one worker owns one reusable notebook
 - serial industrial batch processing
 - expensive setup per 300-source batch
 
@@ -69,9 +69,8 @@ Input format:
 ]
 ```
 
-Each batch gets its own reusable notebook state path and notebook title via
+Each worker gets its own reusable notebook state path and notebook title via
 environment variables:
 
 - `YTIS_NLM_REUSABLE_STATE_PATH`
 - `YTIS_NLM_REUSABLE_NOTEBOOK_TITLE`
-

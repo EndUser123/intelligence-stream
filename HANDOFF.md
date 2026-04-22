@@ -4,7 +4,7 @@ Last updated: 2026-04-20
 
 ## Current state
 
-- The current canary is stopped.
+- The current worker run is stopped.
 - The routing split was changed so:
   - terminal/unavailable/private/deleted items stay sticky-skipped
   - live / live_stream / premiere items go to `transcript_fallback`
@@ -14,7 +14,7 @@ Last updated: 2026-04-20
 
 ## Why this matters
 
-- The previous canary had been sending the broad `no_captions` backlog into the slow transcript-fallback lane.
+- The previous worker run had been sending the broad `no_captions` backlog into the slow transcript-fallback lane.
 - That was the throughput killer.
 - The current split is intended to push the large recoverable backlog back into NotebookLM while keeping live content out of that lane.
 
@@ -23,11 +23,11 @@ Last updated: 2026-04-20
 - `P:/packages/yt-is/csf/nlm_batch.py`
   - `DEFAULT_NOTEBOOKLM_BATCH_SIZE = 200`
   - `DEFAULT_NOTEBOOKLM_SOURCE_CAP = 225`
-  - reusable notebook rotation and source-add subbatch sizing
+  - worker-owned notebook rotation and source-add subbatch sizing
 - `P:/packages/yt-is/bin/csf-source`
   - preflight routing split
   - logging for fallback / NotebookLM counts
-  - canary orchestration
+  - worker-run orchestration
 - `P:/packages/yt-is/csf/transcript.py`
   - oEmbed probe
   - direct_api classification
@@ -57,7 +57,7 @@ Last updated: 2026-04-20
 
 ## Next action for the new session
 
-1. Restart the canary from `P:/packages/yt-is` with:
+1. Restart a worker run from `P:/packages/yt-is` with:
    - `python bin/csf-source fetch --workers 4`
 2. Watch the trace file under `P:/packages/yt-is/.logs/term_*.jsonl`.
 3. Check whether the `notebooklm` lane now absorbs most `no_captions` items again.
@@ -71,14 +71,14 @@ Last updated: 2026-04-20
 
 - A large number of `oembed unavailable: HTTP 404` items should now be skipped cheaply and cached negatively.
 - `active_workers: 0` in transcript-fallback logs is expected; that lane is not the industrial NotebookLM worker pool.
-- If the next canary looks slow again, first check whether `no_captions` is still going to the wrong lane before changing batch size or retry tuning.
-- The current NotebookLM capacity note is at [docs/operations/nlm-canary-capacity-note.md](P:/packages/yt-is/docs/operations/nlm-canary-capacity-note.md).
+- If the next worker run looks slow again, first check whether `no_captions` is still going to the wrong lane before changing batch size or retry tuning.
+- The current NotebookLM worker notebook capacity note is at [docs/operations/nlm-canary-capacity-note.md](P:/packages/yt-is/docs/operations/nlm-canary-capacity-note.md).
 ## Debugging / Logging Rules That Matter
 - Quick pointer: [DEBUGGING_PLAYBOOK.md](P:/packages/yt-is/DEBUGGING_PLAYBOOK.md)
 - Do not trust the JSONL trace alone. Several important warnings surfaced only in live stderr/stdout.
 - When threading a new field through a wrapper, verify the callee signature before assuming it works. The `mark_failed(..., source=...)` bug was exactly this failure mode.
 - Treat the worker result file as the source of truth for completed work. Stdout summaries can be stale or incomplete.
-- If a canary emits warnings, check both structured trace events and raw terminal output because they do not always carry the same information.
+- If a worker run emits warnings, check both structured trace events and raw terminal output because they do not always carry the same information.
 - For throughput questions, prefer completed-worker totals and stage timings over scan-progress or backlog-size-derived rates.
 - If a long scan looks silent, `YTIS_SCAN_STATUS_INTERVAL_S` controls the heartbeat cadence for `/yt-is sync` and fetch scans.
 - The most useful live signals have been:
@@ -105,5 +105,5 @@ Last updated: 2026-04-20
   - `python -m py_compile P:\packages\yt-is\bin\csf-source P:\packages\yt-is\csf\transcript.py P:\packages\yt-is\csf\batch_status.py P:\packages\yt-is\csf\batch_scheduler.py`
   - `PYTHONPATH=P:\packages\yt-is python -m pytest P:\packages\yt-is\tests\test_transcript.py -q`
   - `PYTHONPATH=P:\packages\yt-is python -m pytest P:\packages\yt-is\tests\test_csf_source_fetch_timing.py -q`
-- Current intended canary:
+- Current intended worker run:
   - `python P:\packages\yt-is\bin\csf-source fetch --workers 4`

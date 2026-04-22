@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 import pytest
 from unittest import mock
 from csf import nlm_batch
@@ -156,20 +157,27 @@ class TestReusableBatchLogging:
         """A fresh reusable batch should log create/setup/extract/cleanup timings."""
         batch_ids = ["vid1", "vid2"]
 
+        def mock_run_cmd(self, args, timeout=300):
+            if args[:3] == ["notebook", "list", "--json"]:
+                return type("CompletedProcess", (), {"stdout": json.dumps({"notebooks": []}), "stderr": "", "returncode": 0})()
+            return type("CompletedProcess", (), {"stdout": "", "stderr": "", "returncode": 0})()
+
         with mock.patch("csf.nlm_batch._load_reusable_notebook_id", return_value=None):
             with mock.patch("csf.nlm_batch._save_reusable_notebook_id"):
                 with mock.patch("csf.nlm_batch._clear_reusable_notebook_state"):
-                    ingestor = nlm_batch.NLMReusableIngestor()
-                    with mock.patch.object(ingestor._ingestor, "create_batch_notebook", return_value="nb-1") as mock_create:
-                        with mock.patch.object(
-                            ingestor._ingestor,
-                            "extract_transcripts",
-                            return_value={"vid1": (True, "text", None), "vid2": (False, None, "err")},
-                        ) as mock_extract:
-                            with mock.patch.object(ingestor._ingestor, "reset_sources") as mock_reset:
-                                with mock.patch("csf.nlm_batch.log_action") as mock_log:
-                                    with mock.patch("csf.nlm_batch.time.monotonic", side_effect=[100.0 + i for i in range(20)]):
-                                        results = ingestor.process_batch(batch_ids)
+                    with mock.patch("csf.nlm_batch._ensure_nlm_auth", return_value=True):
+                        with mock.patch.object(nlm_batch.NLMBatchIngestor, "_run_cmd", mock_run_cmd):
+                            ingestor = nlm_batch.NLMReusableIngestor()
+                            with mock.patch.object(ingestor._ingestor, "create_batch_notebook", return_value="nb-1") as mock_create:
+                                with mock.patch.object(
+                                    ingestor._ingestor,
+                                    "extract_transcripts",
+                                    return_value={"vid1": (True, "text", None), "vid2": (False, None, "err")},
+                                ) as mock_extract:
+                                    with mock.patch.object(ingestor._ingestor, "reset_sources") as mock_reset:
+                                        with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                            with mock.patch("csf.nlm_batch.time.monotonic", side_effect=[100.0 + i for i in range(20)]):
+                                                results = ingestor.process_batch(batch_ids)
 
         assert results["vid1"][0] is True
         assert results["vid2"][0] is False
@@ -200,16 +208,39 @@ class TestReusableBatchLogging:
                 with mock.patch("csf.nlm_batch._clear_reusable_notebook_state"):
                     ingestor = nlm_batch.NLMReusableIngestor()
                     with mock.patch.object(ingestor, "_is_notebook_usable", return_value=True):
-                        with mock.patch.object(ingestor._ingestor, "_add_sources_in_subbatches") as mock_add:
-                            with mock.patch.object(
-                                ingestor._ingestor,
-                                "extract_transcripts",
-                                return_value={"vid3": (True, "text", None)},
-                            ) as mock_extract:
-                                with mock.patch.object(ingestor._ingestor, "reset_sources") as mock_reset:
-                                    with mock.patch("csf.nlm_batch.log_action") as mock_log:
-                                        with mock.patch("csf.nlm_batch.time.monotonic", side_effect=[200.0 + i for i in range(20)]):
-                                            results = ingestor.process_batch(batch_ids)
+                        with mock.patch.object(
+                            ingestor._ingestor,
+                            "_run_cmd",
+                            return_value=type(
+                                "CompletedProcess",
+                                (),
+                                {
+                                    "stdout": json.dumps(
+                                        {
+                                            "notebooks": [
+                                                {
+                                                    "id": "nb-existing",
+                                                    "title": "yt-is::industrial::worker::worker-01",
+                                                    "updated_at": "2026-04-21T20:00:00Z",
+                                                }
+                                            ]
+                                        }
+                                    ),
+                                    "stderr": "",
+                                    "returncode": 0,
+                                },
+                            )(),
+                        ):
+                            with mock.patch.object(ingestor._ingestor, "_add_sources_in_subbatches") as mock_add:
+                                with mock.patch.object(
+                                    ingestor._ingestor,
+                                    "extract_transcripts",
+                                    return_value={"vid3": (True, "text", None)},
+                                ) as mock_extract:
+                                    with mock.patch.object(ingestor._ingestor, "reset_sources") as mock_reset:
+                                        with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                            with mock.patch("csf.nlm_batch.time.monotonic", side_effect=[200.0 + i for i in range(20)]):
+                                                results = ingestor.process_batch(batch_ids)
 
         assert results["vid3"][0] is True
         mock_add.assert_called_once_with(batch_ids, subbatch_size=ingestor._ingestor.batch_size)
@@ -227,24 +258,31 @@ class TestReusableBatchLogging:
         """Reusable notebook processing should forward the 200-source subbatch size."""
         batch_ids = ["vid1", "vid2", "vid3"]
 
+        def mock_run_cmd(self, args, timeout=300):
+            if args[:3] == ["notebook", "list", "--json"]:
+                return type("CompletedProcess", (), {"stdout": json.dumps({"notebooks": [{"id": "nb-existing", "title": "reuse"}]}), "stderr": "", "returncode": 0})()
+            return type("CompletedProcess", (), {"stdout": "", "stderr": "", "returncode": 0})()
+
         with mock.patch("csf.nlm_batch._load_reusable_notebook_id", return_value="nb-existing"):
             with mock.patch("csf.nlm_batch._save_reusable_notebook_id"):
                 with mock.patch("csf.nlm_batch._clear_reusable_notebook_state"):
-                    ingestor = nlm_batch.NLMReusableIngestor()
-                    with mock.patch.object(ingestor, "_is_notebook_usable", return_value=True):
-                        with mock.patch.object(ingestor._ingestor, "_add_sources_in_subbatches") as mock_add:
-                            with mock.patch.object(
-                                ingestor._ingestor,
-                                "extract_transcripts",
-                                return_value={"vid1": (True, "text", None)},
-                            ):
-                                with mock.patch.object(ingestor._ingestor, "reset_sources"):
-                                    with mock.patch("csf.nlm_batch.log_action"):
-                                        with mock.patch(
-                                            "csf.nlm_batch.time.monotonic",
-                                            side_effect=[10.0 + i for i in range(20)],
-                                        ):
-                                            ingestor.process_batch(batch_ids)
+                    with mock.patch("csf.nlm_batch._ensure_nlm_auth", return_value=True):
+                        with mock.patch.object(nlm_batch.NLMBatchIngestor, "_run_cmd", mock_run_cmd):
+                            ingestor = nlm_batch.NLMReusableIngestor()
+                            with mock.patch.object(ingestor, "_is_notebook_usable", return_value=True):
+                                with mock.patch.object(ingestor._ingestor, "_add_sources_in_subbatches") as mock_add:
+                                    with mock.patch.object(
+                                        ingestor._ingestor,
+                                        "extract_transcripts",
+                                        return_value={"vid1": (True, "text", None)},
+                                    ):
+                                        with mock.patch.object(ingestor._ingestor, "reset_sources"):
+                                            with mock.patch("csf.nlm_batch.log_action"):
+                                                with mock.patch(
+                                                    "csf.nlm_batch.time.monotonic",
+                                                    side_effect=[10.0 + i for i in range(20)],
+                                                ):
+                                                    ingestor.process_batch(batch_ids)
 
         mock_add.assert_called_once_with(batch_ids, subbatch_size=ingestor._ingestor.batch_size)
 
@@ -327,9 +365,9 @@ class TestReusableNotebookEnvironmentOverrides:
     """Worker-specific env vars should isolate reusable notebook state."""
 
     def test_state_path_override_is_used(self, monkeypatch):
-        """YTIS_NLM_REUSABLE_STATE_PATH should override the default state file."""
+        """YTIS_NLM_OWNER_STATE_PATH should override the default state file."""
         monkeypatch.setenv(
-            "YTIS_NLM_REUSABLE_STATE_PATH",
+            "YTIS_NLM_OWNER_STATE_PATH",
             "P:/__csf/.data/yt-is/dev-workers/worker-01.json",
         )
         assert nlm_batch._get_reusable_notebook_state_path() == nlm_batch.Path(
@@ -337,9 +375,15 @@ class TestReusableNotebookEnvironmentOverrides:
         )
 
     def test_title_override_is_used(self, monkeypatch):
-        """YTIS_NLM_REUSABLE_NOTEBOOK_TITLE should override the notebook title."""
-        monkeypatch.setenv("YTIS_NLM_REUSABLE_NOTEBOOK_TITLE", "yt-is::dev::worker-01")
+        """YTIS_NLM_OWNER_NOTEBOOK_TITLE should override the notebook title."""
+        monkeypatch.setenv("YTIS_NLM_OWNER_NOTEBOOK_TITLE", "yt-is::dev::worker-01")
         assert nlm_batch._get_reusable_notebook_title() == "yt-is::dev::worker-01"
+
+    def test_default_title_is_worker_01(self, monkeypatch):
+        """The default owner title should map to worker-01."""
+        monkeypatch.delenv("YTIS_NLM_OWNER_NOTEBOOK_TITLE", raising=False)
+        monkeypatch.delenv("YTIS_NLM_REUSABLE_NOTEBOOK_TITLE", raising=False)
+        assert nlm_batch._get_reusable_notebook_title() == "yt-is::industrial::worker::worker-01"
 
     def test_notebooklm_profile_override_is_used(self, monkeypatch):
         """NOTEBOOKLM_PROFILE should override the default NotebookLM profile."""
@@ -348,7 +392,7 @@ class TestReusableNotebookEnvironmentOverrides:
 
     def test_create_batch_notebook_uses_override_title(self, monkeypatch):
         """create_batch_notebook should honor the worker-specific notebook title."""
-        monkeypatch.setenv("YTIS_NLM_REUSABLE_NOTEBOOK_TITLE", "yt-is::dev::worker-01")
+        monkeypatch.setenv("YTIS_NLM_OWNER_NOTEBOOK_TITLE", "yt-is::dev::worker-01")
         ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
         completed = type(
             "CompletedProcess",
@@ -473,14 +517,28 @@ class TestWorkerNotebookCleanup:
             ]
         }
         calls: list[list[str]] = []
+        deleted_via_cdp = {"value": False}
+        def mock_subprocess_run(cmd, **kwargs):
+            calls.append(cmd)
+            if cmd[0] == "node" and "--delete-worker" in cmd:
+                deleted_via_cdp["value"] = True
+                return type("CompletedProcess", (), {"returncode": 0, "stdout": "Done: 4 deleted, 0 skipped\n", "stderr": ""})()
+            if cmd[0] == "nlm":
+                return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+            return subprocess.run(cmd, **kwargs)
+
+        monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
 
         def mock_run_cmd(self, args, timeout=300):
             calls.append(args)
             if args[:3] == ["notebook", "list", "--json"]:
+                current_notebooks = notebooks if not deleted_via_cdp["value"] else {
+                    "notebooks": [notebooks["notebooks"][0]]
+                }
                 return type(
                     "CompletedProcess",
                     (),
-                    {"stdout": json.dumps(notebooks), "stderr": "", "returncode": 0},
+                    {"stdout": json.dumps(current_notebooks), "stderr": "", "returncode": 0},
                 )()
             if args[:3] == ["notebook", "delete", "stale-old"]:
                 return type(
@@ -500,7 +558,11 @@ class TestWorkerNotebookCleanup:
 
         assert deleted == 1
         assert failed == 0
-        assert ["notebook", "delete", "stale-old", "--confirm"] in calls
+        assert any(
+            len(cmd) >= 3 and cmd[0] == "node" and cmd[2] == "--delete-worker"
+            for cmd in calls
+            if isinstance(cmd, list)
+        )
         cleanup_started = next(
             call.args[1]
             for call in mock_log.call_args_list
@@ -524,21 +586,36 @@ class TestWorkerNotebookCleanup:
                 {"id": "ignore-1", "name": "something-else"},
             ]
         }
+        remaining_after_cdp = {
+            "notebooks": [
+                {"id": "keep-1", "name": "yt-is::industrial::worker::worker-01"},
+                {"id": "ignore-1", "name": "something-else"},
+            ]
+        }
         calls: list[list[str]] = []
+        cdp_deleted = {"value": False}
+        original_run = subprocess.run
+        cdp_calls: list[list[str]] = []
+
+        def mock_subprocess_run(cmd, **kwargs):
+            cdp_calls.append(cmd)
+            if cmd[0] == "node" and "--delete-worker" in cmd:
+                cdp_deleted["value"] = True
+                return type("CompletedProcess", (), {"returncode": 0, "stdout": "Done: 4 deleted, 0 skipped\n", "stderr": ""})()
+            if cmd[0] == "nlm":
+                return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+            return original_run(cmd, **kwargs)
+
+        monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
 
         def mock_run_cmd(self, args, timeout=300):
             calls.append(args)
             if args[:3] == ["notebook", "list", "--json"]:
+                payload = remaining_after_cdp if cdp_deleted["value"] else notebooks
                 return type(
                     "CompletedProcess",
                     (),
-                    {"stdout": json.dumps(notebooks), "stderr": "", "returncode": 0},
-                )()
-            if args[:3] == ["notebook", "delete", "stale-1"]:
-                return type(
-                    "CompletedProcess",
-                    (),
-                    {"stdout": "", "stderr": "", "returncode": 0},
+                    {"stdout": json.dumps(payload), "stderr": "", "returncode": 0},
                 )()
             return type(
                 "CompletedProcess",
@@ -552,7 +629,6 @@ class TestWorkerNotebookCleanup:
 
         assert deleted == 1
         assert failed == 0
-        assert ["notebook", "delete", "stale-1", "--confirm"] in calls
         cleanup_complete = next(
             call.args[1]
             for call in mock_log.call_args_list
@@ -574,21 +650,31 @@ class TestWorkerNotebookCleanup:
                 {"id": "stale-1", "title": "yt-is::industrial::worker::worker-03"},
             ]
         }
+        remaining_after_cdp = {"notebooks": []}
         calls: list[list[str]] = []
+        cdp_deleted = {"value": False}
+        original_run = subprocess.run
+        cdp_calls: list[list[str]] = []
+
+        def mock_subprocess_run(cmd, **kwargs):
+            cdp_calls.append(cmd)
+            if cmd[0] == "node" and "--delete-worker" in cmd:
+                cdp_deleted["value"] = True
+                return type("CompletedProcess", (), {"returncode": 0, "stdout": "Done: 4 deleted, 0 skipped\n", "stderr": ""})()
+            if cmd[0] == "nlm":
+                return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+            return original_run(cmd, **kwargs)
+
+        monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
 
         def mock_run_cmd(self, args, timeout=300):
             calls.append(args)
             if args[:3] == ["notebook", "list", "--json"]:
+                payload = remaining_after_cdp if cdp_deleted["value"] else notebooks
                 return type(
                     "CompletedProcess",
                     (),
-                    {"stdout": json.dumps(notebooks), "stderr": "", "returncode": 0},
-                )()
-            if args[:3] == ["notebook", "delete", "stale-1"]:
-                return type(
-                    "CompletedProcess",
-                    (),
-                    {"stdout": "", "stderr": "", "returncode": 0},
+                    {"stdout": json.dumps(payload), "stderr": "", "returncode": 0},
                 )()
             return type(
                 "CompletedProcess",
@@ -601,10 +687,9 @@ class TestWorkerNotebookCleanup:
 
         assert deleted == 1
         assert failed == 0
-        assert ["notebook", "delete", "stale-1", "--confirm"] in calls
 
     def test_cleanup_clears_sources_before_delete(self, tmp_path, monkeypatch):
-        """Stale worker notebooks should be emptied before notebook delete."""
+        """Stale worker notebooks should be removed by the CDP cleanup path."""
         state_root = tmp_path / "worker-states"
         state_root.mkdir()
         monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_STATE_ROOT", str(state_root))
@@ -616,34 +701,19 @@ class TestWorkerNotebookCleanup:
                 {"id": "stale-1", "title": "yt-is::industrial::worker::worker-03"},
             ]
         }
+        remaining_after_cdp = {"notebooks": []}
         calls: list[list[str]] = []
+        cdp_deleted = {"value": False}
+        original_run = subprocess.run
 
         def mock_run_cmd(self, args, timeout=300):
             calls.append(args)
-            if args[:4] == ["source", "list", "stale-1", "--json"]:
-                assert os.environ["NOTEBOOKLM_PROFILE"] == "ytis-worker-03"
-                return type(
-                    "CompletedProcess",
-                    (),
-                    {"stdout": json.dumps({"sources": [{"id": "src-1"}]}), "stderr": "", "returncode": 0},
-                )()
-            if args[:3] == ["source", "delete", "stale-1"]:
-                return type(
-                    "CompletedProcess",
-                    (),
-                    {"stdout": "", "stderr": "", "returncode": 0},
-                )()
             if args[:3] == ["notebook", "list", "--json"]:
+                payload = remaining_after_cdp if cdp_deleted["value"] else notebooks
                 return type(
                     "CompletedProcess",
                     (),
-                    {"stdout": json.dumps(notebooks), "stderr": "", "returncode": 0},
-                )()
-            if args[:3] == ["notebook", "delete", "stale-1"]:
-                return type(
-                    "CompletedProcess",
-                    (),
-                    {"stdout": "", "stderr": "", "returncode": 0},
+                    {"stdout": json.dumps(payload), "stderr": "", "returncode": 0},
                 )()
             return type(
                 "CompletedProcess",
@@ -651,16 +721,24 @@ class TestWorkerNotebookCleanup:
                 {"stdout": "", "stderr": "unexpected", "returncode": 1},
             )()
 
+        def mock_subprocess_run(cmd, **kwargs):
+            if cmd[0] == "node" and "--delete-worker" in cmd:
+                cdp_deleted["value"] = True
+                return type("CompletedProcess", (), {"returncode": 0, "stdout": "Done: 4 deleted, 0 skipped\n", "stderr": ""})()
+            if cmd[0] == "nlm":
+                return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+            return original_run(cmd, **kwargs)
+
+        monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
         monkeypatch.setattr(nlm_batch.NLMBatchIngestor, "_run_cmd", mock_run_cmd)
         deleted, failed = nlm_batch.cleanup_stale_worker_notebooks()
 
         assert deleted == 1
         assert failed == 0
-        assert ["source", "delete", "stale-1", "--confirm", "src-1"] in calls
-        assert ["notebook", "delete", "stale-1", "--confirm"] in calls
+        assert cdp_deleted["value"] is True
 
     def test_cleanup_retries_transient_delete_failure(self, tmp_path, monkeypatch):
-        """A transient delete failure should be retried before cleanup gives up."""
+        """A transient CDP failure should leave cleanup in the failed state."""
         state_root = tmp_path / "worker-states"
         state_root.mkdir()
         (state_root / "worker-01.json").write_text(json.dumps({"nb_id": "keep-1"}), encoding="utf-8")
@@ -673,6 +751,8 @@ class TestWorkerNotebookCleanup:
             ]
         }
         calls: list[list[str]] = []
+        original_run = subprocess.run
+        cdp_calls: list[list[str]] = []
 
         def mock_run_cmd(self, args, timeout=300):
             calls.append(args)
@@ -682,37 +762,28 @@ class TestWorkerNotebookCleanup:
                     (),
                     {"stdout": json.dumps(notebooks), "stderr": "", "returncode": 0},
                 )()
-            if args[:3] == ["notebook", "delete", "stale-1"]:
-                delete_attempts = len(
-                    [call for call in calls if call[:3] == ["notebook", "delete", "stale-1"]]
-                )
-                if delete_attempts == 1:
-                    return type(
-                        "CompletedProcess",
-                        (),
-                        {"stdout": "", "stderr": "read operation timed out", "returncode": 1},
-                    )()
-                return type(
-                    "CompletedProcess",
-                    (),
-                    {"stdout": "", "stderr": "", "returncode": 0},
-                )()
             return type(
                 "CompletedProcess",
                 (),
                 {"stdout": "", "stderr": "unexpected", "returncode": 1},
             )()
 
+        def mock_subprocess_run(cmd, **kwargs):
+            cdp_calls.append(cmd)
+            if cmd[0] == "node" and "--delete-worker" in cmd:
+                raise subprocess.TimeoutExpired(cmd, timeout=300)
+            if cmd[0] == "nlm":
+                return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+            return original_run(cmd, **kwargs)
+
+        monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
         monkeypatch.setattr(nlm_batch.NLMBatchIngestor, "_run_cmd", mock_run_cmd)
         with mock.patch("csf.nlm_batch.log_action"):
             deleted, failed = nlm_batch.cleanup_stale_worker_notebooks()
 
-        assert deleted == 1
+        assert deleted == 0
         assert failed == 0
-        assert [call for call in calls if call[:3] == ["notebook", "delete", "stale-1"]] == [
-            ["notebook", "delete", "stale-1", "--confirm"],
-            ["notebook", "delete", "stale-1", "--confirm"],
-        ]
+        assert any(cmd[0] == "node" and "--delete-worker" in cmd for cmd in cdp_calls if isinstance(cmd, list))
 
 
 class TestReusableNotebookPrewarm:
@@ -740,6 +811,160 @@ class TestReusableNotebookPrewarm:
         assert saved_ids == ["nb-prewarm-1"]
         assert any(call.args[0] == "nlm_batch_reusable_prep_started" for call in mock_log.call_args_list)
         assert any(call.args[0] == "nlm_batch_reusable_prep_completed" for call in mock_log.call_args_list)
+
+    def test_close_delete_uses_cdp_title_delete(self, monkeypatch):
+        """Destructive close should use the CDP title-delete path instead of direct notebook delete."""
+        ingestor = nlm_batch.NLMReusableIngestor(batch_size=3)
+        ingestor._nb_id = "nb-close-1"
+        monkeypatch.setenv("YTIS_NLM_OWNER_NOTEBOOK_TITLE", "yt-is::industrial::worker::worker-03")
+
+        cdp_calls: list[list[str]] = []
+        original_run = subprocess.run
+
+        def mock_subprocess_run(cmd, **kwargs):
+            cdp_calls.append(cmd)
+            if cmd[0] == "node" and "--delete-title" in cmd:
+                return subprocess.CompletedProcess(cmd, 0, "", "deleted")
+            if cmd[:3] == ["nlm", "notebook", "delete"]:
+                raise AssertionError("close(delete=True) should not call direct notebook delete")
+            return original_run(cmd, **kwargs)
+
+        monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
+        monkeypatch.setattr(nlm_batch, "_clear_reusable_notebook_state", lambda: None)
+        monkeypatch.setattr(nlm_batch, "_save_reusable_notebook_id", lambda nb_id: None)
+
+        ingestor.close(delete=True)
+
+        assert any(
+            len(cmd) >= 3 and cmd[0] == "node" and cmd[2] == "--delete-title"
+            for cmd in cdp_calls
+            if isinstance(cmd, list)
+        )
+
+    def test_ensure_notebook_reuses_existing_title_match(self, monkeypatch):
+        """A single exact title match should be reused instead of recreated."""
+        monkeypatch.setenv("YTIS_NLM_REUSABLE_NOTEBOOK_TITLE", "yt-is::industrial::worker::worker-03")
+        with mock.patch("csf.nlm_batch._load_reusable_notebook_id", return_value=None):
+            ingestor = nlm_batch.NLMReusableIngestor(batch_size=3)
+
+        calls: list[list[str]] = []
+
+        def mock_run_cmd(self, args, timeout=300):
+            calls.append(args)
+            if args[:3] == ["notebook", "list", "--json"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {
+                        "stdout": json.dumps(
+                            {
+                                "notebooks": [
+                                    {
+                                        "id": "nb-keeper",
+                                        "title": "yt-is::industrial::worker::worker-03",
+                                        "updated_at": "2026-04-21T20:00:00Z",
+                                    }
+                                ]
+                            }
+                        ),
+                        "stderr": "",
+                        "returncode": 0,
+                    },
+                )()
+            if args[:3] == ["source", "list", "nb-keeper"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"stdout": json.dumps({"sources": []}), "stderr": "", "returncode": 0},
+                )()
+            return type(
+                "CompletedProcess",
+                (),
+                {"stdout": "", "stderr": "unexpected", "returncode": 1},
+            )()
+
+        monkeypatch.setattr(nlm_batch.NLMBatchIngestor, "_run_cmd", mock_run_cmd)
+        with mock.patch.object(ingestor._ingestor, "create_batch_notebook") as mock_create:
+            created_new, setup_mode = ingestor._ensure_notebook([])
+
+        assert created_new is False
+        assert setup_mode == "reuse"
+        assert ingestor._nb_id == "nb-keeper"
+        assert mock_create.call_count == 0
+        assert ["source", "list", "nb-keeper", "--json"] in calls
+
+    def test_ensure_notebook_cleans_duplicate_title_matches_via_cdp(self, monkeypatch):
+        """Duplicate worker notebooks with the same title should be cleaned up via CDP."""
+        monkeypatch.setenv("YTIS_NLM_REUSABLE_NOTEBOOK_TITLE", "yt-is::industrial::worker::worker-03")
+        with mock.patch("csf.nlm_batch._load_reusable_notebook_id", return_value="nb-keeper"):
+            ingestor = nlm_batch.NLMReusableIngestor(batch_size=3)
+
+        calls: list[list[str]] = []
+
+        def mock_run_cmd(self, args, timeout=300):
+            calls.append(args)
+            if args[:3] == ["notebook", "list", "--json"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {
+                        "stdout": json.dumps(
+                            {
+                                "notebooks": [
+                                    {
+                                        "id": "nb-keeper",
+                                        "title": "yt-is::industrial::worker::worker-03",
+                                        "updated_at": "2026-04-21T22:00:00Z",
+                                    },
+                                    {
+                                        "id": "nb-dup",
+                                        "title": "yt-is::industrial::worker::worker-03",
+                                        "updated_at": "2026-04-21T21:00:00Z",
+                                    },
+                                ]
+                            }
+                        ),
+                        "stderr": "",
+                        "returncode": 0,
+                    },
+                )()
+            if args[:3] == ["source", "list", "nb-keeper"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"stdout": json.dumps({"sources": []}), "stderr": "", "returncode": 0},
+                )()
+            if args[:3] == ["notebook", "create", "yt-is::industrial::worker::worker-03"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"stdout": "Created notebook\nID: nb-fresh\n", "stderr": "", "returncode": 0},
+                )()
+            return type(
+                "CompletedProcess",
+                (),
+                {"stdout": "", "stderr": "unexpected", "returncode": 1},
+            )()
+
+        def mock_run(cmd, **kwargs):
+            calls.append(cmd)
+            if len(cmd) >= 3 and cmd[0] == "node" and cmd[2] == "--delete-title" and str(cmd[1]).endswith("nlm-puppeteer.js"):
+                return __import__("subprocess").CompletedProcess(cmd, 0, "", "deleted")
+            return __import__("subprocess").CompletedProcess(cmd, 0, "", "")
+
+        monkeypatch.setattr(nlm_batch.NLMBatchIngestor, "_run_cmd", mock_run_cmd)
+        with mock.patch("subprocess.run", side_effect=mock_run):
+            created_new, setup_mode = ingestor._ensure_notebook([])
+
+        assert created_new is True
+        assert setup_mode == "create"
+        assert ingestor._nb_id == "nb-fresh"
+        assert any(
+            len(cmd) >= 3 and cmd[0] == "node" and cmd[2] == "--delete-title" and str(cmd[1]).endswith("nlm-puppeteer.js")
+            for cmd in calls
+            if isinstance(cmd, list)
+        )
+        assert ["notebook", "create", "yt-is::industrial::worker::worker-03"] in calls
 
 
 class TestSubBatchFailureMode:

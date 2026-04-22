@@ -20,7 +20,6 @@ from csf.nlm_batch import (
     get_last_reusable_process_metrics,
     process_industrial_batch_reusable,
     set_reusable_ingestor,
-    retire_reusable_notebook_state,
     NLMReusableIngestor,
 )
 
@@ -159,6 +158,8 @@ def main(argv: list[str] | None = None) -> int:
 
     os.environ["YTIS_NLM_REUSABLE_STATE_PATH"] = args.state_path
     os.environ["YTIS_NLM_REUSABLE_NOTEBOOK_TITLE"] = args.notebook_title
+    os.environ["YTIS_NLM_OWNER_STATE_PATH"] = args.state_path
+    os.environ["YTIS_NLM_OWNER_NOTEBOOK_TITLE"] = args.notebook_title
     notebooklm_profile = args.notebooklm_profile or f"ytis-{args.worker_id}"
     os.environ["NOTEBOOKLM_PROFILE"] = notebooklm_profile
     watchdog_stop = _start_parent_watchdog()
@@ -195,7 +196,11 @@ def main(argv: list[str] | None = None) -> int:
     worker_subbatch_metrics: list[dict[str, object]] = []
     try:
         prewarm_started = time.monotonic()
-        cleanup_info = retire_reusable_notebook_state()
+        cleanup_info = {
+            "status": "owner_title_reuse",
+            "notebook_title": args.notebook_title,
+            "state_path": args.state_path,
+        }
         log_action(
             "worker_notebook_reset_started",
             {

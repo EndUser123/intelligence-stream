@@ -1833,6 +1833,10 @@ def cmd_fetch(
         state_root.mkdir(parents=True, exist_ok=True)
         state_path = state_root / f"worker-{worker_id:02d}.json"
         notebook_title = f"{notebook_prefix}::worker-{worker_id:02d}"
+        os.environ["YTIS_NLM_OWNER_STATE_PATH"] = str(state_path)
+        os.environ["YTIS_NLM_OWNER_NOTEBOOK_TITLE"] = notebook_title
+        os.environ["YTIS_NLM_REUSABLE_STATE_PATH"] = str(state_path)
+        os.environ["YTIS_NLM_REUSABLE_NOTEBOOK_TITLE"] = notebook_title
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tmp:
             json.dump(worker_batches, tmp)
             batch_file = Path(tmp.name)

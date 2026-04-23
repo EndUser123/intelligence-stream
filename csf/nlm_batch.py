@@ -72,6 +72,29 @@ def _get_notebooklm_profile() -> str:
     return override or _DEFAULT_NOTEBOOKLM_PROFILE
 
 
+def _extract_video_id_from_source_entry(source: object) -> str | None:
+    """Best-effort extraction of a video ID from a NotebookLM source entry."""
+    if not isinstance(source, dict):
+        return None
+    for key in ("video_id", "videoId"):
+        value = str(source.get(key) or "").strip()
+        if value:
+            return value
+    for key in ("title", "name", "url", "source_url", "video_url", "display_url"):
+        value = str(source.get(key) or "").strip()
+        if not value:
+            continue
+        match = re.search(r"[?&]v=([a-zA-Z0-9_-]{11})", value)
+        if match:
+            return match.group(1)
+        match = re.search(r"youtu\.be/([a-zA-Z0-9_-]{11})", value)
+        if match:
+            return match.group(1)
+        if re.fullmatch(r"[a-zA-Z0-9_-]{11}", value):
+            return value
+    return None
+
+
 def _load_reusable_notebook_id() -> Optional[str]:
     try:
         state_path = _get_owner_notebook_state_path()
@@ -1100,9 +1123,17 @@ class NLMBatchIngestor:
             return {vid: (False, None, "Parse failed") for vid in batch_ids}
 
         # 2. Map Source IDs to Video IDs
-        # Since NLM doesn't return the URL in the list, we'll use the order
-        # which is consistent during the 'add' phase if we do it in one command.
-        source_id_list = [s['id'] for s in sources]
+        # Prefer exact NotebookLM source title/url matches first because list
+        # order is not guaranteed to be stable enough for correlation.
+        source_id_list = [str(s.get("id") or "").strip() for s in sources if isinstance(s, dict) and str(s.get("id") or "").strip()]
+        source_id_by_video_id: dict[str, str] = {}
+        for source in sources:
+            source_id = str(source.get("id") or "").strip() if isinstance(source, dict) else ""
+            video_id = _extract_video_id_from_source_entry(source)
+            if source_id and video_id and video_id not in source_id_by_video_id:
+                source_id_by_video_id[video_id] = source_id
+        title_match_count = sum(1 for vid in batch_ids if vid in source_id_by_video_id)
+        order_fallback_count = max(0, len(batch_ids) - title_match_count)
         
         results = {}
         content_fetch_stats = {
@@ -1118,6 +1149,8 @@ class NLMBatchIngestor:
                 "batch_size": len(batch_ids),
                 "sources_visible": len(sources),
                 "materialization_ready_at_epoch": ready_reference_epoch,
+                "source_id_title_match_count": title_match_count,
+                "source_id_order_fallback_count": order_fallback_count,
             },
         )
         
@@ -1214,8 +1247,11 @@ class NLMBatchIngestor:
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = []
             for i, vid in enumerate(batch_ids):
-                if i < len(source_id_list):
-                    futures.append(executor.submit(_fetch_content, source_id_list[i], vid))
+                source_id = source_id_by_video_id.get(vid)
+                if not source_id and i < len(source_id_list):
+                    source_id = source_id_list[i]
+                if source_id:
+                    futures.append(executor.submit(_fetch_content, source_id, vid))
             
             for future in as_completed(futures):
                 vid, success, text, error = future.result()

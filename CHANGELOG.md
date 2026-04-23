@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **NotebookLM source matching** — `nlm_batch.py` no longer trusts `source list --json` order when extracting transcripts. It now matches NotebookLM source entries back to the requested YouTube video IDs by title/url first, with order only as a fallback. This fixes the wrong-source / wrong-video mismatch that showed up in worker-count trials when valid videos were reported as `too_short` or `command_failed`.
+
 ## [0.2.0] - 2026-04-12
 
 ### Added

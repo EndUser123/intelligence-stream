@@ -1128,6 +1128,49 @@ class TestNotebookCapRotation:
         summary = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_extract_completed")
         assert summary["content_fetch_status_counts"]["command_failed"] == 1
 
+    def test_extract_transcripts_matches_sources_by_title_instead_of_order(self):
+        """Source list order should not control which video ID gets which source ID."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
+        ingestor._nb_id = "nb-order"
+        vid1 = "AAAAAAAAAAA"
+        vid2 = "BBBBBBBBBBB"
+
+        def fake_run_cmd(cmd, timeout=300):
+            if cmd[:2] == ["source", "list"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {
+                        "returncode": 0,
+                        "stdout": json.dumps(
+                            {
+                                "sources": [
+                                    {"id": "s2", "title": f"https://www.youtube.com/watch?v={vid2}"},
+                                    {"id": "s1", "title": f"https://www.youtube.com/watch?v={vid1}"},
+                                ]
+                            }
+                        ),
+                        "stderr": "",
+                    },
+                )()
+            if cmd[:2] == ["source", "content"]:
+                source_id = cmd[2]
+                content = "A" * 101 if source_id == "s1" else "B" * 101
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 0, "stdout": json.dumps({"value": {"content": content}}), "stderr": ""},
+                )()
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
+            results = ingestor.extract_transcripts([vid1, vid2])
+
+        assert results[vid1][0] is True
+        assert results[vid1][1] == "A" * 101
+        assert results[vid2][0] is True
+        assert results[vid2][1] == "B" * 101
+
     def test_source_count_tracked_in_subbatch_metrics(self):
         """Subbatch metrics should include current_source_count after each subbatch."""
         ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)

@@ -91,6 +91,7 @@ Last updated: 2026-04-20
   - `negative_cache_reason_counts`
   - `add_cmd_elapsed_s` vs `materialization_wait_elapsed_s`
 - When a new logging field is added, smoke-test the exact path that writes it. If it only appears in one code path, the first bug is often a mismatch in another path.
+- If valid videos show up as `too_short` or `command_failed`, verify NotebookLM source-to-video mapping before blaming the source itself. We already hit a bug where `source list --json` order was trusted incorrectly in `extract_transcripts()`.
 
 ## Session Bootstrap
 - Read these first:

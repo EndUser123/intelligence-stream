@@ -42,10 +42,10 @@ transcript_fetch_chain()
 - While-loop clears and recreates notebook at 300 limit.
 - Not recursive (caused stack overflow in unit tests under mocked context).
 
-### Order-based source mapping
-- Source IDs mapped to video IDs by insertion order.
-- Single-video calls are trivially 1:1 (safe).
-- Batch path (`_fetch_via_notebooklm_batch`) inherits the same risk — hardening requires source-ID tagging inside transcript content.
+### Source mapping
+- Source IDs are matched back to video IDs by NotebookLM source title/url first.
+- Positional fallback still exists only when a source entry cannot be parsed.
+- Batch path (`_fetch_via_notebooklm_batch`) now has a regression test for reversed source-list order.
 
 ## Files Changed
 
@@ -53,6 +53,7 @@ transcript_fetch_chain()
 |------|--------|
 | `csf/transcript.py` | `TYPE_CHECKING` guard; `_nlm_scraper` singleton; `_fetch_via_notebooklm` and `_fetch_via_notebooklm_batch` now delegate to `scrape_with_staging()` |
 | `csf/nlm_scraper.py` | Lint fixes only (unused imports, ambiguous var `l`) |
+| `csf/nlm_batch.py` | Source-list order no longer determines which source gets read for which video |
 
 ## Capacity Impact
 
@@ -68,7 +69,7 @@ Numbers are inferred from the ~60–90s overhead estimate — not yet instrument
 
 | Risk | Severity | Status |
 |------|----------|--------|
-| Positional mapping corruption in batch path | HIGH | Known — single-video path is safe |
+| Positional mapping corruption in batch path | HIGH | Fixed — title/url matching now comes first, order is fallback only |
 | Selenium UI changes breaking transcript extraction | MEDIUM | Deferred — requires monitoring |
 | Selenium 4.40.0 CVE exposure | MEDIUM | Deferred — needs `pip-audit` when online |
 | 22 pre-existing mypy `Optional[driver]` errors | LOW | Deferred — type narrowing debt |

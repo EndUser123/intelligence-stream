@@ -23,14 +23,20 @@ from csf.csf_logging import log_action
 
 
 _DEFAULT_OWNER_NOTEBOOK_STATE_PATH = Path("P:/__csf/.data/yt-is/owner_nlm_notebook.json")
-_DEFAULT_OWNER_NOTEBOOK_TITLE = "yt-is::industrial::worker::worker-01"
+_DEFAULT_OWNER_NOTEBOOK_TITLE = "yt-is-worker-01"
 _DEFAULT_INDUSTRIAL_WORKER_STATE_ROOT = Path("P:/__csf/.data/yt-is/industrial-worker-states")
-_DEFAULT_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX = "yt-is::industrial::worker"
+_DEFAULT_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX = "yt-is-worker"
+_LEGACY_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX = "yt-is::industrial::worker"
 _DEFAULT_NOTEBOOKLM_PROFILE = "default"
 _AUTH_LOCK_PATH = Path("P:/__csf/.data/yt-is/locks/nlm-auth.lock")
 DEFAULT_NOTEBOOKLM_BATCH_SIZE = 200
 DEFAULT_NOTEBOOKLM_SOURCE_CAP = 225
+DEFAULT_NOTEBOOKLM_SOURCE_MATERIALIZATION_TIMEOUT_S = 600
 _NOTEBOOK_SOURCE_CAP = DEFAULT_NOTEBOOKLM_SOURCE_CAP  # Rotate before the 300-source notebook ceiling and stay below the single-call add cliff.
+
+
+class NotebookSourceMaterializationTimeout(RuntimeError):
+    """Raised when NotebookLM sources never become ready within the wait window."""
 
 
 def _get_owner_notebook_state_path() -> Path:
@@ -221,6 +227,16 @@ def _get_worker_notebook_prefix() -> str:
     return override or _DEFAULT_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX
 
 
+def _get_worker_notebook_prefixes() -> tuple[str, ...]:
+    prefixes: list[str] = []
+    current = _get_worker_notebook_prefix().strip()
+    if current:
+        prefixes.append(current)
+    if _LEGACY_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX not in prefixes:
+        prefixes.append(_LEGACY_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX)
+    return tuple(prefixes)
+
+
 def _infer_worker_profile_from_notebook_name(name: str) -> str:
     match = re.search(r"worker-(\d+)$", name.strip())
     if not match:
@@ -273,17 +289,12 @@ def _delete_worker_notebooks_by_title_with_cdp(title: str) -> subprocess.Complet
 
 def _load_current_worker_notebook_ids() -> set[str]:
     state_root = _get_worker_state_root()
-    expected_run_id = _get_worker_run_id()
     ids: set[str] = set()
     if not state_root.exists():
         return ids
     for state_path in state_root.glob("worker-*.json"):
         try:
             data = json.loads(state_path.read_text(encoding="utf-8"))
-            if expected_run_id:
-                run_id = (data.get("run_id") or "").strip()
-                if run_id != expected_run_id:
-                    continue
             nb_id = (data.get("nb_id") or "").strip()
             if nb_id:
                 ids.add(nb_id)
@@ -293,7 +304,7 @@ def _load_current_worker_notebook_ids() -> set[str]:
 
 
 def cleanup_stale_worker_notebooks() -> tuple[int, int]:
-    """Delete worker notebooks that are no longer referenced by state files."""
+    """Audit worker notebooks without deleting the permanent worker-owned notebooks."""
     ingestor = NLMBatchIngestor()
     active_nb_ids = _load_current_worker_notebook_ids()
     prefix = _get_worker_notebook_prefix()
@@ -336,86 +347,25 @@ def cleanup_stale_worker_notebooks() -> tuple[int, int]:
         )
         return (0, 0)
 
-    # CDP handles everything in one pass — faster and more reliable than per-notebook
-    # CLI retries, which can silently timeout and get stuck for hours.
-    cdp_script = Path(__file__).parent.parent / "bin" / "nlm-puppeteer.js"
-    try:
-        cdp_res = subprocess.run(
-            ["node", str(cdp_script), "--delete-worker"],
-            capture_output=True,
-            text=True,
-            timeout=300,
+    worker_notebooks = [
+        nb
+        for nb in notebooks
+        if isinstance(nb, dict)
+        and any(
+            (nb.get("name") or nb.get("title") or "").strip().startswith(worker_prefix)
+            for worker_prefix in _get_worker_notebook_prefixes()
         )
-        if cdp_res.returncode == 0:
-            # Re-scan to get accurate deleted/failed counts.
-            res2 = ingestor._run_cmd(["notebook", "list", "--json"], timeout=30)
-            if res2.returncode == 0:
-                try:
-                    remaining = json.loads(res2.stdout)
-                    if isinstance(remaining, dict):
-                        remaining = remaining.get("notebooks", [])
-                except Exception:
-                    remaining = []
-                stale_before = [
-                    nb for nb in notebooks
-                    if isinstance(nb, dict) and
-                    (nb.get("name") or nb.get("title") or "").strip().startswith(prefix)
-                    and (nb.get("id") or "").strip() not in active_nb_ids
-                ]
-                stale_after = [
-                    nb for nb in remaining
-                    if isinstance(nb, dict) and
-                    (nb.get("name") or nb.get("title") or "").strip().startswith(prefix)
-                    and (nb.get("id") or "").strip() not in active_nb_ids
-                ]
-                deleted = max(0, len(stale_before) - len(stale_after))
-                failed = len(stale_after)
-                log_action(
-                    "nlm_worker_notebook_cleanup_cdp_primary",
-                    {
-                        "cdp_stdout": (cdp_res.stdout or "")[:300],
-                        "stale_before": len(stale_before),
-                        "stale_remaining": len(stale_after),
-                        "method": "cdp_primary",
-                    },
-                )
-                log_action(
-                    "nlm_worker_notebook_cleanup_complete",
-                    {
-                        "deleted": deleted,
-                        "failed": failed,
-                        "status": "ok",
-                        "active_nb_ids": len(active_nb_ids),
-                        "notebook_prefix": prefix,
-                        "run_id": run_id or None,
-                    },
-                )
-                return (deleted, failed)
-            else:
-                log_action(
-                    "nlm_worker_notebook_cleanup_cdp_primary_rescan_failed",
-                    {"cdp_stderr": (cdp_res.stderr or "")[:200]},
-                )
-        else:
-            log_action(
-                "nlm_worker_notebook_cleanup_cdp_primary_failed",
-                {"cdp_stderr": (cdp_res.stderr or "")[:200]},
-            )
-    except Exception as exc:
-        log_action(
-            "nlm_worker_notebook_cleanup_cdp_primary_error",
-            {"error": str(exc)},
-        )
-
+    ]
     log_action(
         "nlm_worker_notebook_cleanup_complete",
         {
             "deleted": 0,
             "failed": 0,
-            "status": "cdp_failed",
+            "status": "audit_only",
             "active_nb_ids": len(active_nb_ids),
             "notebook_prefix": prefix,
             "run_id": run_id or None,
+            "worker_notebook_count": len(worker_notebooks),
         },
     )
     return (0, 0)
@@ -588,7 +538,10 @@ class NLMBatchIngestor:
         self._last_add_returncode: Optional[int] = None
         self._last_add_cmd_elapsed_s: float = 0.0
         self._last_materialization_wait_elapsed_s: float = 0.0
+        self._last_materialization_ready_at_epoch: float = 0.0
+        self._last_extract_metrics: dict[str, object] | None = None
         self._current_source_count: int = 0
+        self._video_ready_epoch_by_id: dict[str, float] = {}
 
     def _run_cmd(self, args: List[str], timeout: int = 300) -> subprocess.CompletedProcess:
         tracker = _get_tracker()
@@ -642,7 +595,14 @@ class NLMBatchIngestor:
             tracker.record_failure(is_rate_limit=False)
             return res
 
-    def _wait_for_sources_ready(self, expected_count: int, timeout: int = 120) -> bool:
+    def _wait_for_sources_ready(
+        self,
+        expected_count: int,
+        timeout: int = DEFAULT_NOTEBOOKLM_SOURCE_MATERIALIZATION_TIMEOUT_S,
+        *,
+        source_count_before_wait: int = 0,
+        poll_interval_s: int = 10,
+    ) -> bool:
         """Poll source list until all expected sources are present and accounted for.
 
         Uses heartbeat polling because 'nlm source add --wait' only waits for the
@@ -652,6 +612,7 @@ class NLMBatchIngestor:
         import time
         start = time.time()
         poll_count = 0
+        last_observed_total = source_count_before_wait
         while time.time() - start < timeout:
             res = self._run_cmd(["source", "list", self._nb_id, "--json"])
             poll_count += 1
@@ -660,7 +621,10 @@ class NLMBatchIngestor:
                     sources = json.loads(res.stdout)
                     if isinstance(sources, dict):
                         sources = sources.get("sources", [])
-                    if len(sources) >= expected_count:
+                    observed_total = len(sources)
+                    last_observed_total = observed_total
+                    materialization_started = observed_total > source_count_before_wait
+                    if observed_total >= expected_count:
                         return True
                     if poll_count == 1 or poll_count % 3 == 0:
                         log_action(
@@ -668,9 +632,13 @@ class NLMBatchIngestor:
                             {
                                 "nb_id": self._nb_id,
                                 "expected_total": expected_count,
-                                "observed_total": len(sources),
+                                "observed_total": observed_total,
+                                "source_count_before_wait": source_count_before_wait,
+                                "materialization_started": materialization_started,
                                 "poll_count": poll_count,
                                 "elapsed_s": round(time.time() - start, 3),
+                                "timeout_s": timeout,
+                                "poll_interval_s": poll_interval_s,
                             },
                         )
                 except Exception:
@@ -679,10 +647,13 @@ class NLMBatchIngestor:
                         {
                             "nb_id": self._nb_id,
                             "expected_total": expected_count,
+                            "source_count_before_wait": source_count_before_wait,
                             "poll_count": poll_count,
                             "elapsed_s": round(time.time() - start, 3),
                             "stdout": (res.stdout or "")[:200],
                             "stderr": (res.stderr or "")[:200],
+                            "timeout_s": timeout,
+                            "poll_interval_s": poll_interval_s,
                         },
                     )
             else:
@@ -691,21 +662,29 @@ class NLMBatchIngestor:
                     {
                         "nb_id": self._nb_id,
                         "expected_total": expected_count,
+                        "source_count_before_wait": source_count_before_wait,
                         "poll_count": poll_count,
                         "elapsed_s": round(time.time() - start, 3),
                         "returncode": res.returncode,
                         "stdout": (res.stdout or "")[:200],
                         "stderr": (res.stderr or "")[:200],
+                        "timeout_s": timeout,
+                        "poll_interval_s": poll_interval_s,
                     },
                 )
-            time.sleep(10)
+            time.sleep(poll_interval_s)
         log_action(
             "nlm_batch_source_materialization_wait_timeout",
             {
                 "nb_id": self._nb_id,
                 "expected_total": expected_count,
+                "source_count_before_wait": source_count_before_wait,
                 "poll_count": poll_count,
                 "elapsed_s": round(time.time() - start, 3),
+                "timeout_s": timeout,
+                "last_observed_total": last_observed_total,
+                "materialization_started": last_observed_total > source_count_before_wait,
+                "poll_interval_s": poll_interval_s,
             },
         )
         return False
@@ -730,6 +709,7 @@ class NLMBatchIngestor:
             return []
 
         chunk_started_at = time.monotonic()
+        chunk_started_at_epoch = time.time()
         self._last_add_failure_reason = None
         self._last_add_returncode = None
         self._last_add_cmd_elapsed_s = 0.0
@@ -753,8 +733,10 @@ class NLMBatchIngestor:
                 "retry_depth": retry_depth,
                 "source_profile": source_profile,
                 "source_count_before": source_count_before,
+                "started_at_epoch": chunk_started_at_epoch,
             },
         )
+        self._last_materialization_ready_at_epoch = 0.0
         add_args = ["source", "add", self._nb_id, "--wait"]
         for vid in batch_ids:
             add_args.extend(["--url", f"https://www.youtube.com/watch?v={vid}"])
@@ -782,10 +764,13 @@ class NLMBatchIngestor:
                 "failure_reason": self._last_add_failure_reason,
                 "stdout": (res.stdout or "")[:200],
                 "stderr": (res.stderr or "")[:200],
+                "started_at_epoch": chunk_started_at_epoch,
+                "completed_at_epoch": time.time(),
             },
         )
         if res.returncode == 0:
             wait_started_at = time.monotonic()
+            wait_started_at_epoch = time.time()
             log_action(
                 "nlm_batch_source_materialization_wait_started",
                 {
@@ -795,13 +780,22 @@ class NLMBatchIngestor:
                     "retry_depth": retry_depth,
                     "source_profile": source_profile,
                     "source_count_before_wait": source_count_after,
+                    "timeout_s": DEFAULT_NOTEBOOKLM_SOURCE_MATERIALIZATION_TIMEOUT_S,
+                    "started_at_epoch": wait_started_at_epoch,
                 },
             )
-            wait_succeeded = self._wait_for_sources_ready(expected_total, timeout=120)
+            wait_succeeded = self._wait_for_sources_ready(
+                expected_total,
+                timeout=DEFAULT_NOTEBOOKLM_SOURCE_MATERIALIZATION_TIMEOUT_S,
+                source_count_before_wait=source_count_after,
+            )
             wait_elapsed_s = round(time.monotonic() - wait_started_at, 3)
             self._last_materialization_wait_elapsed_s = wait_elapsed_s
+            wait_completed_at_epoch = time.time()
+            self._last_materialization_ready_at_epoch = wait_completed_at_epoch
             if not wait_succeeded:
-                print(f"[NLM-Batch]   WARNING: after {120}s sources still not ready, continuing anyway...")
+                timeout_s = DEFAULT_NOTEBOOKLM_SOURCE_MATERIALIZATION_TIMEOUT_S
+                print(f"[NLM-Batch]   ERROR: after {timeout_s}s sources still not ready; halting test.")
                 self._last_add_failure_reason = "materialization_wait_failed"
                 log_action(
                     "nlm_batch_source_materialization_wait_failed",
@@ -815,7 +809,17 @@ class NLMBatchIngestor:
                         "elapsed_s": wait_elapsed_s,
                         "source_count_after_wait": self._get_current_source_count(),
                         "source_count_before_wait": source_count_after,
+                        "timeout_s": timeout_s,
+                        "halted": True,
+                        "started_at_epoch": wait_started_at_epoch,
+                        "completed_at_epoch": wait_completed_at_epoch,
+                        "source_materialization_ready_at_epoch": 0.0,
                     },
+                )
+                raise NotebookSourceMaterializationTimeout(
+                    f"NotebookLM sources were not ready after {timeout_s}s "
+                    f"(nb_id={self._nb_id}, subbatch_index={subbatch_index}, "
+                    f"expected_total={expected_total}, source_count_before_wait={source_count_after})"
                 )
             else:
                 log_action(
@@ -827,10 +831,17 @@ class NLMBatchIngestor:
                         "retry_depth": retry_depth,
                         "source_profile": source_profile,
                         "elapsed_s": wait_elapsed_s,
-                        "source_count_after_wait": self._get_current_source_count(),
-                        "source_count_before_wait": source_count_after,
-                    },
-                )
+                    "source_count_after_wait": self._get_current_source_count(),
+                    "source_count_before_wait": source_count_after,
+                    "timeout_s": DEFAULT_NOTEBOOKLM_SOURCE_MATERIALIZATION_TIMEOUT_S,
+                    "started_at_epoch": wait_started_at_epoch,
+                    "completed_at_epoch": wait_completed_at_epoch,
+                    "source_materialization_ready_at_epoch": wait_completed_at_epoch,
+                },
+            )
+            self._last_materialization_ready_at_epoch = wait_completed_at_epoch
+            for vid in batch_ids:
+                self._video_ready_epoch_by_id[vid] = wait_completed_at_epoch
             return list(batch_ids)
 
         print(
@@ -872,6 +883,7 @@ class NLMBatchIngestor:
         total = len(batch_ids)
         added_ids: List[str] = []
         self._last_subbatch_metrics = []
+        self._video_ready_epoch_by_id = {}
         current_subbatch_size = max(1, subbatch_size)
         next_index = 0
         subbatch_index = 0
@@ -930,12 +942,36 @@ class NLMBatchIngestor:
                     "target_subbatch_size": current_subbatch_size,
                 },
             )
-            added_chunk_ids = self._add_sources_chunk(
-                subbatch,
-                subbatch_index=subbatch_index,
-                expected_total=next_index + len(subbatch),
-                source_profile=source_profile,
-            )
+            try:
+                added_chunk_ids = self._add_sources_chunk(
+                    subbatch,
+                    subbatch_index=subbatch_index,
+                    expected_total=next_index + len(subbatch),
+                    source_profile=source_profile,
+                )
+            except NotebookSourceMaterializationTimeout:
+                self._last_subbatch_metrics.append(
+                    {
+                        "subbatch_index": subbatch_index,
+                        "subbatch_size": window_size,
+                        "target_subbatch_size": current_subbatch_size,
+                        "attempted_count": len(subbatch),
+                        "added_count": len(subbatch),
+                        "add_cmd_elapsed_s": float(getattr(self, "_last_add_cmd_elapsed_s", 0.0) or 0.0),
+                        "materialization_wait_elapsed_s": float(getattr(self, "_last_materialization_wait_elapsed_s", 0.0) or 0.0),
+                        "elapsed_s": float(
+                            (getattr(self, "_last_add_cmd_elapsed_s", 0.0) or 0.0)
+                            + (getattr(self, "_last_materialization_wait_elapsed_s", 0.0) or 0.0)
+                        ),
+                        "returncode": self._last_add_returncode,
+                        "failure_reason": self._last_add_failure_reason,
+                        "source_profile": source_profile,
+                        "current_source_count": self._get_current_source_count(),
+                        "status": "materialization_wait_timeout",
+                        "source_materialization_ready_at_epoch": 0.0,
+                    }
+                )
+                raise
             # Track running source count after each subbatch
             self._current_source_count = self._get_current_source_count()
             added_ids.extend(added_chunk_ids)
@@ -955,6 +991,9 @@ class NLMBatchIngestor:
                 "failure_reason": self._last_add_failure_reason,
                 "source_profile": source_profile,
                 "current_source_count": self._current_source_count,
+                "source_materialization_ready_at_epoch": float(
+                    getattr(self, "_last_materialization_ready_at_epoch", 0.0) or 0.0
+                ),
             }
             if len(added_chunk_ids) < len(subbatch):
                 if self._current_source_count >= _NOTEBOOK_SOURCE_CAP:
@@ -1049,6 +1088,7 @@ class NLMBatchIngestor:
     def extract_transcripts(self, batch_ids: List[str]) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
         """Extract using high-speed 'source content' method."""
         start = time.time()
+        ready_reference_epoch = float(getattr(self, "_last_materialization_ready_at_epoch", 0.0) or 0.0)
         # 1. Get Source List
         res = self._run_cmd(["source", "list", self._nb_id, "--json"])
         if res.returncode != 0: return {vid: (False, None, "List failed") for vid in batch_ids}
@@ -1065,32 +1105,109 @@ class NLMBatchIngestor:
         source_id_list = [s['id'] for s in sources]
         
         results = {}
+        content_fetch_stats = {
+            "status_counts": {"ready": 0, "too_short": 0, "command_failed": 0, "parse_failed": 0},
+            "ready_age_s_total": 0.0,
+            "ready_age_s_max": 0.0,
+        }
+        status_lock = threading.Lock()
         log_action(
             "nlm_batch_extract_started",
             {
                 "nb_id": self._nb_id,
                 "batch_size": len(batch_ids),
                 "sources_visible": len(sources),
+                "materialization_ready_at_epoch": ready_reference_epoch,
             },
         )
         
         def _fetch_content(source_id: str, vid_hint: str):
             # The 'content' command is NOT an AI query. It's a direct data fetch.
+            started_at_epoch = time.time()
+            ready_age_s = round(started_at_epoch - ready_reference_epoch, 3) if ready_reference_epoch else 0.0
+            log_action(
+                "nlm_batch_source_content_fetch_started",
+                {
+                    "nb_id": self._nb_id,
+                    "source_id": source_id,
+                    "video_id": vid_hint,
+                    "timeout_s": 30,
+                    "started_at_epoch": started_at_epoch,
+                    "source_ready_age_s": ready_age_s,
+                    "materialization_ready_at_epoch": ready_reference_epoch,
+                },
+            )
             res = self._run_cmd(["source", "content", source_id, "--json"], timeout=30)
+            completed_at_epoch = time.time()
+            content = ""
+            content_length = 0
+            status = "command_failed" if res.returncode != 0 else "parse_failed"
+            failure_reason = f"Fetch failed for {source_id}: {status}"
             if res.returncode == 0:
                 try:
                     data = json.loads(res.stdout)
                     # Support both raw and wrapped JSON
-                    content = ""
                     if isinstance(data, dict):
                         content = data.get("value", {}).get("content", "")
                         if not content: content = data.get("content", "")
-                    
-                    if len(content) > 100:
+                    content_length = len(content)
+                    if content_length > 100:
+                        status = "ready"
+                        with status_lock:
+                            content_fetch_stats["status_counts"][status] = content_fetch_stats["status_counts"].get(status, 0) + 1
+                            content_fetch_stats["ready_age_s_total"] += ready_age_s
+                            content_fetch_stats["ready_age_s_max"] = max(content_fetch_stats["ready_age_s_max"], ready_age_s)
+                        log_action(
+                            "nlm_batch_source_content_fetch_completed",
+                            {
+                                "nb_id": self._nb_id,
+                                "source_id": source_id,
+                                "video_id": vid_hint,
+                                "timeout_s": 30,
+                                "started_at_epoch": started_at_epoch,
+                                "completed_at_epoch": completed_at_epoch,
+                                "elapsed_s": round(completed_at_epoch - started_at_epoch, 3),
+                                "returncode": res.returncode,
+                                "content_length": content_length,
+                                "status": status,
+                                "ready_threshold": 100,
+                                "source_ready_age_s": ready_age_s,
+                                "materialization_ready_at_epoch": ready_reference_epoch,
+                            },
+                        )
                         return vid_hint, True, content, None
+                    status = "too_short"
+                    failure_reason = f"Fetch failed for {source_id}: {status}"
                 except:
-                    pass
-            return vid_hint, False, None, f"Fetch failed for {source_id}"
+                    status = "parse_failed"
+                    failure_reason = f"Fetch failed for {source_id}: {status}"
+            with status_lock:
+                content_fetch_stats["status_counts"][status] = content_fetch_stats["status_counts"].get(status, 0) + 1
+                content_fetch_stats["ready_age_s_total"] += ready_age_s
+                content_fetch_stats["ready_age_s_max"] = max(content_fetch_stats["ready_age_s_max"], ready_age_s)
+
+            log_action(
+                "nlm_batch_source_content_fetch_completed",
+                {
+                    "nb_id": self._nb_id,
+                    "source_id": source_id,
+                    "video_id": vid_hint,
+                    "timeout_s": 30,
+                    "started_at_epoch": started_at_epoch,
+                    "completed_at_epoch": completed_at_epoch,
+                    "elapsed_s": round(completed_at_epoch - started_at_epoch, 3),
+                    "returncode": res.returncode,
+                    "content_length": content_length,
+                    "status": status,
+                    "ready_threshold": 100,
+                    "source_ready_age_s": ready_age_s,
+                    "materialization_ready_at_epoch": ready_reference_epoch,
+                    "failure_reason": failure_reason,
+                    "stdout": (res.stdout or "")[:200],
+                    "stderr": (res.stderr or "")[:200],
+                },
+            )
+            return vid_hint, False, None, failure_reason
 
         print(f"[NLM-Batch] Fetching {len(sources)} sources in parallel...")
         video_width = max(len(vid) for vid in batch_ids) if batch_ids else 0
@@ -1116,10 +1233,33 @@ class NLMBatchIngestor:
                 "succeeded": succeeded,
                 "failed": len(results) - succeeded,
                 "elapsed_s": round(time.time() - start, 3),
+                "source_ready_age_s_total": round(content_fetch_stats["ready_age_s_total"], 3),
+                "source_ready_age_s_max": round(content_fetch_stats["ready_age_s_max"], 3),
+                "source_ready_age_s_avg": round(
+                    content_fetch_stats["ready_age_s_total"] / max(sum(content_fetch_stats["status_counts"].values()), 1),
+                    3,
+                ),
+                "content_fetch_status_counts": content_fetch_stats["status_counts"],
+                "materialization_ready_at_epoch": ready_reference_epoch,
             },
         )
+        self._last_extract_metrics = {
+            "content_fetch_status_counts": dict(content_fetch_stats["status_counts"]),
+            "source_ready_age_s_total": round(content_fetch_stats["ready_age_s_total"], 3),
+            "source_ready_age_s_max": round(content_fetch_stats["ready_age_s_max"], 3),
+            "source_ready_age_s_avg": round(
+                content_fetch_stats["ready_age_s_total"] / max(sum(content_fetch_stats["status_counts"].values()), 1),
+                3,
+            ),
+            "materialization_ready_at_epoch": ready_reference_epoch,
+        }
 
         return results
+
+    def get_last_extract_metrics(self) -> dict[str, object] | None:
+        if self._last_extract_metrics is None:
+            return None
+        return dict(self._last_extract_metrics)
 
     def reset_sources(self):
         """Delete all sources from the current notebook (for reuse)."""
@@ -1425,6 +1565,11 @@ class NLMReusableIngestor:
             return None
         return dict(self._last_prepare_metrics)
 
+    def get_last_extract_metrics(self) -> dict[str, object] | None:
+        if self._last_extract_metrics is None:
+            return None
+        return dict(self._last_extract_metrics)
+
     def _is_notebook_usable(self) -> bool:
         if not self._nb_id:
             return False
@@ -1448,42 +1593,42 @@ class NLMReusableIngestor:
                 notebooks = []
         title_matches = _find_notebooks_with_title(notebooks, target_title)
         if title_matches:
-            if len(title_matches) == 1:
-                keeper = _choose_notebook_keeper(title_matches, preferred_id=self._nb_id or "")
-                keeper_id = _notebook_entry_id(keeper) if keeper else ""
-                if keeper_id:
-                    self._nb_id = keeper_id
-                    if self._is_notebook_usable():
-                        self._ingestor._nb_id = self._nb_id
-                        self._last_ensure_metrics = {
-                            "notebook_check_elapsed_s": round(time.monotonic() - list_started_at, 3),
-                            "retire_elapsed_s": 0.0,
-                            "create_elapsed_s": 0.0,
-                        }
-                        return False, "reuse"
             duplicate_count = max(0, len(title_matches) - 1)
+            keeper = _choose_notebook_keeper(title_matches, preferred_id=self._nb_id or "")
+            keeper_id = _notebook_entry_id(keeper) if keeper else ""
             if duplicate_count > 0:
                 log_action(
                     "nlm_batch_reusable_title_duplicates_detected",
                     {
                         "nb_title": target_title,
                         "duplicate_count": duplicate_count,
+                        "keeper_id": keeper_id,
                         "notebooklm_profile": _get_notebooklm_profile(),
                     },
                 )
-                cdp_res = _delete_worker_notebooks_by_title_with_cdp(target_title)
-                log_action(
-                    "nlm_batch_reusable_title_duplicates_cdp_completed",
-                    {
-                        "nb_title": target_title,
-                        "duplicate_count": duplicate_count,
-                        "returncode": cdp_res.returncode,
-                        "stdout": (cdp_res.stdout or "")[:300],
-                        "stderr": (cdp_res.stderr or "")[:300],
-                        "notebooklm_profile": _get_notebooklm_profile(),
-                    },
-                )
-                self._nb_id = None
+            if keeper_id:
+                previous_nb_id = self._nb_id
+                self._nb_id = keeper_id
+                if self._is_notebook_usable():
+                    self._ingestor._nb_id = self._nb_id
+                    _save_reusable_notebook_id(self._nb_id)
+                    self._last_ensure_metrics = {
+                        "notebook_check_elapsed_s": round(time.monotonic() - list_started_at, 3),
+                        "retire_elapsed_s": 0.0,
+                        "create_elapsed_s": 0.0,
+                    }
+                    return False, "reuse"
+                self._nb_id = previous_nb_id
+
+        if self._nb_id and self._is_notebook_usable():
+            self._ingestor._nb_id = self._nb_id
+            _save_reusable_notebook_id(self._nb_id)
+            self._last_ensure_metrics = {
+                "notebook_check_elapsed_s": round(time.monotonic() - list_started_at, 3),
+                "retire_elapsed_s": 0.0,
+                "create_elapsed_s": 0.0,
+            }
+            return False, "reuse"
 
         if self._nb_id:
             log_action(
@@ -1494,37 +1639,6 @@ class NLMReusableIngestor:
                     "notebooklm_profile": _get_notebooklm_profile(),
                 },
             )
-            try:
-                self._ingestor._nb_id = self._nb_id
-                stale_started = time.monotonic()
-                self._ingestor.close()
-                retire_elapsed_s = round(time.monotonic() - stale_started, 3)
-                log_action(
-                    "nlm_batch_reusable_state_retired",
-                    {
-                        "nb_id": self._nb_id,
-                        "state_path": str(_get_reusable_notebook_state_path()),
-                        "notebooklm_profile": _get_notebooklm_profile(),
-                        "elapsed_s": retire_elapsed_s,
-                    },
-                )
-            except Exception as exc:
-                log_action(
-                    "nlm_batch_reusable_state_retire_failed",
-                    {
-                        "nb_id": self._nb_id,
-                        "state_path": str(_get_reusable_notebook_state_path()),
-                        "notebooklm_profile": _get_notebooklm_profile(),
-                        "error": str(exc),
-                    },
-                )
-            self._nb_id = None
-            _clear_reusable_notebook_state()
-            self._last_ensure_metrics = {
-                "notebook_check_elapsed_s": 0.0,
-                "retire_elapsed_s": retire_elapsed_s if "retire_elapsed_s" in locals() else 0.0,
-                "create_elapsed_s": 0.0,
-            }
 
         create_started_at = time.monotonic()
         self._nb_id = self._ingestor.create_batch_notebook(batch_ids)
@@ -1535,10 +1649,10 @@ class NLMReusableIngestor:
                 "nlm_batch_reusable_state_saved",
                 {
                     "nb_id": self._nb_id,
-                "state_path": str(_get_reusable_notebook_state_path()),
-                "notebooklm_profile": _get_notebooklm_profile(),
-            },
-        )
+                    "state_path": str(_get_reusable_notebook_state_path()),
+                    "notebooklm_profile": _get_notebooklm_profile(),
+                },
+            )
         self._last_ensure_metrics = {
             "notebook_check_elapsed_s": 0.0,
             "retire_elapsed_s": self._last_ensure_metrics.get("retire_elapsed_s", 0.0)
@@ -1550,6 +1664,7 @@ class NLMReusableIngestor:
 
     def process_batch(self, video_ids: List[str]) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
         batch_started_at = time.monotonic()
+        batch_started_at_epoch = time.time()
         notebook_reused = self._nb_id is not None
         self._last_process_metrics = None
         self._last_process_stage_metrics = None
@@ -1562,6 +1677,7 @@ class NLMReusableIngestor:
                 "notebooklm_profile": _get_notebooklm_profile(),
                 "subbatch_size": self._ingestor.batch_size,
                 "strategy": "reusable",
+                "started_at_epoch": batch_started_at_epoch,
             },
         )
 
@@ -1592,6 +1708,8 @@ class NLMReusableIngestor:
                     "subbatch_size": self._ingestor.batch_size,
                     "strategy": "reusable",
                     "total_elapsed_s": round(time.monotonic() - batch_started_at, 3),
+                    "started_at_epoch": batch_started_at_epoch,
+                    "completed_at_epoch": time.time(),
                 },
             )
             return {vid: (False, None, "Notebook failed") for vid in video_ids}
@@ -1639,6 +1757,7 @@ class NLMReusableIngestor:
         succeeded = sum(1 for success, transcript, _ in results.values() if success and transcript)
         failed = len(results) - succeeded
         total_elapsed_s = round(time.monotonic() - batch_started_at, 3)
+        extract_metrics = self._ingestor.get_last_extract_metrics() or {}
         log_action(
             "nlm_batch_reusable_process_completed",
             {
@@ -1666,6 +1785,13 @@ class NLMReusableIngestor:
                 "subbatch_size": self._ingestor.batch_size,
                 "strategy": "reusable",
                 "total_elapsed_s": total_elapsed_s,
+                "content_fetch_status_counts": dict(extract_metrics.get("content_fetch_status_counts", {}) or {}),
+                "source_ready_age_s_total": float(extract_metrics.get("source_ready_age_s_total", 0) or 0.0),
+                "source_ready_age_s_max": float(extract_metrics.get("source_ready_age_s_max", 0) or 0.0),
+                "source_ready_age_s_avg": float(extract_metrics.get("source_ready_age_s_avg", 0) or 0.0),
+                "materialization_ready_at_epoch": float(extract_metrics.get("materialization_ready_at_epoch", 0) or 0.0),
+                "started_at_epoch": batch_started_at_epoch,
+                "completed_at_epoch": time.time(),
             },
         )
         self._last_process_metrics = {
@@ -1695,6 +1821,11 @@ class NLMReusableIngestor:
             "subbatch_size": self._ingestor.batch_size,
             "strategy": "reusable",
             "total_elapsed_s": total_elapsed_s,
+            "content_fetch_status_counts": dict(extract_metrics.get("content_fetch_status_counts", {}) or {}),
+            "source_ready_age_s_total": float(extract_metrics.get("source_ready_age_s_total", 0) or 0.0),
+            "source_ready_age_s_max": float(extract_metrics.get("source_ready_age_s_max", 0) or 0.0),
+            "source_ready_age_s_avg": float(extract_metrics.get("source_ready_age_s_avg", 0) or 0.0),
+            "materialization_ready_at_epoch": float(extract_metrics.get("materialization_ready_at_epoch", 0) or 0.0),
         }
         return results
 

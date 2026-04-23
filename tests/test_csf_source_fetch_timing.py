@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import sys
+import types
 from concurrent.futures import Future
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
@@ -893,7 +895,9 @@ def test_cmd_fetch_skips_blocked_channels_in_preflight_scan():
                 with mock.patch.object(mod, "has_cached_transcript", return_value=False):
                     with mock.patch.object(mod.subprocess, "run") as mock_run:
                         mock_run.return_value = mock.MagicMock(returncode=0, stdout="", stderr="")
-                        with mock.patch("csf.nlm_scraper.NLMIndustrialScraper", side_effect=FakeScraper):
+                        fake_nlm_scraper = types.ModuleType("csf.nlm_scraper")
+                        fake_nlm_scraper.NLMIndustrialScraper = FakeScraper
+                        with mock.patch.dict(sys.modules, {"csf.nlm_scraper": fake_nlm_scraper}):
                             with mock.patch.object(mod, "set_cached_transcript"):
                                 with mock.patch.object(mod, "mark_complete"):
                                     with mock.patch.object(mod, "log_action") as mock_log:
@@ -1135,7 +1139,7 @@ def test_cmd_fetch_logs_worker_prewarm_summary_before_dispatch(tmp_path):
                         "status": "ok",
                         "returncode": 0,
                         "state_path": "P:/__csf/.data/yt-is/industrial-worker-states/worker-01.json",
-                        "notebook_title": "yt-is::industrial::worker::worker-01",
+                        "notebook_title": "yt-is-worker-01",
                     }
                 ),
                 encoding="utf-8",

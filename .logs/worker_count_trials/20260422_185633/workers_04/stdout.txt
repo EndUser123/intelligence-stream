@@ -1,0 +1,1135 @@
+[source] Preflight scan: checking 732 active channels (0 blocked skipped) for pending videos...
+[source] Scan status: 1/732 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.001s, trigger=first_channel
+[source] Scan status: 73/732 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.086s, trigger=channel_checkpoint
+[source] Scan status: 146/732 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.155s, trigger=channel_checkpoint
+[source] Scan status: 219/732 channels, pending=0, cached=0, neg_cache=472, terminal=0, notebooklm=0, fallback=0, elapsed=0.828s, trigger=channel_checkpoint
+[source] Parallel industrial dispatch: 1 batches across 1 workers...
+[source] Parallel industrial dispatch: 1 batches across 1 workers...
+[source] Parallel industrial dispatch: 1 batches across 1 workers...
+[source] Parallel industrial dispatch: 1 batches across 1 workers...
+[source] Pending item limit reached at 1200; stopping scan early.
+[source] Preflight scan complete: 732 active channels, 1200 pending, 0 cached, 472 neg-cache, 0 terminal, 1200 notebooklm, 0 transcript-fallback
+[source] Negative-cache sample: AOnyxxADgxE, hotranqYmYI, Z53T_FcXQDA, okL5wquiTFg, tljhsKc-EKg, tmJZ7atqgbI, 5GKfzZPJCcQ, L9SwLFxZ8h0, gMJSLLa-O0s, m82TaD_eUFs
+[source] Escalation Batch Process
+[source] Channels: 732 active / 743 tracked
+[source] Already cached: 0
+[source] Negative-cache skips: 472
+[source] Negative-cache sample: AOnyxxADgxE, hotranqYmYI, Z53T_FcXQDA, okL5wquiTFg, tljhsKc-EKg, tmJZ7atqgbI, 5GKfzZPJCcQ, L9SwLFxZ8h0, gMJSLLa-O0s, m82TaD_eUFs
+[source] Pending extraction: 1200
+[source] Run limit: 1200 pending items
+[source] Mode: LIVE
+[source] Strategy: Industrial (Batch NLM)
+[source] Method: NotebookLM CLI batch for captioned/no-captions items; live items use transcript fallback
+[source] Workers: 4
+
+[source] Pre-flight worker notebook audit: 0 worker notebooks reported, 0 failed
+{"worker_id":"worker-04","event":"worker_notebook_reset_started","notebooklm_profile":"ytis-worker-04","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-04.json","notebook_title":"yt-is-worker-04","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-04","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-04.json"}}
+{"worker_id":"worker-04","event":"worker_notebook_reset_completed","notebooklm_profile":"ytis-worker-04","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-04.json","notebook_title":"yt-is-worker-04","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-04","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-04.json"}}
+[NLM-Batch] Creating notebook...
+[NLM-Batch] Adding 0 sources in sub-batches...
+{"worker_id":"worker-04","event":"notebook_prewarm","prepared":true,"setup_mode":"create","notebooklm_profile":"ytis-worker-04","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-04.json","notebook_title":"yt-is-worker-04","elapsed_s":4.939}
+[NLM-Batch] Adding 200 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-200/200...
+[NLM-Batch]   Adding sub-batch 1 (200 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 200 sources in parallel...
+  ✓ XWyrPP7XJhg | 14459 chars
+  ✓ FHoT4pz0LuE | 12867 chars
+  ✓ 98CWT2SMiYc | 7975 chars
+  ✓ c4lvr8dz9rM | 13855 chars
+  ✓ d9wB1QCsBz4 | 22047 chars
+  ✓ Aql5M7UjTWw | 27057 chars
+  ✓ XDAaYbhP0Ao | 12594 chars
+  ✓ qeghIOvcrRI | 23343 chars
+  ✓ gcfX4FQb9Z0 | 9548 chars
+  ✓ QREpk6P9bZ8 | 52147 chars
+  ✗ xey3PAtIi6U | Fetch failed for b96f8080-a12a-4791-a777-461fc2f08d1a: command_failed
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ rqYVXikpMWc | 6791 chars
+  ✓ oRi391FHUuM | 22088 chars
+  ✓ FRPUWNSXCLQ | 15274 chars
+  ✓ 8rn7it9t-T4 | 12074 chars
+  ✓ WRMel-RXqzQ | 35138 chars
+  ✓ L73tcmu2FlE | 54678 chars
+  ✓ vPWsi3uvcSU | 12047 chars
+  ✓ ewGNhxqNOx4 | 12068 chars
+  ✓ 2LnJPR1rqpY | 25259 chars
+  ✓ E6CgTUjzFS8 | 10225 chars
+  ✓ 2P-V0wX9Cr4 | 28165 chars
+  ✓ Qdch25EgxCA | 7307 chars
+  ✓ RWE8zCxBA2Y | 12476 chars
+  ✓ PMxlmRveqmA | 25303 chars
+  ✓ t5-1HhEm2HQ | 6981 chars
+  ✓ TEtUACEG8JQ | 7109 chars
+  ✓ I_6NHhCW17E | 9554 chars
+  ✓ B1Z-QSpLnSI | 26362 chars
+  ✓ oxe2F8QyLJk | 8116 chars
+  ✓ dVFfjV6hMe8 | 13402 chars
+  ✓ fsncBwj_P7g | 12674 chars
+  ✓ Gyxuphw9KoY | 15296 chars
+  ✓ _T-hq5y_aIs | 7640 chars
+  ✓ 1RH0-ScA-JQ | 11102 chars
+  ✓ QruDq2VIvtE | 12645 chars
+  ✓ mt2R8Q_uam0 | 7613 chars
+  ✓ ZEPyJ8976tA | 16901 chars
+  ✓ xFWboQRgOPI | 13376 chars
+  ✓ MJO5MDf5q80 | 59344 chars
+  ✓ SG94-DmLS6A | 6702 chars
+  ✓ gJ1UmNBlGp0 | 9868 chars
+  ✓ M_9ESg2A8gU | 5466 chars
+  ✓ lDi5SljE7p0 | 7917 chars
+  ✓ 4Pgi61xTT4U | 13933 chars
+  ✓ d2CM_KD8Gf4 | 11275 chars
+  ✓ Y0tFi9OcTAM | 14913 chars
+  ✓ JGoO4ozFAKc | 16614 chars
+  ✓ 6xxikXWKHwY | 6140 chars
+  ✓ ksx7r_Ms5Ho | 7230 chars
+  ✗ jwteUbdTRG8 | Fetch failed for 41962f1d-8917-4097-9307-6a975a325464: too_short
+  ✗ V4ADoQnhJI0 | Fetch failed for e3db45de-07c8-4831-a1b1-6aee215694c2: too_short
+  ✗ AQeUEgd6Q-g | Fetch failed for 274af2ce-1691-4059-9b30-447f811a63ce: too_short
+  ✗ b_pffbscO-g | Fetch failed for efb9d5ac-3c55-4c6b-8356-1573ce8aaaf5: too_short
+  ✗ rV_np7nvRsw | Fetch failed for 6b8d8147-78c6-4daf-96cc-197d1d526052: too_short
+  ✗ LZWEkSTyqk8 | Fetch failed for c4f0ea3a-02f6-4d60-b5f6-0a7142bb7a7b: too_short
+  ✗ wuNBFSKlKYk | Fetch failed for ca177813-1a19-4155-92c1-2367b139d3cd: too_short
+  ✗ J9gSVkxMEzQ | Fetch failed for 717e0826-6750-427c-8e57-43543c0433a6: too_short
+  ✗ U9gKpvdyPXI | Fetch failed for ced3be72-e1b9-4e81-9f57-b91dd748c774: too_short
+  ✗ wVRB1ZJ-2c0 | Fetch failed for bb5e1120-733c-4334-8c94-1213b3974ab4: too_short
+  ✗ 4PrXz1RmeBc | Fetch failed for 3cd938c2-5cef-4ab7-8f95-33e20f1d0ea2: too_short
+  ✗ SNgrS8yJ_ec | Fetch failed for 7a4a5f6d-a977-486b-bbe1-6b8f3e341aad: too_short
+  ✗ q-kbJr4H-rs | Fetch failed for 708618a5-cb54-4f5b-802f-bdf0b1a7773b: too_short
+  ✗ gABuIFJe3bw | Fetch failed for b36d211d-7d2c-475f-89a9-c34f735ede32: too_short
+  ✗ DLWFah1fu-I | Fetch failed for bc263030-51ca-4415-852e-c3b0f95b1997: too_short
+  ✗ 0AcQYhLI_Sw | Fetch failed for d12c94f8-8ff3-4b80-b9e3-28837cc70af0: too_short
+  ✗ Y5l3zkiXJCU | Fetch failed for b532744c-55ce-40f8-b197-f1333e4355f8: too_short
+  ✗ TTcVDGJhBMw | Fetch failed for 28a6c41f-408c-45da-8691-f503840ab080: too_short
+  ✗ rPCpeLL3KRE | Fetch failed for 65ddfca5-1d2d-470e-a483-37776d690ead: too_short
+  ✗ OcDpwtYCgw4 | Fetch failed for 666e74e4-6b72-459a-bb5a-56792b9bf6d9: too_short
+  ✗ 68HoKxQDD6Y | Fetch failed for 98ac223d-44cb-4c72-9bbd-6094cd5612fc: too_short
+  ✗ uRSVrOArw_0 | Fetch failed for 9b015f4c-831c-49f2-93b7-29e191ae13c2: command_failed
+[Throttle] Success restored after 1 failures — delay reset
+  ✗ yp4sd_qGR_M | Fetch failed for fe5b9e43-d79f-4d6f-8c18-a1886ed70561: too_short
+  ✗ A0axUSnAxLY | Fetch failed for a0fd2877-04f4-4951-a7b8-962399dad3c3: too_short
+  ✗ PglGaoC1sPQ | Fetch failed for 917e1b61-cf57-4c67-97aa-ebf6874d46f9: too_short
+  ✗ onOmWujZoOU | Fetch failed for 7e6701b3-0c89-4017-98a2-872253c50452: too_short
+  ✗ SpjfneUQGK4 | Fetch failed for 4d6c311e-37ca-483e-9ec2-f9751b0ff786: too_short
+  ✗ 5EMda7l-BFQ | Fetch failed for b521ea4f-8313-4c1c-85b6-4ce79a91a304: too_short
+  ✗ _KUPhFSC44E | Fetch failed for abbb82d0-df8e-4796-b31f-ca101d7e33c6: too_short
+  ✗ tWzOnZWCvs0 | Fetch failed for 64f16d45-9dab-44f7-925c-d541859dfce6: too_short
+  ✗ 9zGYGoUKOVg | Fetch failed for 24a7382a-241d-4926-a717-dadc6caa9892: too_short
+  ✗ I5CPlYllZvY | Fetch failed for d78a613b-ef47-43be-84de-925c82efee76: too_short
+  ✗ rV2BTmEPSes | Fetch failed for 254425b8-d3da-429b-b363-07c78b85bb8b: too_short
+  ✗ fK6H-dfXhYo | Fetch failed for 810883f3-36cb-4140-9292-e515e4a439ab: too_short
+  ✗ 2GlWV-E2R1E | Fetch failed for 0819ace2-ddb8-4125-9893-0aac796cb9aa: too_short
+  ✗ iTnYzNgL8Hs | Fetch failed for 57c9f67e-d920-4430-9167-e24e137a42b3: too_short
+  ✗ eawKQ7j1xkA | Fetch failed for 81a7b1e3-c83b-4492-ae58-ecd9a4129deb: too_short
+  ✗ N3tGNIb5srU | Fetch failed for c5e3289f-b9ce-4ea6-92eb-71f7e210d93a: too_short
+  ✗ ZHcMBR0azIw | Fetch failed for 8f3094b8-b863-4eca-85db-e46f0e7e99bd: too_short
+  ✗ tC9qv22QJsE | Fetch failed for 5715a58d-fcb9-4071-a010-499e1477047a: too_short
+  ✗ 60DAcfCEnSI | Fetch failed for 98e70130-d8ac-4ea5-9eb7-40eb3f59dc3e: too_short
+  ✗ Ntvv23lLb-A | Fetch failed for f59c9f42-e152-43c5-bbd1-f84aa90aebfd: too_short
+  ✗ Dzj_cXDsgxI | Fetch failed for a0787515-dcf0-4cc8-bd54-198085b95135: too_short
+  ✗ i_askIfKw2U | Fetch failed for 1ba47276-859f-4786-a3e2-f42aebf1f9e9: too_short
+  ✗ fOBxYrgWc8M | Fetch failed for d0b978ee-7aa1-4684-b558-673d20c59809: too_short
+  ✗ siTOcFmIssU | Fetch failed for a127742e-8415-4929-9c41-072870799cb0: too_short
+  ✗ qJssHU1KjWg | Fetch failed for 07302155-fdfa-4382-b71d-f5a5641c8f83: too_short
+  ✗ C3CtwFEfNGA | Fetch failed for d7db17a0-f0fb-4336-9e92-0cd02361c2ec: too_short
+  ✗ a37Ue62qrVw | Fetch failed for 3b2830b5-4206-4f86-97e3-4013e131a4f0: too_short
+  ✗ 20yHtXvq4B4 | Fetch failed for 85fbd6d1-7d20-4de4-86ea-664a6d2d1757: too_short
+  ✗ 9ejZAUOONaE | Fetch failed for 9f4753be-9c3b-48d7-bf00-cfc2e6bdb95c: too_short
+  ✗ JWHMkAOT3n8 | Fetch failed for efacc62c-dfd4-4f0c-a49e-98da84008c60: too_short
+  ✗ pt0TxNf6bMc | Fetch failed for 1a82e4bf-ad86-4269-bec8-eadf0f270377: too_short
+  ✗ YOBmU2A-OLs | Fetch failed for bdc59f5a-8ad9-4096-a7d8-fc4c51b51129: too_short
+  ✗ ZMoTTFyAiZo | Fetch failed for 3e3e2514-4862-436e-983e-d6dcd91fc115: too_short
+  ✗ fioeFdyuBUg | Fetch failed for 9bbc0458-aa53-40ca-8174-64b03b8fd630: too_short
+  ✗ 9mb82LNgHH8 | Fetch failed for a2e9cda8-3140-4884-9f70-6d11db4fc830: too_short
+  ✗ thfJFTfoTZ8 | Fetch failed for d70f1b9e-534f-4bae-9464-364f01e995c2: too_short
+  ✗ Z15_Y-76mAg | Fetch failed for 843f236d-7b36-4875-8ecd-878e289b8ad8: too_short
+  ✗ lwqcaIdEgLY | Fetch failed for df1cc28f-eee1-422b-a563-bf00f19dc3a6: too_short
+  ✗ mpWWtrfobKU | Fetch failed for b0a93792-2f90-443e-b8cd-69db39334dc6: too_short
+  ✗ PMGmcSy4m1s | Fetch failed for 18b04e92-9aac-499a-ab46-c4d45ac5c0ee: too_short
+  ✗ I81tlKn_Lb8 | Fetch failed for 5888ea38-f103-4be2-80f9-5cbe139f042b: too_short
+  ✗ Z5Zjjf-KPlk | Fetch failed for 04139c03-e535-482f-8027-b48b3fb83eda: too_short
+  ✗ gIGxSjRt6cA | Fetch failed for 80ee75a3-c518-4606-9608-794997de94c6: too_short
+  ✗ 9pUrtUDg6v8 | Fetch failed for fc4ddb6a-448b-4992-a780-247b762d49c7: too_short
+  ✗ B4GHsuo1hJg | Fetch failed for 0cb9a30d-ce34-450e-b06f-32f47bdca245: too_short
+  ✗ N8XBG4SkPwM | Fetch failed for d551134b-16f4-427b-844d-a485faca247f: too_short
+  ✗ IXxolYt5qrg | Fetch failed for e76f2f91-1fe0-4b7a-a808-8d3025e0afdd: too_short
+  ✗ fXKZsnjpKfA | Fetch failed for 1b543b43-c8dc-4f0c-9a95-7d82a8a13adf: too_short
+  ✗ nilftRyRkgY | Fetch failed for 0973bd84-749c-4975-8fc9-2b2f1e7bf5ae: too_short
+  ✗ XeKlb4Pr-bY | Fetch failed for c9ff35fe-a696-4383-bb29-9781b57c1c6f: too_short
+  ✗ A7n7Z1lVlJQ | Fetch failed for 430ee63c-beea-4c6b-884b-b7148668328c: too_short
+  ✗ xqIHvRQhZPk | Fetch failed for 04474e6e-ac84-4678-9a59-522e0de22057: too_short
+  ✗ z_YzREIXolw | Fetch failed for 8ec2c29a-c2fa-4c1b-9374-ce9e322ed499: too_short
+  ✗ CqBF3Ip1dCc | Fetch failed for 634e60ad-0519-4bad-88ff-b0fe8eb07827: too_short
+  ✗ -p3wiHNA_Ps | Fetch failed for 5544193d-e43c-48b6-8827-3d9a4b91c0c8: too_short
+  ✗ 1LhCSYEiLaY | Fetch failed for d7cbc9b4-18fe-4248-8954-557da2b54234: too_short
+  ✗ zrZRpu0psPo | Fetch failed for 5906ce9f-0185-4ccc-b265-92b9ba217cb2: too_short
+  ✗ PNmATwkKSuI | Fetch failed for 3765d7a8-1e70-4e99-897c-c55727704681: too_short
+  ✗ YSix35FZdUw | Fetch failed for b2429b80-9370-474d-8d63-5204bf1f88a9: too_short
+  ✗ Vn33xh_z5kQ | Fetch failed for 07236084-a60a-4bb2-b21b-9c26de9e7184: too_short
+  ✗ SWZwlwHR31I | Fetch failed for af37b32d-4a6a-45df-9d75-4e1765023c69: too_short
+  ✗ h5FEihr1zVA | Fetch failed for 106f856a-eb5c-4ffc-9bd0-7b5d86e3acdb: too_short
+  ✗ UcotS42riWY | Fetch failed for 42a6a5f1-725c-4b92-a2b7-bf06bcd1a05d: too_short
+  ✗ GTtuV6Dw_J0 | Fetch failed for fca89469-2f13-49c5-ba6c-abacf2f94be2: too_short
+  ✗ wvfcxJ8PM4A | Fetch failed for 353dfa34-bca7-4368-8872-c3b598defb75: too_short
+  ✗ YeJzL_TjMpU | Fetch failed for 15d86fe5-c568-4d22-8e2a-75ad53ad3341: too_short
+  ✗ o49D0ie3g6Q | Fetch failed for cf494855-0f4d-4fc9-b14c-88c02766cbe7: too_short
+  ✗ 3l7y6Wph2CY | Fetch failed for fb6e73e2-b4e6-409e-b4d6-ca3c970a6fec: too_short
+  ✗ 8MMAA1Ld2tM | Fetch failed for 57e246bd-f42c-4d0a-bd25-ad537b948d51: too_short
+  ✗ d_wj_tL61EA | Fetch failed for 317ec6a8-cbc4-419f-8562-da92b1bf01ff: too_short
+  ✗ pveTm6_06bw | Fetch failed for 9d6b31c0-bbf3-4f40-b3a4-3f2c0b7423db: too_short
+  ✗ dmgsM_A7c68 | Fetch failed for 2c8e7a08-31a0-4257-b804-3d0e9550a3dd: too_short
+  ✗ XYwlUkhmO8M | Fetch failed for 9deeef7f-7a77-4972-924c-a3ea2f2f6fac: too_short
+  ✗ _qed0D6RDdk | Fetch failed for b908bafd-302d-4ad1-a7b6-510e65c4a65c: too_short
+  ✗ ccrsBu7dMu8 | Fetch failed for a7e6d41c-4751-4b03-b1e9-520ebf6055ba: too_short
+  ✗ GspirekMLqg | Fetch failed for b3a764d9-0bad-469e-937a-665d8ea4f834: too_short
+  ✗ I8yFF49hFbA | Fetch failed for 6b973634-bea9-45b9-a7f0-15aaf395332b: too_short
+  ✗ j-ibsSomRuI | Fetch failed for c24be671-e5b8-4bb9-8390-b88db48bf371: too_short
+  ✗ 4KXRxzCzDxU | Fetch failed for bbba81cb-9add-40d3-a511-8b3ee9d02a9e: too_short
+  ✗ 4o4t21Fyq_E | Fetch failed for 2559b1db-30c7-4765-af64-5ba01120af6d: too_short
+  ✗ -jButZnzGoI | Fetch failed for 94b49f34-d8e5-4571-a36b-d2c6309de0a9: too_short
+  ✗ y7urzP-qUfc | Fetch failed for e5e2294f-19fb-4ee8-9f15-b8d7b8823e1d: too_short
+  ✗ 751LUBAD3GU | Fetch failed for 9f950ceb-214c-4da9-bdc6-1190d2d368f7: too_short
+  ✗ Dy8o3biclO4 | Fetch failed for 2a371828-f0c7-4c3d-b03c-174397bc7a03: too_short
+  ✗ gb3Ai9rqhmQ | Fetch failed for dcc1b616-750c-4b6d-a35b-dedbcdb3abbe: too_short
+  ✗ GW-Xu1b2-2o | Fetch failed for f23c208a-ff94-41a8-9111-669bc996e49c: too_short
+  ✗ Kq3NyPUpgwc | Fetch failed for 36be3078-e337-42a7-8cc4-39b64a5b0070: too_short
+  ✗ SEMe4OjIIC0 | Fetch failed for acde665b-d4c0-4ee3-89a2-2f6dba096ad9: too_short
+  ✗ 3EEEYZS5W3s | Fetch failed for 3400f670-97cd-46b6-9a51-824305360fa9: too_short
+  ✗ l7tUogyn-S8 | Fetch failed for 6d64996f-aa69-4d66-8889-4ddb4ce7d825: too_short
+  ✗ I6pCYuaiShE | Fetch failed for a9f7e3c1-ada1-4a9c-b3b0-02df1ebd6656: too_short
+  ✗ lllEqhWGrM8 | Fetch failed for 25fd72b7-e861-4621-8109-5f23878f75b6: too_short
+  ✗ c-oH81raYHo | Fetch failed for 639dcc1a-0f57-4caf-a2da-17a18e3bf674: too_short
+  ✗ 974ZOTJWY1M | Fetch failed for 4ba56f16-df7d-4cf0-9678-6e5727dc1f0c: too_short
+  ✗ vdiPgnjCo-g | Fetch failed for 01575a26-2d23-4206-af79-ffbd1f526a68: too_short
+  ✗ Ne7ftZ_pOyU | Fetch failed for 92f4c37e-bf07-4632-9678-7a3aef3ffe52: too_short
+  ✗ q-2uCOGt1PQ | Fetch failed for 9a419feb-a3ee-43e2-bccb-760f6f004f01: too_short
+  ✗ 965_dskBTew | Fetch failed for 527b89f3-20bd-4881-81a2-a5c0c316e671: too_short
+  ✗ nKhxqReyukk | Fetch failed for ef206c76-dcf5-48af-a11d-d35e7af3f0b1: too_short
+  ✗ Bav-nV1NPHU | Fetch failed for f8ca8970-ae92-4abc-833b-7bd7933202c1: too_short
+  ✗ MwrENcLIw8U | Fetch failed for 7b0e5444-07a2-4457-84df-3a0a8e9e4d21: too_short
+  ✗ uOjFtjKkMYk | Fetch failed for 9807feb7-4a01-4a3a-8ce0-8d8031b26d0e: too_short
+  ✗ jLppdzPhbao | Fetch failed for 4ffef03b-adf3-495a-b5bd-46db9a1b6a76: too_short
+  ✗ 9ikS8z989Qs | Fetch failed for 888d42db-c385-49ea-80c6-ddace2966ea5: too_short
+  ✗ oiYV94FS8bg | Fetch failed for 5fe28f40-34e3-4b82-b4ed-94d941d4c6e4: too_short
+  ✗ c5RXGLZgzhA | Fetch failed for b71ec05f-74d8-4ceb-9bf6-896dfda4d1e8: too_short
+  ✗ m30NLh8NQ0I | Fetch failed for 05a3587a-e299-423f-8bf0-0ac1a9c03470: too_short
+  ✗ nhWXH2sbtbk | Fetch failed for 61248db1-2b60-4178-94af-d831d18feebd: too_short
+  ✗ GUmDds6X4ck | Fetch failed for 3f5b08a9-3800-41c7-bae4-f7fef72f7e3f: too_short
+  ✗ wp_v5B9yaTQ | Fetch failed for b6bcbfe6-c105-4c42-9552-e9034d1ea637: too_short
+  ✗ hFOsu-mWlk4 | Fetch failed for b8b43176-7cc5-4cce-847e-1d998eb681cc: too_short
+  ✗ Ok_Ye3ObWRE | Fetch failed for 514bc33c-27d3-4630-97b7-1f23dde7134f: too_short
+  ✗ jnM8vU2ox_c | Fetch failed for d158afe9-2898-48d6-b150-e66a864c26ba: too_short
+  ✗ Kyi06MKj7VU | Fetch failed for 5b61a245-8620-405c-bbc1-c5e205744a80: too_short
+  ✗ Fc_NqIXAaQE | Fetch failed for abc6d509-bad3-40ba-bcaf-0be4eb397cd2: too_short
+  ✗ sltEu1ZpOtE | Fetch failed for 42000ef0-ac04-4862-9c8e-7708f5e326ac: too_short
+  ✗ s2SeLwWwJi8 | Fetch failed for dd2a5a46-fc9e-471f-803d-b6510c98bc20: too_short
+  ✗ _7-5Z82nQ9c | Fetch failed for c9925199-05f9-4b74-92c8-f7cb84a07f02: too_short
+  ✗ 8Y027zorRMk | Fetch failed for 965873a2-f458-4896-a575-7aa270817c40: too_short
+  ✗ 7Wm5TkmrCLc | Fetch failed for 7022d49d-1cd4-4b36-9e55-6ddec76b7fba: too_short
+  ✗ 9lx5T2GewFI | Fetch failed for 037d9393-548f-4942-8aea-0810ec9e1d43: too_short
+  ✗ WcT84EABGrA | Fetch failed for e123ff1e-c800-4916-9125-756c52a50379: too_short
+  ✗ zPn7osZYjjU | Fetch failed for 1e918e8f-d795-4829-b745-d5c5708dc2a1: too_short
+  ✗ ELpd0JbaJ-A | Fetch failed for ea56e258-83d1-43fc-ba51-2dcf8feb2915: too_short
+  ✗ QXTpHgVaFgY | Fetch failed for 61819662-ab46-4501-9bca-54d063021bed: too_short
+  ✗ DbazwR25uLU | Fetch failed for c1077f30-24dd-4bf7-bfda-15e892fa2d6e: too_short
+  ✗ DB0z4Fv0T0o | Fetch failed for 72e3d6ea-6b9a-4b58-9567-5f2e1337d8a6: too_short
+  ✗ Iz5PymNgnSY | Fetch failed for 8c1630f9-9ac9-4347-bc38-bd9d69b0210c: too_short
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+{"worker_id":"worker-04","input":"C:\\Users\\brsth\\AppData\\Local\\Temp\\tmpm1wlrs2w.json","batch_count":1,"video_count":200,"succeeded":49,"failed":151,"source_profile":{"total":200,"matched":200,"missing":0,"source_class_counts":{"no_captions":200},"status_counts":{"pending":200},"privacy_status_counts":{"public":200},"upload_status_counts":{"unknown":200},"unavailable_reason_counts":{"unknown":200},"failure_reason_counts":{"unknown":200}},"subbatch_metrics":[{"subbatch_index":1,"subbatch_size":200,"target_subbatch_size":200,"attempted_count":200,"added_count":200,"add_cmd_elapsed_s":86.889,"materialization_wait_elapsed_s":1.612,"elapsed_s":88.50099999999999,"returncode":0,"failure_reason":null,"source_profile":{"total":200,"matched":200,"missing":0,"source_class_counts":{"no_captions":200},"status_counts":{"pending":200},"privacy_status_counts":{"public":200},"upload_status_counts":{"unknown":200},"unavailable_reason_counts":{"unknown":200},"failure_reason_counts":{"unknown":200}},"current_source_count":200,"source_materialization_ready_at_epoch":1776910131.760753,"status":"ok"}],"startup_retire_elapsed_s":0.0,"startup_notebook_check_elapsed_s":0.0,"startup_notebook_create_elapsed_s":2.181,"startup_prepare_cleanup_elapsed_s":1.348,"startup_prepare_total_elapsed_s":4.937,"setup_elapsed_s_total":97.387,"notebook_check_elapsed_s_total":2.843,"notebook_create_elapsed_s_total":0.0,"notebook_retire_elapsed_s_total":0.0,"add_sources_elapsed_s_total":94.544,"add_cmd_elapsed_s_total":86.889,"materialization_wait_elapsed_s_total":1.612,"extract_elapsed_s_total":33.757,"cleanup_elapsed_s_total":98.189,"batch_elapsed_s_total":229.333,"content_fetch_status_counts_total":{"ready":49,"too_short":149,"command_failed":2},"source_ready_age_s_total":3911.492,"source_ready_age_s_max":35.118,"source_ready_age_s_avg":19.557,"notebooklm_profile":"ytis-worker-04","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-04.json","notebook_title":"yt-is-worker-04","status":"ok","returncode":0}
+[source] Parallel industrial dispatch: 2 batches across 1 workers...
+{"worker_id":"worker-01","event":"worker_notebook_reset_started","notebooklm_profile":"ytis-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json","notebook_title":"yt-is-worker-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json"}}
+{"worker_id":"worker-01","event":"worker_notebook_reset_completed","notebooklm_profile":"ytis-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json","notebook_title":"yt-is-worker-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json"}}
+{"worker_id":"worker-01","event":"notebook_prewarm","prepared":true,"setup_mode":"reuse","notebooklm_profile":"ytis-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json","notebook_title":"yt-is-worker-01","elapsed_s":7.108}
+[NLM-Batch] Adding 200 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-200/200...
+[NLM-Batch]   Adding sub-batch 1 (200 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 200 sources in parallel...
+  ✓ Dm00QEqTMn0 | 586 chars
+  ✓ Zn8XitqRa7w | 839 chars
+  ✓ kB27TF8HY4Y | 522 chars
+  ✓ EEYCSN9sHcE | 18714 chars
+  ✓ l6MObdOANY8 | 1068 chars
+  ✓ QkRK8Q_PscQ | 13106 chars
+  ✓ 2qN8Ic_xRHU | 993 chars
+  ✓ 80nVenJLuzI | 990 chars
+  ✓ 4Hjk2pTXTyw | 10953 chars
+  ✓ 5snRuIc-Gn8 | 15003 chars
+  ✗ FQb__PkY74U | Fetch failed for 53277af8-d600-4933-bcd1-c2fef4e809f9: command_failed
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ Zn-2_ORA6mE | 1223 chars
+  ✓ 1z-_Hqfd4K0 | 1074 chars
+  ✗ zGewFY1LrLs | Fetch failed for c43c9f44-0641-4feb-96a6-8f47723a2488: command_failed
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ V4-7g8BOUxc | 923 chars
+  ✓ nJomTE6PL_4 | 922 chars
+  ✓ Scs5gZb9CaA | 15332 chars
+  ✓ nWxvmLiUtXc | 896 chars
+  ✓ 0h533qTyxmA | 935 chars
+  ✓ glYak47F8B0 | 469 chars
+  ✓ Fv5O_dDo53Q | 474 chars
+  ✓ ZZLa-DmZwPc | 1123 chars
+  ✓ jMzuazBKSA0 | 493 chars
+  ✓ Xz0HVBUq63M | 11395 chars
+  ✓ r4Z-5O-Pb68 | 672 chars
+  ✓ Y_H7S8VfI1I | 1377 chars
+  ✓ 5B_RRObJGkA | 509 chars
+  ✓ imwVqazdjBk | 901 chars
+  ✓ zWjpGmR6Ya8 | 485 chars
+  ✓ RsF0s082E2U | 14958 chars
+  ✓ gAwWzw1yAkM | 800 chars
+  ✓ A30b77Jiv1c | 763 chars
+  ✓ olbfOv0od7Q | 14554 chars
+  ✓ CY998meMzC0 | 8932 chars
+  ✓ FXe033OVjyc | 871 chars
+  ✓ PUeQbsG212g | 335 chars
+  ✓ VjVCiwRoIrE | 910 chars
+  ✓ UQqdbYE2N0k | 616 chars
+  ✓ st7AZNC0GV4 | 348 chars
+  ✓ Guh1q4H03BU | 632 chars
+  ✓ 0pzEeqUvIws | 526 chars
+  ✓ SppIK8uEwNI | 765 chars
+  ✓ sddxQXwV0qU | 18419 chars
+  ✓ OIP485EIpIg | 330 chars
+  ✓ 6-3IVovWmV0 | 977 chars
+  ✓ tz1GsZ52eMc | 359 chars
+  ✓ yUV0kTS7FEc | 818 chars
+  ✓ HQksVGfqFdE | 514 chars
+  ✓ BQfdTZgAWhE | 541 chars
+  ✗ lRjlNFQta2I | Fetch failed for 08b0f885-e487-401d-988c-04b548e00266: command_failed
+[Throttle] Success restored after 1 failures — delay reset
+  ✗ k1Rco1XT8Ns | Fetch failed for 6f5b5d60-0e72-4c54-868d-cb1f53a3e66c: too_short
+  ✗ ECQVpHZaT7g | Fetch failed for fe1352a7-6345-468f-81a6-3620ef13ceaa: too_short
+  ✗ p2IcekRUQEQ | Fetch failed for 9c96f0d3-56cc-4cd4-8c3d-da76c0c1a6a9: too_short
+  ✗ Ii-jeLjWx2s | Fetch failed for 88985d28-f3cb-45f8-9daa-2fdd0fa44687: too_short
+  ✓ xnkB_48vQNM | 472 chars
+  ✗ O_9ygyoq7-M | Fetch failed for dcd4832a-cb84-41b8-a9b1-fc793eabf3ae: too_short
+  ✗ XePxxBysOR8 | Fetch failed for 6f2664cc-f138-4033-b0f4-0d40befb0216: too_short
+  ✗ 1f2Bs6Q72TE | Fetch failed for 45819c95-924a-47e4-828f-dc7cb4e8918e: too_short
+  ✗ _AEQUyo6JkI | Fetch failed for 8e11067e-cd46-450d-99e9-893729b3ff71: too_short
+  ✗ d3qulsViIac | Fetch failed for cb7f8dfc-b485-4632-a89d-538814fd6daa: too_short
+  ✗ wZ2UyOEjQjM | Fetch failed for 4be22e19-e911-4a62-b385-6d9a75c0da93: too_short
+  ✗ V_FGFFyF2UE | Fetch failed for df2fef7e-cda1-45db-a0ea-268ccbe5b627: too_short
+  ✗ JJQ5_6mKR8c | Fetch failed for b3ed2736-4921-442f-ad1e-b2bb97c430a9: too_short
+  ✗ 5wJ0iyKuWH0 | Fetch failed for 7f9f9e51-b1d6-4e44-b29c-9e6108df5e39: too_short
+  ✗ Uok_jUjpqSk | Fetch failed for 85301a55-0d54-4ba0-bd97-b51176436e9e: too_short
+  ✗ -PSKQuEvN48 | Fetch failed for dbb9fe93-0d7b-4f8e-b336-766014f45344: too_short
+  ✗ ubc7yTJT-EU | Fetch failed for ca53f608-6e3e-43a3-a439-f9abe5b09066: too_short
+  ✗ ZEev_Q-El9g | Fetch failed for 0b5d77cb-bcab-48dc-8cdd-b5583e83e4c1: too_short
+  ✗ 0VPyA6OLd7o | Fetch failed for c49e91df-f63a-49d3-8640-2277bd72395e: too_short
+  ✗ 5j3xTen0lL4 | Fetch failed for d0b15772-cbd6-4248-9117-0f233a5aebfe: too_short
+  ✗ LPJQJLSv_10 | Fetch failed for 9d14adce-673f-4671-9d1c-1003ccea3877: too_short
+  ✗ Obx-1Da-85U | Fetch failed for 785e4908-f0ad-4637-9d91-ab2af4f59f85: too_short
+  ✗ tlDLU8gKp8w | Fetch failed for 55f5d541-faab-4ea6-a899-4f8bf7454bbf: too_short
+  ✗ Gz7Ma0AHsG8 | Fetch failed for 4354523d-8886-489e-831a-3eefc217fa45: too_short
+  ✗ 3b1Ckqbw4vA | Fetch failed for b5a3c4fb-0ecf-4527-9698-2b15a58ef13d: too_short
+  ✗ TxSSFp3QIY4 | Fetch failed for e6ec6593-b60b-4e5c-956d-3427efee78e2: too_short
+  ✗ fVoC9-eA7lQ | Fetch failed for fae2c2f2-c61a-449f-9ea6-0aeceb332a1f: too_short
+  ✗ 7yodtPGyPb0 | Fetch failed for 25a4a32e-b746-4660-a325-6986c3597897: too_short
+  ✗ hAJJaxYk9MA | Fetch failed for 7656d39f-3f7e-492c-95a5-54ae0f1ae08a: too_short
+  ✗ H6OZHbZ9jiw | Fetch failed for 9bf14751-7361-4435-92b2-291cb09f3f7a: too_short
+  ✗ JWBzaEQlFzY | Fetch failed for 03dd62ba-e33f-4d3c-adb1-7b1e8ad46d9a: too_short
+  ✗ qsBiPPjkarY | Fetch failed for 0bae41ad-2de9-450d-82d6-6ed7c79b68fb: too_short
+  ✗ QD68LyE0IGU | Fetch failed for c1e04512-67d6-4c53-b0c0-49734fc1b109: too_short
+  ✗ 1MxZ1X1i1nc | Fetch failed for 88d55d2f-f4cc-420e-a74e-85e109836aac: too_short
+  ✗ DEozVpreb28 | Fetch failed for 24fd51d1-cde8-427b-bd23-82cd3d0c2a97: too_short
+  ✗ wQODDtr_cLk | Fetch failed for 846d7674-13ae-4e02-9ade-515af421cb1b: too_short
+  ✗ fKbb-iUPrbs | Fetch failed for 83280978-b5f2-4b70-914b-8966ff975a95: too_short
+  ✗ VOonKPBJgtQ | Fetch failed for 1f06207f-63ca-4a15-99a2-b9ce9d5605b3: too_short
+  ✗ fc8QSSvoNco | Fetch failed for 17ff6e4e-e7eb-4401-8642-96e2e9abeefd: too_short
+  ✗ -VhLJsqiiPQ | Fetch failed for 5fde9705-0346-4319-a2ae-dd9290a43b5f: too_short
+  ✗ hDEr6ZWVlYo | Fetch failed for e70dc0f3-514b-4a27-acfc-8da87b11af65: too_short
+  ✗ Mfd058QymO0 | Fetch failed for 7c9be250-95ed-4e1a-bdb8-bbe69fae19f0: too_short
+  ✗ fQGTBt-lJck | Fetch failed for d52e49c4-5483-416b-85ad-15c48d4a8580: too_short
+  ✗ 3EaJZO5mprQ | Fetch failed for fd37a19a-1ad5-4e92-86fc-a905ead64865: too_short
+  ✗ JFcFuJIy_gM | Fetch failed for d5055151-65fa-4d56-96b7-f887909d2861: too_short
+  ✗ YDJyNpIxcsQ | Fetch failed for 9d2ddbfb-a21b-44a9-9c12-4c8b2976c4fa: too_short
+  ✗ bipSKbXNSeM | Fetch failed for 3b6bd153-a781-4333-9031-03ad0ba2d607: too_short
+  ✗ hgqd854D7Kg | Fetch failed for ef940898-6a02-4e62-9edd-6b53d8a6a643: too_short
+  ✗ 4EMnrjelnq8 | Fetch failed for 6f0cd184-4e04-4c3a-99b7-127e917d277f: too_short
+  ✗ 3gOuCmAdhAE | Fetch failed for b8156c7a-cdc1-4d4d-9dce-e729cbe8a2f0: too_short
+  ✗ z669IDs6NLE | Fetch failed for a4da665f-bfb7-4b8a-8a3d-7d7e38eb4aad: too_short
+  ✗ 8zzFGbRSjIM | Fetch failed for 82935ca7-d359-43e2-a665-8fc4f9310d36: too_short
+  ✗ -7LoOm2gzlY | Fetch failed for 42a07fa0-13bd-4f55-8a4b-301641422728: too_short
+  ✗ g78z-2kzTD0 | Fetch failed for daa44eca-8be1-4f05-8d67-3301d4513616: too_short
+  ✗ oNr2EJ-tTUU | Fetch failed for 4a3f1d84-4159-454d-be9d-c3b012e2796f: too_short
+  ✗ ow0whH1nDag | Fetch failed for 37b847db-d3ad-4b68-8d68-fcf6d2fab90a: too_short
+  ✗ bcditXWX2Wc | Fetch failed for 7e575d92-8d74-4fae-9908-eb26395e8e04: too_short
+  ✗ ol7ElQI2xBg | Fetch failed for c53ae02f-a599-4b68-8b2c-1d49a1ad30ba: too_short
+  ✗ p4ykfOWjP2E | Fetch failed for f00256d0-4774-41d7-b16d-833aaa1ee314: too_short
+  ✗ ZF3FFOs7lmA | Fetch failed for 7dc674f4-6c5e-4cde-bd33-42ea5aec76ed: too_short
+  ✗ bvGssz94UK4 | Fetch failed for 8a76d933-0768-46cd-9eb8-723623e37fe9: too_short
+  ✗ 580emHhB06M | Fetch failed for 61a649c2-1494-4531-9b1e-72e79650575d: too_short
+  ✗ DDkSKBC-MWM | Fetch failed for c0e22dc0-22f8-4561-a3e4-f7b806422f8e: too_short
+  ✗ FUVO00I5X0U | Fetch failed for afd57e82-ed7e-4d4b-934b-d2355ac9bd0f: too_short
+  ✗ ZEpwxxqNBiw | Fetch failed for 49b7e4fa-4d35-46cd-b469-75280d17cce5: too_short
+  ✗ p8miijf5WKI | Fetch failed for 00bb5d17-1867-482f-b3f9-8af96be91f60: too_short
+  ✗ v3aQkVIrYek | Fetch failed for 72c30166-d66a-46c9-a544-b3447be2c057: too_short
+  ✗ OFOJM3NyfNU | Fetch failed for cec87839-cc48-4c56-bfd9-2801ad4597a2: too_short
+  ✗ QPNwZ96oV8U | Fetch failed for 6584cc79-ad70-4fa5-a3a1-64d5ac507f49: too_short
+  ✗ x-zAURSKJv8 | Fetch failed for e4dd9558-bbef-48dd-9343-3653d63467cd: too_short
+  ✗ M5K3BLDIxlU | Fetch failed for 89d90dfd-b578-45a7-b682-036996d39fcd: too_short
+  ✗ DPPa3ZFwSuU | Fetch failed for a15ea2de-c295-4437-b9ca-b1651dd6d760: too_short
+  ✗ UqzQyaDl4Tg | Fetch failed for cb9544b8-5b8d-4da7-a12f-29bc0601752c: too_short
+  ✗ IlgR25UIPOo | Fetch failed for d0b0d8a7-b07f-465d-a214-d21d52bc495c: too_short
+  ✗ cdxujJ9ByWA | Fetch failed for 8eadb0f2-ddce-4a5e-9c3d-c5bc6fa5cbdc: too_short
+  ✗ FNE6TGSjNHg | Fetch failed for 991d1977-28e2-4882-833e-ae9275d24443: too_short
+  ✗ zFoS3_A2XaY | Fetch failed for e52ab661-6ad2-4112-9f07-753f75f968db: too_short
+  ✗ Myx7x9lEkTs | Fetch failed for a4099ca7-d5a6-4fdd-b33f-c644845e5266: too_short
+  ✗ oeO7wSg2H-c | Fetch failed for 08c206c1-bce9-48bc-a59b-5d719dfb5919: command_failed
+[Throttle] Success restored after 1 failures — delay reset
+  ✗ nnBFXArBhwc | Fetch failed for a44f1a65-6855-41c2-a533-b9264eaa9ffa: too_short
+  ✗ kewBtmj5cYk | Fetch failed for 67097128-3290-4e8a-947b-681764943dd6: too_short
+  ✗ CLCHtO10eps | Fetch failed for 339ef20b-a43a-4700-9653-113f484a2a2b: too_short
+  ✗ BeNaxCJp2dQ | Fetch failed for c4b4482d-5208-4ab7-8399-77e9fa47a046: too_short
+  ✗ 1OUr11GW13A | Fetch failed for af80e368-303b-4f48-9082-512f10cea2ba: too_short
+  ✗ nwx2JD9SS58 | Fetch failed for 130a685d-3ffd-44e5-9922-9148b7fc6c59: too_short
+  ✗ 3SylBi2aH6Y | Fetch failed for 60ce0bff-42e2-4cf2-b0df-1339de30c68a: too_short
+  ✗ jovYRimJKck | Fetch failed for 1ac1dce6-d15d-4909-8a5e-c32f42c7047a: too_short
+  ✗ KBr6sknO67A | Fetch failed for 52653b9f-dac0-418a-b5a5-aa5e95b1cebe: too_short
+  ✗ Y59SkdEwjgU | Fetch failed for 5bc1826e-1f0c-437f-8934-84a7acc182a8: too_short
+  ✗ QLprMxh3LLA | Fetch failed for 4fc498c9-a2f4-4dfd-8d15-a3d72fd69ef8: too_short
+  ✗ ND4jjoX04RA | Fetch failed for 4a8585d0-4630-4a34-a8d7-9e273913762c: too_short
+  ✗ AQwCyGV9qfM | Fetch failed for 4d7de097-7f1d-4501-9d38-61757cd6dc34: too_short
+  ✗ Nk9MxD4EnMw | Fetch failed for 5dae171e-fc19-4e38-8c0a-eaafb6c251dc: too_short
+  ✗ z_kE_IgcD5I | Fetch failed for bce781e1-9261-49c9-b52d-78cba1de1c70: too_short
+  ✗ QWmNBeXD6jk | Fetch failed for 901c6d76-f8b4-4ae5-8b71-d38ba68bb5dd: too_short
+  ✗ 0mSj-Bn4Zsc | Fetch failed for ed7e30fe-5fb2-4a49-a1b5-46271082768a: too_short
+  ✗ sNTZ4sQn5g4 | Fetch failed for 2eab3fdd-45e2-44f9-8fa7-a13d63ee1c74: too_short
+  ✗ fSQya9m9iE0 | Fetch failed for 899c3637-68a6-4a1c-9f9d-11c91507907e: too_short
+  ✗ m7d6nELCfwQ | Fetch failed for 7184897e-503c-49b9-8017-9ba2db27c4ec: too_short
+  ✗ diLpFuITvA0 | Fetch failed for d043b49f-a3eb-49bf-aa0b-3d4b3accf129: too_short
+  ✗ 5vqSqaZqZZ0 | Fetch failed for 8bf2d955-1d10-4f43-9a5a-d8b76ac2159d: too_short
+  ✗ qp0scaXIG9U | Fetch failed for 8b2362dd-172b-42f3-b8ea-b2700ab236fb: too_short
+  ✗ z1qZGYYrim8 | Fetch failed for b1f0eda1-3f4c-4018-b430-70e3e55cc137: too_short
+  ✗ Ro84NysZutY | Fetch failed for c75fc02a-d2db-4f02-b680-95cd7996849b: too_short
+  ✗ SjAGI_eZAJs | Fetch failed for abd0c795-0c1e-497a-9684-fa684c60a982: command_failed
+[Throttle] Success restored after 1 failures — delay reset
+  ✗ Nsc8CWh2jys | Fetch failed for db9d8fba-3186-430f-a147-8faf51787864: too_short
+  ✗ 0DbHoNW0Ed4 | Fetch failed for 3511d730-8d50-461b-bff2-b62793b3653d: too_short
+  ✗ c0ECcQSaQe8 | Fetch failed for 86fcda49-6b63-4268-8983-5ade8cbf42f0: too_short
+  ✗ ukDdmbma6A4 | Fetch failed for 509242c4-072b-4edb-b86d-f7bc0b473656: too_short
+  ✗ XMy_daWmxMw | Fetch failed for 642d8980-cda8-4a17-b346-131dd2961407: too_short
+  ✗ k0ttZEkW_Ik | Fetch failed for 2dd4a471-74d5-46dc-a379-bd5329d87709: too_short
+  ✗ XF4uFcPRp64 | Fetch failed for 04cd8606-4d66-4dc6-9faa-ab93ba36d9a5: too_short
+  ✗ L_IzKqr_bp0 | Fetch failed for 45f4f109-f475-4a34-b5c5-68b1eac86bb0: too_short
+  ✗ LnWv2PWqCEU | Fetch failed for b9a58042-9c12-45e6-a898-48e85f07adf8: too_short
+  ✗ rpEH1PLiaR4 | Fetch failed for f7932739-36e5-46eb-84fe-2b33839ee2fd: too_short
+  ✗ 9LpW7GHFm1Y | Fetch failed for e0255729-b525-42c5-a64b-7d7303fc4b2d: too_short
+  ✗ QQctIWNGdUs | Fetch failed for 30aee587-a581-49a9-a28c-75d0d3f669cf: too_short
+  ✗ reMpGzJCuUQ | Fetch failed for b6281a04-096d-45fe-a6d2-5fed208569f6: too_short
+  ✗ uaNmrRUHmxE | Fetch failed for 944a62ed-ade5-4561-9e16-955dc57b0a15: too_short
+  ✗ 0eN-XFNXRWI | Fetch failed for 01527659-f621-41a9-8608-c487a3033d74: too_short
+  ✗ CcJ6LEAr9ks | Fetch failed for e998d6fd-aa7e-4879-a2a3-29fbcb985e38: too_short
+  ✗ fJacKV2790g | Fetch failed for 7ad01903-8a49-45db-a22f-20bb568a37d5: too_short
+  ✗ 79lTmuQWn5o | Fetch failed for a3c1c382-1d13-4733-8d78-4f2662c03523: too_short
+  ✗ Xq0uMbH4W7I | Fetch failed for 18d07c9c-de37-43a8-a2ed-48a35eba9b03: too_short
+  ✗ JDxbGs254dA | Fetch failed for 048d83d5-cc45-4942-8a2c-99c9b0f74299: too_short
+  ✗ zAbwuXsS1vw | Fetch failed for 9c59d7bb-3020-426f-ab62-aa302ce1e7a9: too_short
+  ✗ OemrMT2-OEY | Fetch failed for 4d1e4447-edb3-4160-b746-090080af2ed7: too_short
+  ✗ NMgWuxfEdh0 | Fetch failed for 1003b005-bee0-40db-894c-45d96a6bef45: too_short
+  ✗ VH_0RA6-wWU | Fetch failed for fb99dde9-dc7c-4ce0-9980-ba419f042bc5: too_short
+  ✗ p9ICKEs5GEs | Fetch failed for f39b844d-d4a7-4427-b9c3-f6f270a962f5: too_short
+  ✗ UESEIqLUuwA | Fetch failed for 3c067f95-0c8c-4ee7-8be7-b84cd6d2b6b3: too_short
+  ✗ Lt-ThOkcR6o | Fetch failed for 1529cbb5-ab02-4cc0-ad32-c5afd11784e3: too_short
+  ✗ 4c_qvdFsLcg | Fetch failed for c7af7aa8-e58d-431d-b0e7-57ed37f68eac: too_short
+  ✗ BmSdCMF4-O0 | Fetch failed for 0260a3ce-e0d6-4fea-a57e-abc13633c60e: too_short
+  ✗ qKFJUHAd3eI | Fetch failed for af808d9d-d859-499a-a043-7a05712f8219: too_short
+  ✗ HgrwP-pHzLU | Fetch failed for c5b72027-3726-49d0-b045-e60e351e465f: too_short
+  ✗ cf3Lw8xsZ50 | Fetch failed for e30c23d9-6b06-42b2-8a4e-d75581276c52: too_short
+  ✗ Ap0HdqiyrJQ | Fetch failed for 5166402b-a5e5-4ae5-9c6d-dfa79d673ffb: too_short
+  ✗ miDA3lB3v_0 | Fetch failed for 3a42504a-b791-4fe2-a201-717cedc2573f: too_short
+  ✗ Ic378II9Xuo | Fetch failed for ab796a85-1fcc-48e4-8865-9bad18ffa67b: too_short
+  ✗ cic7rKQTF-E | Fetch failed for 721dcf2a-96d5-438f-ac5b-51e149a29d97: too_short
+  ✗ srEfRexg0Yw | Fetch failed for cfaa1dc7-dc27-494e-b75e-0c095e486f74: too_short
+  ✗ eiR6Jv8B1AE | Fetch failed for 6c09dfe2-51f7-4b21-8dbf-1fd39d0efae8: too_short
+  ✗ 0Oi2K6sXjNc | Fetch failed for 85868293-c473-4edb-8661-5867ac0afcde: too_short
+  ✗ K7xeH4PKl78 | Fetch failed for 929cafa2-b088-4719-9b03-6970717b69eb: too_short
+  ✗ uQkuOkPKcf0 | Fetch failed for 125a20fd-86a0-4654-9c76-7e8084903c87: too_short
+  ✗ lnBOnsg4y8E | Fetch failed for 2c98a453-ad2a-47e7-8b42-6c221ea66c91: too_short
+  ✗ MDezJr2PBdI | Fetch failed for a0bb83cf-acce-48fb-af1c-0d88d0b87511: too_short
+  ✗ uzN62GFjKcQ | Fetch failed for 1b545deb-b30d-4067-98a3-0dce43c21b53: too_short
+  ✗ JnSIumqESs8 | Fetch failed for b1f20ea7-4176-43eb-b485-a1ebe1c48cd1: too_short
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+{"worker_id":"worker-01","input":"C:\\Users\\brsth\\AppData\\Local\\Temp\\tmp5f97df3i.json","batch_count":1,"video_count":200,"succeeded":48,"failed":152,"source_profile":{"total":200,"matched":200,"missing":0,"source_class_counts":{"no_captions":200},"status_counts":{"pending":200},"privacy_status_counts":{"public":200},"upload_status_counts":{"unknown":200},"unavailable_reason_counts":{"unknown":200},"failure_reason_counts":{"unknown":200}},"subbatch_metrics":[{"subbatch_index":1,"subbatch_size":200,"target_subbatch_size":200,"attempted_count":200,"added_count":200,"add_cmd_elapsed_s":129.387,"materialization_wait_elapsed_s":2.793,"elapsed_s":132.18,"returncode":0,"failure_reason":null,"source_profile":{"total":200,"matched":200,"missing":0,"source_class_counts":{"no_captions":200},"status_counts":{"pending":200},"privacy_status_counts":{"public":200},"upload_status_counts":{"unknown":200},"unavailable_reason_counts":{"unknown":200},"failure_reason_counts":{"unknown":200}},"current_source_count":200,"source_materialization_ready_at_epoch":1776910181.1704302,"status":"ok"}],"startup_retire_elapsed_s":0.0,"startup_notebook_check_elapsed_s":4.804,"startup_notebook_create_elapsed_s":0.0,"startup_prepare_cleanup_elapsed_s":2.302,"startup_prepare_total_elapsed_s":7.106,"setup_elapsed_s_total":148.933,"notebook_check_elapsed_s_total":5.026,"notebook_create_elapsed_s_total":0.0,"notebook_retire_elapsed_s_total":0.0,"add_sources_elapsed_s_total":143.907,"add_cmd_elapsed_s_total":129.387,"materialization_wait_elapsed_s_total":2.793,"extract_elapsed_s_total":42.32,"cleanup_elapsed_s_total":104.638,"batch_elapsed_s_total":295.891,"content_fetch_status_counts_total":{"ready":48,"too_short":147,"command_failed":5},"source_ready_age_s_total":6087.595,"source_ready_age_s_max":47.737,"source_ready_age_s_avg":30.438,"notebooklm_profile":"ytis-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json","notebook_title":"yt-is-worker-01","status":"ok","returncode":0}
+{"worker_id":"worker-03","event":"worker_notebook_reset_started","notebooklm_profile":"ytis-worker-03","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-03.json","notebook_title":"yt-is-worker-03","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-03","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-03.json"}}
+{"worker_id":"worker-03","event":"worker_notebook_reset_completed","notebooklm_profile":"ytis-worker-03","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-03.json","notebook_title":"yt-is-worker-03","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-03","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-03.json"}}
+{"worker_id":"worker-03","event":"notebook_prewarm","prepared":true,"setup_mode":"reuse","notebooklm_profile":"ytis-worker-03","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-03.json","notebook_title":"yt-is-worker-03","elapsed_s":5.263}
+[NLM-Batch] Adding 200 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-200/200...
+[NLM-Batch]   Adding sub-batch 1 (200 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 200 sources in parallel...
+  ✓ vecnY7yo_1U | 11147 chars
+  ✓ DixLZcmpAh8 | 11755 chars
+  ✓ K6eWJya839I | 17228 chars
+  ✓ EjZpzdMZw8Q | 13754 chars
+  ✓ nTQRN4AKacY | 9374 chars
+  ✓ jzRHTrduZ4w | 9771 chars
+  ✓ 4cuWpLUGx1o | 10202 chars
+  ✓ KAU7reN3gSk | 9468 chars
+  ✓ AwzS5Ui5eUU | 13533 chars
+  ✓ ojAjUKcx7p4 | 7887 chars
+  ✓ TE9WpCZJkY8 | 794 chars
+  ✗ 7du2z9TtQ9U | Fetch failed for 3d7f1623-bf47-4bf0-b802-e2722e024cbd: command_failed
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ f8D3UR72FrU | 14807 chars
+  ✓ a1fOBOD4CJc | 12476 chars
+  ✓ YdHHaeZinY8 | 12174 chars
+  ✓ vBKUko9iexc | 39623 chars
+  ✓ LT8W2BE1xa4 | 543 chars
+  ✓ u2hmsms-alg | 15866 chars
+  ✓ PrGegzpxTGU | 12811 chars
+  ✓ f2AHrBTOM_M | 8612 chars
+  ✓ AvQuqSm26fQ | 16512 chars
+  ✓ 2L3n13C0s4k | 15672 chars
+  ✓ LYOzOlVSc2c | 12000 chars
+  ✓ KzVXXd38MuU | 15284 chars
+  ✓ WeTpxRPzjng | 11595 chars
+  ✓ tg013DLayD0 | 12519 chars
+  ✓ oxaowBe-1DY | 24562 chars
+  ✓ Z5nO11Eg_j8 | 17459 chars
+  ✓ oCkaCil_z7M | 15006 chars
+  ✓ f8odSaqkr3A | 51038 chars
+  ✗ C-_soeq-hyY | Fetch failed for 2240a81b-8b05-4e5c-9824-3fc869c96665: command_failed
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ Ia-z2JTDc2U | 124471 chars
+  ✓ -RXO1_sTm90 | 9881 chars
+  ✓ oPTtE9wIXdc | 8362 chars
+  ✓ 21oX9QEKbfw | 11421 chars
+  ✓ y3nRG7gpRVk | 24011 chars
+  ✓ UdE1cogpjLk | 7880 chars
+  ✓ v_6NQd6IRZ4 | 17957 chars
+  ✓ Q9PRj9ZsdmU | 15094 chars
+  ✓ Y3OLEutGvqU | 8029 chars
+  ✓ 1wnCq2wGjkU | 11205 chars
+  ✓ NOzT9g4u06Y | 19583 chars
+  ✓ MvlQmo0pzdw | 16424 chars
+  ✓ u_RJ9bdGpo0 | 14672 chars
+  ✓ 4mbHKUtvA08 | 13677 chars
+  ✓ S2K6ZBAFF_8 | 61570 chars
+  ✓ jc3NwG3eZqk | 23081 chars
+  ✓ siMwM6NDblI | 567 chars
+  ✓ W99qmlFYqh4 | 1229 chars
+  ✓ 0i0NeJzjnFQ | 788 chars
+  ✗ B5jLGUr7zi8 | Fetch failed for b0bea8d0-edea-4df8-b717-36dcbf364a80: too_short
+  ✗ i1Tzjfq2QrM | Fetch failed for b3562c11-7450-47b1-81af-1d23e38d1ca7: too_short
+  ✗ kINIH9aRhmA | Fetch failed for 1a3fd963-ada3-4b02-8df5-0ee42c97ada8: too_short
+  ✗ fm0SQ-6M0hY | Fetch failed for 77fe26d4-c127-4230-ae72-870ce8bec750: too_short
+  ✗ ya3spzEdJk4 | Fetch failed for b47b826a-6532-4db4-ba59-08b47dcdcccb: too_short
+  ✗ JKVsqArLxw8 | Fetch failed for b84b5d43-b449-4f7f-9888-d87ac20f2a5a: too_short
+  ✗ amOhodeeU_s | Fetch failed for 5e510b3e-0cf8-48ed-ac7e-67ac73d35956: too_short
+  ✗ 6NvPxrOjW2A | Fetch failed for ed3e354a-5d46-46d4-851e-770df1191638: too_short
+  ✗ uhi7kmAzmuU | Fetch failed for cc139241-9150-4ae7-a50d-defe0ecbe4c0: too_short
+  ✗ 462qSyvE-ZU | Fetch failed for 223736ef-21c7-4af1-9ed3-c44cc8be7db3: too_short
+  ✗ 2yKYXRxpyjE | Fetch failed for 05bb7357-53af-44ec-bd59-72ef2d1f0c1a: too_short
+  ✗ gTHJwjhT5wY | Fetch failed for 45b47d56-0966-4fb3-898b-fb7608aaf34a: too_short
+  ✗ sa90KtdO2po | Fetch failed for cc1f157f-2a8d-43b3-a6ff-6f08cb6c78e3: too_short
+  ✗ Nlver5hrdVw | Fetch failed for 2f8aa092-236e-4ba9-8baf-68c14eb274e3: too_short
+  ✗ qCcILUUYfnw | Fetch failed for 1e67b159-ab31-41d0-8992-556ea7315dc5: too_short
+  ✗ T0yc3sHVStg | Fetch failed for a2ac6d86-3cc1-4917-b1d7-37ecea5cb2d6: too_short
+  ✗ IEK96WrZXp0 | Fetch failed for 09c960b4-b024-46dd-916b-8a329f85bf89: too_short
+  ✗ ifgZhrMYhsg | Fetch failed for b4d7b143-0499-4a20-9fa2-3e649b01d339: too_short
+  ✗ tP0gkkriOCo | Fetch failed for fbf68a55-a51f-46de-bc0b-9a9b9f43c44a: too_short
+  ✗ cV6HGgEQ6oE | Fetch failed for d8a4b5db-3ef8-4961-a223-68141a369b79: too_short
+  ✗ aBwdYT5RwP4 | Fetch failed for a444f0b5-bdc6-443a-bf73-cb043935d490: too_short
+  ✗ iPztjK6QNMc | Fetch failed for 85129b12-ca61-42d6-bafc-47d53301acef: too_short
+  ✗ Q4rjGldR9eQ | Fetch failed for 369d682e-3a77-4d7f-85bd-2092bf33bbb6: too_short
+  ✗ NY9Fp-AazDw | Fetch failed for 9e7a1c81-3735-4f5c-bb5e-0f2fa0bd2963: too_short
+  ✗ unO9InVa3dU | Fetch failed for 33e4fa93-1727-4bdb-861f-ead8bf4b5acc: too_short
+  ✗ Qrczs8WrxMs | Fetch failed for 89a33b74-b8dc-4af9-995d-55a43aee1e15: too_short
+  ✗ ia2pSDqRHuQ | Fetch failed for 9f507083-e800-4304-88a6-f0d3255fbb38: too_short
+  ✗ q8gLUC85u0Q | Fetch failed for efdd596e-fcd8-4f50-8db5-e0970cb5ac83: too_short
+  ✗ jG21Xk27bDU | Fetch failed for 00c4f35e-bf52-487a-b59a-96463d480a6b: too_short
+  ✗ ht12QquRuII | Fetch failed for 463c1c18-b503-403c-9134-3a0a0033ffc9: too_short
+  ✗ mGgLzYY683I | Fetch failed for fef2043d-a413-4438-9bd3-0c0252b7092c: too_short
+  ✗ Hi5mp_JjgTI | Fetch failed for 44764ebb-eaba-444c-8e24-7a8f38d0c44d: too_short
+  ✗ sDpE5mW7CTk | Fetch failed for 816370cd-4b6a-43ec-bf40-82fbfe52fd78: too_short
+  ✗ -LnQwu6q_Co | Fetch failed for 7c001bfa-8104-4114-b547-49ff9b7261e4: too_short
+  ✗ vKwjiT2q8Ms | Fetch failed for 3abc193a-2a26-466d-823d-110b8e7fb382: too_short
+  ✗ kC4P3BH4vJM | Fetch failed for 09971a9a-ba3d-436a-a7f7-f02c915ab4b2: too_short
+  ✗ 6thC2S8CuWw | Fetch failed for 58b82ceb-c982-45a5-a202-f3727f9943cc: too_short
+  ✗ hcRSt29i4gk | Fetch failed for d27d8d2a-b9c8-4f4a-a801-03b8a88ef9e6: too_short
+  ✗ N_KctMUtSfg | Fetch failed for 42795ef2-f0b8-4da5-9cb9-e592fbc2c5e6: too_short
+  ✗ z2a2HuoSG9Y | Fetch failed for c84bd8a5-44aa-4727-8c1c-6e3d699acb58: too_short
+  ✗ UWS2g--_hjc | Fetch failed for 2ee349af-50f8-4707-94dd-228084e0913b: too_short
+  ✗ 7Xnrvwm2NEc | Fetch failed for b9ffa667-f1ad-4ee1-a7e1-8b7c05aa3721: too_short
+  ✗ 7qar_NrjlbI | Fetch failed for 8eaf3987-fbe8-47b5-8ba1-a95494663656: too_short
+  ✗ uCG7EXjD9BM | Fetch failed for d5075aec-c322-4b5d-92d4-6d01f298f127: too_short
+  ✗ 5uksJcD4Oq0 | Fetch failed for 388ca768-a9c8-4e8c-9e26-38f310a8a4e5: too_short
+  ✗ 3c6jgkwAkcA | Fetch failed for 8caa1342-9767-4011-a247-c6247793690b: too_short
+  ✗ 5PUXi523-HI | Fetch failed for 4df5dc48-e7a4-478f-9691-3aaf151ed9b8: too_short
+  ✗ 7LP15uQU5h4 | Fetch failed for 8938d7c7-2bc5-4348-a04d-957ea2551612: too_short
+  ✗ 0fH7m9VwI6Y | Fetch failed for 53109bf6-e406-4bdb-83d7-b09f70be5bd7: too_short
+  ✗ wHrxYw5fe7w | Fetch failed for dd5c3fc6-a9ab-483b-9e3a-19c040c12b1e: too_short
+  ✗ MK5St5tjzfU | Fetch failed for b050c83f-014d-4149-ad1a-43630df40551: too_short
+  ✗ qpH8Kxbfzgs | Fetch failed for 9c9f5b57-3cc9-4a71-80ca-302df6ac7b67: too_short
+  ✗ Kh_dkJvoh5A | Fetch failed for 43cb3c8e-44ca-44c7-8712-d1c23cd69b1b: too_short
+  ✗ -i72cKnzHIQ | Fetch failed for b426f131-be1f-41d1-b7f9-5fc9f1c046f1: too_short
+  ✗ ltkOA3GpFYc | Fetch failed for 3e5bcd90-b43f-4883-87dc-a262ab47f236: too_short
+  ✗ PKyC5gO7_3E | Fetch failed for 46d6676b-385b-4dbc-b19a-5c630aa000f5: too_short
+  ✗ dN6xPFnrdes | Fetch failed for 4918fab0-4524-45b4-8458-3f7ce55f70eb: too_short
+  ✗ mE8mCeloxxM | Fetch failed for d399ba1b-344d-4c14-8559-e5edc6865f9e: too_short
+  ✗ jir6FvXPMwA | Fetch failed for ae4c0299-7682-46e3-959b-9c4c68c2082e: too_short
+  ✗ CrH_kScm6YQ | Fetch failed for 8a11bf45-cc63-4da9-bf29-60b6aaf12ea0: too_short
+  ✗ 1hOT2zlMckU | Fetch failed for 4046dc2c-11b6-4db4-90b2-113707ee64b6: too_short
+  ✗ oQXwpLIliWI | Fetch failed for 315d849e-78aa-4584-a4a6-d788e3a8f50c: too_short
+  ✗ XsYwBfpsIws | Fetch failed for 06861597-05e9-45be-884d-de28bfefe9bf: too_short
+  ✗ ZqJD5Xaza5Y | Fetch failed for 3b078b86-a762-48ae-a6e1-181496ef5948: too_short
+  ✗ LCFmPHOmK04 | Fetch failed for 5f9c641e-a080-46e4-b9cb-c497358ed846: too_short
+  ✗ bq_TbLDu8V4 | Fetch failed for 5aa1c8d7-04cc-4330-83d5-d306eb92b72a: too_short
+  ✗ Q4Uy0eJBgCs | Fetch failed for 93bbbf28-a25d-4c06-b404-40fdb04e7bbb: too_short
+  ✗ RWIiVHT-29E | Fetch failed for 71e2f7e6-a283-4edd-adf9-98529e4cbceb: too_short
+  ✗ m_xkUUgPjrU | Fetch failed for 28888830-0cac-40b2-b52a-04abf54f5f19: too_short
+  ✗ MhzxrBgdK74 | Fetch failed for 1d7d89bd-983c-456c-8189-293896516b69: too_short
+  ✗ JWTRxPOFojM | Fetch failed for 98752883-4614-43e2-9649-4a785c46e41e: too_short
+  ✗ Wrgx4xbHQ8Y | Fetch failed for f874ec02-a4ba-4d9e-9f22-da4f3b560af8: too_short
+  ✗ B7JqU4q6aic | Fetch failed for 7d59bb46-1748-4040-a3ea-255d65c9d7a2: too_short
+  ✗ Y8IcC1Qkb0Q | Fetch failed for f7a8dac3-001c-414c-88d8-de04c346ced5: too_short
+  ✗ SD8P-w24zLM | Fetch failed for 48e710b5-1b4d-4c9b-9f9b-407c79526819: too_short
+  ✗ 6ldYHIb8YI0 | Fetch failed for 2ce695ac-bea2-4886-96d0-49a87e20d409: too_short
+  ✗ QhSmu0NEydc | Fetch failed for 28faebc9-ab77-4f11-9db3-6b027af9ac1d: too_short
+  ✗ roCkqG_leHs | Fetch failed for f20a22fd-326e-42a8-80ad-5a6763c12326: too_short
+  ✗ lsEJPxqBhxM | Fetch failed for 1b7c06c9-1f45-4a0d-a42c-e46387c1847e: too_short
+  ✗ sXs6ADOu53c | Fetch failed for 98fc9a2b-e02d-44f2-ae07-6b25133f15c5: too_short
+  ✗ F0EqjM7tNpE | Fetch failed for 6797a748-26fa-49ca-929d-45868b81a915: too_short
+  ✗ J5exYth8QGg | Fetch failed for 7e395e24-3e58-480d-9fb5-87c0f578457d: too_short
+  ✗ TrWy56tDiIY | Fetch failed for 11e7fd6c-c61b-45e6-b414-663dd0715a94: too_short
+  ✗ w42U5T0mlZM | Fetch failed for e77d6e35-fa4a-4de0-8dd6-c841afe7d976: too_short
+  ✗ gJUYPICEsCs | Fetch failed for 8107cc42-98b6-4a26-a810-d7e166ebb9b3: too_short
+  ✗ Ec3IfEW1qec | Fetch failed for 4047451f-5c14-447e-9e97-78f89e19c0f7: too_short
+  ✗ Ooy1Ft1GJg4 | Fetch failed for 1cea784b-b83e-46c1-acde-ee8d6045adc5: too_short
+  ✗ bgPRSWE7VCU | Fetch failed for e43ae96a-81d8-45a2-84a0-8e4ecbaeaa1d: too_short
+  ✗ rg4EWhqOmPc | Fetch failed for c1bec505-8a58-4e8d-a82e-54c95642eaaa: too_short
+  ✗ Jql5XNgoOkY | Fetch failed for 776f26b0-8132-41ca-b0ba-df2cab0b6738: command_failed
+[Throttle] Success restored after 1 failures — delay reset
+  ✗ Cx0BxfGpOl8 | Fetch failed for ea035f58-d2ee-484d-83a1-922ad79c3104: too_short
+  ✗ npgKgXwOo9g | Fetch failed for c61aade1-5c33-4f41-a0a3-3585def3b560: too_short
+  ✗ aGDw8egk0_I | Fetch failed for 114c428f-dfa9-448a-b8a7-7f493f86dfe0: too_short
+  ✗ 5BFrD7wP0rM | Fetch failed for 706445a5-7371-4ad2-9697-2377baeb7f74: too_short
+  ✗ D5ehsTOKAZo | Fetch failed for 60c135da-1a1b-4973-9cec-520e3a2a523f: too_short
+  ✗ h5Aja9UFs_U | Fetch failed for 8ab36a38-5d49-456b-8dab-6747b805ed18: too_short
+  ✗ xIjGF19V1d0 | Fetch failed for bd74e89c-9158-4515-8f2c-5b8859728ca6: too_short
+  ✗ kcX1pL_-eOE | Fetch failed for 730f7408-44c9-4c5e-b9c2-79b0bac9bdfe: too_short
+  ✗ aP1gG6OxSOQ | Fetch failed for 6392168b-b253-4df0-93f2-4c752ac9e2a1: too_short
+  ✗ b_sxrH5sI-4 | Fetch failed for eab3855f-78fe-41ee-91cb-20040652755b: too_short
+  ✗ C9oW_JtJUXU | Fetch failed for 68f79eea-a362-40bf-bac0-5ba4cf69d826: too_short
+  ✗ Cvsk3bxROIQ | Fetch failed for e8842160-c919-43db-888f-ce0ecfbaaf13: too_short
+  ✗ iX1urPIeOjw | Fetch failed for eaed5cd4-ff23-4808-b75b-4f2725d76f0d: too_short
+  ✗ TTik25z9XLg | Fetch failed for 3ffa6c5d-b7a0-41c1-b379-5bc0b74f87f3: too_short
+  ✗ Wa11r6-EcoI | Fetch failed for 86123512-e10e-44d7-b253-9385a6a6647f: too_short
+  ✗ 0HK5obMc7iU | Fetch failed for f3bbac64-5599-4916-b75b-106be5c937f4: too_short
+  ✗ 3X0HxsVahLg | Fetch failed for d0c59ce4-5295-4a7c-9cc5-6eb01cf741db: too_short
+  ✗ 804mwP1mx8w | Fetch failed for c5556ac3-bdd1-4379-97d7-f315cafad443: too_short
+  ✗ 1BiBPzpMKZo | Fetch failed for 164409ad-ede8-4b36-9f9f-2cff378d311c: too_short
+  ✗ HkbOtTg-0eo | Fetch failed for 47fc077d-8644-4398-8c23-b2dc7dc1e4fa: too_short
+  ✗ sVlo1DMfqX4 | Fetch failed for a53663bf-b57b-4816-a21b-6358d86b48f7: too_short
+  ✗ dDBtKRefzHk | Fetch failed for c43532b8-d232-4a8b-a777-a8d7511d7526: too_short
+  ✗ E8WnkoeBiWQ | Fetch failed for bb154482-fde0-4259-9cf4-09e7e9c001b3: too_short
+  ✗ 2XnkFae6AFs | Fetch failed for 408303a4-7d47-4bd1-b655-1d47f4369d58: too_short
+  ✗ VVfkLjotqyc | Fetch failed for 9dc543e1-8a7a-404f-aa24-c017444c3957: too_short
+  ✗ WApDofE6UIQ | Fetch failed for 5ee2bc2c-26ae-4b57-8b33-ae66cae6ca66: too_short
+  ✗ EM9lwCaSJko | Fetch failed for 037f3796-38fb-4f80-9b59-dc7a95a24d9a: too_short
+  ✗ UNd3-p-2BAY | Fetch failed for a069666f-473c-4776-ba5d-6224ac610d6f: too_short
+  ✗ b9bDq4sQH9A | Fetch failed for 36045e6b-1528-49a6-95f0-d793d6d01c08: too_short
+  ✗ ZcuaxCuZ4tA | Fetch failed for 5683beef-4c1b-4d0c-af17-54d5a2d7cf22: too_short
+  ✗ vWjUIamWZJQ | Fetch failed for 09c01729-e76e-4cff-b52a-e6446bab0fc2: too_short
+  ✗ UM38jgaqfHs | Fetch failed for 6d72525e-7ed6-421e-a391-fca4d84b81cf: too_short
+  ✗ K7svoZXFcQE | Fetch failed for a91bf096-b002-439b-ab60-142f02aaf787: too_short
+  ✗ l-x0dhXe290 | Fetch failed for 273fd3e0-2a02-4356-b328-807aad48f7b6: too_short
+  ✗ VwdQ2fBi770 | Fetch failed for 5f494d33-d23b-4294-a7bf-8ac75a7e0f14: too_short
+  ✗ w4aKuiodkT4 | Fetch failed for 9da69b6c-d6ce-4dc2-9d42-08921ca75196: too_short
+  ✗ xW8uj94t-f4 | Fetch failed for 89bdbb90-5cb8-4d95-9d00-eddaf638d1b8: too_short
+  ✗ HswlWtPj2b8 | Fetch failed for c8818086-f57b-4a45-94f5-6645348c5845: too_short
+  ✗ hKqW_MeigwI | Fetch failed for b047ddfd-9ac4-4511-81b8-975a63d16582: too_short
+  ✗ wpL4xYOaltI | Fetch failed for 12ad5aa2-0d1f-4e64-a476-c26ff4dec4ba: too_short
+  ✗ baqWMuX5YfI | Fetch failed for 4826c042-4f5a-493a-a94d-103c2092cf27: too_short
+  ✗ _1EvXUZmGWw | Fetch failed for 96ceb4e0-ce30-43ef-86a3-10eca48f4f1b: too_short
+  ✗ NZomo2Codl0 | Fetch failed for 51d768d5-22b9-4015-9f21-687d1ab8744b: too_short
+  ✗ jVVHRv4FfE0 | Fetch failed for 9b4f1313-e949-42b3-9299-794a2d197b0f: too_short
+  ✗ YBMxPTBRL-Q | Fetch failed for dcce5603-4aae-4cec-90bc-8e39f357fda2: too_short
+  ✗ R1oCldWqRV8 | Fetch failed for c7a3f08e-374d-4e61-a097-c284e33a31b3: too_short
+  ✗ idJnIwSho2g | Fetch failed for 94adcb02-9486-4754-8834-a014bf993a9a: too_short
+  ✗ _LPlutr7vSQ | Fetch failed for 5ff898de-9705-4cf6-bdc0-60b20aeddec7: too_short
+  ✗ Y0j6kWZLYqw | Fetch failed for eb0fe7ca-2fed-42ab-a51f-b8966c5d278a: too_short
+  ✗ ycEeJ-juwW4 | Fetch failed for fa6c6dd6-c8b5-45cc-bdd0-13077c49cab6: too_short
+  ✗ Z1pMJT7VC4E | Fetch failed for 0e79db2a-a218-49eb-83b6-e2941e88e46a: too_short
+  ✗ lPhJWEipDuw | Fetch failed for a5900acf-1175-4612-9a61-03c9ce75fe16: too_short
+  ✗ K6IeIKm-D3A | Fetch failed for be8773ae-c0cf-4e10-90aa-92992e8ce519: too_short
+  ✗ 1efNtRUZZsM | Fetch failed for 6a729b35-075e-4c98-bf81-ae6bf460a59c: too_short
+  ✗ wZIJF_YekUk | Fetch failed for 8dd4f8f6-849c-4d08-96ad-cf6ca335025b: too_short
+  ✗ 0byNIeXGVqU | Fetch failed for c61df188-f38a-44dd-855d-2c3b4b72c920: too_short
+  ✗ EFjyXrvdXO8 | Fetch failed for 25c9a18e-43c3-4e1f-8f85-ac2f6e2f7957: too_short
+  ✗ 6UXj7yp8u6w | Fetch failed for bc4f2b9d-d6cf-463d-8bf7-5335624758b8: too_short
+  ✗ e4Cj6PndGZQ | Fetch failed for 95de6b72-41c8-4206-8bd1-7542b2554c3c: too_short
+  ✗ kEldmrNUuF4 | Fetch failed for 3f157488-38aa-49e8-8735-a2ce82f161a4: too_short
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+{"worker_id":"worker-03","input":"C:\\Users\\brsth\\AppData\\Local\\Temp\\tmpq2mzguyi.json","batch_count":1,"video_count":200,"succeeded":48,"failed":152,"source_profile":{"total":200,"matched":200,"missing":0,"source_class_counts":{"no_captions":200},"status_counts":{"pending":200},"privacy_status_counts":{"public":200},"upload_status_counts":{"unknown":200},"unavailable_reason_counts":{"unknown":200},"failure_reason_counts":{"unknown":200}},"subbatch_metrics":[{"subbatch_index":1,"subbatch_size":200,"target_subbatch_size":200,"attempted_count":200,"added_count":200,"add_cmd_elapsed_s":110.499,"materialization_wait_elapsed_s":2.258,"elapsed_s":112.75699999999999,"returncode":0,"failure_reason":null,"source_profile":{"total":200,"matched":200,"missing":0,"source_class_counts":{"no_captions":200},"status_counts":{"pending":200},"privacy_status_counts":{"public":200},"upload_status_counts":{"unknown":200},"unavailable_reason_counts":{"unknown":200},"failure_reason_counts":{"unknown":200}},"current_source_count":200,"source_materialization_ready_at_epoch":1776910157.8071291,"status":"ok"}],"startup_retire_elapsed_s":0.0,"startup_notebook_check_elapsed_s":3.476,"startup_notebook_create_elapsed_s":0.0,"startup_prepare_cleanup_elapsed_s":1.784,"startup_prepare_total_elapsed_s":5.261,"setup_elapsed_s_total":124.805,"notebook_check_elapsed_s_total":3.18,"notebook_create_elapsed_s_total":0.0,"notebook_retire_elapsed_s_total":0.0,"add_sources_elapsed_s_total":121.625,"add_cmd_elapsed_s_total":110.499,"materialization_wait_elapsed_s_total":2.258,"extract_elapsed_s_total":43.431,"cleanup_elapsed_s_total":100.91,"batch_elapsed_s_total":269.146,"content_fetch_status_counts_total":{"ready":48,"too_short":149,"command_failed":3},"source_ready_age_s_total":4869.491,"source_ready_age_s_max":45.735,"source_ready_age_s_avg":24.347,"notebooklm_profile":"ytis-worker-03","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-03.json","notebook_title":"yt-is-worker-03","status":"ok","returncode":0}
+{"worker_id":"worker-02","event":"worker_notebook_reset_started","notebooklm_profile":"ytis-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json","notebook_title":"yt-is-worker-02","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json"}}
+{"worker_id":"worker-02","event":"worker_notebook_reset_completed","notebooklm_profile":"ytis-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json","notebook_title":"yt-is-worker-02","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json"}}
+{"worker_id":"worker-02","event":"notebook_prewarm","prepared":true,"setup_mode":"reuse","notebooklm_profile":"ytis-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json","notebook_title":"yt-is-worker-02","elapsed_s":6.908}
+[NLM-Batch] Adding 200 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-200/200...
+[NLM-Batch]   Adding sub-batch 1 (200 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 200 sources in parallel...
+  ✓ IjsjiLWFz5k | 905 chars
+  ✓ 9B48M3LSSbo | 753 chars
+  ✓ frzOwM0Swrc | 692 chars
+  ✓ p956h_nkXQY | 705 chars
+  ✓ LiixK24neRc | 46167 chars
+  ✓ o5GRN9KBF2w | 965 chars
+  ✓ PR9dbKhzUh8 | 495 chars
+  ✓ Vc2xNzqyOAQ | 1391 chars
+  ✓ FqbnXlTNzFY | 936 chars
+  ✓ UDZgGenSzlk | 3269 chars
+  ✓ lN8-s8NL44o | 19189 chars
+  ✓ 4NX7tK2I8jw | 821 chars
+  ✓ JFJ8QTLtvUQ | 769 chars
+  ✓ Y2nf-vLnnds | 717 chars
+  ✓ BU3Jy7a_PMw | 584 chars
+  ✓ xp9SjNKuSvw | 829 chars
+  ✓ Wf5mwdsuLl8 | 493 chars
+  ✓ 09bSSr3QdWs | 584 chars
+  ✓ HlS3JDUHM_8 | 949 chars
+  ✓ DS_jze5LlE8 | 436 chars
+  ✓ PGqCsFRmHSo | 700 chars
+  ✓ 8cuZePXXZb8 | 945 chars
+  ✓ uWDQ55i24Eg | 799 chars
+  ✓ 6Ae30kji2sg | 21964 chars
+  ✓ 3ZawY9uf6RM | 343 chars
+  ✓ 2KI51T3tuII | 809 chars
+  ✓ Pu4uW-xV8yg | 915 chars
+  ✓ qasylc-vHY0 | 1045 chars
+  ✓ qk4_mnSBQQU | 893 chars
+  ✓ 9gFXAzacOAI | 886 chars
+  ✓ _4OquOM-tzU | 520 chars
+  ✓ ifDr8pG9gFg | 512 chars
+  ✓ OiOkvCR1XOE | 578 chars
+  ✓ JjHHqrjUQz8 | 1043 chars
+  ✓ ZBzS4pPqU3g | 882 chars
+  ✓ CgZX8V9ZQqA | 615 chars
+  ✓ faQcXaq5-js | 22214 chars
+  ✓ IXtkT3Zpdkk | 909 chars
+  ✓ bm0KSoikUQY | 655 chars
+  ✓ wjsHU1R-J8s | 932 chars
+  ✓ J6HIpj2UBcw | 568 chars
+  ✓ E-UDntqLm8c | 678 chars
+  ✓ oFSHY2_B94I | 823 chars
+  ✓ wIA543zdWDs | 809 chars
+  ✓ D5AIbYBlXV0 | 626 chars
+  ✓ SRhSk7yxu60 | 420 chars
+  ✓ Yc1GXqCi6D8 | 7856 chars
+  ✓ y6ULyyd69f8 | 689 chars
+  ✓ 0muB7AzyMq0 | 717 chars
+  ✓ zg6hKGVze18 | 573 chars
+  ✗ vcUTZHPXm-Y | Fetch failed for 6d1658fd-2baa-4c00-9f8e-a6c9be2526e6: too_short
+  ✗ 6_d4kTv-8Yo | Fetch failed for 453c90f8-dd2e-41fe-bd09-482dbc3c35cc: too_short
+  ✗ gk6aeZiwpa8 | Fetch failed for a7c6322c-ca3f-4e2b-b6f0-d66db76bd8d9: too_short
+  ✗ mtwS4Y4Mieg | Fetch failed for 21920a1c-d00f-471b-942a-9435fb525f16: too_short
+  ✗ aTLGJJLVACQ | Fetch failed for c86cb9e1-07dd-4cc0-a7b8-b104458009a0: too_short
+  ✗ TUmswzA-k_0 | Fetch failed for 17a4b3bc-7691-4843-a98b-4708cc8a11d7: too_short
+  ✗ tae7hVmUaq8 | Fetch failed for 354b7c72-cdc6-4fb4-9dc6-1cd70364243b: too_short
+  ✗ uU_LqYeF0jM | Fetch failed for 62af64eb-36e9-4610-8144-e79e83a662fe: too_short
+  ✗ NTrvwjDUkio | Fetch failed for 48301c47-e97c-4266-8185-8d2ce80993fc: too_short
+  ✗ jJW13T1QzAI | Fetch failed for 933534ab-87bf-492b-a2c1-9ad3cea631d0: too_short
+  ✗ B50WiTrE_QI | Fetch failed for d18222b4-f43a-4e4a-bf4e-d287eaf10835: too_short
+  ✗ EmwedUO0gCw | Fetch failed for 06294e16-f5e8-4338-b270-b4cb6c148191: too_short
+  ✗ RXs8pXWKJNY | Fetch failed for 91b9661f-2d16-4233-87f0-76022fe7dc53: too_short
+  ✗ Mv1AvV18Oqk | Fetch failed for 96246b9c-fe25-46c1-bc1e-d8169816d26d: too_short
+  ✗ d1xi4Mgkbdg | Fetch failed for d05863a8-5131-47d1-813e-e53d8a4bf67a: too_short
+  ✗ QKfrhAQh5wE | Fetch failed for e021ed15-3cea-4faa-b897-4e5455b9e68a: too_short
+  ✗ Ca_UdMYEZfU | Fetch failed for 7b033956-af9e-44be-a425-ba8dc9f6b3d6: too_short
+  ✗ A5YPXOcPy2M | Fetch failed for b6917dbe-6531-4351-ba36-33262964856d: too_short
+  ✗ q37EKFMl21M | Fetch failed for 502a4a83-0788-4a4a-a245-f92c95b1626f: too_short
+  ✗ LcrwQRRqRro | Fetch failed for 22fdda4d-7ede-4e0e-9b9c-0c51bf4be735: too_short
+  ✗ -b1RY4bZzZM | Fetch failed for 6b56887a-3e44-4b00-9a52-aa78548737c1: too_short
+  ✗ KLwcN4CNTfQ | Fetch failed for b3313f14-c230-498c-bce7-534b7b0a43b1: command_failed
+[Throttle] Success restored after 1 failures — delay reset
+  ✗ AYqzmUli3tI | Fetch failed for a083bb60-7cca-4af3-82a7-a635b3b6d4a4: too_short
+  ✗ OEQwA5f0gLU | Fetch failed for fc757227-f12f-4b67-8cc7-78f10a128090: too_short
+  ✗ RZD_1pML4Ps | Fetch failed for 0f637048-8783-4130-8496-e42f69b56fd3: too_short
+  ✗ 0TOJ-89r8GM | Fetch failed for 9d028dfb-11b0-42b1-802c-732656255f91: too_short
+  ✗ RAq__TyYr2E | Fetch failed for 0f69f671-4497-42e5-b7bb-f5be96cf4963: too_short
+  ✗ hnFeIzbph5g | Fetch failed for 955ee5ca-d20f-483d-9554-dbf442b63b62: too_short
+  ✗ SjDiE2eU29w | Fetch failed for fd086e49-47ce-4f6a-b598-b4fcd32b157c: too_short
+  ✗ _0boxwBaDVc | Fetch failed for 6b31fb4f-6466-47fd-b0fe-0bea2a7efcef: too_short
+  ✗ 63OURKgS2wg | Fetch failed for 6dd84059-c15a-498a-bd42-d58a74b427e1: too_short
+  ✗ 4se2ENn3ozw | Fetch failed for f88fcf8c-2d84-4dbe-9492-edebbdabbc01: too_short
+  ✗ Ne0oVVF_ma0 | Fetch failed for 4c4ab73b-21f5-49e7-8e8c-15c6caa1c1a3: too_short
+  ✗ 5azDu3JN4LE | Fetch failed for 0797b597-ef26-48ba-a2d3-dd69c33df250: too_short
+  ✗ xpwzoYM55Xw | Fetch failed for 73be94ba-f1ed-468c-87fc-ad297b59e263: too_short
+  ✗ TlNIC9rS_B4 | Fetch failed for 811f78e2-44d4-4317-824e-a12fe2ae55e8: too_short
+  ✗ wga0cxD0AP8 | Fetch failed for 188c9220-8daa-42cb-889b-1c95a578c379: too_short
+  ✗ eOa78ffguF4 | Fetch failed for 604988d4-528c-4cca-af74-45a01d8c97a0: too_short
+  ✗ YPky6HE0m1w | Fetch failed for a833d30f-4fe3-44a8-9a2a-a8b92a5b4340: too_short
+  ✗ gqcybsCDr_0 | Fetch failed for 5c6d0bb1-d0cb-40a4-a755-9566e2eaa49f: too_short
+  ✗ nT4xs4ssBLM | Fetch failed for f9c24eae-56a3-4bc2-965c-827f7b5d4f80: too_short
+  ✗ axxXu674-og | Fetch failed for b5f87aaf-bd36-43e5-97b1-71667519b45c: too_short
+  ✗ 0iWt55T6A-E | Fetch failed for e7356214-80e8-4cba-a642-4088702dc557: too_short
+  ✗ vRC6lWBujzk | Fetch failed for 4b9b9830-6a9d-4da7-a239-99426f502d20: too_short
+  ✗ TaGtJuiM2bE | Fetch failed for 87602931-8c7e-4e63-944b-28e51f39cf07: too_short
+  ✗ neQwt68Bsrg | Fetch failed for 6e4f2d32-0ad6-4316-ad36-6d5526e91d18: too_short
+  ✗ d6FRSm38LEU | Fetch failed for b2c3b4ac-e624-461f-ba65-a06c721b224c: too_short
+  ✗ 0xiz0OPh-P4 | Fetch failed for f9c7903e-21a7-4c64-8a28-ded3a5dffd1c: too_short
+  ✗ tWz7S1xzyCM | Fetch failed for cad9cb1d-e507-4c36-9014-b53d72df82b8: too_short
+  ✗ R8Uvgg6dX5I | Fetch failed for 0e1f7218-896e-4e51-9f19-1c2c88f27a0f: too_short
+  ✗ 4s3NVW4orGE | Fetch failed for 907fdb6e-10ef-40fa-9ff8-a83eacc1876c: too_short
+  ✗ oOU2Je3044I | Fetch failed for 4fa93625-8f7b-43ca-a9cc-5112f2387b8c: too_short
+  ✗ mDX78b8FBEM | Fetch failed for eeb82ddd-8454-46e2-9b05-1b5bcceada3f: too_short
+  ✗ gcg7fWl13O0 | Fetch failed for b60fd125-bc23-4f3a-a2bb-3b9d67957fd3: too_short
+  ✗ cf9qCVCKA8s | Fetch failed for afac69b0-1e0a-4235-8053-7d97d656a2d1: too_short
+  ✗ 5png_IJccOQ | Fetch failed for 67c72a6e-b9d5-4abf-bd84-b70ea4117be0: too_short
+  ✗ ym-CTO8ZJ8I | Fetch failed for 58f6cfee-0958-4b0d-b415-26209cce63da: too_short
+  ✗ 8_9l8BKWep0 | Fetch failed for 184f6604-054d-4e32-90b4-42d1d735507f: too_short
+  ✗ T1Iidc8UL6Y | Fetch failed for c403e96c-3e10-495c-8756-9f833c66a5bb: too_short
+  ✗ 7d2uTExgZjo | Fetch failed for 9ec4e81a-edc1-41a0-8d6b-d5799d710de4: too_short
+  ✗ TSn4iCcvvQ4 | Fetch failed for d9faa0e4-33f8-4561-a9bb-fb43fffea74a: too_short
+  ✗ 0KHKlY1Oebo | Fetch failed for 58e2af0e-0016-4ce6-8055-3d80efa5417e: too_short
+  ✗ 4HWzbOrmRDI | Fetch failed for c0c2eadc-4b1c-4d59-8daf-167aa77dbf3b: too_short
+  ✗ -dqUELcWnJs | Fetch failed for 3d687700-a6dc-4563-ab37-a04596feaad7: too_short
+  ✗ T1nOPxvRwNw | Fetch failed for a3f212ba-3e25-490a-b5d5-a896513c40e2: too_short
+  ✗ 2AYph0eAzcM | Fetch failed for ea903d63-f6c8-4be8-b3b6-63a6da3d278d: too_short
+  ✗ gzRiqixXKh0 | Fetch failed for 9ad0b115-9913-453f-8287-f4c4f450bd55: too_short
+  ✗ FVs6L6eB2VY | Fetch failed for 40c1629b-93d0-458b-9da2-d5d041b102f7: too_short
+  ✗ ap-9abWP-TM | Fetch failed for 9e35f4f0-2ed9-44b3-89c6-a9b46e4286c3: too_short
+  ✗ H1fXu-oP5PM | Fetch failed for 3dc6702f-47fb-4ed5-b25b-6a92d370166e: too_short
+  ✗ yXxX76HYMGo | Fetch failed for c0464dfe-49f7-424c-bbf4-fff0bd0b62f5: too_short
+  ✗ qQwdPltw8SU | Fetch failed for 1e185f0b-5351-4752-ae63-24919d2bd08c: too_short
+  ✗ rp1x5JnzNlo | Fetch failed for 63885c96-9c1e-4068-9250-85733642bade: too_short
+  ✗ 7VPxSgS5lp8 | Fetch failed for e283f9c6-3c11-4ee8-9c98-030e20a74518: too_short
+  ✗ N5QqbJWHkWA | Fetch failed for c1a3167a-1585-4e4a-8b71-23e6c9cece3e: too_short
+  ✗ OVrgsYnjfPk | Fetch failed for 0e00cf1f-0eb9-4186-a497-bf3abf96280d: too_short
+  ✗ b5qEYalXZ3g | Fetch failed for 677da800-8abb-4e12-8156-2391044e2426: too_short
+  ✗ sJGmLWMPOMI | Fetch failed for a6258560-1740-4f98-a31d-9bf17fdb1a97: too_short
+  ✗ rLPF3Ia915s | Fetch failed for fe575fde-a2db-4f85-a0a1-315f3435b0db: too_short
+  ✗ BgWLgPU-fwQ | Fetch failed for 5607d99f-71d0-416e-8e77-b6a3c7b6f836: too_short
+  ✗ Bce7I-TNUVI | Fetch failed for 45362e55-797a-4cf8-88c0-64328a82b8cb: too_short
+  ✗ c5JlqjWfueA | Fetch failed for 08d40a03-51dd-40df-ad97-b1d4619aeff3: too_short
+  ✗ 7H81qnE0zWU | Fetch failed for 75e32ac4-453f-4e7f-8dd6-c6b7de896ef5: too_short
+  ✗ SkpWO5_8u1M | Fetch failed for 7c188480-848c-4b77-880b-68467a84aa44: too_short
+  ✗ kbHTvbMAXaw | Fetch failed for 3d750e34-d264-412b-b1a8-a63d3afd578b: too_short
+  ✗ wBhk7INF_II | Fetch failed for 1353b415-aec5-4848-9f6d-903d53472e22: too_short
+  ✗ ZpTn31ZGGBI | Fetch failed for 2e23d485-db1f-4dba-90e7-e8613a249739: too_short
+  ✗ hrMti8WjUyA | Fetch failed for 94dfc54f-f791-4766-ab6b-df61c48b3420: too_short
+  ✗ X4f9aCc8dd4 | Fetch failed for d778894c-dd6c-4bbc-bbd9-ffab4d857554: too_short
+  ✗ nJYqIow7WvQ | Fetch failed for adcd8294-ab69-4616-a44b-f439befd67d0: too_short
+  ✗ FUpgAQxkU44 | Fetch failed for 8fd572fe-2fc9-4e3f-85cf-c21a431659cf: too_short
+  ✗ OmQk9IazvVM | Fetch failed for 809b570d-4b9d-4855-9c26-a3607ebc4e12: too_short
+  ✗ j94AvK6Sbsg | Fetch failed for 949982a4-a63e-4a61-bad5-248861436034: too_short
+  ✗ FaWC6t9zV9Y | Fetch failed for 05c04260-28a0-434f-9f0b-0434715e04b6: too_short
+  ✗ z1Z6A1z3mvM | Fetch failed for d5c4692c-d1ed-4412-96a1-1712e6d8f46e: too_short
+  ✗ mAic7Zwe8ug | Fetch failed for 0c6678ba-2731-4db5-915d-0095b387d716: too_short
+  ✗ Q3hq5xgmS3o | Fetch failed for aabf2b74-8e32-484c-9358-5a8d09f157f2: too_short
+  ✗ LuyoS2by_Hg | Fetch failed for a492c273-97d5-458b-9b6f-6929bf51906e: too_short
+  ✗ XqTzXuqYTbI | Fetch failed for 184b9c76-a4cf-41e4-82ed-5ab40afc301b: too_short
+  ✗ Sjrf6NYS6zs | Fetch failed for 699e0d1d-f85d-4b4e-abab-8e4dc2f616e8: too_short
+  ✗ GFVHcj3p0Fk | Fetch failed for 89c4034d-a39e-4a6b-82a5-376461f465fc: too_short
+  ✗ 5MuC7SVwRh8 | Fetch failed for 0a1421ac-5b6d-410f-91a8-cf49dd1d5dc9: too_short
+  ✗ RP62S58fVw8 | Fetch failed for 72902933-43a1-4f5e-9e09-e6aaaa05f1df: too_short
+  ✗ D7wxyvFnUio | Fetch failed for 8d345cf8-de8e-48c0-9294-c1a63bb57d27: too_short
+  ✗ qX7ltRmPs6E | Fetch failed for a049941d-d852-4b07-8efa-01f5823f11b6: too_short
+  ✗ OMjQzuNyNEY | Fetch failed for dd673e86-9e46-4539-923e-c1f6dde370d9: too_short
+  ✗ QXW7UWwfizA | Fetch failed for 05ce2386-be3c-4e90-b0d2-6c677e2380b6: too_short
+  ✗ 5jt6qTIcp7Y | Fetch failed for 8cbfc4ae-abd1-477d-bcfc-a54854a40662: too_short
+  ✗ N0W3NMlOrX8 | Fetch failed for 142bf829-b87e-48c1-8c3a-b8ec2e8709b4: too_short
+  ✗ ZzZ7WBkohG0 | Fetch failed for dd608b88-5ae8-4c45-ad3c-2a9292c78a39: too_short
+  ✗ ZeIG5jBZduU | Fetch failed for f57d3ac6-7161-4304-956f-710b4b929cf7: too_short
+  ✗ WMHa-g07iXM | Fetch failed for 135871b5-b626-409b-8cc5-14acadf265aa: too_short
+  ✗ potB_cltNFs | Fetch failed for 4b301db7-5e52-4f53-b3af-7389589bedc1: too_short
+  ✗ R6jhtpq-mmk | Fetch failed for f70dc54d-1cba-453e-b325-08493cdcbeb0: too_short
+  ✗ Ry3_8y3fSQQ | Fetch failed for 776ff43c-c127-4711-9f7e-52e1081266a2: too_short
+  ✗ _mwX8ohX8Ig | Fetch failed for 1b8e9e61-2aae-4cf8-b772-b20f2ac32878: too_short
+  ✗ 4XxkVQKxt-s | Fetch failed for 6d9a4c03-fb9e-42fd-8690-a4975afc46e0: too_short
+  ✗ 2Bf68FW4LVw | Fetch failed for ebc46760-5349-4de5-8868-300accdbfc15: too_short
+  ✗ qLkK1wgss9g | Fetch failed for 5f2e1d00-0542-4cb1-945b-fd99c6df6bf3: too_short
+  ✗ NTdcrHf7ZIg | Fetch failed for 81db7e3c-89da-4085-a219-c5b4ace309e7: too_short
+  ✗ ft9WZXqZ-5Y | Fetch failed for 563da988-ee34-4fcf-9683-b72537898c39: too_short
+  ✗ EmqzsrjqxwM | Fetch failed for 16c55f05-d0b3-4122-9675-89ab98278b7e: too_short
+  ✗ FCGUygyrxNI | Fetch failed for 5e7af278-7e4b-44bd-98bf-3a22773098e0: too_short
+  ✗ j4DnxU3vqPQ | Fetch failed for 3af6eeff-709a-4781-8adf-0b27ebbc4e3f: too_short
+  ✗ tR7QNhyEz9E | Fetch failed for 6055f063-66e2-4f19-986d-2d554fb8ba4b: too_short
+  ✗ aRBmMHdAJ8Q | Fetch failed for 74ad64da-a509-4cfb-8f0a-f7c7d00b82f8: too_short
+  ✗ _96LXpMBPQQ | Fetch failed for 230c6c9e-73a1-4d73-9467-5555ba734dc9: too_short
+  ✗ a-_oYH2Nu-k | Fetch failed for a403183a-6130-4ae8-8717-9ac75f567e61: too_short
+  ✗ mY50ibYWfYY | Fetch failed for 8181440c-7fd0-4c17-9ce4-2793da31c9e4: too_short
+  ✗ LQPrBt2lAK8 | Fetch failed for 85e07940-d2f1-4d60-bb48-46608c3a5640: too_short
+  ✗ C79QO5H0k6E | Fetch failed for 73238b36-9b32-4b3a-8f56-871d764db820: too_short
+  ✗ tOfyWtQmDJQ | Fetch failed for a33d3430-afe7-4e47-b6fb-82d1ed528ed7: too_short
+  ✗ U2vEDnnC3os | Fetch failed for 690666e6-c3c5-4660-bb55-766458a580bd: too_short
+  ✗ TTRkhCN9eUU | Fetch failed for 8de601ac-d164-47f9-b348-5fb4d31b7c55: too_short
+  ✗ sVbLaCxCAAc | Fetch failed for f7daf9fc-e769-4b7c-a1d3-5ce424ed0f1f: too_short
+  ✗ Ph-Rhc85G9c | Fetch failed for df4dbd74-ad36-45fd-b7f7-c41c61a8872b: too_short
+  ✗ jRiSUyrqtmU | Fetch failed for e7db95ee-7c03-41fb-8732-395e3c0e65a9: too_short
+  ✗ uWRS3mRfylY | Fetch failed for 2fcf02dc-5399-4b53-9cd6-fbc63f93c2d7: too_short
+  ✗ fGiDGvUIaF0 | Fetch failed for e0b4198d-5839-4fba-bd7c-e4c3f1ea5cf8: too_short
+  ✗ xVm2uiWCGfw | Fetch failed for 719cde19-921d-4d4b-85c3-5d6edc2e7a67: too_short
+  ✗ ZFgknVwk9oM | Fetch failed for 000dfa39-0681-4e39-9dde-c90d9cc77dd3: too_short
+  ✗ zfUN_oyY53Q | Fetch failed for 6629dc8c-0ca7-4ba6-ab4f-d86ebdc99a34: too_short
+  ✗ POiYKsPZc1k | Fetch failed for 9f9c81a8-c517-4896-bad5-b96a92393044: too_short
+  ✗ oNPtphlPE94 | Fetch failed for 401534a1-de96-4d05-aff0-a998851332ea: too_short
+  ✗ KYydGYiaXNI | Fetch failed for b9dd5991-1b87-4e48-92b1-2a27ff315cc3: too_short
+  ✗ cnyE9Ej1Zsk | Fetch failed for 0cddabb1-caf9-4c64-bf50-fb49655780ac: too_short
+  ✗ QG4ORF5kgEk | Fetch failed for 1fb38dcc-0d52-4b33-86ec-ccbb16206754: too_short
+  ✗ dbwiPg9t-bs | Fetch failed for 99e4811e-34ae-489d-b030-0c23de5cc2b6: too_short
+  ✗ BUlHee3yLzU | Fetch failed for a776f924-9b92-4d9d-b876-2d9628ad0f7c: too_short
+  ✗ yrZ-2KD3ZhE | Fetch failed for b6f26949-6155-4196-9269-44cbfaa24722: too_short
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+{"worker_id":"worker-02","input":"C:\\Users\\brsth\\AppData\\Local\\Temp\\tmp6ai_hi67.json","batch_count":1,"video_count":200,"succeeded":50,"failed":150,"source_profile":{"total":200,"matched":200,"missing":0,"source_class_counts":{"no_captions":200},"status_counts":{"pending":200},"privacy_status_counts":{"public":200},"upload_status_counts":{"unknown":200},"unavailable_reason_counts":{"unknown":200},"failure_reason_counts":{"unknown":200}},"subbatch_metrics":[{"subbatch_index":1,"subbatch_size":200,"target_subbatch_size":200,"attempted_count":200,"added_count":200,"add_cmd_elapsed_s":117.728,"materialization_wait_elapsed_s":3.18,"elapsed_s":120.908,"returncode":0,"failure_reason":null,"source_profile":{"total":200,"matched":200,"missing":0,"source_class_counts":{"no_captions":200},"status_counts":{"pending":200},"privacy_status_counts":{"public":200},"upload_status_counts":{"unknown":200},"unavailable_reason_counts":{"unknown":200},"failure_reason_counts":{"unknown":200}},"current_source_count":200,"source_materialization_ready_at_epoch":1776910168.2428572,"status":"ok"}],"startup_retire_elapsed_s":0.0,"startup_notebook_check_elapsed_s":4.074,"startup_notebook_create_elapsed_s":0.0,"startup_prepare_cleanup_elapsed_s":2.832,"startup_prepare_total_elapsed_s":6.906,"setup_elapsed_s_total":134.119,"notebook_check_elapsed_s_total":3.741,"notebook_create_elapsed_s_total":0.0,"notebook_retire_elapsed_s_total":0.0,"add_sources_elapsed_s_total":130.378,"add_cmd_elapsed_s_total":117.728,"materialization_wait_elapsed_s_total":3.18,"extract_elapsed_s_total":45.61,"cleanup_elapsed_s_total":101.919,"batch_elapsed_s_total":281.649,"content_fetch_status_counts_total":{"ready":50,"too_short":149,"command_failed":1},"source_ready_age_s_total":5506.957,"source_ready_age_s_max":48.928,"source_ready_age_s_avg":27.535,"notebooklm_profile":"ytis-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json","notebook_title":"yt-is-worker-02","status":"ok","returncode":0}
+{"worker_id":"worker-04","event":"worker_notebook_reset_started","notebooklm_profile":"ytis-worker-04","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-04.json","notebook_title":"yt-is-worker-04","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-04","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-04.json"}}
+{"worker_id":"worker-04","event":"worker_notebook_reset_completed","notebooklm_profile":"ytis-worker-04","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-04.json","notebook_title":"yt-is-worker-04","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-04","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-04.json"}}
+{"worker_id":"worker-04","event":"notebook_prewarm","prepared":true,"setup_mode":"reuse","notebooklm_profile":"ytis-worker-04","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-04.json","notebook_title":"yt-is-worker-04","elapsed_s":4.79}
+[NLM-Batch] Adding 200 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-200/200...
+[NLM-Batch]   Adding sub-batch 1 (200 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch]   Sub-batch 1 add rc=1 (retry_depth=0)
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] Success restored after 5 failures — delay reset
+[NLM-Batch] Creating notebook...
+[Throttle] Success restored after 1 failures — delay reset
+[NLM-Batch] Adding 200 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-200/200...
+[NLM-Batch]   Adding sub-batch 1 (200 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 200 sources in parallel...
+  ✓ ragPQeYRB8c | 11018 chars
+  ✓ PNfNPCoMXIk | 11136 chars
+  ✓ dnCikiTHhYY | 10515 chars
+  ✓ dMQoFb4yltQ | 14730 chars
+  ✓ aaqORnvIO-U | 8240 chars
+  ✓ 1zf3vPTaHfo | 29297 chars
+  ✓ _fEjQ7Fqu8w | 7041 chars
+  ✓ WC3m7ORt75g | 13474 chars
+  ✓ sDeR6W_jUEM | 12926 chars
+  ✓ aWJ-hJMB2Rk | 9995 chars
+  ✓ c4DmR3OeIM0 | 13925 chars
+  ✓ 8s7BDV0jdWY | 13589 chars
+  ✓ 5l00lY5pNM0 | 13496 chars
+  ✓ k6OCHy5RyCo | 9813 chars
+  ✓ eKoDCbSORJs | 11436 chars
+  ✓ j-EOvX4e6rs | 10619 chars
+  ✓ unSvwniKoU4 | 9773 chars
+  ✓ OiGg4Fk1PGY | 10222 chars
+  ✓ TfzYQqoQoWk | 16243 chars
+  ✓ PwGjZzYhWh8 | 14776 chars
+  ✓ ZCXYwyRUuiw | 15035 chars
+  ✓ gBoBHG58do4 | 7778 chars
+  ✓ ZOCTJYIotOc | 40266 chars
+  ✓ c32biOM3EI8 | 9286 chars
+  ✓ ISdwJqZXolc | 5518 chars
+  ✓ XQV3IWuJQn4 | 11703 chars
+  ✓ iDZ6hS97GZU | 14074 chars
+  ✓ qajOZNdseUU | 12684 chars
+  ✓ CrXCjr9wsyw | 17590 chars
+  ✓ Invie8Xg1N0 | 12199 chars
+  ✓ MZtalVscZf8 | 8745 chars
+  ✓ Frs6qHWs4xM | 14704 chars
+  ✓ FDd_6SZTqKs | 7815 chars
+  ✓ AL5HDsXTUyI | 7524 chars
+  ✓ 8M4Oy_7V8DY | 13826 chars
+  ✓ pUM7WWCQTDM | 7380 chars
+  ✓ 65ZaX4OUr_g | 7878 chars
+  ✓ NyR1V3s76D0 | 26265 chars
+  ✓ KfT9mTDWiIA | 7257 chars
+  ✓ 2Ap1_Er2eUQ | 7435 chars
+  ✓ 9W9HIAbjQ7E | 6925 chars
+  ✓ vx4kn4XwiWs | 29636 chars
+  ✓ RG_GBWPxd8Q | 12035 chars
+  ✓ ZQBmF12c5LY | 16912 chars
+  ✓ yTxaSQhQA_c | 7021 chars
+  ✓ hvS_LjmPOMY | 9251 chars
+  ✓ jQGjzKsbO3A | 17965 chars
+  ✓ 4p5XOXAq4fU | 16476 chars
+  ✓ w2GUJc0OYVc | 9843 chars
+  ✓ 40MDBaOkmKM | 7645 chars
+  ✗ ePpORtGDMZw | Fetch failed for f7286d92-fc79-4950-b76d-889b898c7936: too_short
+  ✗ Ljqi0X40DZM | Fetch failed for 2ecd97e8-c9f0-4b3f-b7ec-aaf31a0e07cb: too_short
+  ✗ 9I2kTHIo5w8 | Fetch failed for a387bf77-d008-40d7-9f6e-909de7c92013: too_short
+  ✗ iROCV2UqfRQ | Fetch failed for ab780b84-fd66-4be1-9be4-11070fe5a668: too_short
+  ✗ hqiEz6OBSFc | Fetch failed for 01834f61-e0cb-4e6e-a5e8-cf0cdb7c160f: too_short
+  ✗ qNt5_vLYnu4 | Fetch failed for a3b07e0c-3602-4f69-8414-645321ddda21: too_short
+  ✗ mkuNyXP3sUg | Fetch failed for b233a724-419e-4cd8-b482-138711142145: too_short
+  ✗ A30uT78QACk | Fetch failed for 2becf09d-90bf-4aa3-ade0-7eeb13f5f381: too_short
+  ✗ z7tac1peMm8 | Fetch failed for 8880121d-ed38-4bc9-a932-9f8fde1fcf80: too_short
+  ✗ j1IN3CykYeI | Fetch failed for 3ad70d76-5959-4e77-8dee-2b0cbdb74dd8: too_short
+  ✗ nakqbF_lNIk | Fetch failed for da973add-5372-42e9-885b-74b3523a47e5: too_short
+  ✗ HRptWLVx2-o | Fetch failed for 1a322a73-c934-407e-9765-1c1ab7646613: too_short
+  ✗ 8fJuGgmgK1Q | Fetch failed for 5e9b52cc-ddee-4542-b3e3-95645d5901dd: too_short
+  ✗ 5bz9nOiuSig | Fetch failed for 5a57fad6-52dc-47f8-a6e1-9b284d82e798: too_short
+  ✗ _0jw-WvuzsY | Fetch failed for c203bc6c-d8fe-4513-bb5d-9bf52df2f7ad: too_short
+  ✗ EvViZLeXgTU | Fetch failed for 6d6057e4-4706-4e61-93ff-fb3cf49d6c99: too_short
+  ✗ AxR847lzxkY | Fetch failed for 03b09d44-0da7-4a88-803d-fd114046c19f: too_short
+  ✗ k6DEiRcMDJA | Fetch failed for 3cd5cf5a-d0c1-4ab4-a801-c1fe030f8545: too_short
+  ✗ aqFzZSYXclg | Fetch failed for ddbc5223-651c-4cfa-8e73-258722945b6f: too_short
+  ✗ CPsKCKCHCaE | Fetch failed for 06ca5d55-5d22-46fc-8ee6-5f62efaa560a: too_short
+  ✗ WyMyUm9OFtk | Fetch failed for 8539f465-5a19-43f4-921d-7b6df8265048: too_short
+  ✗ DfdZdZteaJI | Fetch failed for c784620c-674c-4e32-9a8f-ebd56c7aa5af: too_short
+  ✗ OMEf1ikbv50 | Fetch failed for cee88a3a-6f05-4ea0-b3c1-231a7ee63ba0: too_short
+  ✗ Tr33dtt4Djg | Fetch failed for ae4ed0b1-2e37-4dd5-b0c1-8b7f78dcb95c: too_short
+  ✗ S_vr7nm8SIE | Fetch failed for e7062b6c-4ce8-4f53-babf-c47e14c4b420: too_short
+  ✗ OFtpjYAAEYY | Fetch failed for a8f62642-f16b-4d66-9450-dc3effde9589: too_short
+  ✗ Oa4j_t1RgQk | Fetch failed for 43fe4681-bdb5-4849-bca9-fe2bc06085fc: too_short
+  ✗ aWbWgl9hhLs | Fetch failed for 463091e8-e361-4e25-81d3-d8a7d5e44bd5: too_short
+  ✗ roQwRSKoUUk | Fetch failed for 3a5280cc-ebe3-4c90-87ca-cbcb4509768a: too_short
+  ✗ R7EFCQ_RZHU | Fetch failed for a8849d45-ee0d-4ef1-b67b-7a3d0dbbe869: too_short
+  ✗ rbKbt_9heYU | Fetch failed for d3d77ef3-920b-4130-9641-2cb6785e4906: too_short
+  ✗ 4YeTeICcVoU | Fetch failed for 4f1e7afc-95d9-4964-9e87-041774776284: too_short
+  ✗ HXe90K01SwA | Fetch failed for ecc3aa5e-8182-4ccb-9140-b6e9da23efb2: too_short
+  ✗ Mozi8rtl10E | Fetch failed for 5e6b1a7f-d9ec-43a4-8813-bbc62127e7f0: too_short
+  ✗ bmSQXlkchQc | Fetch failed for 9d170a4f-0b7c-4795-aab7-6aed4baee942: too_short
+  ✗ QuGkE25ZcWQ | Fetch failed for 77dd319e-5db5-46ee-98f2-dbea4de4b451: too_short
+  ✗ yKUShGcUQos | Fetch failed for cd5b1924-b62b-4f2f-b383-1c99fddf8570: too_short
+  ✗ F8ZAcJ_Zg8o | Fetch failed for 254f55b6-85e3-4981-a3e1-a94512563dc8: too_short
+  ✗ 1so3EZoZzAU | Fetch failed for 17c122e8-d573-4ad6-9432-7fbc6331c7a8: too_short
+  ✗ p8-Y08jphnc | Fetch failed for 8a406393-9020-48de-bb19-f8c29840b1a1: too_short
+  ✗ oDHHYpPuM7U | Fetch failed for 0b39b14d-c2d3-40c5-a63e-326f534722ec: command_failed
+[Throttle] Success restored after 1 failures — delay reset
+  ✗ j0mGykj_nig | Fetch failed for 8e72d7d5-25ee-4192-95e5-bf7709098f64: too_short
+  ✗ -x0GThUI0Ng | Fetch failed for 4fe7dfc0-6378-4462-a776-b2a232214220: too_short
+  ✗ tg8UXc97EpQ | Fetch failed for c031475f-6f52-4337-8ef4-fbe0993608a4: too_short
+  ✗ mfYe-Q7_64I | Fetch failed for 1c022006-f7ee-4fd3-8da1-66fe4cbd233c: too_short
+  ✗ STnDo5Y7sU8 | Fetch failed for b3d0bbef-c20f-48a2-84fd-5eb677ee720f: too_short
+  ✗ 5H4PlC9dt9k | Fetch failed for b1be6a69-e335-4ec6-a557-dea9a61d4119: too_short
+  ✗ yudMQwsduS0 | Fetch failed for a545eedb-b0d5-4bf0-8355-a71542a79fbf: too_short
+  ✗ uW5RCJhzi_M | Fetch failed for 9211d5ff-2200-4cfb-83b2-4d66aef1b9cd: too_short
+  ✗ qjSSvelgobI | Fetch failed for 29361286-7047-4c84-873e-d10911f63bd7: too_short
+  ✗ Vg4U0oY6oYk | Fetch failed for c5000ec2-1bad-460a-bfac-eaea946c46fc: too_short
+  ✗ qDEyiEUZv3c | Fetch failed for 7f9a1be5-6468-489b-9c78-29d15b5fd739: too_short
+  ✗ EYGprgunhcw | Fetch failed for 0509fcf8-b8a0-4d50-a4e8-b7ca66937b40: too_short
+  ✗ xSUkQpTsTBY | Fetch failed for 153ded6f-a1fc-42d2-bfc1-ba544c867bc5: too_short
+  ✗ bYdvvxqfOBs | Fetch failed for 5d507ff4-10ef-456f-a12a-4b26e8e27bbf: too_short
+  ✗ ALvLgVwlGsM | Fetch failed for fe5c79ce-1132-4331-970d-dbf31bea767e: too_short
+  ✗ w5L23PK_DL0 | Fetch failed for 9d11c6f2-9c27-4085-a9c3-2b8be611112a: too_short
+  ✗ Z2h1agjFxLA | Fetch failed for f1ccce01-f8e4-400e-886a-36113ac84634: too_short
+  ✗ rQ1C9eTP2TA | Fetch failed for 3538bafc-fb78-4a24-8e81-3d5991ed6b67: too_short
+  ✗ L1Cx2jWyHPE | Fetch failed for 19b929a7-0a28-42f2-9ab8-3ec79c68ab93: too_short
+  ✗ F4c2MYTT5gg | Fetch failed for 3406060e-77d3-4ded-8370-91a392f11f13: too_short
+  ✗ CCdlLmcvbWA | Fetch failed for 78c0169d-8445-47bc-bbca-509a83f8a975: too_short
+  ✗ 5msDMWpiuJA | Fetch failed for 02058c49-f7b2-44b7-bdff-7bd7cd2a8fd7: too_short
+  ✗ HlKcnoJFzqg | Fetch failed for c1a6b17d-fd4b-4a3e-8f22-72ea19834d92: too_short
+  ✗ tsmHQdB1mAY | Fetch failed for 95d17ed8-c635-458d-9333-5670b062616e: too_short
+  ✗ 2oW2ww1ktiM | Fetch failed for aa75f86b-819a-4a40-ac00-92483d7b64d6: too_short
+  ✗ MxspLbsSoh8 | Fetch failed for a69a719e-f60c-42d8-840d-50bcf7e64154: too_short
+  ✗ aGpL5wnCIg8 | Fetch failed for ab357cde-ab70-41a6-acae-d7aac8a2afdf: too_short
+  ✗ 8KYbrDf4B-c | Fetch failed for 48efa9ff-e861-4590-813d-4d304a7984c8: too_short
+  ✗ XHWx5SwQJZg | Fetch failed for ec0a2ba5-1da4-4e2d-ac14-70ddd65a309b: too_short
+  ✗ 85YO0vTvNf0 | Fetch failed for 36f26453-d682-4c9b-a4b8-c07922d26282: too_short
+  ✗ cUQ80zYGEFQ | Fetch failed for 5dea93e0-1f62-468c-9db2-b09ee4236126: too_short
+  ✗ qd0fYu5N_mo | Fetch failed for e24033bf-3e97-4ef3-a7e9-0111ca408e3c: too_short
+  ✗ UYpejC0AZ3k | Fetch failed for bb52b6dc-9844-41d7-9965-fe37d81e6938: too_short
+  ✗ Mj4dccVCoj8 | Fetch failed for ad9e67db-67a6-41a7-894f-cacdc9cff92f: too_short
+  ✗ PXwjcvjGxJY | Fetch failed for e0421913-50da-437f-8186-d65182a3eb81: too_short
+  ✗ 4FUI_pEZT9Q | Fetch failed for b54a570f-e451-47fe-a6c0-972cbc480085: too_short
+  ✗ eIr4lI5HXz8 | Fetch failed for 981a9858-bc4b-4f4d-a51c-79b19492055f: too_short
+  ✗ 6-Y2iJOrEwc | Fetch failed for 0ee93171-13d3-4017-9e4a-a194d3ffa214: too_short
+  ✗ bjr84YQYVP0 | Fetch failed for 6cf957d3-46d5-4e41-bb49-a108b05ec1e0: too_short
+  ✗ KYsxz_xVpbQ | Fetch failed for c11f591a-8ccb-4404-b606-591dfe9925f3: too_short
+  ✗ wDBZEUneLpQ | Fetch failed for 4a4c3e11-f3cd-41a6-91e6-037307a1cbff: too_short
+  ✗ zAQyyZdXCI8 | Fetch failed for 161803e7-be62-41a3-bb6a-0761e05454d6: too_short
+  ✗ 6iAJHXwH9WQ | Fetch failed for 5363b779-47fd-485e-9a7b-53fa6a4f96c9: too_short
+  ✗ mzKV2BoSPvs | Fetch failed for 2f2486ea-47ec-48b7-8368-a513cf6b5b9a: too_short
+  ✗ fuFoPBJG2U4 | Fetch failed for 627b5317-3b76-4ee6-b38d-92053ecf1dc8: too_short
+  ✗ QW5nD4wrNjk | Fetch failed for 0d5cc6ee-9ade-497c-895f-160ac7f7155c: too_short
+  ✗ XA-dIgErCi8 | Fetch failed for 149f5306-8eb8-43b3-8d4a-0ec162a173e5: too_short
+  ✗ 1lJRvMxH2lo | Fetch failed for 3875e0f9-5548-4406-9628-6034f7b2da48: too_short
+  ✗ _supVYXw6jU | Fetch failed for 66276c5f-d09d-4cab-a810-888e374e66d8: too_short
+  ✗ rMUxTW7dPVs | Fetch failed for f1c7675d-4ca5-4f60-ad2e-e2b11d632351: too_short
+  ✗ KlE28ztvwdc | Fetch failed for 14c48810-0514-4ae4-958d-a367d7be9580: too_short
+  ✗ iQibHUOJDcY | Fetch failed for d9737432-cd1c-4c4f-ac50-e9632f3bb69a: too_short
+  ✗ lZZzX58cl_w | Fetch failed for 7ee69ddd-16f1-4c12-a63d-989623db5bc9: too_short
+  ✗ dCIlR-5bzfA | Fetch failed for c4fbde26-544d-420c-817e-742f7c59fc89: too_short
+  ✗ 1xMT9NP7-po | Fetch failed for 665e7359-d422-455a-8363-e4d2cd4962e0: too_short
+  ✗ H9pz503NoME | Fetch failed for 0a8fa519-5c2d-458b-befa-698038fdae3d: too_short
+  ✗ BFNCmrD3GCI | Fetch failed for 1502276e-b30f-4948-975f-fa54f7299158: too_short
+  ✗ 6--bpyy3Vzk | Fetch failed for ee6f09ce-1c98-4b94-b620-3822814425b1: too_short
+  ✗ DfQJwtjAKbc | Fetch failed for 651f2d7c-ea45-4125-b1fc-1c9827426575: too_short
+  ✗ Wp6l7TH2MPs | Fetch failed for 264c0378-afda-47b0-b027-52834e82b4bf: too_short
+  ✗ Pj5CPKX1h3A | Fetch failed for c4642b7b-f11c-42e1-ad3b-747b3e0b8f9f: too_short
+  ✗ t0ZtuU-qQEc | Fetch failed for ba91fc2b-a124-4629-a550-f596aef0b008: too_short
+  ✗ W3YApTH5IVU | Fetch failed for 4fd72fc9-1618-4732-aadc-9cdcd0740207: too_short
+  ✗ bsIoUcg4SEg | Fetch failed for 09a1bfe9-c69b-49fa-8d42-c4d5b429cd36: too_short
+  ✗ WVAeTkvV81Q | Fetch failed for a58ac7c8-61a1-4c77-88c4-64e3729c9373: too_short
+  ✗ K9C8LXT86jE | Fetch failed for b656f0e5-5d3d-4291-8ea2-25251e11ce3d: too_short
+  ✗ 8VLLmQDyOpk | Fetch failed for 4b3fa912-6bdc-4eab-832d-57604843d80e: too_short
+  ✗ xBP9p8sPQz8 | Fetch failed for 8527a47b-9f7e-41f3-a6a9-11ccfa3ea472: too_short
+  ✗ twT3geQRB4I | Fetch failed for 3c03c37a-48be-462e-9fc2-31c900df6ec8: too_short
+  ✗ TMHiIHmhcCM | Fetch failed for d83c75f8-4a3a-4a4c-acb3-ecd9ba57d9da: too_short
+  ✗ H_sljnpQlRc | Fetch failed for debe711d-dc54-46f0-8188-90e30da2c2f9: too_short
+  ✗ ZBD2PmP6uS4 | Fetch failed for 33e07961-ba57-4334-b978-898e3cd7ff45: too_short
+  ✗ 1SbyvOmiw5Q | Fetch failed for de873233-7448-4cad-a704-b8c29c145d4f: too_short
+  ✗ y97sM_uSoL8 | Fetch failed for 5fcda424-3d77-4c23-a322-13dedad8c410: too_short
+  ✗ fVO7AvrG2Xg | Fetch failed for 86a040f2-2cbb-4c20-8e32-dd86494bf0fd: too_short
+  ✗ CxUbTYKwXbA | Fetch failed for 594a407d-f5e5-4f97-b9d0-a4b9ee8eeef9: too_short
+  ✗ jFtaaiW-yxo | Fetch failed for 900e1acb-9a32-4981-bb3d-9d5ba2495538: too_short
+  ✗ GS-TF3u6_Zk | Fetch failed for dfc669aa-befe-4205-9df9-845517d381d7: too_short
+  ✗ QHbDvgBxtpE | Fetch failed for 0f4eadc2-4ef7-46e4-be45-898a2b319c11: too_short
+  ✗ dY0yJtSpVHo | Fetch failed for 701fcd61-186f-49e8-a20b-ffd6a1156cc3: too_short
+  ✗ Y8zNcl4xI74 | Fetch failed for 074e1372-c32b-4de8-957c-c41f688c1e06: too_short
+  ✗ haCkbFBw7L4 | Fetch failed for 03151803-d0f0-4f67-ae0d-e49962b708f8: too_short
+  ✗ 5iN3cx7gSbk | Fetch failed for a1a0d5bc-363b-4158-a9bf-242a457489a6: too_short
+  ✗ iGl-3iP8y_k | Fetch failed for 62947009-9610-4e7b-b4fd-2de3b685fa00: too_short
+  ✗ y_OMw8-dlDI | Fetch failed for 13489bcf-cf2d-4249-bc0d-caf2626f08dc: too_short
+  ✗ M7N7AoaKHrY | Fetch failed for 2719983d-5eef-4efc-b3a0-fa830fd3bdc2: too_short
+  ✗ NH4H4WJDI30 | Fetch failed for c26e03fb-cf2e-4b07-89e5-af05fca2136f: too_short
+  ✗ xSsFk9UJSws | Fetch failed for 83a3b0af-dbbd-4f7f-9fd9-fb1beac2d0f1: too_short
+  ✗ ZcbolLS8jXA | Fetch failed for cf28b2b3-96da-4c51-8109-c6b082926e42: too_short
+  ✗ 3Q6dyiPxmTY | Fetch failed for 5d5f953a-ef55-4ed4-a50d-03b747f37013: too_short
+  ✗ ipho95CvsAs | Fetch failed for f9695f55-c80e-41fc-a308-844a6d6642d0: too_short
+  ✗ 0wuNcGVRHoM | Fetch failed for 48da0907-bc4b-4ca7-9402-d7f6800a6684: too_short
+  ✗ Pv8u55K6SNY | Fetch failed for 9ef04822-7cf5-4e78-8d3f-6484b5da3b38: too_short
+  ✗ t9avsDGH1sc | Fetch failed for 45816a3a-7760-451c-8da8-389a1f1b3a6f: too_short
+  ✗ IGkixfEQWBw | Fetch failed for 0486c82a-8440-48f0-b51f-29620b0a95f6: too_short
+  ✗ MTBKPLRXp8k | Fetch failed for c2161fee-7877-45df-8877-231942465ac2: too_short
+  ✗ weAER3Uo24U | Fetch failed for 1cf0f208-4bda-476f-ac66-76cc5811e224: too_short
+  ✗ p5T0-buvgfo | Fetch failed for 1cc2ffbf-9028-48ee-af0e-0a629c5d1bf9: too_short
+  ✗ 0sx_z4F2EbY | Fetch failed for 64664b91-7f4b-4034-9402-a52a91c2e536: too_short
+  ✗ E0wfGFXWcK4 | Fetch failed for 2c161f4a-bb8b-4d55-bce4-928ef3343644: too_short
+  ✗ wgUlEJWutqA | Fetch failed for 6111a089-0572-417d-b295-b3899da8da91: too_short
+  ✗ Z0sDc1Exfvk | Fetch failed for 16812b20-8806-4eed-99cf-3db98df748b2: too_short
+  ✗ kY1DfnwYeyA | Fetch failed for 6eac4803-09ed-45bf-bb20-ecfa20fa7951: too_short
+  ✗ u77CeVIN-eI | Fetch failed for 25ff7290-7eea-4946-b196-4ffed167e8f2: too_short
+  ✗ 7r1n6JqKKRE | Fetch failed for 8f2f3b01-980b-488e-90c0-2bebe6ac105f: too_short
+  ✗ dBtwpKRPFXE | Fetch failed for e190b659-d583-4d70-bdcf-dfd7db49738e: too_short
+  ✗ Gzc_eDTpOLs | Fetch failed for 7cc231b8-b025-4247-9d25-d4353bd0e15d: too_short
+  ✗ gXKK77ACnic | Fetch failed for 8d29cc34-fef4-4b54-84df-57ee87c48d29: too_short
+  ✗ FFW9VcIQ7gw | Fetch failed for 32851a8c-c99f-46b1-ab87-b867ba698b20: too_short
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+{"worker_id":"worker-04","input":"C:\\Users\\brsth\\AppData\\Local\\Temp\\tmp2x1qfm1s.json","batch_count":2,"video_count":400,"succeeded":50,"failed":350,"source_profile":{"total":400,"matched":400,"missing":0,"source_class_counts":{"no_captions":400},"status_counts":{"pending":400},"privacy_status_counts":{"public":400},"upload_status_counts":{"unknown":400},"unavailable_reason_counts":{"unknown":400},"failure_reason_counts":{"unknown":400}},"subbatch_metrics":[{"subbatch_index":1,"subbatch_size":200,"target_subbatch_size":200,"attempted_count":200,"added_count":0,"add_cmd_elapsed_s":43.452,"materialization_wait_elapsed_s":0.0,"elapsed_s":43.452,"returncode":1,"failure_reason":"source_add_failed","source_profile":{"total":200,"matched":200,"missing":0,"source_class_counts":{"no_captions":200},"status_counts":{"pending":200},"privacy_status_counts":{"public":200},"upload_status_counts":{"unknown":200},"unavailable_reason_counts":{"unknown":200},"failure_reason_counts":{"unknown":200}},"current_source_count":0,"source_materialization_ready_at_epoch":0.0,"status":"shortfall"},{"subbatch_index":1,"subbatch_size":200,"target_subbatch_size":200,"attempted_count":200,"added_count":200,"add_cmd_elapsed_s":85.602,"materialization_wait_elapsed_s":1.568,"elapsed_s":87.17,"returncode":0,"failure_reason":null,"source_profile":{"total":200,"matched":200,"missing":0,"source_class_counts":{"no_captions":200},"status_counts":{"pending":200},"privacy_status_counts":{"public":200},"upload_status_counts":{"unknown":200},"unavailable_reason_counts":{"unknown":200},"failure_reason_counts":{"unknown":200}},"current_source_count":200,"source_materialization_ready_at_epoch":1776910450.6442513,"status":"ok"}],"startup_retire_elapsed_s":0.0,"startup_notebook_check_elapsed_s":3.321,"startup_notebook_create_elapsed_s":0.0,"startup_prepare_cleanup_elapsed_s":1.467,"startup_prepare_total_elapsed_s":4.788,"setup_elapsed_s_total":156.61,"notebook_check_elapsed_s_total":2.888,"notebook_create_elapsed_s_total":95.16,"notebook_retire_elapsed_s_total":0.0,"add_sources_elapsed_s_total":47.883,"add_cmd_elapsed_s_total":129.054,"materialization_wait_elapsed_s_total":1.568,"extract_elapsed_s_total":35.361,"cleanup_elapsed_s_total":100.741,"batch_elapsed_s_total":292.714,"content_fetch_status_counts_total":{"ready":50,"too_short":149,"command_failed":1},"source_ready_age_s_total":3842.872,"source_ready_age_s_max":34.174,"source_ready_age_s_avg":19.214,"notebooklm_profile":"ytis-worker-04","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-04.json","notebook_title":"yt-is-worker-04","status":"ok","returncode":0}
+
+[source] === Escalation Batch Complete ===
+[source] Successfully extracted: 245
+[source] Failed: 955
+[source] Skipped (cached): 0
+[source] Skipped (negative cache): 472
+[source] Skipped (terminal): 0
+[source] NotebookLM-eligible: 1200
+[source] Routed to transcript fallback: 0
+[source] Negative-cache reasons: unavailable=472
+[source] Worker notebook cleanup: 0 deleted, 0 failed
+[source] Stage totals: startup=29.0s, setup=661.9s, add=538.3s, extract=200.5s, cleanup=506.4s, batch=1368.7s
+[source] Worker source profile: no_captions=1200
+[source] Total discovered: 1200
+[source] Total processed outcomes: 1200

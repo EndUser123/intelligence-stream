@@ -1035,6 +1035,26 @@ class TestSourcesContextGuard:
         with mock.patch.object(scraper, "_collect_source_dom_candidates", return_value=[ready_row, processing_row]):
             assert scraper._count_ready_source_buttons_dom() == 1
 
+    def test_poll_source_buttons_dom_logs_processing_spinner_state(self, scraper):
+        """DOM readiness polling should log rows that are still processing."""
+        with mock.patch.object(scraper, "_count_source_buttons_dom", side_effect=[2, 2]):
+            with mock.patch.object(scraper, "_count_ready_source_buttons_dom", side_effect=[1, 2]):
+                with mock.patch.object(scraper, "_count_processing_source_buttons_dom", side_effect=[1, 0]):
+                    with mock.patch("csf.nlm_scraper.log_action") as mock_log:
+                        with mock.patch("csf.nlm_scraper.time.time", side_effect=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]):
+                            with mock.patch("csf.nlm_scraper.time.sleep"):
+                                assert scraper._poll_source_buttons_dom(expected=2, timeout=1) == 2
+
+        progress = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "staging_source_dom_wait_progress")
+        success = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "staging_source_dom_wait_succeeded")
+        assert progress["observed_total"] == 2
+        assert progress["ready_total"] == 1
+        assert progress["processing_total"] == 1
+        assert progress["spinner_active"] is True
+        assert success["ready_total"] == 2
+        assert success["processing_total"] == 0
+        assert success["spinner_active"] is False
+
     def test_collect_source_dom_candidates_prefers_source_row_buttons_over_generic_chrome(self, scraper):
         """Source-row discovery should not count generic Google chrome buttons."""
 

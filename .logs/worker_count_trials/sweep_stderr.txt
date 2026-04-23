@@ -1,0 +1,35 @@
+Traceback (most recent call last):
+  File "P:\packages\yt-is\bin\csf-worker-count-sweep", line 15, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "P:\packages\yt-is\csf\worker_count_sweep.py", line 354, in main
+    summary = run_worker_count_sweep(
+        worker_counts=worker_counts,
+    ...<2 lines>...
+        python_executable=args.python,
+    )
+  File "P:\packages\yt-is\csf\worker_count_sweep.py", line 221, in run_worker_count_sweep
+    trial = _run_fetch_trial(
+        workers=workers,
+    ...<2 lines>...
+        python_executable=python_executable,
+    )
+  File "P:\packages\yt-is\csf\worker_count_sweep.py", line 176, in _run_fetch_trial
+    proc = subprocess.run(
+        command,
+    ...<4 lines>...
+        check=False,
+    )
+  File "C:\Python314\Lib\subprocess.py", line 556, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\subprocess.py", line 1220, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\subprocess.py", line 1642, in _communicate
+    self.stdout_thread.join(self._remaining_time(endtime))
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\threading.py", line 1132, in join
+    self._os_thread_handle.join(timeout)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+KeyboardInterrupt

@@ -21,7 +21,7 @@ industrial pipeline:
 
 The live path currently shows:
 
-- one worker owns one reusable notebook
+- one worker owns one notebook
 - serial industrial batch processing
 - expensive setup per 300-source batch
 

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make every NotebookLM path reuse exactly one notebook per worker title, delete duplicate same-title notebooks on startup, and stop creating a steady-state `yt-is::industrial::reusable` notebook.
+**Goal:** Make every NotebookLM path reuse exactly one notebook per worker title, clean up duplicate same-title notebooks on startup, and keep the worker notebook reused across batches.
 
-**Architecture:** Centralize notebook ownership in `csf/nlm_batch.py` so every NotebookLM entrypoint resolves notebook identity the same way: exact-title lookup, reuse when there is one match, delete-and-recreate when there are duplicates, and create when there is no match. The worker harness and serial fetch path should both flow through that same ownership rule so the notebook inventory stays deterministic.
+**Architecture:** Centralize notebook ownership in `csf/nlm_batch.py` so every NotebookLM entrypoint resolves notebook identity the same way: exact-title lookup, reuse when there is one match, clean up duplicates through CDP and resolve back to one notebook, and create when there is no match. The worker harness and serial fetch path should both flow through that same ownership rule so the notebook inventory stays deterministic.
 
 **Tech Stack:** Python 3.14, NotebookLM CLI (`nlm`), Chrome DevTools Protocol cleanup via `bin/nlm-puppeteer.js`, pytest.
 
@@ -22,19 +22,19 @@ Add or update tests that pin the ownership contract:
 
 ```python
 def test_ensure_notebook_reuses_single_exact_title_match():
-    # list() returns exactly one notebook titled yt-is::industrial::worker::worker-01
+    # list() returns exactly one notebook titled yt-is-worker-01
     # ensure() should reuse that notebook id and not create a new one
     ...
 
 
 def test_ensure_notebook_deletes_duplicate_exact_title_matches_and_recreates():
     # list() returns multiple notebooks with the same exact worker title
-    # ensure() should call the CDP delete-title cleanup path and then create a fresh notebook
+    # ensure() should call the CDP delete-title cleanup path and then resolve back to one notebook
     ...
 
 
 def test_create_batch_notebook_uses_owner_title_not_reusable_title():
-    # create_batch_notebook() should create the worker-owned title, not yt-is::industrial::reusable
+    # create_batch_notebook() should create the worker-owned title, not the old reusable notebook title
     ...
 ```
 
@@ -54,7 +54,7 @@ Expected:
 Add a small ownership helper in `csf/nlm_batch.py` so the title comes from one place:
 
 ```python
-_DEFAULT_OWNER_NOTEBOOK_TITLE = "yt-is::industrial::worker::worker-01"
+_DEFAULT_OWNER_NOTEBOOK_TITLE = "yt-is-worker-01"
 
 def _get_owner_notebook_title() -> str:
     override = os.getenv("YTIS_NLM_OWNER_NOTEBOOK_TITLE", "").strip()
@@ -140,7 +140,7 @@ The owner-title resolution in `csf/nlm_batch.py` should handle stale state, miss
 
 Update `bin/csf-source` so the production fetch path and the worker harness both use the same worker-owned title logic.
 
-The serial path should resolve to the worker-owned notebook title rather than creating or preserving a standalone `yt-is::industrial::reusable` notebook.
+The serial path should resolve to the worker-owned notebook title rather than creating or preserving a standalone reusable notebook.
 
 - [ ] **Step 5: Run focused verification**
 
@@ -174,13 +174,13 @@ Replace “canary” as the system concept with:
 Make the steady-state rule explicit:
 
 ```text
-yt-is::industrial::worker::worker-01
-yt-is::industrial::worker::worker-02
-yt-is::industrial::worker::worker-03
-yt-is::industrial::worker::worker-04
+yt-is-worker-01
+yt-is-worker-02
+yt-is-worker-03
+yt-is-worker-04
 ```
 
-and no steady-state `yt-is::industrial::reusable`.
+and worker notebooks are reused across batches in steady state.
 
 - [ ] **Step 2: Run a short live fetch verification**
 
@@ -193,7 +193,7 @@ python P:\packages\yt-is\bin\csf-source fetch --workers 4 --limit 20
 Verify that:
 
 - each worker title resolves to one notebook
-- no extra `yt-is::industrial::reusable` notebook is created
+- no extra reusable notebook is created
 - duplicate same-title notebooks are cleaned up through the title-resolution path
 
 - [ ] **Step 3: Confirm the notebook inventory is clean**
@@ -216,12 +216,12 @@ When the tests and the short live run pass, stage and commit the code/doc update
 
 - Exact-title reuse: Task 1
 - Duplicate-title cleanup via CDP: Task 1
-- No steady-state reusable notebook: Tasks 1-3
+- Reuse across batches in steady state: Tasks 1-3
 - Worker startup no longer deletes notebooks blindly: Task 2
 - Docs aligned with the worker-owned model: Task 3
 
 ## Notes
 
-- Keep the old env var names only if you need compatibility, but the behavior must no longer depend on a `yt-is::industrial::reusable` notebook in steady state.
+- Keep the old env var names only if you need compatibility, but the behavior must no longer depend on a separate reusable notebook in steady state.
 - Do not reintroduce a shared notebook across workers.
 - Do not widen the batch size or throughput defaults while doing this work.

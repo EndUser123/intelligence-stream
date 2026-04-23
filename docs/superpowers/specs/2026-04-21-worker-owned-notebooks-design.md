@@ -4,7 +4,7 @@
 
 `yt-is` has accumulated duplicate NotebookLM notebooks because different paths have treated the reusable notebook as a separate concept from the worker identity. The result is:
 
-- duplicate `yt-is::industrial::*` notebooks with the same title
+- duplicate worker-owned notebooks with the same title
 - stale notebook state files that can resurrect old notebook IDs
 - cleanup logic that depends on delete succeeding every time
 
@@ -12,15 +12,15 @@ The user wants a simpler model:
 
 - one worker, one notebook
 - the same rule applies to all NotebookLM paths
-- no steady-state `yt-is::industrial::reusable` notebook
+- the notebook is reused across batches in the steady state
 
 ## Goals
 
 1. Every NotebookLM path resolves notebooks by deterministic worker title.
 2. If exactly one notebook exists for that title, reuse it.
-3. If multiple notebooks exist for that title, delete the duplicates and recreate from a clean slate.
+3. If multiple notebooks exist for that title, delete the duplicates and resolve back to one worker-owned notebook.
 4. If no notebook exists, create one.
-5. The steady state should be exactly one notebook per worker title.
+5. The steady state should be exactly one notebook per worker title, reused across batches.
 6. The code should not depend on the old reusable notebook title to preserve behavior.
 
 ## Non-goals
@@ -38,10 +38,10 @@ Notebook ownership is based on the notebook title, not the notebook ID. The titl
 
 Examples:
 
-- `yt-is::industrial::worker::worker-01`
-- `yt-is::industrial::worker::worker-02`
-- `yt-is::industrial::worker::worker-03`
-- `yt-is::industrial::worker::worker-04`
+- `yt-is-worker-01`
+- `yt-is-worker-02`
+- `yt-is-worker-03`
+- `yt-is-worker-04`
 
 For the serial path, use the same model with the worker-01 title unless the caller explicitly selects a different worker title. The important rule is that each active worker has exactly one owned notebook title.
 
@@ -55,8 +55,8 @@ When a path needs a notebook, it must:
 4. If no match exists, create a notebook with that title and save the new ID.
 5. If multiple matches exist, treat that as a dirty state:
    - delete all exact-title matches through the CDP cleanup path
-   - create a fresh notebook with that title
-   - save the new ID
+   - if one notebook remains, reuse it
+   - if none remain, create one with that title and save the new ID
 
 This keeps the implementation deterministic and avoids “pick one and hope it is the right one.”
 
@@ -78,10 +78,10 @@ Cleanup is not a separate “best effort someday” path. It is part of notebook
 If duplicate exact-title notebooks are found:
 
 - delete the duplicates
-- recreate one clean notebook
+- resolve back to a single worker-owned notebook
 - continue from that notebook
 
-The `yt-is::industrial::reusable` notebook title should no longer be used as a steady-state owner notebook once this design is implemented.
+The reusable notebook title should no longer be used as a steady-state owner notebook once this design is implemented.
 
 ## Data Flow
 
@@ -119,7 +119,7 @@ Recommended verification:
 The design is working when:
 
 - each worker title maps to one NotebookLM notebook
-- no `yt-is::industrial::reusable` notebook remains in steady state
+- each worker notebook is reused across batches in steady state
 - duplicate same-title notebooks are removed instead of accumulating
 - a fresh worker run starts cleanly without manual notebook cleanup
 

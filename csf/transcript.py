@@ -1731,6 +1731,13 @@ def _probe_oembed(video_id: str) -> tuple[bool, str | None]:
         return (False, f"oembed error: {e}")
 
 
+def _log_transcript_chain_event(action: str, video_id: str, **data: object) -> None:
+    """Emit a compact transcript-chain trace event."""
+    payload = {"component": "transcript", "video_id": video_id}
+    payload.update({key: value for key, value in data.items() if value is not None})
+    log_action(action, payload)
+
+
 def fetch_transcript_chain(
     video_id: str,
     config: LanguageConfig,
@@ -1792,6 +1799,8 @@ def fetch_transcript_chain(
             failure_reason="invalid_config",
         )
 
+    chain_started_at = time.perf_counter()
+
     def _classify_failure(error: str | None, stage: str) -> str:
         """Classify error string into structured failure reason."""
         if not error:
@@ -1839,6 +1848,14 @@ def fetch_transcript_chain(
         last_err: str | None, last_stage: str | None
     ) -> TranscriptResult:
         failure_reason = _classify_failure(last_err, last_stage or "")
+        _log_transcript_chain_event(
+            "transcript_chain_failed",
+            video_id,
+            last_stage=last_stage,
+            failure_reason=failure_reason,
+            error=last_err,
+            elapsed_s=round(time.perf_counter() - chain_started_at, 3),
+        )
         if failure_reason == "unavailable":
             _persist_terminal_failure(video_id, last_err, last_stage)
         else:
@@ -1850,11 +1867,29 @@ def fetch_transcript_chain(
             )
         return _none_result(last_err, last_stage)
 
-    if os.getenv("YTIS_OEMBED_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}:
+    oembed_enabled = os.getenv("YTIS_OEMBED_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+    if oembed_enabled:
+        oembed_started_at = time.perf_counter()
         oembed_ok, oembed_error = _probe_oembed(video_id)
+        _log_transcript_chain_event(
+            "transcript_oembed_checked",
+            video_id,
+            enabled=True,
+            ok=oembed_ok,
+            error=oembed_error,
+            elapsed_s=round(time.perf_counter() - oembed_started_at, 3),
+        )
         if not oembed_ok and oembed_error:
             oembed_error_lower = oembed_error.lower()
             if "oembed unavailable" in oembed_error_lower:
+                _log_transcript_chain_event(
+                    "transcript_chain_failed",
+                    video_id,
+                    last_stage="oembed",
+                    failure_reason="unavailable",
+                    error=oembed_error,
+                    elapsed_s=round(time.perf_counter() - chain_started_at, 3),
+                )
                 _persist_terminal_failure(video_id, oembed_error, "oembed")
                 return _none_result(oembed_error, "oembed")
 
@@ -1963,6 +1998,14 @@ def fetch_transcript_chain(
                 or "removed" in error.lower()
                 or "private" in error.lower()
             ):
+                _log_transcript_chain_event(
+                    "transcript_chain_failed",
+                    video_id,
+                    last_stage=source,
+                    failure_reason="unavailable",
+                    error=error,
+                    elapsed_s=round(time.perf_counter() - chain_started_at, 3),
+                )
                 _persist_terminal_failure(video_id, error, source)
                 return _none_result(error, source)
         else:
@@ -2072,6 +2115,14 @@ def fetch_transcript_chain(
 
     # All methods failed — non-fatal
     failure_reason = _classify_failure(last_error, last_stage_reached or "")
+    _log_transcript_chain_event(
+        "transcript_chain_failed",
+        video_id,
+        last_stage=last_stage_reached,
+        failure_reason=failure_reason,
+        error=last_error,
+        elapsed_s=round(time.perf_counter() - chain_started_at, 3),
+    )
     # Persist final state to shared archive so restart doesn't re-process this video.
     try:
         _get_scheduler().archive_finalize(video_id, "failed", None, last_error)

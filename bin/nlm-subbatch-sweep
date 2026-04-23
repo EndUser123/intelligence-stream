@@ -45,7 +45,7 @@ def run_sweep(video_ids: list[str], sizes: list[int]) -> list[dict]:
     results = ingestor.experiment_add_acceptance(
         video_ids,
         sizes,
-        notebook_title=f"yt-is::sweep::{int(time.time())}",
+        notebook_title=f"yt-is-sweep-{int(time.time())}",
     )
     return results
 

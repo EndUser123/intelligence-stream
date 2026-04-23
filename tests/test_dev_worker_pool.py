@@ -257,7 +257,7 @@ class TestWorkerMain:
                 "--state-path",
                 str(state_path),
                 "--notebook-title",
-                "yt-is::dev::worker-01",
+                "yt-is-worker-01",
                 "--notebooklm-profile",
                 "ytis-worker-01",
                 "--worker-id",
@@ -280,6 +280,9 @@ class TestWorkerMain:
         assert any(name == "worker_batch_completed" for name, _ in log_calls)
         assert any(payload.get("source_profile") for name, payload in log_calls if name == "worker_batch_started")
         assert any(payload.get("source_profile") for name, payload in log_calls if name == "worker_batch_completed")
+        started_payload = next(payload for name, payload in log_calls if name == "worker_batch_started")
+        completed_payload = next(payload for name, payload in log_calls if name == "worker_batch_completed")
+        assert started_payload["started_at_epoch"] <= completed_payload["completed_at_epoch"]
         metrics_logs = [payload for name, payload in log_calls if name == "worker_batch_metrics"]
         assert len(metrics_logs) == 2
         assert metrics_logs[0]["setup_elapsed_s"] == 1.25
@@ -402,7 +405,7 @@ class TestWorkerMain:
                 "--state-path",
                 str(tmp_path / "state.json"),
                 "--notebook-title",
-                "yt-is::dev::worker-01",
+                "yt-is-worker-01",
                 "--notebooklm-profile",
                 "ytis-worker-01",
                 "--worker-id",

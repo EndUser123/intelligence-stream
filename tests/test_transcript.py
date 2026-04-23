@@ -91,6 +91,7 @@ class TestFallbackChain:
             mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
             mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
             mock.patch("csf.transcript._get_scheduler") as mock_scheduler,
+            mock.patch("csf.transcript.log_action") as mock_log,
         ):
             result = fetch_transcript_chain(
                 "dQw4w9WgXcQ", LanguageConfig(prefer_lang="en")
@@ -107,6 +108,21 @@ class TestFallbackChain:
             assert result.source == "none"
             assert result.last_stage == "oembed"
             assert result.failure_reason == "unavailable"
+            oembed_events = [
+                call.args[1]
+                for call in mock_log.call_args_list
+                if call.args[0] == "transcript_oembed_checked"
+            ]
+            assert oembed_events
+            assert oembed_events[0]["ok"] is False
+            failure_events = [
+                call.args[1]
+                for call in mock_log.call_args_list
+                if call.args[0] == "transcript_chain_failed"
+            ]
+            assert failure_events
+            assert failure_events[0]["last_stage"] == "oembed"
+            assert failure_events[0]["failure_reason"] == "unavailable"
 
     def test_direct_api_terminal_failure_short_circuits_later_stages(self):
         """direct_api unavailable should stop before Selenium/Whisper."""
@@ -137,6 +153,42 @@ class TestFallbackChain:
             assert result.transcript == ""
             assert result.last_stage == "direct_api"
             assert result.failure_reason == "unavailable"
+
+    def test_all_methods_fail_emits_final_stage_summary(self):
+        """When the full chain fails, emit a compact final-stage summary."""
+        with (
+            mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
+            mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
+            mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
+            mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
+            mock.patch("csf.transcript._get_scheduler") as mock_scheduler,
+            mock.patch("csf.transcript.log_action") as mock_log,
+            mock.patch("time.sleep"),
+        ):
+            mock_ytdlp.return_value = (False, None, "no captions")
+            mock_ejs.return_value = (False, None, "no cookies")
+            mock_direct.return_value = (False, None, "no captions")
+            mock_selenium.return_value = (False, None, "selenium failed")
+            mock_whisper.return_value = (False, None, "whisper failed")
+
+            result = fetch_transcript_chain(
+                "dQw4w9WgXcQ",
+                LanguageConfig(prefer_lang="en"),
+                skip_notebooklm=True,
+            )
+
+            mock_scheduler.return_value.archive_finalize.assert_called_once()
+            assert result.transcript == ""
+            assert result.last_stage == "whisper"
+            failure_events = [
+                call.args[1]
+                for call in mock_log.call_args_list
+                if call.args[0] == "transcript_chain_failed"
+            ]
+            assert failure_events
+            assert failure_events[-1]["last_stage"] == "whisper"
+            assert failure_events[-1]["failure_reason"] == "unknown"
 
     def test_ytdlp_fails_ytdlp_ejs_succeeds(self):
         """ytdlp fails, ytdlp_ejs succeeds as first fallback."""

@@ -505,15 +505,67 @@ class NLMIndustrialScraper:
         when empty strings are passed for source_id/vid during the poll.
         """
         start = time.time()
+        last_total = 0
+        last_ready = 0
+        last_processing = 0
         while time.time() - start < timeout:
             try:
-                count = self._count_ready_source_buttons_dom()
-                if count >= expected:
-                    return count
-                print(f"[Industrial] DOM poll: {count}/{expected} source buttons visible...")
+                total_count = self._count_source_buttons_dom()
+                ready_count = self._count_ready_source_buttons_dom()
+                processing_count = self._count_processing_source_buttons_dom()
+                last_total = total_count
+                last_ready = ready_count
+                last_processing = processing_count
+                if ready_count >= expected:
+                    log_action(
+                        "staging_source_dom_wait_succeeded",
+                        {
+                            "nb_id": self._staging_nb_id,
+                            "expected_total": expected,
+                            "observed_total": total_count,
+                            "ready_total": ready_count,
+                            "processing_total": processing_count,
+                            "spinner_active": processing_count > 0,
+                            "elapsed_s": round(time.time() - start, 3),
+                            "started_at_epoch": start,
+                            "completed_at_epoch": time.time(),
+                        },
+                    )
+                    return ready_count
+                if ready_count or total_count:
+                    log_action(
+                        "staging_source_dom_wait_progress",
+                        {
+                            "nb_id": self._staging_nb_id,
+                            "expected_total": expected,
+                            "observed_total": total_count,
+                            "ready_total": ready_count,
+                            "processing_total": processing_count,
+                            "spinner_active": processing_count > 0,
+                            "elapsed_s": round(time.time() - start, 3),
+                        },
+                    )
+                print(
+                    f"[Industrial] DOM poll: {ready_count}/{expected} ready, "
+                    f"{processing_count} still processing..."
+                )
             except Exception:
                 pass
             time.sleep(3)
+        log_action(
+            "staging_source_dom_wait_timeout",
+            {
+                "nb_id": self._staging_nb_id,
+                "expected_total": expected,
+                "observed_total": last_total,
+                "ready_total": last_ready,
+                "processing_total": last_processing,
+                "spinner_active": last_processing > 0,
+                "elapsed_s": round(time.time() - start, 3),
+                "started_at_epoch": start,
+                "completed_at_epoch": time.time(),
+            },
+        )
         return None
 
     def _prepare_sources_dom(self, notebook_id: str, expected_count: int) -> Optional[int]:
@@ -548,6 +600,17 @@ class NLMIndustrialScraper:
                 1
                 for elem in self._collect_source_dom_candidates()
                 if not self._is_processing_source_dom_candidate(elem)
+            )
+        except Exception:
+            return 0
+
+    def _count_processing_source_buttons_dom(self) -> int:
+        """Return the count of source-like buttons whose rows still look processing."""
+        try:
+            return sum(
+                1
+                for elem in self._collect_source_dom_candidates()
+                if self._is_processing_source_dom_candidate(elem)
             )
         except Exception:
             return 0

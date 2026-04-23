@@ -5,6 +5,8 @@ Last updated: 2026-04-20
 ## Current state
 
 - The current worker run is stopped.
+- The current worker-owned notebook status and throughput conclusions are summarized in [docs/operations/worker-owned-notebooks-handoff.md](P:/packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md).
+- The benchmark run sheet is [docs/operations/worker-count-trial-run-sheet.md](P:/packages/yt-is/docs/operations/worker-count-trial-run-sheet.md).
 - The routing split was changed so:
   - terminal/unavailable/private/deleted items stay sticky-skipped
   - live / live_stream / premiere items go to `transcript_fallback`
@@ -106,4 +108,5 @@ Last updated: 2026-04-20
   - `PYTHONPATH=P:\packages\yt-is python -m pytest P:\packages\yt-is\tests\test_transcript.py -q`
   - `PYTHONPATH=P:\packages\yt-is python -m pytest P:\packages\yt-is\tests\test_csf_source_fetch_timing.py -q`
 - Current intended worker run:
-  - `python P:\packages\yt-is\bin\csf-source fetch --workers 4`
+  - `python P:\packages\yt-is\bin\csf-source fetch --workers <n>`
+  - Worker notebook reuse is per worker; the benchmark sweep still continues through `8` workers.

@@ -16,7 +16,7 @@ For implementation gotchas, recurring bugs, and lessons learned from live canari
 # Check tracked channels for new videos
 /yt-is sync
 
-# Industrial Ingest (NLM Batch) - BEST FOR BACKLOG (18,000 v/hr)
+# Industrial Ingest (NLM Batch) - BEST FOR BACKLOG (worker-count dependent; benchmark sweep continues through 8 workers)
 /yt-nlm
 
 # Surgical Fetch (yt-dlp -> Selenium fallback)
@@ -95,7 +95,7 @@ Check all tracked YouTube channels for new videos and manage your channel list.
 
 Extract YouTube transcripts using NotebookLM's batch notebook workflow.
 
-**Recommended approach:** Batch notebooks (up to 300 YouTube sources per notebook) — reuses a single notebook, uses `nlm source content` (raw text), has auth auto-recovery built in.
+**Recommended approach:** Worker-owned batch notebooks (one notebook per worker title, reused across batches; batch size 200) — uses `nlm source content` (raw text), has auth auto-recovery built in.
 
 **Old approach (deprecated):** Ephemeral notebooks — one notebook per video, slow, wastes NotebookLM slots.
 
@@ -227,7 +227,7 @@ graph TB
 
 **Key features:**
 - Automatic escalation chain for transcript download
-- Batch NotebookLM workflow with shared defaults in `csf/nlm_batch.py` (`DEFAULT_NOTEBOOKLM_BATCH_SIZE = 200`, `DEFAULT_NOTEBOOKLM_SOURCE_CAP = 225`)
+- Batch NotebookLM workflow with shared defaults in `csf/nlm_batch.py` (`DEFAULT_NOTEBOOKLM_BATCH_SIZE = 200`, `DEFAULT_NOTEBOOKLM_SOURCE_CAP = 225`) and one notebook per worker title
 - Auth auto-recovery for NotebookLM sessions
 - Configurable NLM batch size via `YTIS_NLM_MAX_SOURCES_PER_NOTEBOOK`
 - External transcript provider hook for custom sources

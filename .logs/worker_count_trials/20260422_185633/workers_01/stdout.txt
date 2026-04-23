@@ -1,0 +1,2513 @@
+[source] Preflight scan: checking 732 active channels (0 blocked skipped) for pending videos...
+[source] Scan status: 1/732 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.001s, trigger=first_channel
+[source] Scan status: 73/732 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.086s, trigger=channel_checkpoint
+[source] Scan status: 146/732 channels, pending=2, cached=0, neg_cache=0, terminal=0, notebooklm=2, fallback=0, elapsed=0.168s, trigger=channel_checkpoint
+[source] Scan status: 219/732 channels, pending=21, cached=0, neg_cache=472, terminal=0, notebooklm=21, fallback=0, elapsed=0.883s, trigger=channel_checkpoint
+[source] Pending item limit reached at 1200; stopping scan early.
+[source] Preflight scan complete: 732 active channels, 1200 pending, 0 cached, 472 neg-cache, 0 terminal, 1200 notebooklm, 0 transcript-fallback
+[source] Negative-cache sample: AOnyxxADgxE, hotranqYmYI, Z53T_FcXQDA, okL5wquiTFg, tljhsKc-EKg, tmJZ7atqgbI, 5GKfzZPJCcQ, L9SwLFxZ8h0, gMJSLLa-O0s, m82TaD_eUFs
+[source] Escalation Batch Process
+[source] Channels: 732 active / 743 tracked
+[source] Already cached: 0
+[source] Negative-cache skips: 472
+[source] Negative-cache sample: AOnyxxADgxE, hotranqYmYI, Z53T_FcXQDA, okL5wquiTFg, tljhsKc-EKg, tmJZ7atqgbI, 5GKfzZPJCcQ, L9SwLFxZ8h0, gMJSLLa-O0s, m82TaD_eUFs
+[source] Pending extraction: 1200
+[source] Run limit: 1200 pending items
+[source] Mode: LIVE
+[source] Strategy: Industrial (Batch NLM)
+[source] Method: NotebookLM CLI batch for captioned/no-captions items; live items use transcript fallback
+[source] Workers: 1
+
+[source] Processing batch 1 (200 videos) via NotebookLM CLI batch...
+[NLM-Batch] Creating notebook...
+[Throttle] Success restored after 1 failures — delay reset
+[NLM-Batch] Adding 200 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-200/200...
+[NLM-Batch]   Adding sub-batch 1 (200 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 200 sources in parallel...
+  ✓ TBvcs0O985I | 11418 chars
+  ✓ cxE0TBLue7g | 9751 chars
+  ✓ 8oLIAJrPnoA | 24940 chars
+  ✓ RCg1TWdZSD0 | 24442 chars
+  ✓ SQEZMobAX8s | 1645 chars
+  ✗ L1wdmlGJkKE | Fetch failed for 2c896e30-dbfc-44a4-9d24-254966e7f81c
+  ✓ 2Py2F5wJKZY | 22011 chars
+  ✓ yy-Nt0dRhNI | 18431 chars
+  ✓ h-VcywYlSeY | 7048 chars
+  ✓ jWyb488osEY | 1357 chars
+  ✓ L6U2sf87UUI | 8250 chars
+  ✓ YhjkAcsG7HE | 19943 chars
+  ✓ 4INh29A2TqQ | 13527 chars
+  ✓ Ghhn9LdDm0g | 832 chars
+  ✓ KGWjLaKQ2g0 | 1220 chars
+  ✓ YDqqRqqlnJU | 8815 chars
+  ✓ _6JZkK8oC_k | 2667 chars
+  ✓ 3BspY0n1q6w | 1552 chars
+  ✓ XuiepGcFEp0 | 25581 chars
+  ✓ ZYQ0CkHvvWU | 47000 chars
+  ✓ DWfjJq5KUxo | 7973 chars
+  ✓ bTzFYn5IPEk | 16133 chars
+  ✓ isgBPkyAXqI | 10074 chars
+  ✓ Vd1y45pMRCk | 26694 chars
+  ✓ oF_1dLMBkvY | 2191 chars
+  ✓ 7vwRCOfr2s4 | 13826 chars
+  ✓ PyES6jFSoVI | 20814 chars
+  ✓ 1RdkW1zqv-U | 9856 chars
+  ✓ DHyPQP_SM7E | 1125 chars
+  ✓ w8yLAij4KcY | 12299 chars
+  ✓ NQ3ZaTFi6CI | 75463 chars
+  ✓ Vbr0ReKzgDw | 7317 chars
+  ✓ 3ErrlpWEdAE | 7747 chars
+  ✓ JIRhWnCCOC8 | 10126 chars
+  ✓ OwVQcioH33o | 43621 chars
+  ✓ WLudQ77dGzs | 1140 chars
+  ✓ nyzT3YWzBA4 | 14908 chars
+  ✓ lm6VQVKRLqI | 9158 chars
+  ✓ dI0zTKe86bc | 21612 chars
+  ✓ t9EbcViOpgE | 4732 chars
+  ✓ Ow9bwB5rVb8 | 4895 chars
+  ✓ A0ojHfcV_u4 | 4324 chars
+  ✓ js1dbmDIYmo | 4164 chars
+  ✓ a5ZOaFjasa4 | 1504 chars
+  ✓ E8dDhH5uWZ4 | 468 chars
+  ✗ ITT9xWeicWM | Fetch failed for 1520f3cd-81f7-48a3-ac07-6f0fc4286337
+  ✗ tEo0wFBCv-c | Fetch failed for aeb30873-a402-49ff-a976-d6300461fce4
+  ✗ 34VoezbEvLw | Fetch failed for 71b2337f-eb75-401d-b57e-7c9bc714af11
+  ✓ fVY1lKVUrWA | 932 chars
+  ✗ i6WQdQsE0kc | Fetch failed for 0ee1cf65-9f9b-4724-b994-538aab58e06e
+  ✗ KiadQgJt2gs | Fetch failed for 167101fb-2e15-4e5b-a850-21301b5059fe
+  ✗ U1I-9yJ7GGM | Fetch failed for a337bc40-36e9-4760-992f-80795f4dadbb
+[Throttle] Success restored after 1 failures — delay reset
+  ✗ nb2fZw25VR0 | Fetch failed for f29be266-4a89-4596-b61d-bc65ea579183
+  ✗ OMZC0z9GKo0 | Fetch failed for 8512912f-1155-4cba-b837-359eadba4564
+  ✗ uuP3lDlKfCI | Fetch failed for c3f7566e-aa0e-42d5-9ce0-dabeadfc514f
+  ✗ 3Zj0o0go0NM | Fetch failed for c7befb7d-a5a2-475b-8083-953bb7b5c0ed
+  ✗ oV6vNUqc9kY | Fetch failed for e00ff8a2-4690-4923-b5a9-a79b168eaeb7
+  ✗ IbzV1gtMFrs | Fetch failed for d570bbf6-ab6c-49c0-b6c9-bb7435e5c1c2
+  ✗ 22aOG0mTlO0 | Fetch failed for aa91ad19-1dd3-4f25-9466-5b5939ac1fa9
+  ✗ YpK3nS1icqc | Fetch failed for 15a54019-df85-4097-9862-f06aa3f0bf09
+  ✗ iu9w7it3ank | Fetch failed for 34b1cb1c-1aea-461a-93e5-f5e4b8d8db44
+  ✗ D4FCwj4SFgc | Fetch failed for 43a01d31-7667-4b4c-8eb3-0af160c51d4d
+  ✗ mUYfpOroqSk | Fetch failed for 6b1b4d7c-f39f-42f5-8211-6f5ee61b6615
+  ✗ QrPx4QZU-tE | Fetch failed for cf37d08e-e838-4d55-a4e6-8f7136821cca
+  ✗ _2dmf5MgYgg | Fetch failed for cc764e3c-0ff3-4e02-b786-a9bfe7022730
+  ✗ O4jEvbR6nbU | Fetch failed for d4163a0f-4036-46d2-9a33-88b458ebc0d9
+  ✗ ZveJe3VgxII | Fetch failed for 9f4885a6-57e3-4af0-b9fb-db0d6095a000
+  ✗ dRDrrytodxg | Fetch failed for 5a812ba3-4b74-43db-957d-9d3176965567
+  ✗ 54N2-_7WUvQ | Fetch failed for 77ff954e-56f3-4890-b0bb-1696c2a6282c
+  ✗ L1hX3EqyvsI | Fetch failed for c15ad615-9817-4028-a5e4-cd3d96d3227f
+  ✗ kQ1rngo20ns | Fetch failed for 0519744a-195c-40df-baaf-b50474890d7f
+  ✗ hGVMFLAO_2s | Fetch failed for 32de639d-334e-4ffb-8512-fdaacc3f43e6
+  ✗ PaXvWs9JupI | Fetch failed for bfde5c2a-e38b-4306-94f4-944f82f59fe9
+  ✗ l9kkvcJV_vw | Fetch failed for 812a6127-00c3-468b-8052-d0fa2f5839f1
+  ✗ HzRERtKM8Hk | Fetch failed for a6df92fb-f42b-4a7c-8125-63c8e7d417e3
+  ✗ 9x5nNTLMB54 | Fetch failed for 3a323cdb-e5c3-4347-b197-1f004f2a5c51
+  ✗ feeyXMkp7_0 | Fetch failed for 4e974bbf-a12a-474f-aa71-43078ac3de45
+  ✗ venXn5Em4q4 | Fetch failed for c1b9ed88-e7d4-4660-84a3-e010c64bdc58
+  ✗ BI5eFwNXm9s | Fetch failed for 9e511f40-daaf-469b-aa42-b09436c2757c
+  ✗ 17KtJbodTrY | Fetch failed for 84efa8b5-a12b-4c54-99c1-c0979d2472b8
+  ✗ NY9D76AS1Rc | Fetch failed for 45a7b0d2-743a-47b6-8558-aed9ffd75eb2
+  ✗ KyuFBtgU6vc | Fetch failed for 31273b37-423f-44bc-860f-c2db001516c7
+  ✗ wpfAYThDA6o | Fetch failed for bdffe1c8-3dd9-4e15-991b-9e2b38cc0058
+  ✗ asMM_QHMMh8 | Fetch failed for f653e316-8fad-4d51-8f86-7dc66ce070fa
+  ✗ 3E8KAvn6yJA | Fetch failed for 3784b93f-971f-43ec-a84a-7606193f881f
+  ✗ fiKHV7OBZYI | Fetch failed for 5db05fcb-eb09-4181-96ca-21d6cfcedcfc
+  ✗ x8wnaOhnKCQ | Fetch failed for 4a59132d-1efa-46b2-a889-132854d3ead2
+  ✗ 157TkOhktNo | Fetch failed for 281bb025-344c-4842-acb7-eaaa571f71f5
+  ✗ YA1T6iRXTno | Fetch failed for 1e30859a-ab33-4f76-a27d-559ca270b87c
+  ✗ 8LRQIDAzyv8 | Fetch failed for 3189882a-0392-4849-b919-8ae730fd62eb
+  ✗ c8cABBdWB0M | Fetch failed for 228e9d86-6458-4ac4-bb34-44ee87904cf4
+  ✗ b3WLQPwwxF8 | Fetch failed for e82aea60-cd63-4c4f-8f9e-374b319cd44d
+  ✗ Zt_2sR_he_Q | Fetch failed for 5ed5e640-4db1-4370-8891-da58a9770490
+  ✗ 6pvGBbIS7Xo | Fetch failed for e09fdb72-d678-4892-a1e5-ef956af54e05
+  ✗ eGWLOkzoCSw | Fetch failed for 1353351f-26f8-495b-a4cd-66252ce28c2f
+[Throttle] Success restored after 1 failures — delay reset
+  ✗ 0WH-RngnpGc | Fetch failed for 76aa91ff-aef1-4d67-8e8e-79d8c072c7fb
+  ✗ ZDqEeI5WxFw | Fetch failed for a76ac3a1-defa-477f-ab90-d7a3e4068c9c
+  ✗ q_pYoGD_E3w | Fetch failed for 3d1915df-44ac-4de5-985a-b6294da0b551
+  ✗ MykS5p2egCw | Fetch failed for 166c1eb5-7fb3-479a-86d6-4653922b97b2
+  ✗ -tP3d26rzYg | Fetch failed for 61c6142a-bb68-496c-a3bf-87416383642e
+  ✗ _LH6nPgEqNg | Fetch failed for 889c5188-29a0-45b9-ba62-adc29c7269d1
+  ✗ daatFSJwu18 | Fetch failed for 325df741-2f14-45fc-9c82-036f34ba6085
+  ✗ 0SsnCJDLz8A | Fetch failed for 56ba4d43-cc8c-4115-9aac-0023d5720bb2
+  ✗ lWagaRVOCsI | Fetch failed for 1500a1aa-ec02-4474-9ef3-69ef3ca7f503
+  ✗ vgjz8weiBm4 | Fetch failed for cd4fd04c-267c-43f3-94a2-9458a374dd76
+  ✗ TEJaCprLN3w | Fetch failed for 4684738c-b202-400d-8074-f4b1ec37a896
+  ✗ FgSSShNNFQI | Fetch failed for f09d01ff-e2d6-4cee-85de-b4d62fdaa20a
+  ✗ n_ew3tA3udM | Fetch failed for 0568373f-5787-4751-955e-f68eccda6b2a
+  ✗ y_5jZk3DQ9I | Fetch failed for e88de33d-df2b-4f91-871a-c64eeba39508
+  ✗ oHaBYc7DnBQ | Fetch failed for 9b059975-1d3b-4eb9-a9a0-8e11483e9698
+  ✗ vtaYM3UhhUE | Fetch failed for ad1e98bf-f87c-4af0-bf8b-830de0abfe9d
+  ✗ A6jXBXF5IMQ | Fetch failed for 8501dfcf-257a-463d-928e-421f3b323578
+  ✗ gNuq0o5giFQ | Fetch failed for 245f2d2e-4877-4665-ab1a-33c0903c9bc9
+  ✗ i8pR0Nsi1Nc | Fetch failed for ef3cf773-f2fa-451d-872e-cae59f819955
+  ✗ hKQ1oEaxIlw | Fetch failed for 92ce382f-11f2-4944-aac1-807378aa9eb6
+  ✗ OyTqhZywhqE | Fetch failed for 2d01a675-d30e-4228-a99a-1758851a448a
+  ✗ HiVLTOcMhd8 | Fetch failed for e8a5b019-2220-49c6-9255-f936cf2d5cdf
+  ✗ 4HZLYdNU3EQ | Fetch failed for 28fb54bd-c7ec-4bba-99c3-0b9141c9ed95
+  ✗ iYC_6zmeoUk | Fetch failed for bedb7d21-cdcb-487d-873d-a3340ab1ddc1
+  ✗ joceiuAsOxU | Fetch failed for d9600e12-d271-4a35-adbe-e638457ecb82
+  ✗ OJ4OP7cLJ4E | Fetch failed for b781c9ec-f4a8-46a5-9005-a47886aa4568
+  ✗ 0AY8S8a9GQw | Fetch failed for b9121d8a-a91b-4fbf-864c-fba111eac982
+  ✗ 4iVPciIjH6k | Fetch failed for bff9b012-16f2-48ce-ab96-1c01dd0b04c5
+  ✗ OjaSiz88i2U | Fetch failed for c7e5210f-723e-4566-ba27-c9355a0c8722
+  ✗ SCzNbhH6bRM | Fetch failed for 2404d1fa-2f56-4d5b-92ea-067957c132cb
+  ✗ GY1CRvskXdA | Fetch failed for 9eb2857e-451e-423a-93bc-39677901242f
+  ✗ 54v61PFrKu0 | Fetch failed for d0225020-d7ab-49e8-ac5d-1958ffd7e6b3
+  ✗ __cCM1Uli2g | Fetch failed for 4dc134a1-5fd6-4ada-9a8a-b18301555f12
+  ✗ S19dB1NWI10 | Fetch failed for f4c27bc0-f512-4c24-ae2b-4da4a2b3537c
+  ✗ 4i8F5o1D1iw | Fetch failed for 42e0df9b-e535-4361-9fe7-4e5333740ee4
+  ✗ -o-FksaXEM4 | Fetch failed for bddad0f6-f92a-48f1-b555-9d192dd11fa4
+  ✗ PJQnMto_rLU | Fetch failed for 0946623c-a469-423b-aa22-4d251ad03abf
+  ✗ zvWf6IxCaJA | Fetch failed for 2ed2153b-d5f1-422f-8c9d-73561c68c084
+  ✗ sZS_FqL3Xcs | Fetch failed for 97b26025-8483-4051-b54d-96a2239ab2f2
+  ✗ ZeS-Y_iv7aQ | Fetch failed for 01871706-d464-4931-830f-1e9a3794ca71
+  ✗ juXI9QbzzgM | Fetch failed for 3869f5ac-3bee-467d-bbbb-c54272941bf7
+  ✗ 8SGwiDYrBhk | Fetch failed for 8543b915-245e-42be-8da0-6365a2030ccd
+  ✗ ZYxBRYWrL1Y | Fetch failed for 25454d0f-c307-4bab-a954-246015a794c5
+  ✗ 0U9DhZ25HxA | Fetch failed for 08099cc3-0c5a-49d8-a31e-7b0402a7eb7b
+  ✗ pNyjCdwkbhA | Fetch failed for 4799302a-c3df-4a18-8b0d-1d2bfb5ef0d2
+  ✗ gBOBgAcVNjM | Fetch failed for 87b3f612-d14a-41e1-a402-763f9e948ec7
+  ✗ fJra-G3wjA4 | Fetch failed for ea533baa-6339-4273-b237-8482c8de295e
+  ✗ EEYCSN9sHcE | Fetch failed for 5ee5be93-7903-4916-a748-1d47e7ef9e4e
+  ✗ 4Hjk2pTXTyw | Fetch failed for 28d27aeb-5bc7-49f3-a3f1-608600f53d70
+  ✗ P8UZtIhgA9U | Fetch failed for e1157bc2-eb6a-4450-8f89-d2688f995e1c
+  ✗ 5snRuIc-Gn8 | Fetch failed for 30540157-5301-4383-b465-8cd69b03265f
+  ✗ l6MObdOANY8 | Fetch failed for 3f70d252-8122-4816-8510-077d7be340ad
+  ✗ QkRK8Q_PscQ | Fetch failed for 1955997c-eb33-4827-b3e6-8eb35c70d6a2
+  ✗ 80nVenJLuzI | Fetch failed for 84633638-1cbe-4d35-8d8e-efe24e48df86
+  ✗ 2qN8Ic_xRHU | Fetch failed for 596aed5c-e175-4aee-a1b2-5e0120c03abe
+  ✗ kB27TF8HY4Y | Fetch failed for 6682afc4-36d4-403c-bf33-a69ebc47dfe5
+  ✗ Dm00QEqTMn0 | Fetch failed for 778d3ab8-754e-441b-b9dd-3ddab2dedcfd
+  ✗ Zn-2_ORA6mE | Fetch failed for fc1fe2ba-93b0-4689-afed-6efc52fcce0a
+  ✗ Zn8XitqRa7w | Fetch failed for 8c627633-c9a7-47f7-8be9-479415333c36
+  ✗ FQb__PkY74U | Fetch failed for daded68f-51b0-48a5-a09c-ed68ed943327
+  ✗ Scs5gZb9CaA | Fetch failed for 53123b67-5105-4e07-9953-7c52763ee80f
+[Throttle] Success restored after 2 failures — delay reset
+  ✗ 1z-_Hqfd4K0 | Fetch failed for ee283f72-318b-4b3e-bf1f-63b142bf0a9d
+  ✗ nJomTE6PL_4 | Fetch failed for 34e03c35-bda8-477c-9702-8a3e1edeb111
+  ✗ V4-7g8BOUxc | Fetch failed for b16164ec-5dec-4b5c-b810-a073411f4029
+  ✗ zGewFY1LrLs | Fetch failed for 87b0532a-6276-44a3-82de-2ac042aa3362
+  ✗ nWxvmLiUtXc | Fetch failed for f9fb43ef-b2d7-4b32-8a3c-68929101c0aa
+  ✗ 0h533qTyxmA | Fetch failed for 2ed2b23b-8c6e-4132-8859-041034350e46
+  ✗ glYak47F8B0 | Fetch failed for 6bba40f4-b3e3-48c7-becf-1e96f3311960
+  ✗ ZZLa-DmZwPc | Fetch failed for c29fb29f-da42-414a-9471-cb5d33abf78e
+  ✗ jMzuazBKSA0 | Fetch failed for e25d2707-805b-4f2c-805f-c66caf079dc6
+  ✗ Fv5O_dDo53Q | Fetch failed for f6d7ec60-cbec-46ac-8b7d-dba8001a6241
+  ✗ Xz0HVBUq63M | Fetch failed for c26d6bf1-163c-4258-9efe-d6f1ddaf7c53
+  ✗ Y_H7S8VfI1I | Fetch failed for 266b56ab-1f76-4f90-94ce-1c024581e098
+  ✗ imwVqazdjBk | Fetch failed for dcb7c18d-315c-4511-93ac-017ae436b684
+  ✗ r4Z-5O-Pb68 | Fetch failed for 8e094fa3-67ad-4acd-a02c-7f07a7f00d71
+  ✗ 5B_RRObJGkA | Fetch failed for e229cd07-d59f-4c4c-9b58-4db04154b777
+  ✗ RsF0s082E2U | Fetch failed for 49a2c9fc-3386-490e-943e-cf3a380f34b4
+  ✗ olbfOv0od7Q | Fetch failed for 86c51a60-0c93-432d-a2bf-504dcb33d215
+  ✗ CY998meMzC0 | Fetch failed for 89382698-1e17-4b56-add5-aeecebdabff6
+  ✗ zWjpGmR6Ya8 | Fetch failed for dfc30574-2b40-4dc8-99fe-44de3bc457ca
+  ✗ gAwWzw1yAkM | Fetch failed for 77d1d4df-2fed-4a73-a117-be138961d677
+  ✗ A30b77Jiv1c | Fetch failed for aa6f8985-727b-40a1-a439-9113c665574a
+  ✗ VjVCiwRoIrE | Fetch failed for 2f7b0868-ebf9-4d69-8ea8-2df9e7a7c7f9
+  ✗ UQqdbYE2N0k | Fetch failed for a95e70ed-50d8-4dfb-9821-59dd239bc401
+  ✗ PUeQbsG212g | Fetch failed for 25addb40-e5de-4d21-b194-f1391787b1f0
+  ✗ FXe033OVjyc | Fetch failed for ae84b6bf-43bd-4e13-b3ab-44ffc1443182
+  ✗ st7AZNC0GV4 | Fetch failed for fd61aab9-7e4d-41b2-a12b-b0001556a09e
+  ✗ 0pzEeqUvIws | Fetch failed for 88173d73-d29f-47b3-9374-ca785cf0109c
+  ✗ Guh1q4H03BU | Fetch failed for 9aa24f7f-b939-4ada-89c1-26ae33049d14
+  ✗ 6-3IVovWmV0 | Fetch failed for 568321b7-839d-4e06-83d2-d02cecd0e508
+  ✗ SppIK8uEwNI | Fetch failed for 5cad4013-4c5e-499c-9c11-6d79bbceb792
+  ✗ sddxQXwV0qU | Fetch failed for 97712bf5-edce-475e-9ba7-5939cf700e34
+  ✗ tz1GsZ52eMc | Fetch failed for 0fbbfdcd-419f-4977-96fd-2b0e6baa8616
+  ✗ OIP485EIpIg | Fetch failed for c8190ed6-060a-4104-9089-5316c70b1e0d
+  ✗ yUV0kTS7FEc | Fetch failed for 590c43ed-4cf3-4ae4-809e-06807df27c89
+  ✗ HQksVGfqFdE | Fetch failed for 83c5b0a9-f1bd-4178-ae17-53ea37fcf959
+  ✗ xnkB_48vQNM | Fetch failed for 440255a4-f76f-426e-9386-7350b2ebd792
+  ✗ k1Rco1XT8Ns | Fetch failed for 557169c3-04e0-4352-b34a-c8556b6df4e0
+  ✗ BQfdTZgAWhE | Fetch failed for 05049b92-e41a-4051-bff6-f8296d0d225a
+  ✗ ECQVpHZaT7g | Fetch failed for 82d42b53-ec1d-4b49-b912-b89dfb63ce2b
+  ✗ lRjlNFQta2I | Fetch failed for 36a5559c-cc17-4b34-9256-d182ed7f42a7
+  ✗ O_9ygyoq7-M | Fetch failed for 2e7ba52d-a60e-4431-ab74-e845e18a2923
+  ✗ p2IcekRUQEQ | Fetch failed for 64571b56-4df5-42cf-bf7d-0d26a36f8cdb
+  ✓ 8sSMf_upgAY | 1147 chars
+  ✓ wVZYNEwi6-0 | 6599 chars
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+  ✓ TBvcs0O985I (notebooklm)
+  ✓ cxE0TBLue7g (notebooklm)
+  ✓ 8oLIAJrPnoA (notebooklm)
+  ✓ RCg1TWdZSD0 (notebooklm)
+  ✓ SQEZMobAX8s (notebooklm)
+  ✗ L1wdmlGJkKE: Fetch failed for 2c896e30-dbfc-44a4-9d24-254966e7f81c
+  ✓ 2Py2F5wJKZY (notebooklm)
+  ✓ yy-Nt0dRhNI (notebooklm)
+  ✓ h-VcywYlSeY (notebooklm)
+  ✓ jWyb488osEY (notebooklm)
+  ✓ L6U2sf87UUI (notebooklm)
+  ✓ YhjkAcsG7HE (notebooklm)
+  ✓ 4INh29A2TqQ (notebooklm)
+  ✓ Ghhn9LdDm0g (notebooklm)
+  ✓ KGWjLaKQ2g0 (notebooklm)
+  ✓ YDqqRqqlnJU (notebooklm)
+  ✓ _6JZkK8oC_k (notebooklm)
+  ✓ 3BspY0n1q6w (notebooklm)
+  ✓ XuiepGcFEp0 (notebooklm)
+  ✓ ZYQ0CkHvvWU (notebooklm)
+  ✓ DWfjJq5KUxo (notebooklm)
+  ✓ bTzFYn5IPEk (notebooklm)
+  ✓ isgBPkyAXqI (notebooklm)
+  ✓ Vd1y45pMRCk (notebooklm)
+  ✓ oF_1dLMBkvY (notebooklm)
+  ✓ 7vwRCOfr2s4 (notebooklm)
+  ✓ PyES6jFSoVI (notebooklm)
+  ✓ 1RdkW1zqv-U (notebooklm)
+  ✓ DHyPQP_SM7E (notebooklm)
+  ✓ w8yLAij4KcY (notebooklm)
+  ✓ NQ3ZaTFi6CI (notebooklm)
+  ✓ Vbr0ReKzgDw (notebooklm)
+  ✓ 3ErrlpWEdAE (notebooklm)
+  ✓ JIRhWnCCOC8 (notebooklm)
+  ✓ OwVQcioH33o (notebooklm)
+  ✓ WLudQ77dGzs (notebooklm)
+  ✓ nyzT3YWzBA4 (notebooklm)
+  ✓ lm6VQVKRLqI (notebooklm)
+  ✓ dI0zTKe86bc (notebooklm)
+  ✓ t9EbcViOpgE (notebooklm)
+  ✓ Ow9bwB5rVb8 (notebooklm)
+  ✓ A0ojHfcV_u4 (notebooklm)
+  ✓ js1dbmDIYmo (notebooklm)
+  ✓ a5ZOaFjasa4 (notebooklm)
+  ✓ E8dDhH5uWZ4 (notebooklm)
+  ✗ ITT9xWeicWM: Fetch failed for 1520f3cd-81f7-48a3-ac07-6f0fc4286337
+  ✗ tEo0wFBCv-c: Fetch failed for aeb30873-a402-49ff-a976-d6300461fce4
+  ✗ 34VoezbEvLw: Fetch failed for 71b2337f-eb75-401d-b57e-7c9bc714af11
+  ✓ fVY1lKVUrWA (notebooklm)
+  ✗ i6WQdQsE0kc: Fetch failed for 0ee1cf65-9f9b-4724-b994-538aab58e06e
+  ✗ KiadQgJt2gs: Fetch failed for 167101fb-2e15-4e5b-a850-21301b5059fe
+  ✗ U1I-9yJ7GGM: Fetch failed for a337bc40-36e9-4760-992f-80795f4dadbb
+  ✗ nb2fZw25VR0: Fetch failed for f29be266-4a89-4596-b61d-bc65ea579183
+  ✗ OMZC0z9GKo0: Fetch failed for 8512912f-1155-4cba-b837-359eadba4564
+  ✗ uuP3lDlKfCI: Fetch failed for c3f7566e-aa0e-42d5-9ce0-dabeadfc514f
+  ✗ 3Zj0o0go0NM: Fetch failed for c7befb7d-a5a2-475b-8083-953bb7b5c0ed
+  ✗ oV6vNUqc9kY: Fetch failed for e00ff8a2-4690-4923-b5a9-a79b168eaeb7
+  ✗ IbzV1gtMFrs: Fetch failed for d570bbf6-ab6c-49c0-b6c9-bb7435e5c1c2
+  ✗ 22aOG0mTlO0: Fetch failed for aa91ad19-1dd3-4f25-9466-5b5939ac1fa9
+  ✗ YpK3nS1icqc: Fetch failed for 15a54019-df85-4097-9862-f06aa3f0bf09
+  ✗ iu9w7it3ank: Fetch failed for 34b1cb1c-1aea-461a-93e5-f5e4b8d8db44
+  ✗ D4FCwj4SFgc: Fetch failed for 43a01d31-7667-4b4c-8eb3-0af160c51d4d
+  ✗ mUYfpOroqSk: Fetch failed for 6b1b4d7c-f39f-42f5-8211-6f5ee61b6615
+  ✗ QrPx4QZU-tE: Fetch failed for cf37d08e-e838-4d55-a4e6-8f7136821cca
+  ✗ _2dmf5MgYgg: Fetch failed for cc764e3c-0ff3-4e02-b786-a9bfe7022730
+  ✗ O4jEvbR6nbU: Fetch failed for d4163a0f-4036-46d2-9a33-88b458ebc0d9
+  ✗ ZveJe3VgxII: Fetch failed for 9f4885a6-57e3-4af0-b9fb-db0d6095a000
+  ✗ dRDrrytodxg: Fetch failed for 5a812ba3-4b74-43db-957d-9d3176965567
+  ✗ 54N2-_7WUvQ: Fetch failed for 77ff954e-56f3-4890-b0bb-1696c2a6282c
+  ✗ L1hX3EqyvsI: Fetch failed for c15ad615-9817-4028-a5e4-cd3d96d3227f
+  ✗ kQ1rngo20ns: Fetch failed for 0519744a-195c-40df-baaf-b50474890d7f
+  ✗ hGVMFLAO_2s: Fetch failed for 32de639d-334e-4ffb-8512-fdaacc3f43e6
+  ✗ PaXvWs9JupI: Fetch failed for bfde5c2a-e38b-4306-94f4-944f82f59fe9
+  ✗ l9kkvcJV_vw: Fetch failed for 812a6127-00c3-468b-8052-d0fa2f5839f1
+  ✗ HzRERtKM8Hk: Fetch failed for a6df92fb-f42b-4a7c-8125-63c8e7d417e3
+  ✗ 9x5nNTLMB54: Fetch failed for 3a323cdb-e5c3-4347-b197-1f004f2a5c51
+  ✗ feeyXMkp7_0: Fetch failed for 4e974bbf-a12a-474f-aa71-43078ac3de45
+  ✗ venXn5Em4q4: Fetch failed for c1b9ed88-e7d4-4660-84a3-e010c64bdc58
+  ✗ BI5eFwNXm9s: Fetch failed for 9e511f40-daaf-469b-aa42-b09436c2757c
+  ✗ 17KtJbodTrY: Fetch failed for 84efa8b5-a12b-4c54-99c1-c0979d2472b8
+  ✗ NY9D76AS1Rc: Fetch failed for 45a7b0d2-743a-47b6-8558-aed9ffd75eb2
+  ✗ KyuFBtgU6vc: Fetch failed for 31273b37-423f-44bc-860f-c2db001516c7
+  ✗ wpfAYThDA6o: Fetch failed for bdffe1c8-3dd9-4e15-991b-9e2b38cc0058
+  ✗ asMM_QHMMh8: Fetch failed for f653e316-8fad-4d51-8f86-7dc66ce070fa
+  ✗ 3E8KAvn6yJA: Fetch failed for 3784b93f-971f-43ec-a84a-7606193f881f
+  ✗ fiKHV7OBZYI: Fetch failed for 5db05fcb-eb09-4181-96ca-21d6cfcedcfc
+  ✗ x8wnaOhnKCQ: Fetch failed for 4a59132d-1efa-46b2-a889-132854d3ead2
+  ✗ 157TkOhktNo: Fetch failed for 281bb025-344c-4842-acb7-eaaa571f71f5
+  ✗ YA1T6iRXTno: Fetch failed for 1e30859a-ab33-4f76-a27d-559ca270b87c
+  ✗ 8LRQIDAzyv8: Fetch failed for 3189882a-0392-4849-b919-8ae730fd62eb
+  ✗ c8cABBdWB0M: Fetch failed for 228e9d86-6458-4ac4-bb34-44ee87904cf4
+  ✗ b3WLQPwwxF8: Fetch failed for e82aea60-cd63-4c4f-8f9e-374b319cd44d
+  ✗ Zt_2sR_he_Q: Fetch failed for 5ed5e640-4db1-4370-8891-da58a9770490
+  ✗ 6pvGBbIS7Xo: Fetch failed for e09fdb72-d678-4892-a1e5-ef956af54e05
+  ✗ eGWLOkzoCSw: Fetch failed for 1353351f-26f8-495b-a4cd-66252ce28c2f
+  ✗ 0WH-RngnpGc: Fetch failed for 76aa91ff-aef1-4d67-8e8e-79d8c072c7fb
+  ✗ ZDqEeI5WxFw: Fetch failed for a76ac3a1-defa-477f-ab90-d7a3e4068c9c
+  ✗ q_pYoGD_E3w: Fetch failed for 3d1915df-44ac-4de5-985a-b6294da0b551
+  ✗ MykS5p2egCw: Fetch failed for 166c1eb5-7fb3-479a-86d6-4653922b97b2
+  ✗ -tP3d26rzYg: Fetch failed for 61c6142a-bb68-496c-a3bf-87416383642e
+  ✗ _LH6nPgEqNg: Fetch failed for 889c5188-29a0-45b9-ba62-adc29c7269d1
+  ✗ daatFSJwu18: Fetch failed for 325df741-2f14-45fc-9c82-036f34ba6085
+  ✗ 0SsnCJDLz8A: Fetch failed for 56ba4d43-cc8c-4115-9aac-0023d5720bb2
+  ✗ lWagaRVOCsI: Fetch failed for 1500a1aa-ec02-4474-9ef3-69ef3ca7f503
+  ✗ vgjz8weiBm4: Fetch failed for cd4fd04c-267c-43f3-94a2-9458a374dd76
+  ✗ TEJaCprLN3w: Fetch failed for 4684738c-b202-400d-8074-f4b1ec37a896
+  ✗ FgSSShNNFQI: Fetch failed for f09d01ff-e2d6-4cee-85de-b4d62fdaa20a
+  ✗ n_ew3tA3udM: Fetch failed for 0568373f-5787-4751-955e-f68eccda6b2a
+  ✗ y_5jZk3DQ9I: Fetch failed for e88de33d-df2b-4f91-871a-c64eeba39508
+  ✗ oHaBYc7DnBQ: Fetch failed for 9b059975-1d3b-4eb9-a9a0-8e11483e9698
+  ✗ vtaYM3UhhUE: Fetch failed for ad1e98bf-f87c-4af0-bf8b-830de0abfe9d
+  ✗ A6jXBXF5IMQ: Fetch failed for 8501dfcf-257a-463d-928e-421f3b323578
+  ✗ gNuq0o5giFQ: Fetch failed for 245f2d2e-4877-4665-ab1a-33c0903c9bc9
+  ✗ i8pR0Nsi1Nc: Fetch failed for ef3cf773-f2fa-451d-872e-cae59f819955
+  ✗ hKQ1oEaxIlw: Fetch failed for 92ce382f-11f2-4944-aac1-807378aa9eb6
+  ✗ OyTqhZywhqE: Fetch failed for 2d01a675-d30e-4228-a99a-1758851a448a
+  ✗ HiVLTOcMhd8: Fetch failed for e8a5b019-2220-49c6-9255-f936cf2d5cdf
+  ✗ 4HZLYdNU3EQ: Fetch failed for 28fb54bd-c7ec-4bba-99c3-0b9141c9ed95
+  ✗ iYC_6zmeoUk: Fetch failed for bedb7d21-cdcb-487d-873d-a3340ab1ddc1
+  ✗ joceiuAsOxU: Fetch failed for d9600e12-d271-4a35-adbe-e638457ecb82
+  ✗ OJ4OP7cLJ4E: Fetch failed for b781c9ec-f4a8-46a5-9005-a47886aa4568
+  ✗ 0AY8S8a9GQw: Fetch failed for b9121d8a-a91b-4fbf-864c-fba111eac982
+  ✗ 4iVPciIjH6k: Fetch failed for bff9b012-16f2-48ce-ab96-1c01dd0b04c5
+  ✗ OjaSiz88i2U: Fetch failed for c7e5210f-723e-4566-ba27-c9355a0c8722
+  ✗ SCzNbhH6bRM: Fetch failed for 2404d1fa-2f56-4d5b-92ea-067957c132cb
+  ✗ GY1CRvskXdA: Fetch failed for 9eb2857e-451e-423a-93bc-39677901242f
+  ✗ 54v61PFrKu0: Fetch failed for d0225020-d7ab-49e8-ac5d-1958ffd7e6b3
+  ✗ __cCM1Uli2g: Fetch failed for 4dc134a1-5fd6-4ada-9a8a-b18301555f12
+  ✗ S19dB1NWI10: Fetch failed for f4c27bc0-f512-4c24-ae2b-4da4a2b3537c
+  ✗ 4i8F5o1D1iw: Fetch failed for 42e0df9b-e535-4361-9fe7-4e5333740ee4
+  ✗ -o-FksaXEM4: Fetch failed for bddad0f6-f92a-48f1-b555-9d192dd11fa4
+  ✗ PJQnMto_rLU: Fetch failed for 0946623c-a469-423b-aa22-4d251ad03abf
+  ✗ zvWf6IxCaJA: Fetch failed for 2ed2153b-d5f1-422f-8c9d-73561c68c084
+  ✗ sZS_FqL3Xcs: Fetch failed for 97b26025-8483-4051-b54d-96a2239ab2f2
+  ✗ ZeS-Y_iv7aQ: Fetch failed for 01871706-d464-4931-830f-1e9a3794ca71
+  ✗ juXI9QbzzgM: Fetch failed for 3869f5ac-3bee-467d-bbbb-c54272941bf7
+  ✗ 8SGwiDYrBhk: Fetch failed for 8543b915-245e-42be-8da0-6365a2030ccd
+  ✗ ZYxBRYWrL1Y: Fetch failed for 25454d0f-c307-4bab-a954-246015a794c5
+  ✗ 0U9DhZ25HxA: Fetch failed for 08099cc3-0c5a-49d8-a31e-7b0402a7eb7b
+  ✗ pNyjCdwkbhA: Fetch failed for 4799302a-c3df-4a18-8b0d-1d2bfb5ef0d2
+  ✗ gBOBgAcVNjM: Fetch failed for 87b3f612-d14a-41e1-a402-763f9e948ec7
+  ✗ fJra-G3wjA4: Fetch failed for ea533baa-6339-4273-b237-8482c8de295e
+  ✗ EEYCSN9sHcE: Fetch failed for 5ee5be93-7903-4916-a748-1d47e7ef9e4e
+  ✗ 4Hjk2pTXTyw: Fetch failed for 28d27aeb-5bc7-49f3-a3f1-608600f53d70
+  ✗ P8UZtIhgA9U: Fetch failed for e1157bc2-eb6a-4450-8f89-d2688f995e1c
+  ✗ 5snRuIc-Gn8: Fetch failed for 30540157-5301-4383-b465-8cd69b03265f
+  ✗ l6MObdOANY8: Fetch failed for 3f70d252-8122-4816-8510-077d7be340ad
+  ✗ QkRK8Q_PscQ: Fetch failed for 1955997c-eb33-4827-b3e6-8eb35c70d6a2
+  ✗ 80nVenJLuzI: Fetch failed for 84633638-1cbe-4d35-8d8e-efe24e48df86
+  ✗ 2qN8Ic_xRHU: Fetch failed for 596aed5c-e175-4aee-a1b2-5e0120c03abe
+  ✗ kB27TF8HY4Y: Fetch failed for 6682afc4-36d4-403c-bf33-a69ebc47dfe5
+  ✗ Dm00QEqTMn0: Fetch failed for 778d3ab8-754e-441b-b9dd-3ddab2dedcfd
+  ✗ Zn-2_ORA6mE: Fetch failed for fc1fe2ba-93b0-4689-afed-6efc52fcce0a
+  ✗ Zn8XitqRa7w: Fetch failed for 8c627633-c9a7-47f7-8be9-479415333c36
+  ✗ FQb__PkY74U: Fetch failed for daded68f-51b0-48a5-a09c-ed68ed943327
+  ✗ Scs5gZb9CaA: Fetch failed for 53123b67-5105-4e07-9953-7c52763ee80f
+  ✗ 1z-_Hqfd4K0: Fetch failed for ee283f72-318b-4b3e-bf1f-63b142bf0a9d
+  ✗ nJomTE6PL_4: Fetch failed for 34e03c35-bda8-477c-9702-8a3e1edeb111
+  ✗ V4-7g8BOUxc: Fetch failed for b16164ec-5dec-4b5c-b810-a073411f4029
+  ✗ zGewFY1LrLs: Fetch failed for 87b0532a-6276-44a3-82de-2ac042aa3362
+  ✗ nWxvmLiUtXc: Fetch failed for f9fb43ef-b2d7-4b32-8a3c-68929101c0aa
+  ✗ 0h533qTyxmA: Fetch failed for 2ed2b23b-8c6e-4132-8859-041034350e46
+  ✗ glYak47F8B0: Fetch failed for 6bba40f4-b3e3-48c7-becf-1e96f3311960
+  ✗ ZZLa-DmZwPc: Fetch failed for c29fb29f-da42-414a-9471-cb5d33abf78e
+  ✗ jMzuazBKSA0: Fetch failed for e25d2707-805b-4f2c-805f-c66caf079dc6
+  ✗ Fv5O_dDo53Q: Fetch failed for f6d7ec60-cbec-46ac-8b7d-dba8001a6241
+  ✗ Xz0HVBUq63M: Fetch failed for c26d6bf1-163c-4258-9efe-d6f1ddaf7c53
+  ✗ Y_H7S8VfI1I: Fetch failed for 266b56ab-1f76-4f90-94ce-1c024581e098
+  ✗ imwVqazdjBk: Fetch failed for dcb7c18d-315c-4511-93ac-017ae436b684
+  ✗ r4Z-5O-Pb68: Fetch failed for 8e094fa3-67ad-4acd-a02c-7f07a7f00d71
+  ✗ 5B_RRObJGkA: Fetch failed for e229cd07-d59f-4c4c-9b58-4db04154b777
+  ✗ RsF0s082E2U: Fetch failed for 49a2c9fc-3386-490e-943e-cf3a380f34b4
+  ✗ olbfOv0od7Q: Fetch failed for 86c51a60-0c93-432d-a2bf-504dcb33d215
+  ✗ CY998meMzC0: Fetch failed for 89382698-1e17-4b56-add5-aeecebdabff6
+  ✗ zWjpGmR6Ya8: Fetch failed for dfc30574-2b40-4dc8-99fe-44de3bc457ca
+  ✗ gAwWzw1yAkM: Fetch failed for 77d1d4df-2fed-4a73-a117-be138961d677
+  ✗ A30b77Jiv1c: Fetch failed for aa6f8985-727b-40a1-a439-9113c665574a
+  ✗ VjVCiwRoIrE: Fetch failed for 2f7b0868-ebf9-4d69-8ea8-2df9e7a7c7f9
+  ✗ UQqdbYE2N0k: Fetch failed for a95e70ed-50d8-4dfb-9821-59dd239bc401
+  ✗ PUeQbsG212g: Fetch failed for 25addb40-e5de-4d21-b194-f1391787b1f0
+  ✗ FXe033OVjyc: Fetch failed for ae84b6bf-43bd-4e13-b3ab-44ffc1443182
+  ✗ st7AZNC0GV4: Fetch failed for fd61aab9-7e4d-41b2-a12b-b0001556a09e
+  ✗ 0pzEeqUvIws: Fetch failed for 88173d73-d29f-47b3-9374-ca785cf0109c
+  ✗ Guh1q4H03BU: Fetch failed for 9aa24f7f-b939-4ada-89c1-26ae33049d14
+  ✗ 6-3IVovWmV0: Fetch failed for 568321b7-839d-4e06-83d2-d02cecd0e508
+  ✗ SppIK8uEwNI: Fetch failed for 5cad4013-4c5e-499c-9c11-6d79bbceb792
+  ✗ sddxQXwV0qU: Fetch failed for 97712bf5-edce-475e-9ba7-5939cf700e34
+  ✗ tz1GsZ52eMc: Fetch failed for 0fbbfdcd-419f-4977-96fd-2b0e6baa8616
+  ✗ OIP485EIpIg: Fetch failed for c8190ed6-060a-4104-9089-5316c70b1e0d
+  ✗ yUV0kTS7FEc: Fetch failed for 590c43ed-4cf3-4ae4-809e-06807df27c89
+  ✗ HQksVGfqFdE: Fetch failed for 83c5b0a9-f1bd-4178-ae17-53ea37fcf959
+  ✗ xnkB_48vQNM: Fetch failed for 440255a4-f76f-426e-9386-7350b2ebd792
+  ✗ k1Rco1XT8Ns: Fetch failed for 557169c3-04e0-4352-b34a-c8556b6df4e0
+  ✗ BQfdTZgAWhE: Fetch failed for 05049b92-e41a-4051-bff6-f8296d0d225a
+  ✗ ECQVpHZaT7g: Fetch failed for 82d42b53-ec1d-4b49-b912-b89dfb63ce2b
+  ✗ lRjlNFQta2I: Fetch failed for 36a5559c-cc17-4b34-9256-d182ed7f42a7
+  ✗ O_9ygyoq7-M: Fetch failed for 2e7ba52d-a60e-4431-ab74-e845e18a2923
+  ✗ p2IcekRUQEQ: Fetch failed for 64571b56-4df5-42cf-bf7d-0d26a36f8cdb
+  ✓ 8sSMf_upgAY (notebooklm)
+  ✓ wVZYNEwi6-0 (notebooklm)
+[source] Processing batch 2 (200 videos) via NotebookLM CLI batch...
+[Throttle] Success restored after 8 failures — delay reset
+[NLM-Batch] Adding 200 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-200/200...
+[NLM-Batch]   Adding sub-batch 1 (200 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 200 sources in parallel...
+  ✓ _8IdgPyLZ-0 | 367 chars
+  ✓ VVY_qaYZzqM | 8392 chars
+  ✓ OFcauXyCp10 | 12630 chars
+  ✓ zLYUrUN2d9s | 13512 chars
+  ✓ Bt2SZJLFVeM | 15856 chars
+  ✓ EGYJPqZ0qBE | 9477 chars
+  ✓ awhbcQHPzbA | 491 chars
+  ✓ DU2FKsxe8Tc | 18024 chars
+  ✓ GP1UbQwZbLo | 13785 chars
+  ✓ fnClUVa9QRw | 10307 chars
+  ✓ SGQHOc9vi0w | 507 chars
+  ✓ YoeHDEDpGZA | 519 chars
+  ✓ 1G6a3O6gzls | 623 chars
+  ✓ 0YFkoocThdk | 420 chars
+  ✓ RMh5rIhdbkI | 615 chars
+  ✓ ferAmiH1uT4 | 902 chars
+  ✓ gpzF9WJ8j3o | 780 chars
+  ✓ RFlUEYKK6xw | 15427 chars
+  ✓ 9PsGzU5hj_8 | 9094 chars
+  ✓ otrcKTT7V4g | 12807 chars
+  ✓ MpeZhAq1ja8 | 612 chars
+  ✓ fzzmxmn279E | 348 chars
+  ✓ _e1tZ_KR7pg | 469 chars
+  ✓ Ty3aq2RPIis | 470 chars
+  ✓ bB67AynP1aU | 12225 chars
+  ✓ -TDcVWOhPFg | 574 chars
+  ✓ wxrHEkxXN7A | 453 chars
+  ✓ d9DKgQbeerI | 509 chars
+  ✓ rsBwwdNvbRs | 453 chars
+  ✓ cyF2afxftJI | 10731 chars
+  ✓ 4YD9PiNIXYo | 359 chars
+  ✓ sZptuwG_-_s | 576 chars
+  ✓ iO3yF3bG5EM | 590 chars
+  ✓ NI8gx2XxkSc | 332 chars
+  ✓ vlkdPoLW8a4 | 395 chars
+  ✓ ro-N_6AwuBE | 448 chars
+  ✓ CeJNXbJi6ik | 442 chars
+  ✓ 2oWPR3fFg00 | 545 chars
+  ✓ DeTzYIHo2pQ | 597 chars
+  ✓ N-pPwKCWeog | 511 chars
+  ✓ -ytXi001_zk | 554 chars
+  ✓ AEHpr1zgmmg | 672 chars
+  ✓ 0avU3kbAn8k | 841 chars
+  ✓ 38OMeNcA390 | 528 chars
+  ✓ h99K5tOZsWI | 13682 chars
+  ✓ iZA-hgDxzls | 734 chars
+  ✓ Q_Z6doaZ0g4 | 470 chars
+  ✓ W95NRV44lgs | 524 chars
+  ✓ S6uRt-WBD28 | 903 chars
+  ✓ 77nTtDvmF40 | 462 chars
+  ✗ XePxxBysOR8 | Fetch failed for 220c6dad-fb45-4470-b4e2-1bec0d055340
+  ✗ Ii-jeLjWx2s | Fetch failed for 2a7631f2-444b-4d5a-ac52-1db919ebed31
+  ✗ d3qulsViIac | Fetch failed for b79d3547-ec4f-4a9c-a310-c2c2f997799b
+  ✗ 1f2Bs6Q72TE | Fetch failed for 8f6174ae-84e8-46c4-bf55-bfab8d046eda
+  ✗ wZ2UyOEjQjM | Fetch failed for 6a6aefbe-1795-462e-8436-b1aaa324bc70
+  ✗ _AEQUyo6JkI | Fetch failed for 05d633e2-e35f-4a1a-89ed-8f7c1d28641f
+  ✗ V_FGFFyF2UE | Fetch failed for 37ea2ac7-e530-4d6f-afc8-e0f0bafaa853
+  ✗ 5wJ0iyKuWH0 | Fetch failed for 3cb484b1-ba98-472e-b865-9d0ee2c98c76
+  ✗ JJQ5_6mKR8c | Fetch failed for 5ef605bc-8b26-4c68-887e-e2d5d878584c
+  ✗ ZEev_Q-El9g | Fetch failed for a33426a8-d4db-4e0f-941c-7c7729508428
+  ✗ -PSKQuEvN48 | Fetch failed for b681e697-0a3c-4174-95ab-377f4fda0df4
+  ✗ ubc7yTJT-EU | Fetch failed for a32c605b-28a2-4fc5-93f8-5132d3e7e509
+  ✗ 5j3xTen0lL4 | Fetch failed for bd333441-50f3-44dd-b051-0e3d4acc0afb
+  ✗ Uok_jUjpqSk | Fetch failed for b0e10881-c41a-4c62-ab5d-0f281502a2dc
+  ✗ 0VPyA6OLd7o | Fetch failed for 2f8c57cb-f804-4bb7-b65d-70a10881d562
+  ✗ Obx-1Da-85U | Fetch failed for fff96164-f264-4fbd-8717-0460d312324d
+  ✗ LPJQJLSv_10 | Fetch failed for 583a57fe-971f-441a-9af8-1ce02ebc04eb
+  ✗ tlDLU8gKp8w | Fetch failed for 544912f0-376d-40cc-88b4-5064c4b46c49
+  ✗ Gz7Ma0AHsG8 | Fetch failed for 27ee02a7-bce2-402f-8411-87b29d6908c2
+  ✗ 3b1Ckqbw4vA | Fetch failed for e9b35d65-b861-4047-956b-f70ec97761a0
+  ✗ fVoC9-eA7lQ | Fetch failed for 3b485232-68fa-436e-bea1-08397e46d622
+  ✗ 7yodtPGyPb0 | Fetch failed for 25be1bdc-f6ff-477b-bf5b-f02f4bfd2030
+  ✗ TxSSFp3QIY4 | Fetch failed for 71f7f7cb-02d2-4ef6-b12b-ba3b6c906b2d
+  ✗ JWBzaEQlFzY | Fetch failed for e3e9a6ad-b6cb-4eb2-9589-d9de728ded49
+  ✗ hAJJaxYk9MA | Fetch failed for efd2aaf9-c698-4f3d-9d5e-a1efd7688e55
+  ✗ H6OZHbZ9jiw | Fetch failed for 75b40ddc-3171-4ae9-9c95-516a3efc565b
+  ✗ qsBiPPjkarY | Fetch failed for 0ed96c21-80ec-49c1-96fe-af0ade235a3d
+  ✗ 1MxZ1X1i1nc | Fetch failed for 8650eeeb-b4ad-4225-bac6-1c61ede7fff2
+  ✗ QD68LyE0IGU | Fetch failed for c1804463-ec31-4391-afd6-67955e0410b6
+  ✗ fKbb-iUPrbs | Fetch failed for 5fd8d990-2ed3-4d16-931f-4b51d1bbd36f
+  ✗ DEozVpreb28 | Fetch failed for 0d10cf20-df19-4b47-852a-b61e090d318b
+  ✗ wQODDtr_cLk | Fetch failed for 7376f574-eb17-453b-a2f8-3f5bbafbd9b5
+  ✗ -VhLJsqiiPQ | Fetch failed for 8255a22c-54e4-4419-816b-7ac33414e7ab
+  ✗ VOonKPBJgtQ | Fetch failed for 5f649498-9e2f-494a-97df-0672fd30e5b1
+  ✗ fc8QSSvoNco | Fetch failed for cf45eb68-31dc-44dc-9a63-1d21462ccf88
+  ✗ hDEr6ZWVlYo | Fetch failed for 9ee478f0-1198-44b6-ae9f-69dfeabc8e70
+  ✗ fQGTBt-lJck | Fetch failed for 211ce556-48cd-4a19-9ea0-ae1566eb08e6
+  ✗ 3EaJZO5mprQ | Fetch failed for 9407f057-5567-48a9-b980-f6ba44392689
+  ✗ Mfd058QymO0 | Fetch failed for 761425b9-1735-4e83-870a-2c46c0eccbf2
+  ✗ JFcFuJIy_gM | Fetch failed for d889de42-4c36-467c-b95f-741130a70f46
+  ✗ hgqd854D7Kg | Fetch failed for e258471e-bfc9-48a2-8dbc-fcd5f88a2124
+  ✗ YDJyNpIxcsQ | Fetch failed for bfbb1ff6-69f0-449c-b012-f077a728559a
+  ✗ bipSKbXNSeM | Fetch failed for 038836a2-71a2-4049-94e4-f36f978fcfbd
+  ✗ 4EMnrjelnq8 | Fetch failed for 15a86e55-4807-4253-8017-6a12028fdc32
+  ✗ 3gOuCmAdhAE | Fetch failed for 7e6d20ce-7379-401a-9eda-1d73ebc33ac3
+  ✗ z669IDs6NLE | Fetch failed for 396bad5e-9971-4e76-86bd-ccd6a5f05ad0
+  ✗ -7LoOm2gzlY | Fetch failed for d4f2d628-4599-41a6-ac6b-f2a619f85349
+  ✗ iuSl0dmKlTA | Fetch failed for 61e23045-376a-45de-9ec4-ec78b5ef2eec
+  ✗ F0eEnewaS28 | Fetch failed for 4819fa3e-3924-4623-b485-5bb5fe136cbe
+  ✗ fe8dt62zXpE | Fetch failed for 2be13042-e44c-48ad-bc85-9d39de1af8ad
+[Throttle] Success restored after 1 failures — delay reset
+  ✗ TJxoMO7XoZY | Fetch failed for 9edcbf81-d3fe-4bc9-b85b-18c679540591
+  ✗ -2eeyJW0FKA | Fetch failed for bedb0c4d-556c-4dd5-a80c-56f852d7692f
+  ✗ 5ysJE6azFAs | Fetch failed for 7e5a90eb-58dc-4d0f-8bfd-1ee982bf4fe6
+  ✗ YCv35mBiPcI | Fetch failed for 99a05d06-27fc-49e4-a427-2ca8a861fb8d
+  ✗ -XEM3tzk-2o | Fetch failed for d41aad09-24ab-4120-8c2e-11c1dccd12f8
+  ✗ UBBkLv9YUoU | Fetch failed for 89125ed1-8d1f-4c6b-921a-9eed45b753ac
+  ✗ qpCOrcr7PEU | Fetch failed for 8f5bd458-be9d-4d92-b4a8-7e9ab0dc14b4
+  ✗ YfH-ZBb0ocQ | Fetch failed for a76a3261-e652-4a02-8664-f7b8f46afb72
+  ✗ 7TBQxz69IDo | Fetch failed for e5386e73-e64e-43d6-98cf-2a095489b697
+  ✗ uTr62JxESyA | Fetch failed for af3043dc-d95c-45ee-95cf-282328966143
+  ✗ PXjHhdjxXsk | Fetch failed for 8b816455-d0ea-48ed-a208-4d5f6e09f9b2
+  ✗ yVLhScBc0u4 | Fetch failed for c7ae751b-ced7-40d0-8a11-f8d26b684911
+  ✗ vGC_NpznSkw | Fetch failed for 02198866-a7ab-4e84-ac5d-e88f995c78ed
+  ✗ FthjkupVb5Q | Fetch failed for e2c1366d-e356-41ce-b208-476de98ed5f7
+  ✗ 94hwTAy2UQI | Fetch failed for 46a59432-d999-48d9-9cb0-0f8ebc514444
+  ✗ MnqVtdBld0g | Fetch failed for 7900ad2e-f4f9-4b4e-ab66-c362d6ea7ef0
+  ✗ In88LPCtSeE | Fetch failed for 3fce4dcc-7f88-470b-9f49-b3ef26b119f5
+  ✗ FqpU0EKqNrQ | Fetch failed for 9bfb5f35-d566-4bca-a034-8e8854bc9f07
+  ✗ USO_hoQzhY0 | Fetch failed for ec43c87f-e4fd-46a6-9333-a0c2d7d60a46
+  ✗ H5jBGuzwD3M | Fetch failed for 1f02c6e1-9a7a-403f-8198-2bd267a20b1a
+  ✗ v3pzVLrWcjM | Fetch failed for c23f79c9-14a5-4e68-8ca6-1948332b1406
+  ✗ Osj7aWeMsNI | Fetch failed for a4cbb4af-17d8-420d-89d0-d69a4852b81c
+  ✗ 76vA6OZTvCs | Fetch failed for 356ce73c-ecb8-4cb2-b4ca-ff5c80dfabf4
+  ✗ 3H9ZBGklCjc | Fetch failed for 832e8356-f392-43c0-b381-62b909e86fe4
+  ✗ APhpoCUma3E | Fetch failed for 43a39ced-5c1a-41ee-a5e8-187cb3db150a
+  ✗ P6l8P5amx8E | Fetch failed for 4eb91683-5661-47d6-8159-e72b83d9f055
+  ✗ 8zzFGbRSjIM | Fetch failed for bb16dbcb-b799-47aa-bf37-a30660b30a59
+  ✗ 2vFjpmgFQhE | Fetch failed for 1b1a36c1-c104-4371-b27a-c3029026c898
+  ✗ M1qGulSP_IY | Fetch failed for fca4bdcd-54f2-451f-9b75-af738ec11a8d
+  ✗ 1uapun0aIRU | Fetch failed for 8ff524b6-3090-495a-8456-41bbe79bd6a8
+  ✗ L8xvbaFYa2I | Fetch failed for 8bdd47b0-d6b5-47cd-9673-83915429bf54
+  ✗ kKNo-noVEOA | Fetch failed for 934078f4-6e4a-4d11-9f67-2eaa35d3ac65
+  ✗ 2bqRyrMqVfY | Fetch failed for b7695081-32cf-4181-86c9-75d4a49f9dd0
+  ✗ VDfIRnQHZYw | Fetch failed for e1852b22-05ec-42b7-89dc-15ca9fb774fb
+  ✗ 2pKCWsKPRVE | Fetch failed for 19bea9fd-1da3-4607-9499-699828df9489
+  ✗ FzRNsOkgh8M | Fetch failed for 896ad968-344d-4d02-ad33-e41778a717b0
+  ✗ tKDIdbBoB6U | Fetch failed for e0bf5f43-c99c-4c62-9d97-fc8fbfa18008
+  ✗ F8nOCvY-FEA | Fetch failed for 7b070f7f-dd89-495d-85d8-3f3927b189da
+  ✗ 9S9QCNqbGuk | Fetch failed for a9886d6b-0013-45f2-8c92-e6632b012e90
+  ✗ RaR2FGoE6sA | Fetch failed for 4d355405-810c-4d81-889b-845b76e99187
+  ✗ jF-q8u7qsCU | Fetch failed for 29c5ad43-08c9-4115-87bf-f8bd3bca0828
+  ✗ KbMZi9V3xPU | Fetch failed for d5f0184a-5e98-42c8-81ca-7ad9c4eb6040
+  ✗ Kbm3dnsBW2A | Fetch failed for 8a007d16-66c4-45fa-b864-7bb7f6a9bb23
+  ✗ 2V0JFYWRixE | Fetch failed for efe06d7e-10c9-4ceb-9433-e842cfcd9b52
+  ✗ bdc3yPW0StA | Fetch failed for a97cfdfa-b9ed-4bd9-b6a4-61cc998ded56
+  ✗ AJyZ_pVeTgo | Fetch failed for a7eb0aaa-c5d8-4283-a6db-50fdd5deea64
+  ✗ IPpDmYLzdDo | Fetch failed for 147edf5d-6cba-4292-8165-87b1e190cfc4
+  ✗ g78z-2kzTD0 | Fetch failed for f36b4f45-f2b6-4020-b0f3-a0ec9e25f105
+  ✗ oNr2EJ-tTUU | Fetch failed for cc8e8d55-2076-4826-8643-b558c2420d43
+  ✗ bcditXWX2Wc | Fetch failed for 278e6454-b08b-42e2-b721-18570a94da60
+  ✗ ol7ElQI2xBg | Fetch failed for d12a7be2-790c-4fa8-a5ad-b76b3ecbd75b
+  ✗ p4ykfOWjP2E | Fetch failed for 0ad637ab-fdd2-41d8-98f9-347cd64bbb35
+  ✗ ZF3FFOs7lmA | Fetch failed for 01140034-0e52-4f02-a751-40d8a4d6121a
+  ✗ ow0whH1nDag | Fetch failed for 9b035761-a0e5-43d1-9018-472ddb402a15
+  ✗ DDkSKBC-MWM | Fetch failed for 539ae24d-d5c1-4f72-a9f5-fa6bfdc06448
+  ✗ 580emHhB06M | Fetch failed for c281b42c-6e59-45cb-b5fb-6ad0eda0222e
+  ✗ bvGssz94UK4 | Fetch failed for 756c9b13-c99b-4dc9-849f-7a0d0dab4044
+  ✗ FUVO00I5X0U | Fetch failed for 28eebe42-69f4-406f-b959-cf407ea6bd7e
+  ✗ ZEpwxxqNBiw | Fetch failed for 8c15a166-8cca-4bdb-89ef-f0f579778ee8
+  ✗ p8miijf5WKI | Fetch failed for af90e1de-e96b-4ad4-a0da-c7157d315692
+  ✗ v3aQkVIrYek | Fetch failed for 8979839b-4ca2-4dc2-b425-c6adfab1d456
+  ✗ QPNwZ96oV8U | Fetch failed for 4bcab47f-9035-4f43-a045-affde65c94d2
+  ✗ OFOJM3NyfNU | Fetch failed for 10bdb65f-96d1-4885-ab54-07821db91770
+  ✗ IlgR25UIPOo | Fetch failed for 084c7de6-7b60-4c9a-8307-ccddebae770e
+  ✗ x-zAURSKJv8 | Fetch failed for 28ef45db-c371-453c-955e-59a86ef5505e
+  ✗ DPPa3ZFwSuU | Fetch failed for 633ae5c9-d025-4fde-8f5e-b2df1a816b18
+  ✗ M5K3BLDIxlU | Fetch failed for b102cb7b-75b9-487c-b4b9-e8056b9afea6
+  ✗ UqzQyaDl4Tg | Fetch failed for 5642766a-1fb3-461c-9e7f-e35131989a6a
+  ✗ cdxujJ9ByWA | Fetch failed for 2bd53b6f-7035-4576-ae4e-56f5776f434c
+  ✗ FNE6TGSjNHg | Fetch failed for 5658cbc4-91b9-4668-aca4-879351c9356b
+  ✗ zFoS3_A2XaY | Fetch failed for af47d4bf-e4b3-4a10-9c4d-e3ff894aeab4
+  ✗ Myx7x9lEkTs | Fetch failed for 83e826d4-9341-4013-83ae-ad8b8834ba46
+  ✗ nnBFXArBhwc | Fetch failed for 45a3b456-c31e-482a-b379-2e198b92944b
+  ✗ kewBtmj5cYk | Fetch failed for 814d6828-5707-41d6-a75c-a4e92c83b4d4
+  ✗ BeNaxCJp2dQ | Fetch failed for 1e91b8d7-6467-4d13-88fd-3ebb5442fffc
+  ✗ 1OUr11GW13A | Fetch failed for d3159437-f8f3-4c1e-9ad8-9e674597239d
+  ✗ CLCHtO10eps | Fetch failed for d23dd22e-9a5e-45eb-9d6b-78b54f4070ee
+  ✗ oeO7wSg2H-c | Fetch failed for 5e6c0403-7450-40a2-a8d3-067bd7ddffd1
+  ✗ nwx2JD9SS58 | Fetch failed for 39cde904-75c2-44f8-9d48-c482a4315def
+  ✗ 3SylBi2aH6Y | Fetch failed for 32349e87-d83d-4913-9227-067aaca73449
+  ✗ Y59SkdEwjgU | Fetch failed for b6197762-2263-4ef0-b209-54834b2c75b5
+  ✗ jovYRimJKck | Fetch failed for 2a796bc2-30df-4a3d-b700-2d0e7675b04e
+  ✗ KBr6sknO67A | Fetch failed for 2f76c619-b297-4f4c-b0a7-195c02f05640
+  ✗ QLprMxh3LLA | Fetch failed for c39a03a4-dbf4-45b8-bfbe-cc017528c3d6
+  ✗ AQwCyGV9qfM | Fetch failed for 8e61c036-9c23-46e4-8b30-fe4be6a27ff1
+  ✗ z_kE_IgcD5I | Fetch failed for 6ba82e48-7436-4836-a9ac-b7f051b13f6f
+  ✗ 0mSj-Bn4Zsc | Fetch failed for 4638b510-5c04-4386-b6b8-09cb8b899dc8
+  ✗ ND4jjoX04RA | Fetch failed for 168e61de-e2a5-476a-bbf7-596d34d5ab74
+  ✗ Nk9MxD4EnMw | Fetch failed for 78c3987a-5b35-4a48-99eb-03ca0b6edfad
+  ✗ QWmNBeXD6jk | Fetch failed for a7df027d-be35-424c-8bd8-48c3fd09482b
+  ✗ diLpFuITvA0 | Fetch failed for ddc53ff8-1d50-4363-8d86-ee4ae0e71f5f
+  ✗ fSQya9m9iE0 | Fetch failed for cd1be35c-d134-4a6a-8542-418277814c14
+  ✗ sNTZ4sQn5g4 | Fetch failed for ff926eeb-013b-452d-8f5d-19b4ea41eb58
+  ✗ m7d6nELCfwQ | Fetch failed for d1576875-de7c-4148-8694-1ca5eae1adb0
+  ✗ Nsc8CWh2jys | Fetch failed for 9b8f0b36-cbe5-44bf-8959-f15dbd60b2d1
+  ✗ 0Xgb3i-sIJE | Fetch failed for e3f99acd-a5e6-46ee-82d5-105a6a629b5c
+  ✗ LDp3vbdmVLE | Fetch failed for 68304ff7-94f9-4cff-8e43-33feea855ba1
+  ✗ jW35PssNZ74 | Fetch failed for 606799ac-f864-4814-9ed9-563a327d9165
+  ✗ 2VnMAjG802M | Fetch failed for d38f2dc6-7476-4919-8e56-7778294bb3f3
+  ✗ WYwmp8VK1kc | Fetch failed for e5444042-6e67-4a8d-b4f6-8f5abf5f8553
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+  ✓ _8IdgPyLZ-0 (notebooklm)
+  ✓ VVY_qaYZzqM (notebooklm)
+  ✓ OFcauXyCp10 (notebooklm)
+  ✓ zLYUrUN2d9s (notebooklm)
+  ✓ Bt2SZJLFVeM (notebooklm)
+  ✓ EGYJPqZ0qBE (notebooklm)
+  ✓ awhbcQHPzbA (notebooklm)
+  ✓ DU2FKsxe8Tc (notebooklm)
+  ✓ GP1UbQwZbLo (notebooklm)
+  ✓ fnClUVa9QRw (notebooklm)
+  ✓ SGQHOc9vi0w (notebooklm)
+  ✓ YoeHDEDpGZA (notebooklm)
+  ✓ 1G6a3O6gzls (notebooklm)
+  ✓ 0YFkoocThdk (notebooklm)
+  ✓ RMh5rIhdbkI (notebooklm)
+  ✓ ferAmiH1uT4 (notebooklm)
+  ✓ gpzF9WJ8j3o (notebooklm)
+  ✓ RFlUEYKK6xw (notebooklm)
+  ✓ 9PsGzU5hj_8 (notebooklm)
+  ✓ otrcKTT7V4g (notebooklm)
+  ✓ MpeZhAq1ja8 (notebooklm)
+  ✓ fzzmxmn279E (notebooklm)
+  ✓ _e1tZ_KR7pg (notebooklm)
+  ✓ Ty3aq2RPIis (notebooklm)
+  ✓ bB67AynP1aU (notebooklm)
+  ✓ -TDcVWOhPFg (notebooklm)
+  ✓ wxrHEkxXN7A (notebooklm)
+  ✓ d9DKgQbeerI (notebooklm)
+  ✓ rsBwwdNvbRs (notebooklm)
+  ✓ cyF2afxftJI (notebooklm)
+  ✓ 4YD9PiNIXYo (notebooklm)
+  ✓ sZptuwG_-_s (notebooklm)
+  ✓ iO3yF3bG5EM (notebooklm)
+  ✓ NI8gx2XxkSc (notebooklm)
+  ✓ vlkdPoLW8a4 (notebooklm)
+  ✓ ro-N_6AwuBE (notebooklm)
+  ✓ CeJNXbJi6ik (notebooklm)
+  ✓ 2oWPR3fFg00 (notebooklm)
+  ✓ DeTzYIHo2pQ (notebooklm)
+  ✓ N-pPwKCWeog (notebooklm)
+  ✓ -ytXi001_zk (notebooklm)
+  ✓ AEHpr1zgmmg (notebooklm)
+  ✓ 0avU3kbAn8k (notebooklm)
+  ✓ 38OMeNcA390 (notebooklm)
+  ✓ h99K5tOZsWI (notebooklm)
+  ✓ iZA-hgDxzls (notebooklm)
+  ✓ Q_Z6doaZ0g4 (notebooklm)
+  ✓ W95NRV44lgs (notebooklm)
+  ✓ S6uRt-WBD28 (notebooklm)
+  ✓ 77nTtDvmF40 (notebooklm)
+  ✗ XePxxBysOR8: Fetch failed for 220c6dad-fb45-4470-b4e2-1bec0d055340
+  ✗ Ii-jeLjWx2s: Fetch failed for 2a7631f2-444b-4d5a-ac52-1db919ebed31
+  ✗ d3qulsViIac: Fetch failed for b79d3547-ec4f-4a9c-a310-c2c2f997799b
+  ✗ 1f2Bs6Q72TE: Fetch failed for 8f6174ae-84e8-46c4-bf55-bfab8d046eda
+  ✗ wZ2UyOEjQjM: Fetch failed for 6a6aefbe-1795-462e-8436-b1aaa324bc70
+  ✗ _AEQUyo6JkI: Fetch failed for 05d633e2-e35f-4a1a-89ed-8f7c1d28641f
+  ✗ V_FGFFyF2UE: Fetch failed for 37ea2ac7-e530-4d6f-afc8-e0f0bafaa853
+  ✗ 5wJ0iyKuWH0: Fetch failed for 3cb484b1-ba98-472e-b865-9d0ee2c98c76
+  ✗ JJQ5_6mKR8c: Fetch failed for 5ef605bc-8b26-4c68-887e-e2d5d878584c
+  ✗ ZEev_Q-El9g: Fetch failed for a33426a8-d4db-4e0f-941c-7c7729508428
+  ✗ -PSKQuEvN48: Fetch failed for b681e697-0a3c-4174-95ab-377f4fda0df4
+  ✗ ubc7yTJT-EU: Fetch failed for a32c605b-28a2-4fc5-93f8-5132d3e7e509
+  ✗ 5j3xTen0lL4: Fetch failed for bd333441-50f3-44dd-b051-0e3d4acc0afb
+  ✗ Uok_jUjpqSk: Fetch failed for b0e10881-c41a-4c62-ab5d-0f281502a2dc
+  ✗ 0VPyA6OLd7o: Fetch failed for 2f8c57cb-f804-4bb7-b65d-70a10881d562
+  ✗ Obx-1Da-85U: Fetch failed for fff96164-f264-4fbd-8717-0460d312324d
+  ✗ LPJQJLSv_10: Fetch failed for 583a57fe-971f-441a-9af8-1ce02ebc04eb
+  ✗ tlDLU8gKp8w: Fetch failed for 544912f0-376d-40cc-88b4-5064c4b46c49
+  ✗ Gz7Ma0AHsG8: Fetch failed for 27ee02a7-bce2-402f-8411-87b29d6908c2
+  ✗ 3b1Ckqbw4vA: Fetch failed for e9b35d65-b861-4047-956b-f70ec97761a0
+  ✗ fVoC9-eA7lQ: Fetch failed for 3b485232-68fa-436e-bea1-08397e46d622
+  ✗ 7yodtPGyPb0: Fetch failed for 25be1bdc-f6ff-477b-bf5b-f02f4bfd2030
+  ✗ TxSSFp3QIY4: Fetch failed for 71f7f7cb-02d2-4ef6-b12b-ba3b6c906b2d
+  ✗ JWBzaEQlFzY: Fetch failed for e3e9a6ad-b6cb-4eb2-9589-d9de728ded49
+  ✗ hAJJaxYk9MA: Fetch failed for efd2aaf9-c698-4f3d-9d5e-a1efd7688e55
+  ✗ H6OZHbZ9jiw: Fetch failed for 75b40ddc-3171-4ae9-9c95-516a3efc565b
+  ✗ qsBiPPjkarY: Fetch failed for 0ed96c21-80ec-49c1-96fe-af0ade235a3d
+  ✗ 1MxZ1X1i1nc: Fetch failed for 8650eeeb-b4ad-4225-bac6-1c61ede7fff2
+  ✗ QD68LyE0IGU: Fetch failed for c1804463-ec31-4391-afd6-67955e0410b6
+  ✗ fKbb-iUPrbs: Fetch failed for 5fd8d990-2ed3-4d16-931f-4b51d1bbd36f
+  ✗ DEozVpreb28: Fetch failed for 0d10cf20-df19-4b47-852a-b61e090d318b
+  ✗ wQODDtr_cLk: Fetch failed for 7376f574-eb17-453b-a2f8-3f5bbafbd9b5
+  ✗ -VhLJsqiiPQ: Fetch failed for 8255a22c-54e4-4419-816b-7ac33414e7ab
+  ✗ VOonKPBJgtQ: Fetch failed for 5f649498-9e2f-494a-97df-0672fd30e5b1
+  ✗ fc8QSSvoNco: Fetch failed for cf45eb68-31dc-44dc-9a63-1d21462ccf88
+  ✗ hDEr6ZWVlYo: Fetch failed for 9ee478f0-1198-44b6-ae9f-69dfeabc8e70
+  ✗ fQGTBt-lJck: Fetch failed for 211ce556-48cd-4a19-9ea0-ae1566eb08e6
+  ✗ 3EaJZO5mprQ: Fetch failed for 9407f057-5567-48a9-b980-f6ba44392689
+  ✗ Mfd058QymO0: Fetch failed for 761425b9-1735-4e83-870a-2c46c0eccbf2
+  ✗ JFcFuJIy_gM: Fetch failed for d889de42-4c36-467c-b95f-741130a70f46
+  ✗ hgqd854D7Kg: Fetch failed for e258471e-bfc9-48a2-8dbc-fcd5f88a2124
+  ✗ YDJyNpIxcsQ: Fetch failed for bfbb1ff6-69f0-449c-b012-f077a728559a
+  ✗ bipSKbXNSeM: Fetch failed for 038836a2-71a2-4049-94e4-f36f978fcfbd
+  ✗ 4EMnrjelnq8: Fetch failed for 15a86e55-4807-4253-8017-6a12028fdc32
+  ✗ 3gOuCmAdhAE: Fetch failed for 7e6d20ce-7379-401a-9eda-1d73ebc33ac3
+  ✗ z669IDs6NLE: Fetch failed for 396bad5e-9971-4e76-86bd-ccd6a5f05ad0
+  ✗ -7LoOm2gzlY: Fetch failed for d4f2d628-4599-41a6-ac6b-f2a619f85349
+  ✗ iuSl0dmKlTA: Fetch failed for 61e23045-376a-45de-9ec4-ec78b5ef2eec
+  ✗ F0eEnewaS28: Fetch failed for 4819fa3e-3924-4623-b485-5bb5fe136cbe
+  ✗ fe8dt62zXpE: Fetch failed for 2be13042-e44c-48ad-bc85-9d39de1af8ad
+  ✗ TJxoMO7XoZY: Fetch failed for 9edcbf81-d3fe-4bc9-b85b-18c679540591
+  ✗ -2eeyJW0FKA: Fetch failed for bedb0c4d-556c-4dd5-a80c-56f852d7692f
+  ✗ 5ysJE6azFAs: Fetch failed for 7e5a90eb-58dc-4d0f-8bfd-1ee982bf4fe6
+  ✗ YCv35mBiPcI: Fetch failed for 99a05d06-27fc-49e4-a427-2ca8a861fb8d
+  ✗ -XEM3tzk-2o: Fetch failed for d41aad09-24ab-4120-8c2e-11c1dccd12f8
+  ✗ UBBkLv9YUoU: Fetch failed for 89125ed1-8d1f-4c6b-921a-9eed45b753ac
+  ✗ qpCOrcr7PEU: Fetch failed for 8f5bd458-be9d-4d92-b4a8-7e9ab0dc14b4
+  ✗ YfH-ZBb0ocQ: Fetch failed for a76a3261-e652-4a02-8664-f7b8f46afb72
+  ✗ 7TBQxz69IDo: Fetch failed for e5386e73-e64e-43d6-98cf-2a095489b697
+  ✗ uTr62JxESyA: Fetch failed for af3043dc-d95c-45ee-95cf-282328966143
+  ✗ PXjHhdjxXsk: Fetch failed for 8b816455-d0ea-48ed-a208-4d5f6e09f9b2
+  ✗ yVLhScBc0u4: Fetch failed for c7ae751b-ced7-40d0-8a11-f8d26b684911
+  ✗ vGC_NpznSkw: Fetch failed for 02198866-a7ab-4e84-ac5d-e88f995c78ed
+  ✗ FthjkupVb5Q: Fetch failed for e2c1366d-e356-41ce-b208-476de98ed5f7
+  ✗ 94hwTAy2UQI: Fetch failed for 46a59432-d999-48d9-9cb0-0f8ebc514444
+  ✗ MnqVtdBld0g: Fetch failed for 7900ad2e-f4f9-4b4e-ab66-c362d6ea7ef0
+  ✗ In88LPCtSeE: Fetch failed for 3fce4dcc-7f88-470b-9f49-b3ef26b119f5
+  ✗ FqpU0EKqNrQ: Fetch failed for 9bfb5f35-d566-4bca-a034-8e8854bc9f07
+  ✗ USO_hoQzhY0: Fetch failed for ec43c87f-e4fd-46a6-9333-a0c2d7d60a46
+  ✗ H5jBGuzwD3M: Fetch failed for 1f02c6e1-9a7a-403f-8198-2bd267a20b1a
+  ✗ v3pzVLrWcjM: Fetch failed for c23f79c9-14a5-4e68-8ca6-1948332b1406
+  ✗ Osj7aWeMsNI: Fetch failed for a4cbb4af-17d8-420d-89d0-d69a4852b81c
+  ✗ 76vA6OZTvCs: Fetch failed for 356ce73c-ecb8-4cb2-b4ca-ff5c80dfabf4
+  ✗ 3H9ZBGklCjc: Fetch failed for 832e8356-f392-43c0-b381-62b909e86fe4
+  ✗ APhpoCUma3E: Fetch failed for 43a39ced-5c1a-41ee-a5e8-187cb3db150a
+  ✗ P6l8P5amx8E: Fetch failed for 4eb91683-5661-47d6-8159-e72b83d9f055
+  ✗ 8zzFGbRSjIM: Fetch failed for bb16dbcb-b799-47aa-bf37-a30660b30a59
+  ✗ 2vFjpmgFQhE: Fetch failed for 1b1a36c1-c104-4371-b27a-c3029026c898
+  ✗ M1qGulSP_IY: Fetch failed for fca4bdcd-54f2-451f-9b75-af738ec11a8d
+  ✗ 1uapun0aIRU: Fetch failed for 8ff524b6-3090-495a-8456-41bbe79bd6a8
+  ✗ L8xvbaFYa2I: Fetch failed for 8bdd47b0-d6b5-47cd-9673-83915429bf54
+  ✗ kKNo-noVEOA: Fetch failed for 934078f4-6e4a-4d11-9f67-2eaa35d3ac65
+  ✗ 2bqRyrMqVfY: Fetch failed for b7695081-32cf-4181-86c9-75d4a49f9dd0
+  ✗ VDfIRnQHZYw: Fetch failed for e1852b22-05ec-42b7-89dc-15ca9fb774fb
+  ✗ 2pKCWsKPRVE: Fetch failed for 19bea9fd-1da3-4607-9499-699828df9489
+  ✗ FzRNsOkgh8M: Fetch failed for 896ad968-344d-4d02-ad33-e41778a717b0
+  ✗ tKDIdbBoB6U: Fetch failed for e0bf5f43-c99c-4c62-9d97-fc8fbfa18008
+  ✗ F8nOCvY-FEA: Fetch failed for 7b070f7f-dd89-495d-85d8-3f3927b189da
+  ✗ 9S9QCNqbGuk: Fetch failed for a9886d6b-0013-45f2-8c92-e6632b012e90
+  ✗ RaR2FGoE6sA: Fetch failed for 4d355405-810c-4d81-889b-845b76e99187
+  ✗ jF-q8u7qsCU: Fetch failed for 29c5ad43-08c9-4115-87bf-f8bd3bca0828
+  ✗ KbMZi9V3xPU: Fetch failed for d5f0184a-5e98-42c8-81ca-7ad9c4eb6040
+  ✗ Kbm3dnsBW2A: Fetch failed for 8a007d16-66c4-45fa-b864-7bb7f6a9bb23
+  ✗ 2V0JFYWRixE: Fetch failed for efe06d7e-10c9-4ceb-9433-e842cfcd9b52
+  ✗ bdc3yPW0StA: Fetch failed for a97cfdfa-b9ed-4bd9-b6a4-61cc998ded56
+  ✗ AJyZ_pVeTgo: Fetch failed for a7eb0aaa-c5d8-4283-a6db-50fdd5deea64
+  ✗ IPpDmYLzdDo: Fetch failed for 147edf5d-6cba-4292-8165-87b1e190cfc4
+  ✗ g78z-2kzTD0: Fetch failed for f36b4f45-f2b6-4020-b0f3-a0ec9e25f105
+  ✗ oNr2EJ-tTUU: Fetch failed for cc8e8d55-2076-4826-8643-b558c2420d43
+  ✗ bcditXWX2Wc: Fetch failed for 278e6454-b08b-42e2-b721-18570a94da60
+  ✗ ol7ElQI2xBg: Fetch failed for d12a7be2-790c-4fa8-a5ad-b76b3ecbd75b
+  ✗ p4ykfOWjP2E: Fetch failed for 0ad637ab-fdd2-41d8-98f9-347cd64bbb35
+  ✗ ZF3FFOs7lmA: Fetch failed for 01140034-0e52-4f02-a751-40d8a4d6121a
+  ✗ ow0whH1nDag: Fetch failed for 9b035761-a0e5-43d1-9018-472ddb402a15
+  ✗ DDkSKBC-MWM: Fetch failed for 539ae24d-d5c1-4f72-a9f5-fa6bfdc06448
+  ✗ 580emHhB06M: Fetch failed for c281b42c-6e59-45cb-b5fb-6ad0eda0222e
+  ✗ bvGssz94UK4: Fetch failed for 756c9b13-c99b-4dc9-849f-7a0d0dab4044
+  ✗ FUVO00I5X0U: Fetch failed for 28eebe42-69f4-406f-b959-cf407ea6bd7e
+  ✗ ZEpwxxqNBiw: Fetch failed for 8c15a166-8cca-4bdb-89ef-f0f579778ee8
+  ✗ p8miijf5WKI: Fetch failed for af90e1de-e96b-4ad4-a0da-c7157d315692
+  ✗ v3aQkVIrYek: Fetch failed for 8979839b-4ca2-4dc2-b425-c6adfab1d456
+  ✗ QPNwZ96oV8U: Fetch failed for 4bcab47f-9035-4f43-a045-affde65c94d2
+  ✗ OFOJM3NyfNU: Fetch failed for 10bdb65f-96d1-4885-ab54-07821db91770
+  ✗ IlgR25UIPOo: Fetch failed for 084c7de6-7b60-4c9a-8307-ccddebae770e
+  ✗ x-zAURSKJv8: Fetch failed for 28ef45db-c371-453c-955e-59a86ef5505e
+  ✗ DPPa3ZFwSuU: Fetch failed for 633ae5c9-d025-4fde-8f5e-b2df1a816b18
+  ✗ M5K3BLDIxlU: Fetch failed for b102cb7b-75b9-487c-b4b9-e8056b9afea6
+  ✗ UqzQyaDl4Tg: Fetch failed for 5642766a-1fb3-461c-9e7f-e35131989a6a
+  ✗ cdxujJ9ByWA: Fetch failed for 2bd53b6f-7035-4576-ae4e-56f5776f434c
+  ✗ FNE6TGSjNHg: Fetch failed for 5658cbc4-91b9-4668-aca4-879351c9356b
+  ✗ zFoS3_A2XaY: Fetch failed for af47d4bf-e4b3-4a10-9c4d-e3ff894aeab4
+  ✗ Myx7x9lEkTs: Fetch failed for 83e826d4-9341-4013-83ae-ad8b8834ba46
+  ✗ nnBFXArBhwc: Fetch failed for 45a3b456-c31e-482a-b379-2e198b92944b
+  ✗ kewBtmj5cYk: Fetch failed for 814d6828-5707-41d6-a75c-a4e92c83b4d4
+  ✗ BeNaxCJp2dQ: Fetch failed for 1e91b8d7-6467-4d13-88fd-3ebb5442fffc
+  ✗ 1OUr11GW13A: Fetch failed for d3159437-f8f3-4c1e-9ad8-9e674597239d
+  ✗ CLCHtO10eps: Fetch failed for d23dd22e-9a5e-45eb-9d6b-78b54f4070ee
+  ✗ oeO7wSg2H-c: Fetch failed for 5e6c0403-7450-40a2-a8d3-067bd7ddffd1
+  ✗ nwx2JD9SS58: Fetch failed for 39cde904-75c2-44f8-9d48-c482a4315def
+  ✗ 3SylBi2aH6Y: Fetch failed for 32349e87-d83d-4913-9227-067aaca73449
+  ✗ Y59SkdEwjgU: Fetch failed for b6197762-2263-4ef0-b209-54834b2c75b5
+  ✗ jovYRimJKck: Fetch failed for 2a796bc2-30df-4a3d-b700-2d0e7675b04e
+  ✗ KBr6sknO67A: Fetch failed for 2f76c619-b297-4f4c-b0a7-195c02f05640
+  ✗ QLprMxh3LLA: Fetch failed for c39a03a4-dbf4-45b8-bfbe-cc017528c3d6
+  ✗ AQwCyGV9qfM: Fetch failed for 8e61c036-9c23-46e4-8b30-fe4be6a27ff1
+  ✗ z_kE_IgcD5I: Fetch failed for 6ba82e48-7436-4836-a9ac-b7f051b13f6f
+  ✗ 0mSj-Bn4Zsc: Fetch failed for 4638b510-5c04-4386-b6b8-09cb8b899dc8
+  ✗ ND4jjoX04RA: Fetch failed for 168e61de-e2a5-476a-bbf7-596d34d5ab74
+  ✗ Nk9MxD4EnMw: Fetch failed for 78c3987a-5b35-4a48-99eb-03ca0b6edfad
+  ✗ QWmNBeXD6jk: Fetch failed for a7df027d-be35-424c-8bd8-48c3fd09482b
+  ✗ diLpFuITvA0: Fetch failed for ddc53ff8-1d50-4363-8d86-ee4ae0e71f5f
+  ✗ fSQya9m9iE0: Fetch failed for cd1be35c-d134-4a6a-8542-418277814c14
+  ✗ sNTZ4sQn5g4: Fetch failed for ff926eeb-013b-452d-8f5d-19b4ea41eb58
+  ✗ m7d6nELCfwQ: Fetch failed for d1576875-de7c-4148-8694-1ca5eae1adb0
+  ✗ Nsc8CWh2jys: Fetch failed for 9b8f0b36-cbe5-44bf-8959-f15dbd60b2d1
+  ✗ 0Xgb3i-sIJE: Fetch failed for e3f99acd-a5e6-46ee-82d5-105a6a629b5c
+  ✗ LDp3vbdmVLE: Fetch failed for 68304ff7-94f9-4cff-8e43-33feea855ba1
+  ✗ jW35PssNZ74: Fetch failed for 606799ac-f864-4814-9ed9-563a327d9165
+  ✗ 2VnMAjG802M: Fetch failed for d38f2dc6-7476-4919-8e56-7778294bb3f3
+  ✗ WYwmp8VK1kc: Fetch failed for e5444042-6e67-4a8d-b4f6-8f5abf5f8553
+[source] Processing batch 3 (200 videos) via NotebookLM CLI batch...
+[Throttle] Success restored after 8 failures — delay reset
+[NLM-Batch] Adding 200 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-200/200...
+[NLM-Batch]   Adding sub-batch 1 (200 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 200 sources in parallel...
+  ✓ uIFOjXz8zDA | 1121 chars
+  ✓ GUC0hF00l0o | 564 chars
+  ✓ wHk4p7hoYw8 | 485 chars
+  ✓ zgrqtZRQf84 | 8319 chars
+  ✓ c2vPvq8tJwo | 923 chars
+  ✓ rzuB5vIbDg4 | 13491 chars
+  ✓ K-Crx25KR7Q | 50955 chars
+  ✓ iusFi98Z074 | 7684 chars
+  ✓ OeKXRvPB0jo | 613 chars
+  ✓ OvaAAxdtbxg | 648 chars
+  ✓ JXs2GJAj45w | 848 chars
+  ✓ N5jYzSzQUlk | 443 chars
+  ✓ Doxf4JR57zk | 597 chars
+  ✓ yr-77W00vms | 1024 chars
+  ✓ Pqx1IFPhRm4 | 981 chars
+  ✓ zqtxqLFOCMc | 947 chars
+  ✓ TpgpyQX_f_g | 658 chars
+  ✓ ex9D563dzHQ | 474 chars
+  ✓ Cu9BVw8KJmo | 39971 chars
+  ✓ ebggrzbqR6w | 927 chars
+  ✓ mf9q1BQiRSw | 799 chars
+  ✓ ryfVGec3Ng0 | 4198 chars
+  ✓ uq7gBymkoNk | 716 chars
+  ✓ MHZguha2F9k | 557 chars
+  ✓ T3SrmfT6h18 | 22117 chars
+  ✓ C_jU9WFSkes | 579 chars
+  ✓ JEHUjXOabn4 | 15627 chars
+  ✓ Z-krwLAEr4I | 483 chars
+  ✓ Istd7dG50jU | 7214 chars
+  ✓ f6OEEfBikW8 | 983 chars
+  ✓ 7JolfzAGkQ8 | 851 chars
+  ✓ -aJRUzVjHTM | 843 chars
+  ✓ 5_pUmiFSFik | 444 chars
+  ✓ mN2K-lEHAcY | 579 chars
+  ✓ IQGEsz_NGh0 | 549 chars
+  ✓ LHh15B6YQbg | 869 chars
+  ✓ Rn5efuMkRtI | 422 chars
+  ✓ 9Co4QyeJzEc | 763 chars
+  ✓ HJA77YIqYlY | 544 chars
+  ✓ MGJDH6Kglqc | 1010 chars
+  ✓ Y_-ivq71kMg | 6951 chars
+  ✓ -NChemotnrA | 1050 chars
+  ✓ rZo2huTt9OI | 589 chars
+  ✓ pZygPPdF0e8 | 591 chars
+  ✓ 8gAeDx9iA3c | 5560 chars
+  ✓ vy_5lavV0bg | 390 chars
+  ✓ DPH7kqEAUcU | 488 chars
+  ✓ eBlSQuc8Z1g | 1028 chars
+  ✗ v0j2nV5Y6Lo | Fetch failed for 3e956a7b-8471-4768-abc3-ba7d70c7c5e4
+  ✓ daECaBPm0p4 | 380 chars
+  ✓ dFnP6urJ0Sg | 608 chars
+  ✗ z1qZGYYrim8 | Fetch failed for 9fe6dbc5-31a8-4d44-bd77-acc4a37fddbb
+  ✗ CDOqV89_mUw | Fetch failed for 68ca71aa-369c-463d-95cb-68d43d1df4a5
+  ✗ dFP1ywyPspo | Fetch failed for acd87151-953a-491e-b9d0-805379c8c941
+  ✗ jD3kQp0DlLk | Fetch failed for cb9d32e8-8870-464e-8c51-5ee8e4717c6f
+  ✗ AhQXGEA2bsg | Fetch failed for 339d3569-f8a7-48ef-89d3-0a5070f57ad0
+  ✗ WV7BWIC1NnM | Fetch failed for fad37a09-de8d-4cdf-845a-c919fbf848bc
+  ✗ ORxtEvebZ04 | Fetch failed for 913b521b-f247-4dd5-ae2e-801c985e3935
+  ✗ 7zR5yNvnelo | Fetch failed for 4b617784-b22e-4156-b51d-c16b155f061c
+  ✗ JDGGvyvaz_o | Fetch failed for 19452c4a-839e-451f-8d50-7d15dadc48df
+  ✗ 79hrArnapP4 | Fetch failed for bf9d58f5-96e0-4fe4-8383-7b883195ff22
+  ✗ UwPMvya_QPA | Fetch failed for af294046-090c-4fed-839f-eac19817ef50
+  ✗ JOuDVfpxZbA | Fetch failed for 3159dfcd-f786-4a68-886f-8d79cf746244
+  ✗ iUDwsjjwFLU | Fetch failed for 51a2b5e5-1695-478f-ba63-141158856988
+  ✗ qp0scaXIG9U | Fetch failed for 78d05616-43a7-4c64-b403-4b69eda3af8d
+  ✗ lLtuDKpMS8M | Fetch failed for a931cd7e-32d4-446d-9a4f-8bcfd8411c41
+  ✗ -ogj_6X_Lno | Fetch failed for f99e3d8f-6ff3-4039-b70a-23cf1731e856
+  ✗ hH5jo2umLwY | Fetch failed for 54b178ad-2332-4415-8186-cd2cd124fd01
+  ✗ syJ7LuXIs38 | Fetch failed for cbf7c35f-5f8a-45e9-967a-33578cf5ea3f
+  ✗ 7oSFPkTmkzc | Fetch failed for 46a0443b-bab9-4366-98f1-b86dc2d235d2
+  ✗ 5G1GG1Ld-P8 | Fetch failed for dd724ac7-59b3-4e61-a64e-524bc88872f8
+  ✗ Bp960s3DJE4 | Fetch failed for 3e9dd84e-d4d8-4b43-ac59-88b085c0e551
+  ✗ BJxTHVMwVwk | Fetch failed for 395d148f-5a40-4664-a612-08389ab38820
+  ✗ R3Qn9CxdCUA | Fetch failed for 28b05473-07c8-4e1a-ac65-9099a07d0cb3
+  ✗ 4Nh0NaGOeNA | Fetch failed for d9e1b4d4-acfc-4e2d-99a9-96b678c2fcb0
+  ✗ DYOJExc-42c | Fetch failed for 4f2106cf-0316-4fbc-bfe1-1c5308f84a98
+  ✗ TQttr5t5FDA | Fetch failed for fd9697bf-8938-4761-9713-d35bbdf5db05
+  ✗ 2IwJIPpzc9g | Fetch failed for 594b173b-c11d-4bea-9535-e1a3b39a57ea
+  ✗ q4E06YF3XhI | Fetch failed for 243c5fb2-f1cf-457c-8dae-668c88da1c39
+  ✗ 78tr5jAL2QQ | Fetch failed for 73d6f5ec-0937-4dad-9dc7-9149c9ee99b0
+  ✗ SY8KjMV498k | Fetch failed for c1e423a3-e659-4887-95e8-23c01b956753
+  ✗ wn3-9eDZLrc | Fetch failed for 59bb64ce-9890-4141-8bd6-08a420eb2c6f
+  ✗ Bz0jtIk75G4 | Fetch failed for f2dbd421-7658-4351-b2b7-b66327127df6
+  ✗ k8f4BjQIX6s | Fetch failed for c7d1c77a-df3e-4b6c-9986-364f9aba47b9
+  ✗ rX4_UEBL12o | Fetch failed for d2fc68d1-fb11-419b-9c27-4ba9ceb97cf5
+  ✗ _SYyosQ6jBQ | Fetch failed for cd5f98f3-0616-4d95-ab63-ce47697f6f8e
+  ✗ UuqavY-Vc6g | Fetch failed for 27b6f99e-dc00-49fa-91d4-b409efab561e
+  ✗ 0pNMqakwz7w | Fetch failed for d4c73d46-32fc-47f1-950c-26b79494299f
+  ✗ V-jGF7-f2P0 | Fetch failed for 79ab87f8-2b08-4366-9461-c72b476c99e5
+  ✗ ASwoXgqr59E | Fetch failed for 76b9c225-5bad-4a2d-ba3b-f540ffa7079f
+  ✗ _Mt0oRrSm3U | Fetch failed for f3b53f1a-fc2e-4753-bf6f-cc7e2030ad90
+  ✗ W3ShmTWiVfo | Fetch failed for 0bc089cb-1043-461f-95f5-35ff23d94546
+  ✗ Dm72estvrnA | Fetch failed for 0fefdbe0-7231-4869-92af-843a44484a34
+  ✗ L-Ztvsb3M0E | Fetch failed for e7613fd6-a014-468b-a7e8-95a442faa083
+  ✗ SjAGI_eZAJs | Fetch failed for 3e7ca216-68b9-4bb3-aceb-aaf7f3ebf04f
+  ✗ 5vqSqaZqZZ0 | Fetch failed for 39eca933-4a0c-484e-808c-6fd0dd44a75f
+  ✗ Ro84NysZutY | Fetch failed for 9919e725-5004-4256-b828-e549e8abb8c1
+  ✗ ukDdmbma6A4 | Fetch failed for 9c45385e-e5fb-4455-ade1-ba00d6fbe4a5
+  ✗ 0DbHoNW0Ed4 | Fetch failed for 8a8f4ac9-9493-42c2-af21-a121b5e45700
+  ✗ XMy_daWmxMw | Fetch failed for 8df02264-3bf0-46b8-9fbb-975a327032c5
+  ✗ c0ECcQSaQe8 | Fetch failed for 7e3ea595-f24a-4c52-9107-665cb456335a
+  ✗ XF4uFcPRp64 | Fetch failed for 51e092d5-06f0-4006-9c0b-d1926a4cbae0
+  ✗ LnWv2PWqCEU | Fetch failed for b8f2d04a-a0ce-4381-9a83-a6963a0a9f98
+  ✗ L_IzKqr_bp0 | Fetch failed for 65a0e2c4-6706-4c29-a08e-19f8e70561b1
+  ✗ k0ttZEkW_Ik | Fetch failed for 8293241a-e765-43e8-bf73-299ee75a9f3e
+  ✗ rpEH1PLiaR4 | Fetch failed for f62f87be-3983-4613-bbf1-b74929f21d2a
+  ✗ 9LpW7GHFm1Y | Fetch failed for 2baa2f9f-2c85-4859-b3f2-f2fc891e8dad
+  ✗ reMpGzJCuUQ | Fetch failed for 6380094f-40e2-48cd-8d28-2e65f40a9b6b
+  ✗ QQctIWNGdUs | Fetch failed for 291b8191-a906-4575-a252-321c9e744b6b
+  ✗ Xq0uMbH4W7I | Fetch failed for 8ae00824-de95-4ab9-be51-0662852effa7
+  ✗ 0eN-XFNXRWI | Fetch failed for 527a67d8-6835-4fe1-bb3c-15a703dee510
+  ✗ CcJ6LEAr9ks | Fetch failed for c9ef9906-bef9-4ad3-ba47-4db1ffa8b7a3
+  ✗ zAbwuXsS1vw | Fetch failed for 9a52c8cb-f386-4fa9-968f-3284ae1a4f0e
+  ✗ JDxbGs254dA | Fetch failed for bfade96d-35ca-4776-88e6-7e78eff44d85
+  ✗ 79lTmuQWn5o | Fetch failed for 8ca3a4bc-ea5e-4c44-9598-28885e6a3c3a
+  ✗ fJacKV2790g | Fetch failed for a73e30c3-fcc4-4c93-8ec2-7cd2e77fd32f
+  ✗ uaNmrRUHmxE | Fetch failed for 334b2bbc-23f3-49b8-ba87-fa8415084459
+  ✗ VH_0RA6-wWU | Fetch failed for 397f7cea-0894-4c6d-b5b9-b599d99e5d5d
+  ✗ OemrMT2-OEY | Fetch failed for 20384a23-46af-450d-b76f-861aef60ef60
+  ✗ NMgWuxfEdh0 | Fetch failed for 4a14476e-c246-4841-93d6-b9374a3fde89
+  ✗ Lt-ThOkcR6o | Fetch failed for bc84c7de-d762-4c5e-95ed-365f1a5e03d5
+  ✗ p9ICKEs5GEs | Fetch failed for 01d4d8e1-f509-4dba-88f2-1df9bf71dbd6
+  ✗ qKFJUHAd3eI | Fetch failed for fc56d7b6-4314-4db9-af3c-6ee40267a2c7
+  ✗ 4c_qvdFsLcg | Fetch failed for 62340326-1d4a-466f-b915-e208bc4cd77a
+  ✗ UESEIqLUuwA | Fetch failed for a2360a8d-5021-4dde-be3d-89707483d176
+  ✗ BmSdCMF4-O0 | Fetch failed for fc64c5d4-bddb-4b6a-a0fc-4af8d2b010d7
+  ✗ HgrwP-pHzLU | Fetch failed for 55057903-d581-4fef-b970-7bd817395560
+  ✗ cf3Lw8xsZ50 | Fetch failed for 660ed48f-78cd-47d5-ba32-918c7b68f9d9
+  ✗ Ap0HdqiyrJQ | Fetch failed for c5c19f4e-362a-4642-ad17-19ade8682958
+  ✗ miDA3lB3v_0 | Fetch failed for b51cf44b-b101-4894-92eb-7c93c187deff
+  ✗ Ic378II9Xuo | Fetch failed for 9edc2716-2901-40aa-88a4-b671b10d117d
+  ✗ cic7rKQTF-E | Fetch failed for 98d7f837-7643-4e6a-a7db-4ac87ca85860
+  ✗ 0Oi2K6sXjNc | Fetch failed for 47da86f9-36c0-4fb2-9329-d8c9326fcf71
+  ✗ eiR6Jv8B1AE | Fetch failed for c1d9ace1-fe70-4a2f-bd5c-4f047e316cba
+  ✗ uQkuOkPKcf0 | Fetch failed for 6aef8a1b-2429-42ad-acb1-f09bab7e393c
+  ✗ srEfRexg0Yw | Fetch failed for 8009cc3e-2723-4a7c-a073-af60a85e25d4
+  ✗ K7xeH4PKl78 | Fetch failed for bd1d3a0e-ffeb-4347-82fc-5cee5599d1b7
+  ✗ MDezJr2PBdI | Fetch failed for 1d4fc8d1-2391-4dd5-a59a-2b9aede61a22
+  ✗ lnBOnsg4y8E | Fetch failed for dee7a470-5fcd-4904-89de-b7108f413882
+  ✗ JnSIumqESs8 | Fetch failed for 77ed5e22-c79a-40e3-be35-3d7aee760af0
+  ✗ uzN62GFjKcQ | Fetch failed for cdaf58ed-9d51-4b30-9670-03caba86cb33
+  ✗ IjsjiLWFz5k | Fetch failed for bcc85d3f-f142-4414-bed2-27f6ec1f416d
+  ✗ Vc2xNzqyOAQ | Fetch failed for ed227c9a-e710-4b15-8615-b9fc0c4203b7
+  ✗ 9B48M3LSSbo | Fetch failed for ee5a238b-a112-4e1b-9253-883c2b322de2
+  ✗ LiixK24neRc | Fetch failed for 79a3591e-56bf-47f1-a1a2-0549d23c8417
+  ✗ frzOwM0Swrc | Fetch failed for 781abc3a-0802-49a1-ac5a-d1a3f9df900a
+  ✗ o5GRN9KBF2w | Fetch failed for 5bacb81e-5629-4222-a468-ae6904320dc9
+  ✗ bUdLWUJt8Jg | Fetch failed for ba3bafb6-116e-42d5-aeb7-457be5ac5857
+  ✗ uAtr_5TTrsQ | Fetch failed for 50322091-3797-4691-b928-78836e11f1cd
+  ✗ jXzGYKnFCUA | Fetch failed for c21998b9-738d-4311-ac3a-8e947821f246
+  ✗ ZzFiGkCB8RY | Fetch failed for 0d333816-51f9-44f0-8247-2e778e7ffbd9
+  ✗ eI-lhADtVGg | Fetch failed for 96a469a1-6de5-4c68-a39c-1bbcdbc92c58
+  ✗ t0_dquMWsOE | Fetch failed for c8eea95b-a47e-4aac-b2f5-94ea0b86809a
+  ✗ 5lx_msItYHY | Fetch failed for 4334c5ab-4e0e-429d-8379-d4d269117f12
+  ✗ KLV0cktppeg | Fetch failed for 3b727a3b-4638-4059-ad78-490dfd7d6ebc
+  ✗ 7dbHZv97qTk | Fetch failed for 2af7526b-4ee2-4e7f-8271-3d1d5fafde3d
+  ✗ 2kuuJEdhIlI | Fetch failed for 9e56b06d-dcc1-4379-a65e-31ef376bcf7d
+  ✗ 8UWbRnbX8g4 | Fetch failed for ed8339a4-36ff-4b29-bbee-bb57fa723a32
+  ✗ rqnUP5ULJYM | Fetch failed for 09de8db5-5f84-4157-87b0-74462e4bb1b7
+  ✗ zmW4cHg-s_g | Fetch failed for 15be3876-81b2-41b3-a722-ad9a03e9fad7
+  ✗ 8qVdwZm-_T8 | Fetch failed for 72e9a3ee-0ba3-4e47-9711-9ce7d849274e
+  ✗ h8_ww3rL4mU | Fetch failed for 731e6a13-8ab5-4405-bc5f-4e424d1b1da6
+  ✗ 5mx-IvNubQ4 | Fetch failed for a07232fa-6b9b-48f3-941f-240ff946440d
+  ✗ B9txtyr1GYU | Fetch failed for e85dd995-1b50-42ef-bd3b-2db3d5689c31
+  ✗ KIa_yIlULrY | Fetch failed for 530cc5c7-8fd3-4783-8330-20036f1effbb
+  ✗ B1Y-5YbTjRE | Fetch failed for 84739755-71cb-4909-949c-d44efd3c9573
+  ✗ 7TvHZ2rNE1M | Fetch failed for b5caae31-3fbf-4e56-8b3b-2c3c57394003
+  ✗ OnniTXx32pg | Fetch failed for f01a939b-f763-446d-9e67-520da8b085f2
+  ✗ 1rpeXM32nhs | Fetch failed for df1810b4-6a8a-49ea-a2fd-db121d9bbcf7
+  ✗ Vps8DAQnsAw | Fetch failed for 1f40b164-704b-47fd-b7a6-cc04d7104b25
+  ✗ lf4C1cPr4jg | Fetch failed for aa92b5f7-5885-4a3e-8dea-e90b6fc24e50
+  ✗ nUzGJOBt2H0 | Fetch failed for 2745b962-f8aa-4287-9c1b-5eff2b6f3cdf
+  ✗ OewXdZeC-DU | Fetch failed for 9af35213-7b31-4d7f-97ec-53c98b80f044
+  ✗ pQ_MUWxcmD0 | Fetch failed for ff57c607-8548-4212-98b1-a32559679ac9
+  ✗ ek-LrnHgt1o | Fetch failed for c5ec5d0c-ab9c-4e28-b81f-6b27101cd221
+  ✗ Kc05o4tCI3c | Fetch failed for e714d80b-8d69-433b-823d-b55dda90390e
+  ✗ jc2qzK01CtI | Fetch failed for 07c162fe-3154-4cf3-89f7-4f5631389a84
+  ✗ IhURYiyiacI | Fetch failed for 446ef610-9abc-47e3-a904-116d25f88ab0
+  ✗ WAtqib7qnKQ | Fetch failed for 266dad1d-21ed-4690-9922-a08361b06df3
+  ✗ AUyPsiJhn5s | Fetch failed for fb85e6ee-8a3b-4860-8b88-d12428664461
+  ✗ xiMmrfUEzMc | Fetch failed for ff644530-c4fd-4da6-839b-9b961be69fe7
+  ✗ ytFVg2Gm42s | Fetch failed for 45d9c68a-3603-49dd-84ff-85defc366ff3
+  ✗ pj2OuVvrTqU | Fetch failed for 18dc9840-7a87-4fc4-8097-f39a7bb896a2
+  ✗ EfYuILpa0Vk | Fetch failed for 3367c238-2204-4a70-9951-83582f2947b2
+  ✗ t3QLrNkPbg4 | Fetch failed for 197ab83f-9931-4b59-a507-d36cfe9c9521
+  ✗ oRKZJkwU3os | Fetch failed for f1a26a00-1d23-4cdc-842c-210e48463706
+  ✗ d3amMisK2cc | Fetch failed for d155e1e9-d51b-419a-b65c-5d323b4a752a
+  ✗ xsTlIPGNOkg | Fetch failed for 35698347-a15e-4b3c-b518-a421e5c8feb0
+  ✗ Lpye4kbIZpg | Fetch failed for f1579404-75ec-464d-8ce8-7e75b4583451
+  ✗ CXfjD3SaT4M | Fetch failed for 553ee94b-947e-44ad-95ca-b35d6be6fade
+  ✗ Orx4LOd30Ag | Fetch failed for 0652fdb1-ba6f-4e3b-8c50-17bc69eeb46f
+  ✗ lKG_-2M6fnk | Fetch failed for 87b73a89-f541-40dd-8aeb-55594eb7f086
+  ✗ A7L4u7_N78k | Fetch failed for 0ec8a5bc-f521-4dc2-a4c4-be3eec52a904
+  ✗ 7R3qdf01z20 | Fetch failed for a2e31e5f-ba83-4725-a6a4-7af332b8b828
+  ✗ Nvui3epWmu4 | Fetch failed for bb4522ac-270b-49df-a31c-323cd819d335
+  ✗ bL6r8icigpY | Fetch failed for dbabb73b-a67e-46e4-87ee-a08933df4de3
+  ✗ qg5MzIFq8VM | Fetch failed for 92fcdce9-667a-42a8-b004-0a5bff76e0eb
+  ✗ FqbnXlTNzFY | Fetch failed for 0267f5d1-c75f-42c9-a0be-bf53711c007b
+  ✗ PR9dbKhzUh8 | Fetch failed for 8afad5fc-393c-4a88-be48-0da9aa3e6d5b
+  ✗ p956h_nkXQY | Fetch failed for 48ffd0b4-8400-483d-a15b-c77dec92a501
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+  ✓ uIFOjXz8zDA (notebooklm)
+  ✓ GUC0hF00l0o (notebooklm)
+  ✓ wHk4p7hoYw8 (notebooklm)
+  ✓ zgrqtZRQf84 (notebooklm)
+  ✓ c2vPvq8tJwo (notebooklm)
+  ✓ rzuB5vIbDg4 (notebooklm)
+  ✓ K-Crx25KR7Q (notebooklm)
+  ✓ iusFi98Z074 (notebooklm)
+  ✓ OeKXRvPB0jo (notebooklm)
+  ✓ OvaAAxdtbxg (notebooklm)
+  ✓ JXs2GJAj45w (notebooklm)
+  ✓ N5jYzSzQUlk (notebooklm)
+  ✓ Doxf4JR57zk (notebooklm)
+  ✓ yr-77W00vms (notebooklm)
+  ✓ Pqx1IFPhRm4 (notebooklm)
+  ✓ zqtxqLFOCMc (notebooklm)
+  ✓ TpgpyQX_f_g (notebooklm)
+  ✓ ex9D563dzHQ (notebooklm)
+  ✓ Cu9BVw8KJmo (notebooklm)
+  ✓ ebggrzbqR6w (notebooklm)
+  ✓ mf9q1BQiRSw (notebooklm)
+  ✓ ryfVGec3Ng0 (notebooklm)
+  ✓ uq7gBymkoNk (notebooklm)
+  ✓ MHZguha2F9k (notebooklm)
+  ✓ T3SrmfT6h18 (notebooklm)
+  ✓ C_jU9WFSkes (notebooklm)
+  ✓ JEHUjXOabn4 (notebooklm)
+  ✓ Z-krwLAEr4I (notebooklm)
+  ✓ Istd7dG50jU (notebooklm)
+  ✓ f6OEEfBikW8 (notebooklm)
+  ✓ 7JolfzAGkQ8 (notebooklm)
+  ✓ -aJRUzVjHTM (notebooklm)
+  ✓ 5_pUmiFSFik (notebooklm)
+  ✓ mN2K-lEHAcY (notebooklm)
+  ✓ IQGEsz_NGh0 (notebooklm)
+  ✓ LHh15B6YQbg (notebooklm)
+  ✓ Rn5efuMkRtI (notebooklm)
+  ✓ 9Co4QyeJzEc (notebooklm)
+  ✓ HJA77YIqYlY (notebooklm)
+  ✓ MGJDH6Kglqc (notebooklm)
+  ✓ Y_-ivq71kMg (notebooklm)
+  ✓ -NChemotnrA (notebooklm)
+  ✓ rZo2huTt9OI (notebooklm)
+  ✓ pZygPPdF0e8 (notebooklm)
+  ✓ 8gAeDx9iA3c (notebooklm)
+  ✓ vy_5lavV0bg (notebooklm)
+  ✓ DPH7kqEAUcU (notebooklm)
+  ✓ eBlSQuc8Z1g (notebooklm)
+  ✗ v0j2nV5Y6Lo: Fetch failed for 3e956a7b-8471-4768-abc3-ba7d70c7c5e4
+  ✓ daECaBPm0p4 (notebooklm)
+  ✓ dFnP6urJ0Sg (notebooklm)
+  ✗ z1qZGYYrim8: Fetch failed for 9fe6dbc5-31a8-4d44-bd77-acc4a37fddbb
+  ✗ CDOqV89_mUw: Fetch failed for 68ca71aa-369c-463d-95cb-68d43d1df4a5
+  ✗ dFP1ywyPspo: Fetch failed for acd87151-953a-491e-b9d0-805379c8c941
+  ✗ jD3kQp0DlLk: Fetch failed for cb9d32e8-8870-464e-8c51-5ee8e4717c6f
+  ✗ AhQXGEA2bsg: Fetch failed for 339d3569-f8a7-48ef-89d3-0a5070f57ad0
+  ✗ WV7BWIC1NnM: Fetch failed for fad37a09-de8d-4cdf-845a-c919fbf848bc
+  ✗ ORxtEvebZ04: Fetch failed for 913b521b-f247-4dd5-ae2e-801c985e3935
+  ✗ 7zR5yNvnelo: Fetch failed for 4b617784-b22e-4156-b51d-c16b155f061c
+  ✗ JDGGvyvaz_o: Fetch failed for 19452c4a-839e-451f-8d50-7d15dadc48df
+  ✗ 79hrArnapP4: Fetch failed for bf9d58f5-96e0-4fe4-8383-7b883195ff22
+  ✗ UwPMvya_QPA: Fetch failed for af294046-090c-4fed-839f-eac19817ef50
+  ✗ JOuDVfpxZbA: Fetch failed for 3159dfcd-f786-4a68-886f-8d79cf746244
+  ✗ iUDwsjjwFLU: Fetch failed for 51a2b5e5-1695-478f-ba63-141158856988
+  ✗ qp0scaXIG9U: Fetch failed for 78d05616-43a7-4c64-b403-4b69eda3af8d
+  ✗ lLtuDKpMS8M: Fetch failed for a931cd7e-32d4-446d-9a4f-8bcfd8411c41
+  ✗ -ogj_6X_Lno: Fetch failed for f99e3d8f-6ff3-4039-b70a-23cf1731e856
+  ✗ hH5jo2umLwY: Fetch failed for 54b178ad-2332-4415-8186-cd2cd124fd01
+  ✗ syJ7LuXIs38: Fetch failed for cbf7c35f-5f8a-45e9-967a-33578cf5ea3f
+  ✗ 7oSFPkTmkzc: Fetch failed for 46a0443b-bab9-4366-98f1-b86dc2d235d2
+  ✗ 5G1GG1Ld-P8: Fetch failed for dd724ac7-59b3-4e61-a64e-524bc88872f8
+  ✗ Bp960s3DJE4: Fetch failed for 3e9dd84e-d4d8-4b43-ac59-88b085c0e551
+  ✗ BJxTHVMwVwk: Fetch failed for 395d148f-5a40-4664-a612-08389ab38820
+  ✗ R3Qn9CxdCUA: Fetch failed for 28b05473-07c8-4e1a-ac65-9099a07d0cb3
+  ✗ 4Nh0NaGOeNA: Fetch failed for d9e1b4d4-acfc-4e2d-99a9-96b678c2fcb0
+  ✗ DYOJExc-42c: Fetch failed for 4f2106cf-0316-4fbc-bfe1-1c5308f84a98
+  ✗ TQttr5t5FDA: Fetch failed for fd9697bf-8938-4761-9713-d35bbdf5db05
+  ✗ 2IwJIPpzc9g: Fetch failed for 594b173b-c11d-4bea-9535-e1a3b39a57ea
+  ✗ q4E06YF3XhI: Fetch failed for 243c5fb2-f1cf-457c-8dae-668c88da1c39
+  ✗ 78tr5jAL2QQ: Fetch failed for 73d6f5ec-0937-4dad-9dc7-9149c9ee99b0
+  ✗ SY8KjMV498k: Fetch failed for c1e423a3-e659-4887-95e8-23c01b956753
+  ✗ wn3-9eDZLrc: Fetch failed for 59bb64ce-9890-4141-8bd6-08a420eb2c6f
+  ✗ Bz0jtIk75G4: Fetch failed for f2dbd421-7658-4351-b2b7-b66327127df6
+  ✗ k8f4BjQIX6s: Fetch failed for c7d1c77a-df3e-4b6c-9986-364f9aba47b9
+  ✗ rX4_UEBL12o: Fetch failed for d2fc68d1-fb11-419b-9c27-4ba9ceb97cf5
+  ✗ _SYyosQ6jBQ: Fetch failed for cd5f98f3-0616-4d95-ab63-ce47697f6f8e
+  ✗ UuqavY-Vc6g: Fetch failed for 27b6f99e-dc00-49fa-91d4-b409efab561e
+  ✗ 0pNMqakwz7w: Fetch failed for d4c73d46-32fc-47f1-950c-26b79494299f
+  ✗ V-jGF7-f2P0: Fetch failed for 79ab87f8-2b08-4366-9461-c72b476c99e5
+  ✗ ASwoXgqr59E: Fetch failed for 76b9c225-5bad-4a2d-ba3b-f540ffa7079f
+  ✗ _Mt0oRrSm3U: Fetch failed for f3b53f1a-fc2e-4753-bf6f-cc7e2030ad90
+  ✗ W3ShmTWiVfo: Fetch failed for 0bc089cb-1043-461f-95f5-35ff23d94546
+  ✗ Dm72estvrnA: Fetch failed for 0fefdbe0-7231-4869-92af-843a44484a34
+  ✗ L-Ztvsb3M0E: Fetch failed for e7613fd6-a014-468b-a7e8-95a442faa083
+  ✗ SjAGI_eZAJs: Fetch failed for 3e7ca216-68b9-4bb3-aceb-aaf7f3ebf04f
+  ✗ 5vqSqaZqZZ0: Fetch failed for 39eca933-4a0c-484e-808c-6fd0dd44a75f
+  ✗ Ro84NysZutY: Fetch failed for 9919e725-5004-4256-b828-e549e8abb8c1
+  ✗ ukDdmbma6A4: Fetch failed for 9c45385e-e5fb-4455-ade1-ba00d6fbe4a5
+  ✗ 0DbHoNW0Ed4: Fetch failed for 8a8f4ac9-9493-42c2-af21-a121b5e45700
+  ✗ XMy_daWmxMw: Fetch failed for 8df02264-3bf0-46b8-9fbb-975a327032c5
+  ✗ c0ECcQSaQe8: Fetch failed for 7e3ea595-f24a-4c52-9107-665cb456335a
+  ✗ XF4uFcPRp64: Fetch failed for 51e092d5-06f0-4006-9c0b-d1926a4cbae0
+  ✗ LnWv2PWqCEU: Fetch failed for b8f2d04a-a0ce-4381-9a83-a6963a0a9f98
+  ✗ L_IzKqr_bp0: Fetch failed for 65a0e2c4-6706-4c29-a08e-19f8e70561b1
+  ✗ k0ttZEkW_Ik: Fetch failed for 8293241a-e765-43e8-bf73-299ee75a9f3e
+  ✗ rpEH1PLiaR4: Fetch failed for f62f87be-3983-4613-bbf1-b74929f21d2a
+  ✗ 9LpW7GHFm1Y: Fetch failed for 2baa2f9f-2c85-4859-b3f2-f2fc891e8dad
+  ✗ reMpGzJCuUQ: Fetch failed for 6380094f-40e2-48cd-8d28-2e65f40a9b6b
+  ✗ QQctIWNGdUs: Fetch failed for 291b8191-a906-4575-a252-321c9e744b6b
+  ✗ Xq0uMbH4W7I: Fetch failed for 8ae00824-de95-4ab9-be51-0662852effa7
+  ✗ 0eN-XFNXRWI: Fetch failed for 527a67d8-6835-4fe1-bb3c-15a703dee510
+  ✗ CcJ6LEAr9ks: Fetch failed for c9ef9906-bef9-4ad3-ba47-4db1ffa8b7a3
+  ✗ zAbwuXsS1vw: Fetch failed for 9a52c8cb-f386-4fa9-968f-3284ae1a4f0e
+  ✗ JDxbGs254dA: Fetch failed for bfade96d-35ca-4776-88e6-7e78eff44d85
+  ✗ 79lTmuQWn5o: Fetch failed for 8ca3a4bc-ea5e-4c44-9598-28885e6a3c3a
+  ✗ fJacKV2790g: Fetch failed for a73e30c3-fcc4-4c93-8ec2-7cd2e77fd32f
+  ✗ uaNmrRUHmxE: Fetch failed for 334b2bbc-23f3-49b8-ba87-fa8415084459
+  ✗ VH_0RA6-wWU: Fetch failed for 397f7cea-0894-4c6d-b5b9-b599d99e5d5d
+  ✗ OemrMT2-OEY: Fetch failed for 20384a23-46af-450d-b76f-861aef60ef60
+  ✗ NMgWuxfEdh0: Fetch failed for 4a14476e-c246-4841-93d6-b9374a3fde89
+  ✗ Lt-ThOkcR6o: Fetch failed for bc84c7de-d762-4c5e-95ed-365f1a5e03d5
+  ✗ p9ICKEs5GEs: Fetch failed for 01d4d8e1-f509-4dba-88f2-1df9bf71dbd6
+  ✗ qKFJUHAd3eI: Fetch failed for fc56d7b6-4314-4db9-af3c-6ee40267a2c7
+  ✗ 4c_qvdFsLcg: Fetch failed for 62340326-1d4a-466f-b915-e208bc4cd77a
+  ✗ UESEIqLUuwA: Fetch failed for a2360a8d-5021-4dde-be3d-89707483d176
+  ✗ BmSdCMF4-O0: Fetch failed for fc64c5d4-bddb-4b6a-a0fc-4af8d2b010d7
+  ✗ HgrwP-pHzLU: Fetch failed for 55057903-d581-4fef-b970-7bd817395560
+  ✗ cf3Lw8xsZ50: Fetch failed for 660ed48f-78cd-47d5-ba32-918c7b68f9d9
+  ✗ Ap0HdqiyrJQ: Fetch failed for c5c19f4e-362a-4642-ad17-19ade8682958
+  ✗ miDA3lB3v_0: Fetch failed for b51cf44b-b101-4894-92eb-7c93c187deff
+  ✗ Ic378II9Xuo: Fetch failed for 9edc2716-2901-40aa-88a4-b671b10d117d
+  ✗ cic7rKQTF-E: Fetch failed for 98d7f837-7643-4e6a-a7db-4ac87ca85860
+  ✗ 0Oi2K6sXjNc: Fetch failed for 47da86f9-36c0-4fb2-9329-d8c9326fcf71
+  ✗ eiR6Jv8B1AE: Fetch failed for c1d9ace1-fe70-4a2f-bd5c-4f047e316cba
+  ✗ uQkuOkPKcf0: Fetch failed for 6aef8a1b-2429-42ad-acb1-f09bab7e393c
+  ✗ srEfRexg0Yw: Fetch failed for 8009cc3e-2723-4a7c-a073-af60a85e25d4
+  ✗ K7xeH4PKl78: Fetch failed for bd1d3a0e-ffeb-4347-82fc-5cee5599d1b7
+  ✗ MDezJr2PBdI: Fetch failed for 1d4fc8d1-2391-4dd5-a59a-2b9aede61a22
+  ✗ lnBOnsg4y8E: Fetch failed for dee7a470-5fcd-4904-89de-b7108f413882
+  ✗ JnSIumqESs8: Fetch failed for 77ed5e22-c79a-40e3-be35-3d7aee760af0
+  ✗ uzN62GFjKcQ: Fetch failed for cdaf58ed-9d51-4b30-9670-03caba86cb33
+  ✗ IjsjiLWFz5k: Fetch failed for bcc85d3f-f142-4414-bed2-27f6ec1f416d
+  ✗ Vc2xNzqyOAQ: Fetch failed for ed227c9a-e710-4b15-8615-b9fc0c4203b7
+  ✗ 9B48M3LSSbo: Fetch failed for ee5a238b-a112-4e1b-9253-883c2b322de2
+  ✗ LiixK24neRc: Fetch failed for 79a3591e-56bf-47f1-a1a2-0549d23c8417
+  ✗ frzOwM0Swrc: Fetch failed for 781abc3a-0802-49a1-ac5a-d1a3f9df900a
+  ✗ o5GRN9KBF2w: Fetch failed for 5bacb81e-5629-4222-a468-ae6904320dc9
+  ✗ bUdLWUJt8Jg: Fetch failed for ba3bafb6-116e-42d5-aeb7-457be5ac5857
+  ✗ uAtr_5TTrsQ: Fetch failed for 50322091-3797-4691-b928-78836e11f1cd
+  ✗ jXzGYKnFCUA: Fetch failed for c21998b9-738d-4311-ac3a-8e947821f246
+  ✗ ZzFiGkCB8RY: Fetch failed for 0d333816-51f9-44f0-8247-2e778e7ffbd9
+  ✗ eI-lhADtVGg: Fetch failed for 96a469a1-6de5-4c68-a39c-1bbcdbc92c58
+  ✗ t0_dquMWsOE: Fetch failed for c8eea95b-a47e-4aac-b2f5-94ea0b86809a
+  ✗ 5lx_msItYHY: Fetch failed for 4334c5ab-4e0e-429d-8379-d4d269117f12
+  ✗ KLV0cktppeg: Fetch failed for 3b727a3b-4638-4059-ad78-490dfd7d6ebc
+  ✗ 7dbHZv97qTk: Fetch failed for 2af7526b-4ee2-4e7f-8271-3d1d5fafde3d
+  ✗ 2kuuJEdhIlI: Fetch failed for 9e56b06d-dcc1-4379-a65e-31ef376bcf7d
+  ✗ 8UWbRnbX8g4: Fetch failed for ed8339a4-36ff-4b29-bbee-bb57fa723a32
+  ✗ rqnUP5ULJYM: Fetch failed for 09de8db5-5f84-4157-87b0-74462e4bb1b7
+  ✗ zmW4cHg-s_g: Fetch failed for 15be3876-81b2-41b3-a722-ad9a03e9fad7
+  ✗ 8qVdwZm-_T8: Fetch failed for 72e9a3ee-0ba3-4e47-9711-9ce7d849274e
+  ✗ h8_ww3rL4mU: Fetch failed for 731e6a13-8ab5-4405-bc5f-4e424d1b1da6
+  ✗ 5mx-IvNubQ4: Fetch failed for a07232fa-6b9b-48f3-941f-240ff946440d
+  ✗ B9txtyr1GYU: Fetch failed for e85dd995-1b50-42ef-bd3b-2db3d5689c31
+  ✗ KIa_yIlULrY: Fetch failed for 530cc5c7-8fd3-4783-8330-20036f1effbb
+  ✗ B1Y-5YbTjRE: Fetch failed for 84739755-71cb-4909-949c-d44efd3c9573
+  ✗ 7TvHZ2rNE1M: Fetch failed for b5caae31-3fbf-4e56-8b3b-2c3c57394003
+  ✗ OnniTXx32pg: Fetch failed for f01a939b-f763-446d-9e67-520da8b085f2
+  ✗ 1rpeXM32nhs: Fetch failed for df1810b4-6a8a-49ea-a2fd-db121d9bbcf7
+  ✗ Vps8DAQnsAw: Fetch failed for 1f40b164-704b-47fd-b7a6-cc04d7104b25
+  ✗ lf4C1cPr4jg: Fetch failed for aa92b5f7-5885-4a3e-8dea-e90b6fc24e50
+  ✗ nUzGJOBt2H0: Fetch failed for 2745b962-f8aa-4287-9c1b-5eff2b6f3cdf
+  ✗ OewXdZeC-DU: Fetch failed for 9af35213-7b31-4d7f-97ec-53c98b80f044
+  ✗ pQ_MUWxcmD0: Fetch failed for ff57c607-8548-4212-98b1-a32559679ac9
+  ✗ ek-LrnHgt1o: Fetch failed for c5ec5d0c-ab9c-4e28-b81f-6b27101cd221
+  ✗ Kc05o4tCI3c: Fetch failed for e714d80b-8d69-433b-823d-b55dda90390e
+  ✗ jc2qzK01CtI: Fetch failed for 07c162fe-3154-4cf3-89f7-4f5631389a84
+  ✗ IhURYiyiacI: Fetch failed for 446ef610-9abc-47e3-a904-116d25f88ab0
+  ✗ WAtqib7qnKQ: Fetch failed for 266dad1d-21ed-4690-9922-a08361b06df3
+  ✗ AUyPsiJhn5s: Fetch failed for fb85e6ee-8a3b-4860-8b88-d12428664461
+  ✗ xiMmrfUEzMc: Fetch failed for ff644530-c4fd-4da6-839b-9b961be69fe7
+  ✗ ytFVg2Gm42s: Fetch failed for 45d9c68a-3603-49dd-84ff-85defc366ff3
+  ✗ pj2OuVvrTqU: Fetch failed for 18dc9840-7a87-4fc4-8097-f39a7bb896a2
+  ✗ EfYuILpa0Vk: Fetch failed for 3367c238-2204-4a70-9951-83582f2947b2
+  ✗ t3QLrNkPbg4: Fetch failed for 197ab83f-9931-4b59-a507-d36cfe9c9521
+  ✗ oRKZJkwU3os: Fetch failed for f1a26a00-1d23-4cdc-842c-210e48463706
+  ✗ d3amMisK2cc: Fetch failed for d155e1e9-d51b-419a-b65c-5d323b4a752a
+  ✗ xsTlIPGNOkg: Fetch failed for 35698347-a15e-4b3c-b518-a421e5c8feb0
+  ✗ Lpye4kbIZpg: Fetch failed for f1579404-75ec-464d-8ce8-7e75b4583451
+  ✗ CXfjD3SaT4M: Fetch failed for 553ee94b-947e-44ad-95ca-b35d6be6fade
+  ✗ Orx4LOd30Ag: Fetch failed for 0652fdb1-ba6f-4e3b-8c50-17bc69eeb46f
+  ✗ lKG_-2M6fnk: Fetch failed for 87b73a89-f541-40dd-8aeb-55594eb7f086
+  ✗ A7L4u7_N78k: Fetch failed for 0ec8a5bc-f521-4dc2-a4c4-be3eec52a904
+  ✗ 7R3qdf01z20: Fetch failed for a2e31e5f-ba83-4725-a6a4-7af332b8b828
+  ✗ Nvui3epWmu4: Fetch failed for bb4522ac-270b-49df-a31c-323cd819d335
+  ✗ bL6r8icigpY: Fetch failed for dbabb73b-a67e-46e4-87ee-a08933df4de3
+  ✗ qg5MzIFq8VM: Fetch failed for 92fcdce9-667a-42a8-b004-0a5bff76e0eb
+  ✗ FqbnXlTNzFY: Fetch failed for 0267f5d1-c75f-42c9-a0be-bf53711c007b
+  ✗ PR9dbKhzUh8: Fetch failed for 8afad5fc-393c-4a88-be48-0da9aa3e6d5b
+  ✗ p956h_nkXQY: Fetch failed for 48ffd0b4-8400-483d-a15b-c77dec92a501
+[source] Processing batch 4 (200 videos) via NotebookLM CLI batch...
+[Throttle] Success restored after 8 failures — delay reset
+[NLM-Batch] Adding 200 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-200/200...
+[NLM-Batch]   Adding sub-batch 1 (200 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 200 sources in parallel...
+  ✓ LLPcP5wXuJM | 952 chars
+  ✓ JkwsYk-A1_o | 680 chars
+  ✓ XdXm5wbWuF4 | 1051 chars
+  ✓ QQcqDkCGgJE | 915 chars
+  ✓ uP7oWnC2_ZY | 8455 chars
+  ✓ wAWErlcKHZA | 924 chars
+  ✓ BcmA_Sc0RDk | 772 chars
+  ✓ aMOhBnr1tDs | 456 chars
+  ✓ wUdn-2T2Xto | 34915 chars
+  ✓ Vl0_XHMVLaA | 596 chars
+  ✓ r9MIVp1Ntms | 879 chars
+  ✓ 4CXdR7MCprc | 456 chars
+  ✓ ZFiGvYTMcp8 | 855 chars
+  ✓ XrPNnSVRTto | 633 chars
+  ✓ SPe9v4dO3KQ | 33890 chars
+  ✓ qbya0jQkDcc | 887 chars
+  ✓ bbROQzUmyl8 | 762 chars
+  ✓ 7DcL-bWgkS8 | 783 chars
+  ✓ nDlly-u5Bj4 | 844 chars
+  ✓ VOtEUFl5Pyw | 435 chars
+  ✓ y6i4ggwDfHo | 574 chars
+  ✓ H0eMfyvAz3o | 826 chars
+  ✓ vI4Wj1yl6Ck | 540 chars
+  ✓ Gw6CZbDqLgU | 324 chars
+  ✓ X00X8cMFbKY | 982 chars
+  ✓ zcGwhVz5wWY | 666 chars
+  ✓ e9mqiIa2mjI | 855 chars
+  ✓ Gg-ob4q8g9g | 839 chars
+  ✓ GHQOQvfTGKU | 685 chars
+  ✓ e_PWH8OTwQ0 | 52533 chars
+  ✓ hQsxYGSUjgg | 491 chars
+  ✓ CbH4vNaMxO8 | 5079 chars
+  ✓ Eg-6C7A6tHU | 825 chars
+  ✓ 8-WWOjv2Pr8 | 326 chars
+  ✓ nW591KP-oQU | 396 chars
+  ✓ jLumlCZ-WxY | 892 chars
+  ✓ 4Gj4jZ2Wpno | 779 chars
+  ✓ J0LXZQRPUKY | 801 chars
+  ✓ DhOaKqsx_x4 | 747 chars
+  ✓ GwV-XmAU5Pg | 822 chars
+  ✓ ZRNE4xKdKtw | 874 chars
+  ✓ l2-omy8l-Gc | 891 chars
+  ✓ 9wl9df3XwKU | 797 chars
+  ✓ w6n63EBCIZY | 1160 chars
+  ✓ W2G-hwr9kR4 | 1047 chars
+  ✓ 8ssBRQpfu74 | 720 chars
+  ✓ zCR-2qeXWWM | 45446 chars
+  ✓ d4u6klrl-rQ | 1042 chars
+  ✓ C6nY0Bsy2xw | 15061 chars
+  ✓ 4-Z2E1cGQ4g | 857 chars
+  ✗ UDZgGenSzlk | Fetch failed for 1bb13962-17a2-4f60-b519-ff785c88f834
+  ✗ JFJ8QTLtvUQ | Fetch failed for ee01b0db-8bf5-4894-b14f-d91884dfaac1
+  ✗ Y2nf-vLnnds | Fetch failed for 494b35a6-1e0b-412c-b69a-e0a391b8deca
+  ✗ BU3Jy7a_PMw | Fetch failed for cd83d956-8f04-40a0-ae4f-1f488e21ebcc
+  ✗ lN8-s8NL44o | Fetch failed for 108c3b3e-5710-4139-8869-cf27c2b2e088
+  ✗ 4NX7tK2I8jw | Fetch failed for 7213f10d-7bd9-4d8e-b413-fb3aa09c5ef0
+  ✗ Wf5mwdsuLl8 | Fetch failed for 5b79abf4-8d6e-4d23-884c-18a8ed270869
+  ✗ 09bSSr3QdWs | Fetch failed for 4b9a1358-fd60-4c10-b27c-c457ceb4df63
+  ✗ HlS3JDUHM_8 | Fetch failed for 2b83bf4a-3817-40db-93da-972e26c64424
+  ✗ xp9SjNKuSvw | Fetch failed for 54d4f764-9260-49c6-979c-7ea27c13b324
+  ✗ 8cuZePXXZb8 | Fetch failed for ec2806cb-148d-4fce-843b-a33cf3d97de1
+  ✗ DS_jze5LlE8 | Fetch failed for 20589fd2-0a8b-4197-9c48-b74d0aac2430
+  ✗ uWDQ55i24Eg | Fetch failed for 920030e9-3bba-45eb-93d8-9f64cf68b6f1
+  ✗ PGqCsFRmHSo | Fetch failed for 4ae58e3d-c7ab-4139-a82d-87876a2e7791
+  ✗ 6Ae30kji2sg | Fetch failed for ab3211e1-acac-4660-a27f-72b465ccf216
+  ✗ qk4_mnSBQQU | Fetch failed for 262e03a7-cf92-41fd-9d08-37f97b3a59b7
+  ✗ 2KI51T3tuII | Fetch failed for 3f5e67ea-8046-4afe-96d3-fb2e367d5776
+  ✗ qasylc-vHY0 | Fetch failed for 8e9126b3-b66a-4df6-a2e2-e0f2acea9242
+  ✗ Pu4uW-xV8yg | Fetch failed for 62195f56-8fde-497d-908f-872f1b6efafd
+  ✗ 3ZawY9uf6RM | Fetch failed for 351f9de7-636d-4cfe-9644-51e7fb2a3297
+  ✗ ifDr8pG9gFg | Fetch failed for c8625832-34ee-43b8-bcc5-55b6a71e7d0f
+  ✗ 9gFXAzacOAI | Fetch failed for 65459309-1fdc-4ddb-8a2c-04d548aec2de
+  ✗ OiOkvCR1XOE | Fetch failed for 96be0ae7-9243-4c23-b333-b2245e023c90
+  ✗ _4OquOM-tzU | Fetch failed for e83e1736-f1b3-498e-bcb8-b1f7a5f15d5b
+  ✗ IXtkT3Zpdkk | Fetch failed for 6b46fcca-b7e7-4824-9a20-1e33be3b8d3a
+  ✗ faQcXaq5-js | Fetch failed for 7d45e5b9-75cb-4e7d-9a78-d077a1c909e7
+  ✗ JjHHqrjUQz8 | Fetch failed for eb205d66-9fbb-4446-a04f-8dfa2db36499
+  ✗ CgZX8V9ZQqA | Fetch failed for 10f30b55-bbec-42ed-8500-efa99e1c235d
+  ✗ bm0KSoikUQY | Fetch failed for 6c1553e7-0bc3-4414-b3ff-bd011f63beeb
+  ✗ ZBzS4pPqU3g | Fetch failed for 7aabe86e-f6de-49e1-bc3e-8753650decf3
+  ✗ wjsHU1R-J8s | Fetch failed for b5991470-4fda-4c91-a05c-0a0a7b71e479
+  ✗ J6HIpj2UBcw | Fetch failed for 0ca3ef93-0f71-4e8b-b902-5ed246ae1001
+  ✗ E-UDntqLm8c | Fetch failed for 968c8544-4214-4fa3-9ea7-83013ee2a64e
+  ✗ D5AIbYBlXV0 | Fetch failed for 4b7cf617-47c9-4a96-b09f-57faa2d34131
+  ✗ SRhSk7yxu60 | Fetch failed for bb57d490-14ff-4297-aa03-4e9cf5d2dd3d
+  ✗ 0muB7AzyMq0 | Fetch failed for 27f7090a-f1a3-4651-a6c8-ac7a038bafdd
+  ✗ y6ULyyd69f8 | Fetch failed for b4719da4-3c30-4b2f-a939-502c2a0c1f80
+  ✗ wIA543zdWDs | Fetch failed for 62ace851-cd93-4254-b4a0-bd9835fdaf66
+  ✗ Yc1GXqCi6D8 | Fetch failed for 425c76ac-17a6-49d5-8a44-46dfb8737014
+  ✗ oFSHY2_B94I | Fetch failed for f051f5d6-8e52-4730-8d47-9fff5a97c491
+  ✗ vcUTZHPXm-Y | Fetch failed for 277f4d62-6e50-4679-a63a-f478548bef28
+  ✗ zg6hKGVze18 | Fetch failed for 074ca5dd-d59a-4ca9-b058-604fbd0d74e1
+[Throttle] Success restored after 2 failures — delay reset
+  ✗ gk6aeZiwpa8 | Fetch failed for cb152909-8135-4f79-8545-92511d8157f2
+  ✗ 6_d4kTv-8Yo | Fetch failed for b19683ed-7fd1-4d20-8325-144460293345
+  ✗ mtwS4Y4Mieg | Fetch failed for f38b5750-7860-4b3d-acb4-7fdea3948952
+  ✗ aTLGJJLVACQ | Fetch failed for 5e1faa40-10ab-44d5-af7f-48493f481dbe
+  ✗ TUmswzA-k_0 | Fetch failed for 87b564e9-1772-4987-bc5d-b8d783bc1b90
+  ✗ NTrvwjDUkio | Fetch failed for 1de98bf5-5793-4795-81ad-ed251922c31f
+  ✗ tae7hVmUaq8 | Fetch failed for 9fbf12b4-952f-458e-9057-984006468ed9
+  ✗ uU_LqYeF0jM | Fetch failed for ae9f9e30-b42c-47b4-8302-3dce235f4985
+  ✗ B50WiTrE_QI | Fetch failed for f05cfedc-945f-48e1-94b9-03b93fff3228
+  ✗ jJW13T1QzAI | Fetch failed for 7e7666f8-b02d-4d2d-b0cd-cd3bf0f67c57
+  ✗ Mv1AvV18Oqk | Fetch failed for ad8894e2-65dc-49de-89b6-c1ba4ed83714
+  ✗ RXs8pXWKJNY | Fetch failed for 3d41c384-c556-4df6-9e43-52934b2f0a2a
+  ✗ EmwedUO0gCw | Fetch failed for 5a764daa-47e7-4ecf-8b43-81ba00e421ed
+  ✗ A5YPXOcPy2M | Fetch failed for fa241722-5051-4c93-9d2f-1ea56b8a8c6c
+  ✗ Ca_UdMYEZfU | Fetch failed for 407b44e1-c3d1-4cf6-924c-4fa30c09de28
+  ✗ QKfrhAQh5wE | Fetch failed for 64dce5e1-3619-4efc-b8b4-3655173e9181
+  ✗ d1xi4Mgkbdg | Fetch failed for 9c8cd9b5-53eb-42c4-a7d3-4df07538853c
+  ✗ q37EKFMl21M | Fetch failed for 7a423d8a-4021-4280-89fd-b18c6f68cbfa
+  ✗ LcrwQRRqRro | Fetch failed for 0ccb23cf-9dcf-4f82-ae15-b5ebe2f00f0b
+  ✗ -b1RY4bZzZM | Fetch failed for f5b82c12-d182-4147-bfd3-407c9ec071a5
+  ✗ AYqzmUli3tI | Fetch failed for 435ebfa0-14d2-4224-8b70-4ad49ea3640f
+  ✗ KLwcN4CNTfQ | Fetch failed for 4d0bf9e2-3789-4110-b1a3-cc168ff27ccd
+  ✗ RZD_1pML4Ps | Fetch failed for fcdc5e60-62da-4911-8bdc-4779f4cc13ca
+  ✗ OEQwA5f0gLU | Fetch failed for 0805b574-d7d2-412a-bf0b-78f3ebc92d41
+  ✗ SjDiE2eU29w | Fetch failed for 0d97e988-ade9-495f-ba86-58938ea90ed9
+  ✗ RAq__TyYr2E | Fetch failed for 1c996fae-23cd-4285-9a83-17e32340083f
+  ✗ hnFeIzbph5g | Fetch failed for cb7fe5ce-1581-4052-86d6-ba48b3d57127
+  ✗ 0TOJ-89r8GM | Fetch failed for 00154df0-ddcd-4674-a662-5b0a493373d9
+  ✗ 63OURKgS2wg | Fetch failed for 86b4e02a-3946-47b7-aa46-8bc390cd9638
+  ✗ _0boxwBaDVc | Fetch failed for d2e7830a-81cb-44b1-a683-f14b946aae60
+  ✗ xpwzoYM55Xw | Fetch failed for 2dab709a-d91a-4978-8a06-dc2cb5b11e4d
+  ✗ 4se2ENn3ozw | Fetch failed for ad95dc28-73a0-4593-bacf-463049d38c57
+  ✗ Ne0oVVF_ma0 | Fetch failed for de77cc06-3ac9-45d4-b591-0acc74d20142
+  ✗ TlNIC9rS_B4 | Fetch failed for 379ea928-0f7d-4919-a84c-7cd623636736
+  ✗ eOa78ffguF4 | Fetch failed for 2045fed8-d4e9-40f7-ba6e-b3df6b2fb417
+  ✗ 5azDu3JN4LE | Fetch failed for 53e2ab9f-5dcd-453b-a5fc-c327455e3154
+  ✗ YPky6HE0m1w | Fetch failed for b722c437-b2e3-46ef-b1d1-19f827af38d6
+  ✗ wga0cxD0AP8 | Fetch failed for 416fdf5d-3284-4c38-b2f8-b9721a47e3b8
+  ✗ nT4xs4ssBLM | Fetch failed for e1a80a8e-0ec6-4c51-a1eb-40c02acbc7cf
+  ✗ gqcybsCDr_0 | Fetch failed for 2d4f6063-e537-44e5-a1dc-f5b6a8629120
+  ✗ vRC6lWBujzk | Fetch failed for b2937f77-cd70-4482-a9ba-4f1f279a28b9
+  ✗ TaGtJuiM2bE | Fetch failed for 4eee0191-357f-421e-aad8-c9332636eede
+  ✗ 0iWt55T6A-E | Fetch failed for e8c11843-5ce7-47fa-add4-92c06aac90ef
+  ✗ tWz7S1xzyCM | Fetch failed for 8c8b7b7b-14d3-48f6-9d60-3021b02ef102
+  ✗ axxXu674-og | Fetch failed for e984164a-b4b9-4ea7-a452-663283c3d3e7
+  ✗ neQwt68Bsrg | Fetch failed for 1dc6daa0-ca6f-4491-a6a6-c438e2077ad1
+  ✗ d6FRSm38LEU | Fetch failed for 4ff2d893-7dc7-4ed4-bd67-c28b87e5adf6
+  ✗ 0xiz0OPh-P4 | Fetch failed for fb050df6-84b7-4c26-99f0-627aae4961b4
+  ✗ R8Uvgg6dX5I | Fetch failed for 46d153e9-f1b1-43fa-94eb-edc5d0729c71
+  ✗ 4s3NVW4orGE | Fetch failed for 434e2f0e-29e8-4ea9-8ed1-58ef94b21604
+  ✗ oOU2Je3044I | Fetch failed for 06df011a-c233-4706-bd2b-fa39acc0ca54
+  ✗ mDX78b8FBEM | Fetch failed for 29cd832f-a1df-494e-83ae-89c432e49258
+  ✗ XMXAbV78kJU | Fetch failed for 2cee627e-898e-41a9-b312-73c482076507
+  ✗ Vf9i1bbJcpk | Fetch failed for f2a83e73-4a85-4b45-bf44-a3e2d9b0d177
+  ✗ 6QfIzJfzXvY | Fetch failed for e2fddb3c-bbfa-4c50-a4ab-e5540029f69e
+  ✗ V81UM6KQWVg | Fetch failed for bcb707e2-62d9-40b9-8e72-84376af6dfa6
+  ✗ Jg6P56v5HoE | Fetch failed for 27508b90-1581-4ad8-b57a-4759c25a1c8f
+  ✗ B6hlFGJ9LNw | Fetch failed for 0243ad3e-790e-4114-8305-7620c3284840
+  ✗ QGnNIRk0wsQ | Fetch failed for aa535130-175b-41df-9c44-7c7cb06d8fbb
+  ✗ ERdND0zRblw | Fetch failed for 1464a47c-7a22-4beb-88dd-1e880a185894
+  ✗ pHUwzI_P5hw | Fetch failed for 8abc3c59-fb66-4790-b03e-5a44bac964a3
+  ✗ okfcF8gBpfA | Fetch failed for c4f8ef3e-3aaa-4dd3-a70c-0c72820d7efc
+  ✗ swKuVPm-eI8 | Fetch failed for b689d4c9-1aaf-40a7-ba7a-83d486e90b44
+  ✗ Tzd_1YzjqXc | Fetch failed for 9a531f74-2582-4cdf-97ee-59ecd6abfdbd
+  ✗ ixRzm3smQko | Fetch failed for 53203e7d-19fd-4bac-9b6a-066ed432fac0
+  ✗ v4GQn_lkiNc | Fetch failed for c9ce88e9-c1f6-4230-aa22-f13f4e1685e0
+  ✗ VerEoET9Mkw | Fetch failed for ad693cdf-d40e-4845-8c2f-f2461f079ebc
+  ✗ 0qSJcIgMWGo | Fetch failed for 30ec0c3c-cb69-456c-8906-88bc11c6b043
+  ✗ zL156w0KJhE | Fetch failed for b013b5af-d8ac-4901-9c69-73520f21e6b9
+  ✗ NReOzXjIpm0 | Fetch failed for 8c32fc77-3ca5-4a51-a027-aa2307d7d3d0
+  ✗ ojc9WG_vfes | Fetch failed for 3425b911-4ef6-44a7-954f-ada65bb2b0a3
+  ✗ KcBdPlA1OW0 | Fetch failed for ff6c021b-fe7b-41be-b4e7-135e41709337
+  ✗ eJIeBi3R8Gw | Fetch failed for f355ca90-d149-4348-935b-5c527b9c37f3
+  ✗ F0YvJkG-Ack | Fetch failed for 48ddaf53-b08d-49e1-8c7a-fa36cef87115
+  ✗ ynMJa7oWcwU | Fetch failed for c16ee3df-6c50-4fec-8750-a90f5075e59f
+  ✗ rFVfhx9pMLA | Fetch failed for 4d90d81d-6c4b-4bf4-b988-6ad65ddb446f
+  ✗ KNGY1m1XT7k | Fetch failed for 80ae08ef-4059-471c-ab45-4514ced1dd1c
+  ✗ KYD1fZHg9ec | Fetch failed for 38fe00f8-9907-4293-9dbc-74c473b60c1b
+  ✗ DtK2o9yeLD4 | Fetch failed for 4b172d97-8414-4b5b-8e4d-bebf00782702
+  ✗ rVGfIatKzD0 | Fetch failed for 9661d1d2-f71d-4e78-a1fa-2adb9427b7a2
+  ✗ vC0GdC418og | Fetch failed for 5f46394d-c9fb-4d18-bdbc-231d2005d52e
+  ✗ IaschiAlSFc | Fetch failed for 85d9a073-504f-47a6-be03-0e88b062dc0d
+  ✗ K7nX_f44hj0 | Fetch failed for bf5cf3ee-0d52-4c0c-abd9-33991d85c6d5
+  ✗ FI9KD6r3jQo | Fetch failed for b1462890-2f47-43ff-bc73-d13d993a6155
+  ✗ EyjhXr4QBtI | Fetch failed for c99d4fe7-27f8-499c-8ea0-0617c1410401
+  ✗ gu7GKNnsSYE | Fetch failed for a165ed4f-ede9-41a2-8e47-1cd66c83874d
+  ✗ XHgdNa1bjQs | Fetch failed for 23945dd1-4e3e-4bc2-8b41-144f7220608e
+  ✗ XpHzB1kJFYg | Fetch failed for cc9767f8-baaf-4d6c-8d91-7600fab8c2ed
+  ✗ ChFTOpEF4vY | Fetch failed for 4bc008f4-eb98-4800-bf8b-89a15eb72d81
+  ✗ PnPc44RfPZo | Fetch failed for 08f25ea1-a319-4c9a-8808-acf36d8fc553
+  ✗ SI2jUgex7dE | Fetch failed for 3b9a9221-b913-49ee-9917-1c10427c24f1
+  ✗ MXAvtEHyl0A | Fetch failed for b75e183b-820c-493f-9644-e65e484341ad
+  ✗ j6lOJPRvuzc | Fetch failed for 9260177d-eade-41eb-940b-1fb2b1bb9f6d
+  ✗ 6VO3K_EaTso | Fetch failed for b3593225-09e3-40d7-be1d-fc2d3f65e079
+  ✗ NxyZtyWIeJ8 | Fetch failed for b54eac13-20c0-4d3e-8e17-646e99d61dc4
+  ✗ o4ngV2EGfJg | Fetch failed for f5ac9cfc-ed17-495a-b413-6105df6b122d
+  ✗ KzObz6D6ymc | Fetch failed for 772a55ba-fab7-42a6-b501-38e70cc4d454
+  ✗ 7Dftzn1NXsU | Fetch failed for 6ef78f16-370e-4fb7-9adb-9514a763d7dc
+  ✗ QDM4NjX4cnw | Fetch failed for 14a766a0-962f-4283-8abb-6b852d95d448
+  ✗ 4THbvI6XZ5g | Fetch failed for 606a3237-bb90-4189-b144-20d466eb27e7
+  ✗ Jn2zxehMkk8 | Fetch failed for 17a660a5-15a6-434d-a1ee-0561f3d3a975
+  ✗ ZAVe_S4sCoM | Fetch failed for 4c64fbd3-d63e-49c7-b373-ba854c01f694
+  ✗ pfK-Q3L0Lt4 | Fetch failed for 3cf49717-0cf5-4f53-a6ec-2c6479da6538
+  ✗ 93-U7mJYpss | Fetch failed for 7738f3e4-8540-416c-a255-dece841ad117
+  ✗ 3xk3QDNzzjA | Fetch failed for d13b872e-f997-4243-a593-3a7451ec25db
+  ✗ gcg7fWl13O0 | Fetch failed for 21e28d70-e5fc-463c-a8b2-779b60765d6c
+  ✗ SKK2bM2mk2U | Fetch failed for 87bee592-2677-4922-96b3-93c38c2b8ab9
+  ✗ cf9qCVCKA8s | Fetch failed for 943e0554-6fd2-4319-98e7-284c740ef912
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+  ✓ LLPcP5wXuJM (notebooklm)
+  ✓ JkwsYk-A1_o (notebooklm)
+  ✓ XdXm5wbWuF4 (notebooklm)
+  ✓ QQcqDkCGgJE (notebooklm)
+  ✓ uP7oWnC2_ZY (notebooklm)
+  ✓ wAWErlcKHZA (notebooklm)
+  ✓ BcmA_Sc0RDk (notebooklm)
+  ✓ aMOhBnr1tDs (notebooklm)
+  ✓ wUdn-2T2Xto (notebooklm)
+  ✓ Vl0_XHMVLaA (notebooklm)
+  ✓ r9MIVp1Ntms (notebooklm)
+  ✓ 4CXdR7MCprc (notebooklm)
+  ✓ ZFiGvYTMcp8 (notebooklm)
+  ✓ XrPNnSVRTto (notebooklm)
+  ✓ SPe9v4dO3KQ (notebooklm)
+  ✓ qbya0jQkDcc (notebooklm)
+  ✓ bbROQzUmyl8 (notebooklm)
+  ✓ 7DcL-bWgkS8 (notebooklm)
+  ✓ nDlly-u5Bj4 (notebooklm)
+  ✓ VOtEUFl5Pyw (notebooklm)
+  ✓ y6i4ggwDfHo (notebooklm)
+  ✓ H0eMfyvAz3o (notebooklm)
+  ✓ vI4Wj1yl6Ck (notebooklm)
+  ✓ Gw6CZbDqLgU (notebooklm)
+  ✓ X00X8cMFbKY (notebooklm)
+  ✓ zcGwhVz5wWY (notebooklm)
+  ✓ e9mqiIa2mjI (notebooklm)
+  ✓ Gg-ob4q8g9g (notebooklm)
+  ✓ GHQOQvfTGKU (notebooklm)
+  ✓ e_PWH8OTwQ0 (notebooklm)
+  ✓ hQsxYGSUjgg (notebooklm)
+  ✓ CbH4vNaMxO8 (notebooklm)
+  ✓ Eg-6C7A6tHU (notebooklm)
+  ✓ 8-WWOjv2Pr8 (notebooklm)
+  ✓ nW591KP-oQU (notebooklm)
+  ✓ jLumlCZ-WxY (notebooklm)
+  ✓ 4Gj4jZ2Wpno (notebooklm)
+  ✓ J0LXZQRPUKY (notebooklm)
+  ✓ DhOaKqsx_x4 (notebooklm)
+  ✓ GwV-XmAU5Pg (notebooklm)
+  ✓ ZRNE4xKdKtw (notebooklm)
+  ✓ l2-omy8l-Gc (notebooklm)
+  ✓ 9wl9df3XwKU (notebooklm)
+  ✓ w6n63EBCIZY (notebooklm)
+  ✓ W2G-hwr9kR4 (notebooklm)
+  ✓ 8ssBRQpfu74 (notebooklm)
+  ✓ zCR-2qeXWWM (notebooklm)
+  ✓ d4u6klrl-rQ (notebooklm)
+  ✓ C6nY0Bsy2xw (notebooklm)
+  ✓ 4-Z2E1cGQ4g (notebooklm)
+  ✗ UDZgGenSzlk: Fetch failed for 1bb13962-17a2-4f60-b519-ff785c88f834
+  ✗ JFJ8QTLtvUQ: Fetch failed for ee01b0db-8bf5-4894-b14f-d91884dfaac1
+  ✗ Y2nf-vLnnds: Fetch failed for 494b35a6-1e0b-412c-b69a-e0a391b8deca
+  ✗ BU3Jy7a_PMw: Fetch failed for cd83d956-8f04-40a0-ae4f-1f488e21ebcc
+  ✗ lN8-s8NL44o: Fetch failed for 108c3b3e-5710-4139-8869-cf27c2b2e088
+  ✗ 4NX7tK2I8jw: Fetch failed for 7213f10d-7bd9-4d8e-b413-fb3aa09c5ef0
+  ✗ Wf5mwdsuLl8: Fetch failed for 5b79abf4-8d6e-4d23-884c-18a8ed270869
+  ✗ 09bSSr3QdWs: Fetch failed for 4b9a1358-fd60-4c10-b27c-c457ceb4df63
+  ✗ HlS3JDUHM_8: Fetch failed for 2b83bf4a-3817-40db-93da-972e26c64424
+  ✗ xp9SjNKuSvw: Fetch failed for 54d4f764-9260-49c6-979c-7ea27c13b324
+  ✗ 8cuZePXXZb8: Fetch failed for ec2806cb-148d-4fce-843b-a33cf3d97de1
+  ✗ DS_jze5LlE8: Fetch failed for 20589fd2-0a8b-4197-9c48-b74d0aac2430
+  ✗ uWDQ55i24Eg: Fetch failed for 920030e9-3bba-45eb-93d8-9f64cf68b6f1
+  ✗ PGqCsFRmHSo: Fetch failed for 4ae58e3d-c7ab-4139-a82d-87876a2e7791
+  ✗ 6Ae30kji2sg: Fetch failed for ab3211e1-acac-4660-a27f-72b465ccf216
+  ✗ qk4_mnSBQQU: Fetch failed for 262e03a7-cf92-41fd-9d08-37f97b3a59b7
+  ✗ 2KI51T3tuII: Fetch failed for 3f5e67ea-8046-4afe-96d3-fb2e367d5776
+  ✗ qasylc-vHY0: Fetch failed for 8e9126b3-b66a-4df6-a2e2-e0f2acea9242
+  ✗ Pu4uW-xV8yg: Fetch failed for 62195f56-8fde-497d-908f-872f1b6efafd
+  ✗ 3ZawY9uf6RM: Fetch failed for 351f9de7-636d-4cfe-9644-51e7fb2a3297
+  ✗ ifDr8pG9gFg: Fetch failed for c8625832-34ee-43b8-bcc5-55b6a71e7d0f
+  ✗ 9gFXAzacOAI: Fetch failed for 65459309-1fdc-4ddb-8a2c-04d548aec2de
+  ✗ OiOkvCR1XOE: Fetch failed for 96be0ae7-9243-4c23-b333-b2245e023c90
+  ✗ _4OquOM-tzU: Fetch failed for e83e1736-f1b3-498e-bcb8-b1f7a5f15d5b
+  ✗ IXtkT3Zpdkk: Fetch failed for 6b46fcca-b7e7-4824-9a20-1e33be3b8d3a
+  ✗ faQcXaq5-js: Fetch failed for 7d45e5b9-75cb-4e7d-9a78-d077a1c909e7
+  ✗ JjHHqrjUQz8: Fetch failed for eb205d66-9fbb-4446-a04f-8dfa2db36499
+  ✗ CgZX8V9ZQqA: Fetch failed for 10f30b55-bbec-42ed-8500-efa99e1c235d
+  ✗ bm0KSoikUQY: Fetch failed for 6c1553e7-0bc3-4414-b3ff-bd011f63beeb
+  ✗ ZBzS4pPqU3g: Fetch failed for 7aabe86e-f6de-49e1-bc3e-8753650decf3
+  ✗ wjsHU1R-J8s: Fetch failed for b5991470-4fda-4c91-a05c-0a0a7b71e479
+  ✗ J6HIpj2UBcw: Fetch failed for 0ca3ef93-0f71-4e8b-b902-5ed246ae1001
+  ✗ E-UDntqLm8c: Fetch failed for 968c8544-4214-4fa3-9ea7-83013ee2a64e
+  ✗ D5AIbYBlXV0: Fetch failed for 4b7cf617-47c9-4a96-b09f-57faa2d34131
+  ✗ SRhSk7yxu60: Fetch failed for bb57d490-14ff-4297-aa03-4e9cf5d2dd3d
+  ✗ 0muB7AzyMq0: Fetch failed for 27f7090a-f1a3-4651-a6c8-ac7a038bafdd
+  ✗ y6ULyyd69f8: Fetch failed for b4719da4-3c30-4b2f-a939-502c2a0c1f80
+  ✗ wIA543zdWDs: Fetch failed for 62ace851-cd93-4254-b4a0-bd9835fdaf66
+  ✗ Yc1GXqCi6D8: Fetch failed for 425c76ac-17a6-49d5-8a44-46dfb8737014
+  ✗ oFSHY2_B94I: Fetch failed for f051f5d6-8e52-4730-8d47-9fff5a97c491
+  ✗ vcUTZHPXm-Y: Fetch failed for 277f4d62-6e50-4679-a63a-f478548bef28
+  ✗ zg6hKGVze18: Fetch failed for 074ca5dd-d59a-4ca9-b058-604fbd0d74e1
+  ✗ gk6aeZiwpa8: Fetch failed for cb152909-8135-4f79-8545-92511d8157f2
+  ✗ 6_d4kTv-8Yo: Fetch failed for b19683ed-7fd1-4d20-8325-144460293345
+  ✗ mtwS4Y4Mieg: Fetch failed for f38b5750-7860-4b3d-acb4-7fdea3948952
+  ✗ aTLGJJLVACQ: Fetch failed for 5e1faa40-10ab-44d5-af7f-48493f481dbe
+  ✗ TUmswzA-k_0: Fetch failed for 87b564e9-1772-4987-bc5d-b8d783bc1b90
+  ✗ NTrvwjDUkio: Fetch failed for 1de98bf5-5793-4795-81ad-ed251922c31f
+  ✗ tae7hVmUaq8: Fetch failed for 9fbf12b4-952f-458e-9057-984006468ed9
+  ✗ uU_LqYeF0jM: Fetch failed for ae9f9e30-b42c-47b4-8302-3dce235f4985
+  ✗ B50WiTrE_QI: Fetch failed for f05cfedc-945f-48e1-94b9-03b93fff3228
+  ✗ jJW13T1QzAI: Fetch failed for 7e7666f8-b02d-4d2d-b0cd-cd3bf0f67c57
+  ✗ Mv1AvV18Oqk: Fetch failed for ad8894e2-65dc-49de-89b6-c1ba4ed83714
+  ✗ RXs8pXWKJNY: Fetch failed for 3d41c384-c556-4df6-9e43-52934b2f0a2a
+  ✗ EmwedUO0gCw: Fetch failed for 5a764daa-47e7-4ecf-8b43-81ba00e421ed
+  ✗ A5YPXOcPy2M: Fetch failed for fa241722-5051-4c93-9d2f-1ea56b8a8c6c
+  ✗ Ca_UdMYEZfU: Fetch failed for 407b44e1-c3d1-4cf6-924c-4fa30c09de28
+  ✗ QKfrhAQh5wE: Fetch failed for 64dce5e1-3619-4efc-b8b4-3655173e9181
+  ✗ d1xi4Mgkbdg: Fetch failed for 9c8cd9b5-53eb-42c4-a7d3-4df07538853c
+  ✗ q37EKFMl21M: Fetch failed for 7a423d8a-4021-4280-89fd-b18c6f68cbfa
+  ✗ LcrwQRRqRro: Fetch failed for 0ccb23cf-9dcf-4f82-ae15-b5ebe2f00f0b
+  ✗ -b1RY4bZzZM: Fetch failed for f5b82c12-d182-4147-bfd3-407c9ec071a5
+  ✗ AYqzmUli3tI: Fetch failed for 435ebfa0-14d2-4224-8b70-4ad49ea3640f
+  ✗ KLwcN4CNTfQ: Fetch failed for 4d0bf9e2-3789-4110-b1a3-cc168ff27ccd
+  ✗ RZD_1pML4Ps: Fetch failed for fcdc5e60-62da-4911-8bdc-4779f4cc13ca
+  ✗ OEQwA5f0gLU: Fetch failed for 0805b574-d7d2-412a-bf0b-78f3ebc92d41
+  ✗ SjDiE2eU29w: Fetch failed for 0d97e988-ade9-495f-ba86-58938ea90ed9
+  ✗ RAq__TyYr2E: Fetch failed for 1c996fae-23cd-4285-9a83-17e32340083f
+  ✗ hnFeIzbph5g: Fetch failed for cb7fe5ce-1581-4052-86d6-ba48b3d57127
+  ✗ 0TOJ-89r8GM: Fetch failed for 00154df0-ddcd-4674-a662-5b0a493373d9
+  ✗ 63OURKgS2wg: Fetch failed for 86b4e02a-3946-47b7-aa46-8bc390cd9638
+  ✗ _0boxwBaDVc: Fetch failed for d2e7830a-81cb-44b1-a683-f14b946aae60
+  ✗ xpwzoYM55Xw: Fetch failed for 2dab709a-d91a-4978-8a06-dc2cb5b11e4d
+  ✗ 4se2ENn3ozw: Fetch failed for ad95dc28-73a0-4593-bacf-463049d38c57
+  ✗ Ne0oVVF_ma0: Fetch failed for de77cc06-3ac9-45d4-b591-0acc74d20142
+  ✗ TlNIC9rS_B4: Fetch failed for 379ea928-0f7d-4919-a84c-7cd623636736
+  ✗ eOa78ffguF4: Fetch failed for 2045fed8-d4e9-40f7-ba6e-b3df6b2fb417
+  ✗ 5azDu3JN4LE: Fetch failed for 53e2ab9f-5dcd-453b-a5fc-c327455e3154
+  ✗ YPky6HE0m1w: Fetch failed for b722c437-b2e3-46ef-b1d1-19f827af38d6
+  ✗ wga0cxD0AP8: Fetch failed for 416fdf5d-3284-4c38-b2f8-b9721a47e3b8
+  ✗ nT4xs4ssBLM: Fetch failed for e1a80a8e-0ec6-4c51-a1eb-40c02acbc7cf
+  ✗ gqcybsCDr_0: Fetch failed for 2d4f6063-e537-44e5-a1dc-f5b6a8629120
+  ✗ vRC6lWBujzk: Fetch failed for b2937f77-cd70-4482-a9ba-4f1f279a28b9
+  ✗ TaGtJuiM2bE: Fetch failed for 4eee0191-357f-421e-aad8-c9332636eede
+  ✗ 0iWt55T6A-E: Fetch failed for e8c11843-5ce7-47fa-add4-92c06aac90ef
+  ✗ tWz7S1xzyCM: Fetch failed for 8c8b7b7b-14d3-48f6-9d60-3021b02ef102
+  ✗ axxXu674-og: Fetch failed for e984164a-b4b9-4ea7-a452-663283c3d3e7
+  ✗ neQwt68Bsrg: Fetch failed for 1dc6daa0-ca6f-4491-a6a6-c438e2077ad1
+  ✗ d6FRSm38LEU: Fetch failed for 4ff2d893-7dc7-4ed4-bd67-c28b87e5adf6
+  ✗ 0xiz0OPh-P4: Fetch failed for fb050df6-84b7-4c26-99f0-627aae4961b4
+  ✗ R8Uvgg6dX5I: Fetch failed for 46d153e9-f1b1-43fa-94eb-edc5d0729c71
+  ✗ 4s3NVW4orGE: Fetch failed for 434e2f0e-29e8-4ea9-8ed1-58ef94b21604
+  ✗ oOU2Je3044I: Fetch failed for 06df011a-c233-4706-bd2b-fa39acc0ca54
+  ✗ mDX78b8FBEM: Fetch failed for 29cd832f-a1df-494e-83ae-89c432e49258
+  ✗ XMXAbV78kJU: Fetch failed for 2cee627e-898e-41a9-b312-73c482076507
+  ✗ Vf9i1bbJcpk: Fetch failed for f2a83e73-4a85-4b45-bf44-a3e2d9b0d177
+  ✗ 6QfIzJfzXvY: Fetch failed for e2fddb3c-bbfa-4c50-a4ab-e5540029f69e
+  ✗ V81UM6KQWVg: Fetch failed for bcb707e2-62d9-40b9-8e72-84376af6dfa6
+  ✗ Jg6P56v5HoE: Fetch failed for 27508b90-1581-4ad8-b57a-4759c25a1c8f
+  ✗ B6hlFGJ9LNw: Fetch failed for 0243ad3e-790e-4114-8305-7620c3284840
+  ✗ QGnNIRk0wsQ: Fetch failed for aa535130-175b-41df-9c44-7c7cb06d8fbb
+  ✗ ERdND0zRblw: Fetch failed for 1464a47c-7a22-4beb-88dd-1e880a185894
+  ✗ pHUwzI_P5hw: Fetch failed for 8abc3c59-fb66-4790-b03e-5a44bac964a3
+  ✗ okfcF8gBpfA: Fetch failed for c4f8ef3e-3aaa-4dd3-a70c-0c72820d7efc
+  ✗ swKuVPm-eI8: Fetch failed for b689d4c9-1aaf-40a7-ba7a-83d486e90b44
+  ✗ Tzd_1YzjqXc: Fetch failed for 9a531f74-2582-4cdf-97ee-59ecd6abfdbd
+  ✗ ixRzm3smQko: Fetch failed for 53203e7d-19fd-4bac-9b6a-066ed432fac0
+  ✗ v4GQn_lkiNc: Fetch failed for c9ce88e9-c1f6-4230-aa22-f13f4e1685e0
+  ✗ VerEoET9Mkw: Fetch failed for ad693cdf-d40e-4845-8c2f-f2461f079ebc
+  ✗ 0qSJcIgMWGo: Fetch failed for 30ec0c3c-cb69-456c-8906-88bc11c6b043
+  ✗ zL156w0KJhE: Fetch failed for b013b5af-d8ac-4901-9c69-73520f21e6b9
+  ✗ NReOzXjIpm0: Fetch failed for 8c32fc77-3ca5-4a51-a027-aa2307d7d3d0
+  ✗ ojc9WG_vfes: Fetch failed for 3425b911-4ef6-44a7-954f-ada65bb2b0a3
+  ✗ KcBdPlA1OW0: Fetch failed for ff6c021b-fe7b-41be-b4e7-135e41709337
+  ✗ eJIeBi3R8Gw: Fetch failed for f355ca90-d149-4348-935b-5c527b9c37f3
+  ✗ F0YvJkG-Ack: Fetch failed for 48ddaf53-b08d-49e1-8c7a-fa36cef87115
+  ✗ ynMJa7oWcwU: Fetch failed for c16ee3df-6c50-4fec-8750-a90f5075e59f
+  ✗ rFVfhx9pMLA: Fetch failed for 4d90d81d-6c4b-4bf4-b988-6ad65ddb446f
+  ✗ KNGY1m1XT7k: Fetch failed for 80ae08ef-4059-471c-ab45-4514ced1dd1c
+  ✗ KYD1fZHg9ec: Fetch failed for 38fe00f8-9907-4293-9dbc-74c473b60c1b
+  ✗ DtK2o9yeLD4: Fetch failed for 4b172d97-8414-4b5b-8e4d-bebf00782702
+  ✗ rVGfIatKzD0: Fetch failed for 9661d1d2-f71d-4e78-a1fa-2adb9427b7a2
+  ✗ vC0GdC418og: Fetch failed for 5f46394d-c9fb-4d18-bdbc-231d2005d52e
+  ✗ IaschiAlSFc: Fetch failed for 85d9a073-504f-47a6-be03-0e88b062dc0d
+  ✗ K7nX_f44hj0: Fetch failed for bf5cf3ee-0d52-4c0c-abd9-33991d85c6d5
+  ✗ FI9KD6r3jQo: Fetch failed for b1462890-2f47-43ff-bc73-d13d993a6155
+  ✗ EyjhXr4QBtI: Fetch failed for c99d4fe7-27f8-499c-8ea0-0617c1410401
+  ✗ gu7GKNnsSYE: Fetch failed for a165ed4f-ede9-41a2-8e47-1cd66c83874d
+  ✗ XHgdNa1bjQs: Fetch failed for 23945dd1-4e3e-4bc2-8b41-144f7220608e
+  ✗ XpHzB1kJFYg: Fetch failed for cc9767f8-baaf-4d6c-8d91-7600fab8c2ed
+  ✗ ChFTOpEF4vY: Fetch failed for 4bc008f4-eb98-4800-bf8b-89a15eb72d81
+  ✗ PnPc44RfPZo: Fetch failed for 08f25ea1-a319-4c9a-8808-acf36d8fc553
+  ✗ SI2jUgex7dE: Fetch failed for 3b9a9221-b913-49ee-9917-1c10427c24f1
+  ✗ MXAvtEHyl0A: Fetch failed for b75e183b-820c-493f-9644-e65e484341ad
+  ✗ j6lOJPRvuzc: Fetch failed for 9260177d-eade-41eb-940b-1fb2b1bb9f6d
+  ✗ 6VO3K_EaTso: Fetch failed for b3593225-09e3-40d7-be1d-fc2d3f65e079
+  ✗ NxyZtyWIeJ8: Fetch failed for b54eac13-20c0-4d3e-8e17-646e99d61dc4
+  ✗ o4ngV2EGfJg: Fetch failed for f5ac9cfc-ed17-495a-b413-6105df6b122d
+  ✗ KzObz6D6ymc: Fetch failed for 772a55ba-fab7-42a6-b501-38e70cc4d454
+  ✗ 7Dftzn1NXsU: Fetch failed for 6ef78f16-370e-4fb7-9adb-9514a763d7dc
+  ✗ QDM4NjX4cnw: Fetch failed for 14a766a0-962f-4283-8abb-6b852d95d448
+  ✗ 4THbvI6XZ5g: Fetch failed for 606a3237-bb90-4189-b144-20d466eb27e7
+  ✗ Jn2zxehMkk8: Fetch failed for 17a660a5-15a6-434d-a1ee-0561f3d3a975
+  ✗ ZAVe_S4sCoM: Fetch failed for 4c64fbd3-d63e-49c7-b373-ba854c01f694
+  ✗ pfK-Q3L0Lt4: Fetch failed for 3cf49717-0cf5-4f53-a6ec-2c6479da6538
+  ✗ 93-U7mJYpss: Fetch failed for 7738f3e4-8540-416c-a255-dece841ad117
+  ✗ 3xk3QDNzzjA: Fetch failed for d13b872e-f997-4243-a593-3a7451ec25db
+  ✗ gcg7fWl13O0: Fetch failed for 21e28d70-e5fc-463c-a8b2-779b60765d6c
+  ✗ SKK2bM2mk2U: Fetch failed for 87bee592-2677-4922-96b3-93c38c2b8ab9
+  ✗ cf9qCVCKA8s: Fetch failed for 943e0554-6fd2-4319-98e7-284c740ef912
+[source] Processing batch 5 (200 videos) via NotebookLM CLI batch...
+[Throttle] Success restored after 8 failures — delay reset
+[NLM-Batch] Adding 200 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-200/200...
+[NLM-Batch]   Adding sub-batch 1 (200 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 200 sources in parallel...
+  ✓ mmdJIQuC2LM | 997 chars
+  ✓ svREzcez2HY | 982 chars
+  ✓ 9eWkyIXmj40 | 701 chars
+  ✓ G5R1Ri1vBK0 | 950 chars
+  ✓ OECWtO6nz34 | 775 chars
+  ✓ WsAy1TbVLac | 984 chars
+  ✓ np3g3j-Ua9s | 723 chars
+  ✓ sQYxIT0Lujg | 904 chars
+  ✓ wyeOZaPwmLQ | 683 chars
+  ✓ SDQA7J1GlVs | 24472 chars
+  ✓ lEWUcs7QdeY | 642 chars
+  ✓ EdhU5epRDFg | 818 chars
+  ✓ 4SsaFBS7PaI | 1027 chars
+  ✓ iyAtPR1MrtA | 745 chars
+  ✓ co24JezHD_0 | 682 chars
+  ✓ idOwwIavPxg | 385 chars
+  ✓ VUwNF2vUywE | 19535 chars
+  ✓ WrLIfsX4mK8 | 901 chars
+  ✓ RngKHZVJyJw | 17360 chars
+  ✓ JHFpAnU_BnI | 733 chars
+  ✓ 2B0yl5RQZWo | 890 chars
+  ✓ LElGcnq1YoA | 769 chars
+  ✓ TW4LENLQ-Ns | 817 chars
+  ✓ X1YLdgnhVQc | 892 chars
+  ✓ sNG9VBbk2Fw | 895 chars
+  ✓ jacyIghC0iM | 917 chars
+  ✓ Xis0nDrn7bQ | 961 chars
+  ✓ rpP8i-CHOlo | 882 chars
+  ✓ 6AgG9XkGz10 | 1030 chars
+  ✓ 4ZWdRvmGq1Q | 851 chars
+  ✓ 9aO99BZvleE | 969 chars
+  ✓ jDw_EINmO4Y | 969 chars
+  ✓ 0JO8sW4ZeLM | 814 chars
+  ✓ cNgbIFcZGmA | 1042 chars
+  ✓ 4U7HxCurMg0 | 14287 chars
+  ✓ 8XB98nndCMU | 38934 chars
+  ✓ fqRrBTQUNq4 | 856 chars
+  ✓ F3fvLEoNeLQ | 800 chars
+  ✓ 4123_dzxF8s | 49370 chars
+  ✓ tIWF2SQx-Ls | 457 chars
+  ✓ GOky0RvEclU | 760 chars
+  ✓ TY4OZarQJgs | 1017 chars
+  ✓ QSiEyhHPN0o | 924 chars
+  ✓ 8xJkmMRN7Os | 650 chars
+  ✓ cJ_TwQkzN54 | 387 chars
+  ✓ 1G_OYpaIGFY | 966 chars
+  ✓ rCbaZg3wh8U | 25205 chars
+  ✓ URhte8hudyk | 994 chars
+  ✓ pBnM83NJk7o | 846 chars
+  ✓ AIZKDtJOAvs | 715 chars
+  ✗ bTaqx0kg77k | Fetch failed for 4cc39d73-14fe-4a02-a321-cea916098c62
+  ✗ LNzBbF6SVxc | Fetch failed for 8cd3f9c8-cead-43e8-9174-13bae3546cdc
+  ✗ NWbz4M2cMr8 | Fetch failed for 5570a6ec-8d1f-44a3-afde-22cb65573c94
+  ✗ fqF2eya-R6I | Fetch failed for 9ac343e1-12a7-4c06-8b25-305d875f6dad
+  ✗ lrvawNa_75w | Fetch failed for fef1e6b7-714f-4ed7-a58e-d4e0a381685b
+  ✗ kS_bkBbDKkA | Fetch failed for 16200991-0457-4f62-9baa-da0a914be5f0
+  ✗ z4-gynek6Uc | Fetch failed for 217dd097-3f95-4c69-8519-ab7eed9bfba2
+  ✗ qlrMRh8GR5w | Fetch failed for 05623909-285f-4b59-a8c1-6157dca18362
+  ✗ _pCFYkTLuT0 | Fetch failed for 6f3718f3-4d84-406a-b4b1-a0a552ac74d6
+  ✗ X5LNhbXcE4k | Fetch failed for 8599a01c-2f86-49d0-972c-be1f46bfe1e5
+  ✗ YzRD9v8Tp0U | Fetch failed for bb1f0ab0-d09d-4cd8-a55a-ca7ec4213506
+  ✗ _shiisDSt_8 | Fetch failed for b602d068-679e-4bbd-8830-842cb9f1dd7a
+  ✗ 1VFz352uy2o | Fetch failed for fbfda830-52f3-43ed-834f-7d877e0682e9
+  ✗ hcFPh-jTRrY | Fetch failed for fddc6e1d-933e-43e4-8e0e-175f2572fe98
+  ✗ RPPIGc4YkwQ | Fetch failed for de43e5b4-02d2-4802-b54b-d899f85e2014
+  ✗ 6Vh-rmKcWkA | Fetch failed for c8d877f8-9042-44d0-9ea3-761d7959fe7b
+  ✗ 1gurlnVbXVk | Fetch failed for d2d6908a-cede-41c3-94d0-5e0f36234535
+  ✗ nNKFWxT08Cw | Fetch failed for 317462d9-60d0-4109-9a73-62f68446afa3
+  ✗ BuKsTjmHj14 | Fetch failed for 98bf54c0-b436-4f4f-8db7-85a3316aaf45
+  ✗ ynfZgFW2Bnw | Fetch failed for c8daf6e5-6d17-4718-b50d-f49f5945d0e8
+  ✗ uOPVaFFg0fY | Fetch failed for 1fee6dae-6281-45d8-ad7f-dc86b5d3a244
+  ✗ dtBMPueBZSw | Fetch failed for c302ff93-dbb9-4a71-b101-f0ec8080f996
+  ✗ KGHG6EfAWbE | Fetch failed for 144f526d-0262-401e-a5a0-e457ee118453
+  ✗ mZJICSz-0OE | Fetch failed for 69197b49-65f2-4cd1-bb2b-5bec875c2b99
+  ✗ lIAf6wGZFnc | Fetch failed for d8573f4c-6656-4775-b0e0-85b2c15c5a87
+  ✗ gcntIdgvDuo | Fetch failed for 66ce9af9-49ee-48b0-b5e6-27c9bf2d3ba5
+  ✗ Va3ptg_4ka4 | Fetch failed for 4ec3611a-3d12-40b7-b434-72cdb3f65cfd
+  ✗ CjeEDZLnLy0 | Fetch failed for 81f19769-c088-42bf-a775-d1ad08754269
+  ✗ Zf_qUPU97RM | Fetch failed for 68ff7be4-ad7c-4c24-8bba-8173f1fa6b82
+  ✗ xaM-HVKWd4c | Fetch failed for 742fcbb0-5cd1-4b92-b334-d6e0cbdf90c0
+  ✗ vdhH5o6KlqQ | Fetch failed for bb8559bc-5ee4-4e26-85d3-23df91a4eb73
+  ✗ SC9jgTyW3LM | Fetch failed for 43af4a9f-167a-48ef-aa43-73134035f17f
+  ✗ BtVKWhBWW1I | Fetch failed for 305cb4e0-45d2-4443-a192-aede0ebd7046
+  ✗ eddiCQIeQKs | Fetch failed for df68a40e-0ce3-4d66-b98b-cca65c2d6c58
+  ✗ 5pIipVU0ucU | Fetch failed for dc754be8-0548-403a-b751-cc486e814e11
+  ✗ GXpBXFZTzQc | Fetch failed for c0ffca2f-2269-40c6-9d41-fe112f6b2973
+  ✗ nYSVjNjOZh4 | Fetch failed for 1a28080a-f37b-4a62-90eb-1322fc339c19
+  ✗ NhJH_sV6FJ8 | Fetch failed for d7fd01b7-2503-4da7-95a8-954038d789f7
+  ✗ MMJCKh-Trr0 | Fetch failed for 2a591f64-9286-4abf-bb9c-b2ebdd18dedf
+  ✗ uMZIe66Whfs | Fetch failed for 4f58e038-91e5-4682-b9a6-e8616a0e526d
+  ✗ TgHHsMSFfl8 | Fetch failed for 10cc2834-962d-4645-8272-e4b820a61477
+  ✗ 9wi9szD_PSs | Fetch failed for 1c4f96d8-b118-4b00-a3cd-bda951da54e1
+  ✗ OLtQFuCxrN4 | Fetch failed for 28842e13-74f0-43eb-a05d-9a08206a437f
+  ✗ _YZ8EeGDwGI | Fetch failed for 26c72855-48bc-4903-92ad-765b21f689ee
+  ✗ ay-ILx9kRgE | Fetch failed for 18d4b51b-6219-47d7-8b04-a676ae6e4f1d
+  ✗ 7a-mkoVl1QU | Fetch failed for 1c546222-2f8e-4b9b-81a4-b16cc816e1df
+  ✗ BEdKNBmmLyg | Fetch failed for ff4857a3-f42e-44e3-948a-0dfe740fe0e5
+  ✗ 5png_IJccOQ | Fetch failed for e57e3d8b-4dfd-47a8-987d-56a7c2a0917b
+  ✗ ym-CTO8ZJ8I | Fetch failed for 34a55f01-9b97-4403-a35d-e957017d1b2a
+  ✗ 8_9l8BKWep0 | Fetch failed for 1c7b5073-380d-4551-8364-32d452a6e2f9
+  ✗ 7d2uTExgZjo | Fetch failed for 69715d80-7174-4e0e-af42-9e33b4eb31d1
+  ✗ T1Iidc8UL6Y | Fetch failed for d47e5bbd-1493-4b03-8b2b-c3c3678fd652
+  ✗ TSn4iCcvvQ4 | Fetch failed for a288e39d-b796-4b61-b5d0-be26a5694792
+  ✗ -dqUELcWnJs | Fetch failed for 9642e520-cbef-4548-afb1-4401c053463c
+  ✗ 0KHKlY1Oebo | Fetch failed for 374629ba-069f-45c5-a37d-8c658d4f8247
+  ✗ T1nOPxvRwNw | Fetch failed for 13e31169-0320-402a-860e-c13c493425c0
+  ✗ 4HWzbOrmRDI | Fetch failed for 8b62be74-8522-468b-a501-17f5555161a9
+  ✗ 2AYph0eAzcM | Fetch failed for 13a4df81-52c2-4556-b234-777a5d66376a
+  ✗ FVs6L6eB2VY | Fetch failed for cc232982-5f25-4909-9c1a-ab5b03b86ed5
+  ✗ gzRiqixXKh0 | Fetch failed for 737970bf-d51c-4056-91e9-063bf3202b8f
+  ✗ OVrgsYnjfPk | Fetch failed for 9bcac5ce-ef9a-4abc-94c5-eacdcf9953bd
+  ✗ ap-9abWP-TM | Fetch failed for c19a8f1a-fd09-4fd3-98f5-6d5a5364524f
+  ✗ rp1x5JnzNlo | Fetch failed for d8410c06-3bd6-42f4-aa99-922b9eacd6d4
+  ✗ qQwdPltw8SU | Fetch failed for 0a4f2b42-d21b-4ed3-bbcc-1244106f6578
+  ✗ 7VPxSgS5lp8 | Fetch failed for d144c922-c935-4670-b930-7883c8beef33
+  ✗ yXxX76HYMGo | Fetch failed for 802024d0-b907-40eb-a742-cb886ad084c7
+  ✗ N5QqbJWHkWA | Fetch failed for 3c272086-163e-475a-a014-bee23253333e
+  ✗ H1fXu-oP5PM | Fetch failed for 45b1678a-d1a6-44a4-813b-a785bde82539
+  ✗ b5qEYalXZ3g | Fetch failed for 504ca359-033a-4a43-b963-261712a2b7c8
+  ✗ hrMti8WjUyA | Fetch failed for 770190de-2e3b-4753-b35a-959f6cf72ad5
+  ✗ 7H81qnE0zWU | Fetch failed for e8405e6d-2c0d-43dd-98d5-a61a8032b76b
+  ✗ SkpWO5_8u1M | Fetch failed for 602a2071-6750-4fb6-9ea0-cea6757f86d7
+  ✗ sJGmLWMPOMI | Fetch failed for e737a65c-be12-4cac-8f33-2197bdeb6226
+  ✗ BgWLgPU-fwQ | Fetch failed for 3fb8f937-ec5c-465e-ae8c-a5b2a90645c3
+  ✗ Bce7I-TNUVI | Fetch failed for 686ccabf-92ef-4fe9-b4dc-9c8c48b06672
+  ✗ c5JlqjWfueA | Fetch failed for dc3db52a-4c3f-4b25-ad1f-fb338d6a9f36
+  ✗ ZpTn31ZGGBI | Fetch failed for f67cba31-4bf3-4ac2-9ac9-8037e77f72f1
+  ✗ kbHTvbMAXaw | Fetch failed for 762492a0-7448-4ae4-ad69-d70d65be6006
+  ✗ rLPF3Ia915s | Fetch failed for f261d463-bfa8-4527-8e8d-65c551b25587
+  ✗ wBhk7INF_II | Fetch failed for 02dd201e-fa08-4a11-bf76-d528bcd46237
+  ✗ X4f9aCc8dd4 | Fetch failed for b5f6f601-e37a-4db8-ac11-e7e8dafcd107
+  ✗ FaWC6t9zV9Y | Fetch failed for 8465338c-0470-4a6c-b79b-403c50c36eaa
+  ✗ nJYqIow7WvQ | Fetch failed for 59bde669-d01e-4ddb-8c94-b9d648bcb789
+  ✗ j94AvK6Sbsg | Fetch failed for da91f978-1251-4c1c-a616-8c4b797cd7fa
+  ✗ FUpgAQxkU44 | Fetch failed for d83e4921-804b-444c-8e9f-4c8b36a68321
+  ✗ OmQk9IazvVM | Fetch failed for a8c43724-a93e-4cb5-ba4c-922d2952b612
+  ✗ LuyoS2by_Hg | Fetch failed for 007ac32e-fff9-4890-ab0f-86c85cb7a858
+  ✗ mAic7Zwe8ug | Fetch failed for 0077bcc0-5bab-4303-bec7-25315440f062
+  ✗ z1Z6A1z3mvM | Fetch failed for 418ed66d-9347-472e-9c32-092664ed3fc5
+  ✗ Q3hq5xgmS3o | Fetch failed for 41c34d64-a141-4452-8428-06730d26ab81
+  ✗ RP62S58fVw8 | Fetch failed for cc8f60dd-4c0b-4b2a-99df-298a60d53be5
+  ✗ 5MuC7SVwRh8 | Fetch failed for 9f69fbb0-0de5-41f7-94f0-e1868baee7e6
+  ✗ XqTzXuqYTbI | Fetch failed for 7987b5ca-76b4-434c-ad0b-1bfed235296c
+  ✗ qX7ltRmPs6E | Fetch failed for c3c67ca0-0c7e-49eb-9e1e-fa9486ff43da
+  ✗ D7wxyvFnUio | Fetch failed for f00e8a51-e6c2-4fbc-9d83-7d2d6629b369
+  ✗ OMjQzuNyNEY | Fetch failed for 8d54c99d-08cc-45e8-9a93-7d6ae3ff7558
+  ✗ GFVHcj3p0Fk | Fetch failed for de338bf5-9a00-4177-8a8d-6f13b8eef1ad
+  ✗ Sjrf6NYS6zs | Fetch failed for 7be33a80-d393-461f-9adf-086268539644
+  ✗ 5jt6qTIcp7Y | Fetch failed for f9ebd231-c2f5-4beb-b2a7-be68c67a2a13
+  ✗ QXW7UWwfizA | Fetch failed for aac39f18-afe7-461c-8088-1891cc849a78
+  ✗ N0W3NMlOrX8 | Fetch failed for 55d3aa74-8cc5-40bf-87e4-fb925da8e622
+  ✗ WMHa-g07iXM | Fetch failed for fd905040-6e9e-4891-a450-213d20f25d33
+  ✗ potB_cltNFs | Fetch failed for 5663529a-23fc-45eb-8ffa-68750383a63c
+  ✗ ZzZ7WBkohG0 | Fetch failed for 99da1aee-4553-4608-9c5a-4a73ac79c170
+  ✗ ZeIG5jBZduU | Fetch failed for 5efc5c70-f424-457b-bc90-f549f917f273
+  ✗ 2Bf68FW4LVw | Fetch failed for d7ef4ac6-d57d-4523-ac33-e1ea2570326d
+  ✗ Ry3_8y3fSQQ | Fetch failed for f0d37d81-b549-49eb-a7e4-d93af316da49
+  ✗ _mwX8ohX8Ig | Fetch failed for 2de0b4ec-eee3-41ea-a4a7-3a307987750c
+  ✗ R6jhtpq-mmk | Fetch failed for a9dc058e-cc4e-4f93-bd3f-1af524ecbf43
+  ✗ 4XxkVQKxt-s | Fetch failed for eaad6659-f0e3-4ea5-b1fd-f6f2ec0d9e26
+  ✗ qLkK1wgss9g | Fetch failed for 3e914d4b-b51a-44be-bad7-cca64395ed35
+  ✗ NTdcrHf7ZIg | Fetch failed for 10eae1fb-6cee-48b9-96bc-d456958577d0
+  ✗ ft9WZXqZ-5Y | Fetch failed for de38d5b2-d535-4286-ba32-f0e4f48446f9
+[Throttle] Success restored after 1 failures — delay reset
+  ✗ tR7QNhyEz9E | Fetch failed for a5e3253b-b014-4cf7-9498-d1d53b002fdf
+  ✗ FCGUygyrxNI | Fetch failed for da8315ad-c353-488a-bf9c-9b85f2021d3e
+  ✗ j4DnxU3vqPQ | Fetch failed for bc2d3a6e-6a08-4677-bef0-864598e0fa10
+  ✗ EmqzsrjqxwM | Fetch failed for 581f0e79-acbc-425a-8993-ddfc9074d7b8
+  ✗ aRBmMHdAJ8Q | Fetch failed for 155a591a-7205-4e4d-9deb-c86e5a070542
+  ✗ _96LXpMBPQQ | Fetch failed for 979547d2-8f91-4841-9b1e-4c3e744a3827
+  ✗ a-_oYH2Nu-k | Fetch failed for a2f1e6bc-f2e3-4862-8afb-2fe82799db99
+  ✗ mY50ibYWfYY | Fetch failed for a5f8fe7f-e062-4589-9fa1-0e51f4b454dc
+  ✗ LQPrBt2lAK8 | Fetch failed for 2e26df48-078d-4676-b941-c60915482db1
+  ✗ C79QO5H0k6E | Fetch failed for 943a0df8-4840-4fcb-a683-45bc6eda0e6c
+  ✗ Ph-Rhc85G9c | Fetch failed for aab87f97-c94c-4a6e-9019-f27d32804793
+  ✗ U2vEDnnC3os | Fetch failed for c16c7390-0e5e-427a-a1c4-c53b30c41527
+  ✗ TTRkhCN9eUU | Fetch failed for 68fc23a5-9340-46a1-9aaa-6a2f460e158e
+  ✗ tOfyWtQmDJQ | Fetch failed for 945b8458-f324-4e4e-bf9b-ee8960f621c6
+  ✗ sVbLaCxCAAc | Fetch failed for 28208fea-4b24-4100-ab45-e1fedab843f9
+  ✗ jRiSUyrqtmU | Fetch failed for 366044f1-0af3-470d-9a85-482ca3d1a7d5
+  ✗ uWRS3mRfylY | Fetch failed for 73a8fa33-940e-4ed1-9cd6-7f03c624f6f7
+  ✗ fGiDGvUIaF0 | Fetch failed for fee8295f-3ee0-46a1-90cb-89c923700a56
+[Throttle] Success restored after 1 failures — delay reset
+  ✗ ZFgknVwk9oM | Fetch failed for 668407e0-5fed-45e1-93e0-5826b103f1de
+  ✗ xVm2uiWCGfw | Fetch failed for cf06d2cd-2059-4838-94c3-d97d56c3ab04
+  ✗ POiYKsPZc1k | Fetch failed for 7171814e-be4a-4921-bfc6-96b7533d7a9c
+  ✗ zfUN_oyY53Q | Fetch failed for 3319a5c6-e62d-4c9a-9bdb-a55449dc50f6
+  ✗ KYydGYiaXNI | Fetch failed for 57099398-e885-49af-ad67-afead6dca08b
+  ✗ oNPtphlPE94 | Fetch failed for 5baa1818-b087-4303-94b1-b37f99cea599
+  ✗ dbwiPg9t-bs | Fetch failed for 2b3043cd-f788-4f38-acee-fd1f480ad0bd
+  ✗ QG4ORF5kgEk | Fetch failed for 6f2f7d5f-bf8c-419f-a0d8-5f49ec8aa666
+  ✗ cnyE9Ej1Zsk | Fetch failed for 4414bdc7-0bbc-4085-8c44-b2cb0d5dcd4b
+  ✗ BUlHee3yLzU | Fetch failed for f7649284-f9dc-4598-994f-8b543af828c9
+  ✗ yrZ-2KD3ZhE | Fetch failed for d90c76a6-04ea-4168-a82c-deff48505d6b
+  ✗ jzRHTrduZ4w | Fetch failed for 0dfc0dd9-f9f6-4a28-a0d1-7f2ce60496cd
+  ✗ DixLZcmpAh8 | Fetch failed for edb2037b-0922-4f79-9eed-740ec737b403
+  ✗ KAU7reN3gSk | Fetch failed for f564a5e0-0968-4968-8204-c90af4ae74da
+  ✗ vecnY7yo_1U | Fetch failed for 626c42d3-74a9-4272-afd6-8fa0d6d5b870
+  ✗ 4cuWpLUGx1o | Fetch failed for c73f2fad-db7a-4fe4-aa00-f48b142544f4
+  ✗ nTQRN4AKacY | Fetch failed for 50f728c2-0f6d-4d08-b601-461bbb66d5b6
+  ✗ K6eWJya839I | Fetch failed for f4cef6db-07ee-42ec-b084-3b8c3b933d97
+  ✗ EjZpzdMZw8Q | Fetch failed for a826105d-2a2f-4d48-ab67-886fb98b8664
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+  ✓ mmdJIQuC2LM (notebooklm)
+  ✓ svREzcez2HY (notebooklm)
+  ✓ 9eWkyIXmj40 (notebooklm)
+  ✓ G5R1Ri1vBK0 (notebooklm)
+  ✓ OECWtO6nz34 (notebooklm)
+  ✓ WsAy1TbVLac (notebooklm)
+  ✓ np3g3j-Ua9s (notebooklm)
+  ✓ sQYxIT0Lujg (notebooklm)
+  ✓ wyeOZaPwmLQ (notebooklm)
+  ✓ SDQA7J1GlVs (notebooklm)
+  ✓ lEWUcs7QdeY (notebooklm)
+  ✓ EdhU5epRDFg (notebooklm)
+  ✓ 4SsaFBS7PaI (notebooklm)
+  ✓ iyAtPR1MrtA (notebooklm)
+  ✓ co24JezHD_0 (notebooklm)
+  ✓ idOwwIavPxg (notebooklm)
+  ✓ VUwNF2vUywE (notebooklm)
+  ✓ WrLIfsX4mK8 (notebooklm)
+  ✓ RngKHZVJyJw (notebooklm)
+  ✓ JHFpAnU_BnI (notebooklm)
+  ✓ 2B0yl5RQZWo (notebooklm)
+  ✓ LElGcnq1YoA (notebooklm)
+  ✓ TW4LENLQ-Ns (notebooklm)
+  ✓ X1YLdgnhVQc (notebooklm)
+  ✓ sNG9VBbk2Fw (notebooklm)
+  ✓ jacyIghC0iM (notebooklm)
+  ✓ Xis0nDrn7bQ (notebooklm)
+  ✓ rpP8i-CHOlo (notebooklm)
+  ✓ 6AgG9XkGz10 (notebooklm)
+  ✓ 4ZWdRvmGq1Q (notebooklm)
+  ✓ 9aO99BZvleE (notebooklm)
+  ✓ jDw_EINmO4Y (notebooklm)
+  ✓ 0JO8sW4ZeLM (notebooklm)
+  ✓ cNgbIFcZGmA (notebooklm)
+  ✓ 4U7HxCurMg0 (notebooklm)
+  ✓ 8XB98nndCMU (notebooklm)
+  ✓ fqRrBTQUNq4 (notebooklm)
+  ✓ F3fvLEoNeLQ (notebooklm)
+  ✓ 4123_dzxF8s (notebooklm)
+  ✓ tIWF2SQx-Ls (notebooklm)
+  ✓ GOky0RvEclU (notebooklm)
+  ✓ TY4OZarQJgs (notebooklm)
+  ✓ QSiEyhHPN0o (notebooklm)
+  ✓ 8xJkmMRN7Os (notebooklm)
+  ✓ cJ_TwQkzN54 (notebooklm)
+  ✓ 1G_OYpaIGFY (notebooklm)
+  ✓ rCbaZg3wh8U (notebooklm)
+  ✓ URhte8hudyk (notebooklm)
+  ✓ pBnM83NJk7o (notebooklm)
+  ✓ AIZKDtJOAvs (notebooklm)
+  ✗ bTaqx0kg77k: Fetch failed for 4cc39d73-14fe-4a02-a321-cea916098c62
+  ✗ LNzBbF6SVxc: Fetch failed for 8cd3f9c8-cead-43e8-9174-13bae3546cdc
+  ✗ NWbz4M2cMr8: Fetch failed for 5570a6ec-8d1f-44a3-afde-22cb65573c94
+  ✗ fqF2eya-R6I: Fetch failed for 9ac343e1-12a7-4c06-8b25-305d875f6dad
+  ✗ lrvawNa_75w: Fetch failed for fef1e6b7-714f-4ed7-a58e-d4e0a381685b
+  ✗ kS_bkBbDKkA: Fetch failed for 16200991-0457-4f62-9baa-da0a914be5f0
+  ✗ z4-gynek6Uc: Fetch failed for 217dd097-3f95-4c69-8519-ab7eed9bfba2
+  ✗ qlrMRh8GR5w: Fetch failed for 05623909-285f-4b59-a8c1-6157dca18362
+  ✗ _pCFYkTLuT0: Fetch failed for 6f3718f3-4d84-406a-b4b1-a0a552ac74d6
+  ✗ X5LNhbXcE4k: Fetch failed for 8599a01c-2f86-49d0-972c-be1f46bfe1e5
+  ✗ YzRD9v8Tp0U: Fetch failed for bb1f0ab0-d09d-4cd8-a55a-ca7ec4213506
+  ✗ _shiisDSt_8: Fetch failed for b602d068-679e-4bbd-8830-842cb9f1dd7a
+  ✗ 1VFz352uy2o: Fetch failed for fbfda830-52f3-43ed-834f-7d877e0682e9
+  ✗ hcFPh-jTRrY: Fetch failed for fddc6e1d-933e-43e4-8e0e-175f2572fe98
+  ✗ RPPIGc4YkwQ: Fetch failed for de43e5b4-02d2-4802-b54b-d899f85e2014
+  ✗ 6Vh-rmKcWkA: Fetch failed for c8d877f8-9042-44d0-9ea3-761d7959fe7b
+  ✗ 1gurlnVbXVk: Fetch failed for d2d6908a-cede-41c3-94d0-5e0f36234535
+  ✗ nNKFWxT08Cw: Fetch failed for 317462d9-60d0-4109-9a73-62f68446afa3
+  ✗ BuKsTjmHj14: Fetch failed for 98bf54c0-b436-4f4f-8db7-85a3316aaf45
+  ✗ ynfZgFW2Bnw: Fetch failed for c8daf6e5-6d17-4718-b50d-f49f5945d0e8
+  ✗ uOPVaFFg0fY: Fetch failed for 1fee6dae-6281-45d8-ad7f-dc86b5d3a244
+  ✗ dtBMPueBZSw: Fetch failed for c302ff93-dbb9-4a71-b101-f0ec8080f996
+  ✗ KGHG6EfAWbE: Fetch failed for 144f526d-0262-401e-a5a0-e457ee118453
+  ✗ mZJICSz-0OE: Fetch failed for 69197b49-65f2-4cd1-bb2b-5bec875c2b99
+  ✗ lIAf6wGZFnc: Fetch failed for d8573f4c-6656-4775-b0e0-85b2c15c5a87
+  ✗ gcntIdgvDuo: Fetch failed for 66ce9af9-49ee-48b0-b5e6-27c9bf2d3ba5
+  ✗ Va3ptg_4ka4: Fetch failed for 4ec3611a-3d12-40b7-b434-72cdb3f65cfd
+  ✗ CjeEDZLnLy0: Fetch failed for 81f19769-c088-42bf-a775-d1ad08754269
+  ✗ Zf_qUPU97RM: Fetch failed for 68ff7be4-ad7c-4c24-8bba-8173f1fa6b82
+  ✗ xaM-HVKWd4c: Fetch failed for 742fcbb0-5cd1-4b92-b334-d6e0cbdf90c0
+  ✗ vdhH5o6KlqQ: Fetch failed for bb8559bc-5ee4-4e26-85d3-23df91a4eb73
+  ✗ SC9jgTyW3LM: Fetch failed for 43af4a9f-167a-48ef-aa43-73134035f17f
+  ✗ BtVKWhBWW1I: Fetch failed for 305cb4e0-45d2-4443-a192-aede0ebd7046
+  ✗ eddiCQIeQKs: Fetch failed for df68a40e-0ce3-4d66-b98b-cca65c2d6c58
+  ✗ 5pIipVU0ucU: Fetch failed for dc754be8-0548-403a-b751-cc486e814e11
+  ✗ GXpBXFZTzQc: Fetch failed for c0ffca2f-2269-40c6-9d41-fe112f6b2973
+  ✗ nYSVjNjOZh4: Fetch failed for 1a28080a-f37b-4a62-90eb-1322fc339c19
+  ✗ NhJH_sV6FJ8: Fetch failed for d7fd01b7-2503-4da7-95a8-954038d789f7
+  ✗ MMJCKh-Trr0: Fetch failed for 2a591f64-9286-4abf-bb9c-b2ebdd18dedf
+  ✗ uMZIe66Whfs: Fetch failed for 4f58e038-91e5-4682-b9a6-e8616a0e526d
+  ✗ TgHHsMSFfl8: Fetch failed for 10cc2834-962d-4645-8272-e4b820a61477
+  ✗ 9wi9szD_PSs: Fetch failed for 1c4f96d8-b118-4b00-a3cd-bda951da54e1
+  ✗ OLtQFuCxrN4: Fetch failed for 28842e13-74f0-43eb-a05d-9a08206a437f
+  ✗ _YZ8EeGDwGI: Fetch failed for 26c72855-48bc-4903-92ad-765b21f689ee
+  ✗ ay-ILx9kRgE: Fetch failed for 18d4b51b-6219-47d7-8b04-a676ae6e4f1d
+  ✗ 7a-mkoVl1QU: Fetch failed for 1c546222-2f8e-4b9b-81a4-b16cc816e1df
+  ✗ BEdKNBmmLyg: Fetch failed for ff4857a3-f42e-44e3-948a-0dfe740fe0e5
+  ✗ 5png_IJccOQ: Fetch failed for e57e3d8b-4dfd-47a8-987d-56a7c2a0917b
+  ✗ ym-CTO8ZJ8I: Fetch failed for 34a55f01-9b97-4403-a35d-e957017d1b2a
+  ✗ 8_9l8BKWep0: Fetch failed for 1c7b5073-380d-4551-8364-32d452a6e2f9
+  ✗ 7d2uTExgZjo: Fetch failed for 69715d80-7174-4e0e-af42-9e33b4eb31d1
+  ✗ T1Iidc8UL6Y: Fetch failed for d47e5bbd-1493-4b03-8b2b-c3c3678fd652
+  ✗ TSn4iCcvvQ4: Fetch failed for a288e39d-b796-4b61-b5d0-be26a5694792
+  ✗ -dqUELcWnJs: Fetch failed for 9642e520-cbef-4548-afb1-4401c053463c
+  ✗ 0KHKlY1Oebo: Fetch failed for 374629ba-069f-45c5-a37d-8c658d4f8247
+  ✗ T1nOPxvRwNw: Fetch failed for 13e31169-0320-402a-860e-c13c493425c0
+  ✗ 4HWzbOrmRDI: Fetch failed for 8b62be74-8522-468b-a501-17f5555161a9
+  ✗ 2AYph0eAzcM: Fetch failed for 13a4df81-52c2-4556-b234-777a5d66376a
+  ✗ FVs6L6eB2VY: Fetch failed for cc232982-5f25-4909-9c1a-ab5b03b86ed5
+  ✗ gzRiqixXKh0: Fetch failed for 737970bf-d51c-4056-91e9-063bf3202b8f
+  ✗ OVrgsYnjfPk: Fetch failed for 9bcac5ce-ef9a-4abc-94c5-eacdcf9953bd
+  ✗ ap-9abWP-TM: Fetch failed for c19a8f1a-fd09-4fd3-98f5-6d5a5364524f
+  ✗ rp1x5JnzNlo: Fetch failed for d8410c06-3bd6-42f4-aa99-922b9eacd6d4
+  ✗ qQwdPltw8SU: Fetch failed for 0a4f2b42-d21b-4ed3-bbcc-1244106f6578
+  ✗ 7VPxSgS5lp8: Fetch failed for d144c922-c935-4670-b930-7883c8beef33
+  ✗ yXxX76HYMGo: Fetch failed for 802024d0-b907-40eb-a742-cb886ad084c7
+  ✗ N5QqbJWHkWA: Fetch failed for 3c272086-163e-475a-a014-bee23253333e
+  ✗ H1fXu-oP5PM: Fetch failed for 45b1678a-d1a6-44a4-813b-a785bde82539
+  ✗ b5qEYalXZ3g: Fetch failed for 504ca359-033a-4a43-b963-261712a2b7c8
+  ✗ hrMti8WjUyA: Fetch failed for 770190de-2e3b-4753-b35a-959f6cf72ad5
+  ✗ 7H81qnE0zWU: Fetch failed for e8405e6d-2c0d-43dd-98d5-a61a8032b76b
+  ✗ SkpWO5_8u1M: Fetch failed for 602a2071-6750-4fb6-9ea0-cea6757f86d7
+  ✗ sJGmLWMPOMI: Fetch failed for e737a65c-be12-4cac-8f33-2197bdeb6226
+  ✗ BgWLgPU-fwQ: Fetch failed for 3fb8f937-ec5c-465e-ae8c-a5b2a90645c3
+  ✗ Bce7I-TNUVI: Fetch failed for 686ccabf-92ef-4fe9-b4dc-9c8c48b06672
+  ✗ c5JlqjWfueA: Fetch failed for dc3db52a-4c3f-4b25-ad1f-fb338d6a9f36
+  ✗ ZpTn31ZGGBI: Fetch failed for f67cba31-4bf3-4ac2-9ac9-8037e77f72f1
+  ✗ kbHTvbMAXaw: Fetch failed for 762492a0-7448-4ae4-ad69-d70d65be6006
+  ✗ rLPF3Ia915s: Fetch failed for f261d463-bfa8-4527-8e8d-65c551b25587
+  ✗ wBhk7INF_II: Fetch failed for 02dd201e-fa08-4a11-bf76-d528bcd46237
+  ✗ X4f9aCc8dd4: Fetch failed for b5f6f601-e37a-4db8-ac11-e7e8dafcd107
+  ✗ FaWC6t9zV9Y: Fetch failed for 8465338c-0470-4a6c-b79b-403c50c36eaa
+  ✗ nJYqIow7WvQ: Fetch failed for 59bde669-d01e-4ddb-8c94-b9d648bcb789
+  ✗ j94AvK6Sbsg: Fetch failed for da91f978-1251-4c1c-a616-8c4b797cd7fa
+  ✗ FUpgAQxkU44: Fetch failed for d83e4921-804b-444c-8e9f-4c8b36a68321
+  ✗ OmQk9IazvVM: Fetch failed for a8c43724-a93e-4cb5-ba4c-922d2952b612
+  ✗ LuyoS2by_Hg: Fetch failed for 007ac32e-fff9-4890-ab0f-86c85cb7a858
+  ✗ mAic7Zwe8ug: Fetch failed for 0077bcc0-5bab-4303-bec7-25315440f062
+  ✗ z1Z6A1z3mvM: Fetch failed for 418ed66d-9347-472e-9c32-092664ed3fc5
+  ✗ Q3hq5xgmS3o: Fetch failed for 41c34d64-a141-4452-8428-06730d26ab81
+  ✗ RP62S58fVw8: Fetch failed for cc8f60dd-4c0b-4b2a-99df-298a60d53be5
+  ✗ 5MuC7SVwRh8: Fetch failed for 9f69fbb0-0de5-41f7-94f0-e1868baee7e6
+  ✗ XqTzXuqYTbI: Fetch failed for 7987b5ca-76b4-434c-ad0b-1bfed235296c
+  ✗ qX7ltRmPs6E: Fetch failed for c3c67ca0-0c7e-49eb-9e1e-fa9486ff43da
+  ✗ D7wxyvFnUio: Fetch failed for f00e8a51-e6c2-4fbc-9d83-7d2d6629b369
+  ✗ OMjQzuNyNEY: Fetch failed for 8d54c99d-08cc-45e8-9a93-7d6ae3ff7558
+  ✗ GFVHcj3p0Fk: Fetch failed for de338bf5-9a00-4177-8a8d-6f13b8eef1ad
+  ✗ Sjrf6NYS6zs: Fetch failed for 7be33a80-d393-461f-9adf-086268539644
+  ✗ 5jt6qTIcp7Y: Fetch failed for f9ebd231-c2f5-4beb-b2a7-be68c67a2a13
+  ✗ QXW7UWwfizA: Fetch failed for aac39f18-afe7-461c-8088-1891cc849a78
+  ✗ N0W3NMlOrX8: Fetch failed for 55d3aa74-8cc5-40bf-87e4-fb925da8e622
+  ✗ WMHa-g07iXM: Fetch failed for fd905040-6e9e-4891-a450-213d20f25d33
+  ✗ potB_cltNFs: Fetch failed for 5663529a-23fc-45eb-8ffa-68750383a63c
+  ✗ ZzZ7WBkohG0: Fetch failed for 99da1aee-4553-4608-9c5a-4a73ac79c170
+  ✗ ZeIG5jBZduU: Fetch failed for 5efc5c70-f424-457b-bc90-f549f917f273
+  ✗ 2Bf68FW4LVw: Fetch failed for d7ef4ac6-d57d-4523-ac33-e1ea2570326d
+  ✗ Ry3_8y3fSQQ: Fetch failed for f0d37d81-b549-49eb-a7e4-d93af316da49
+  ✗ _mwX8ohX8Ig: Fetch failed for 2de0b4ec-eee3-41ea-a4a7-3a307987750c
+  ✗ R6jhtpq-mmk: Fetch failed for a9dc058e-cc4e-4f93-bd3f-1af524ecbf43
+  ✗ 4XxkVQKxt-s: Fetch failed for eaad6659-f0e3-4ea5-b1fd-f6f2ec0d9e26
+  ✗ qLkK1wgss9g: Fetch failed for 3e914d4b-b51a-44be-bad7-cca64395ed35
+  ✗ NTdcrHf7ZIg: Fetch failed for 10eae1fb-6cee-48b9-96bc-d456958577d0
+  ✗ ft9WZXqZ-5Y: Fetch failed for de38d5b2-d535-4286-ba32-f0e4f48446f9
+  ✗ tR7QNhyEz9E: Fetch failed for a5e3253b-b014-4cf7-9498-d1d53b002fdf
+  ✗ FCGUygyrxNI: Fetch failed for da8315ad-c353-488a-bf9c-9b85f2021d3e
+  ✗ j4DnxU3vqPQ: Fetch failed for bc2d3a6e-6a08-4677-bef0-864598e0fa10
+  ✗ EmqzsrjqxwM: Fetch failed for 581f0e79-acbc-425a-8993-ddfc9074d7b8
+  ✗ aRBmMHdAJ8Q: Fetch failed for 155a591a-7205-4e4d-9deb-c86e5a070542
+  ✗ _96LXpMBPQQ: Fetch failed for 979547d2-8f91-4841-9b1e-4c3e744a3827
+  ✗ a-_oYH2Nu-k: Fetch failed for a2f1e6bc-f2e3-4862-8afb-2fe82799db99
+  ✗ mY50ibYWfYY: Fetch failed for a5f8fe7f-e062-4589-9fa1-0e51f4b454dc
+  ✗ LQPrBt2lAK8: Fetch failed for 2e26df48-078d-4676-b941-c60915482db1
+  ✗ C79QO5H0k6E: Fetch failed for 943a0df8-4840-4fcb-a683-45bc6eda0e6c
+  ✗ Ph-Rhc85G9c: Fetch failed for aab87f97-c94c-4a6e-9019-f27d32804793
+  ✗ U2vEDnnC3os: Fetch failed for c16c7390-0e5e-427a-a1c4-c53b30c41527
+  ✗ TTRkhCN9eUU: Fetch failed for 68fc23a5-9340-46a1-9aaa-6a2f460e158e
+  ✗ tOfyWtQmDJQ: Fetch failed for 945b8458-f324-4e4e-bf9b-ee8960f621c6
+  ✗ sVbLaCxCAAc: Fetch failed for 28208fea-4b24-4100-ab45-e1fedab843f9
+  ✗ jRiSUyrqtmU: Fetch failed for 366044f1-0af3-470d-9a85-482ca3d1a7d5
+  ✗ uWRS3mRfylY: Fetch failed for 73a8fa33-940e-4ed1-9cd6-7f03c624f6f7
+  ✗ fGiDGvUIaF0: Fetch failed for fee8295f-3ee0-46a1-90cb-89c923700a56
+  ✗ ZFgknVwk9oM: Fetch failed for 668407e0-5fed-45e1-93e0-5826b103f1de
+  ✗ xVm2uiWCGfw: Fetch failed for cf06d2cd-2059-4838-94c3-d97d56c3ab04
+  ✗ POiYKsPZc1k: Fetch failed for 7171814e-be4a-4921-bfc6-96b7533d7a9c
+  ✗ zfUN_oyY53Q: Fetch failed for 3319a5c6-e62d-4c9a-9bdb-a55449dc50f6
+  ✗ KYydGYiaXNI: Fetch failed for 57099398-e885-49af-ad67-afead6dca08b
+  ✗ oNPtphlPE94: Fetch failed for 5baa1818-b087-4303-94b1-b37f99cea599
+  ✗ dbwiPg9t-bs: Fetch failed for 2b3043cd-f788-4f38-acee-fd1f480ad0bd
+  ✗ QG4ORF5kgEk: Fetch failed for 6f2f7d5f-bf8c-419f-a0d8-5f49ec8aa666
+  ✗ cnyE9Ej1Zsk: Fetch failed for 4414bdc7-0bbc-4085-8c44-b2cb0d5dcd4b
+  ✗ BUlHee3yLzU: Fetch failed for f7649284-f9dc-4598-994f-8b543af828c9
+  ✗ yrZ-2KD3ZhE: Fetch failed for d90c76a6-04ea-4168-a82c-deff48505d6b
+  ✗ jzRHTrduZ4w: Fetch failed for 0dfc0dd9-f9f6-4a28-a0d1-7f2ce60496cd
+  ✗ DixLZcmpAh8: Fetch failed for edb2037b-0922-4f79-9eed-740ec737b403
+  ✗ KAU7reN3gSk: Fetch failed for f564a5e0-0968-4968-8204-c90af4ae74da
+  ✗ vecnY7yo_1U: Fetch failed for 626c42d3-74a9-4272-afd6-8fa0d6d5b870
+  ✗ 4cuWpLUGx1o: Fetch failed for c73f2fad-db7a-4fe4-aa00-f48b142544f4
+  ✗ nTQRN4AKacY: Fetch failed for 50f728c2-0f6d-4d08-b601-461bbb66d5b6
+  ✗ K6eWJya839I: Fetch failed for f4cef6db-07ee-42ec-b084-3b8c3b933d97
+  ✗ EjZpzdMZw8Q: Fetch failed for a826105d-2a2f-4d48-ab67-886fb98b8664
+[source] Processing batch 6 (200 videos) via NotebookLM CLI batch...
+[Throttle] Success restored after 8 failures — delay reset
+[NLM-Batch] Adding 200 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-200/200...
+[NLM-Batch]   Adding sub-batch 1 (200 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 200 sources in parallel...
+  ✓ 51T-vwZy1Ok | 13879 chars
+  ✓ vj5KYKNaCPc | 16299 chars
+  ✓ vh6uM-e8iGw | 8316 chars
+  ✓ 5GrG3r0GJ9o | 15150 chars
+  ✓ _IJyIBdDIiY | 16914 chars
+  ✓ RxzG07IOfn4 | 15039 chars
+  ✓ d6onAtu83KQ | 22809 chars
+  ✓ I1NBq9S_HTc | 12951 chars
+  ✓ WjF_cS3goY4 | 8854 chars
+  ✓ bQqe5so9uJs | 8835 chars
+  ✓ MPPSHN4Wvoc | 12391 chars
+  ✓ ShxmcYoDZsk | 13931 chars
+  ✓ 14NVZw83mPY | 14910 chars
+  ✓ gIIfzM_gFyo | 646 chars
+  ✓ m2JLZ-hDd4o | 15015 chars
+  ✓ vECl_z6UoUU | 28225 chars
+  ✓ 9Tki0U8X0bo | 11662 chars
+  ✓ EVWAzpJ2Egc | 38587 chars
+  ✓ qyJW8FbV834 | 17468 chars
+  ✓ 1F_YzKJC5os | 13873 chars
+  ✓ 9s42wOHmmik | 10495 chars
+  ✓ _r_HgDKvSMQ | 10426 chars
+  ✓ 7-KON5qI7Po | 846 chars
+  ✓ -EyGM2fySKY | 12131 chars
+  ✓ X4Qx2UXEQVU | 22365 chars
+  ✓ 06bPQTYqQbM | 12333 chars
+  ✓ 2UxioYRoPP0 | 17678 chars
+  ✓ pNJyCcau6Mo | 12401 chars
+  ✓ dXxLu6LhDzU | 106684 chars
+  ✓ IherD4otL2I | 663 chars
+  ✓ kyiFDpAyjDM | 11865 chars
+  ✓ kRFZuOPaYiw | 1219 chars
+  ✓ Kz8lyawTd68 | 21587 chars
+  ✓ yClP0-_2yAo | 8100 chars
+  ✓ 3z6P3oZutu0 | 18745 chars
+  ✓ HITaOAgc7vY | 10702 chars
+  ✓ 291XL164OM8 | 11941 chars
+  ✓ eNAQVDowSuw | 1418 chars
+  ✓ yRCyQdsMk5I | 18384 chars
+  ✓ q9fADurGNe4 | 28783 chars
+  ✓ xgPS-U0hi2s | 7093 chars
+  ✓ 7JtEOrMD34c | 17533 chars
+  ✓ m4V95AQ6-OQ | 142470 chars
+  ✓ OnSPkGS7yvA | 10016 chars
+  ✓ cBBIglyKivc | 7598 chars
+  ✓ jk8V3YbaFYY | 15401 chars
+  ✓ s7NCUt8_TlU | 12948 chars
+  ✓ 9aQmBpVnnJ4 | 30522 chars
+  ✓ XF9YFROSpDw | 682 chars
+  ✓ Z2W7iNM-Hww | 11358 chars
+  ✗ TE9WpCZJkY8 | Fetch failed for d94f5797-3f53-424c-a189-2ee435937de9
+  ✗ AwzS5Ui5eUU | Fetch failed for 3a35fc0f-2f87-42ea-aec4-b616ca40aa52
+  ✗ ojAjUKcx7p4 | Fetch failed for e0e53e87-1112-4d0a-b4de-34df379f938a
+  ✗ PrGegzpxTGU | Fetch failed for 39422f1c-ded6-494b-9c2b-4ef3d7b01251
+  ✗ vBKUko9iexc | Fetch failed for ddc2404b-edbf-4c57-93a5-69f36e6c7357
+  ✗ u2hmsms-alg | Fetch failed for a56fb168-cf62-4a7c-b493-26a4b137c406
+  ✗ 7du2z9TtQ9U | Fetch failed for be9e6863-9f81-47a5-925f-0e62a75d469c
+  ✗ a1fOBOD4CJc | Fetch failed for 7957083d-9280-4d5e-8b2b-f66b47e0a0ea
+  ✗ f2AHrBTOM_M | Fetch failed for dd0ff8fd-b0d2-42e0-85a8-8751927178b2
+  ✗ LT8W2BE1xa4 | Fetch failed for a7de49cd-d4e6-4134-b8b8-d1619b83a8eb
+  ✗ f8D3UR72FrU | Fetch failed for 0665b923-6bf8-4e02-907d-5ba0adb4a3b6
+  ✗ AvQuqSm26fQ | Fetch failed for 03ffe66f-04b6-4dd2-8233-8ea9eaa486a1
+  ✗ YdHHaeZinY8 | Fetch failed for 4cfeb765-fb7f-40c7-9673-09684bc33779
+  ✗ WeTpxRPzjng | Fetch failed for 36b397cc-ab7e-47f0-bec7-e1185a03f9bf
+  ✗ Z5nO11Eg_j8 | Fetch failed for eddddccb-54b9-40f6-aad0-db3c392849b5
+  ✗ 2L3n13C0s4k | Fetch failed for 850fac5d-bacd-4279-9a57-86c4ae8559d3
+  ✗ tg013DLayD0 | Fetch failed for 075f52d5-a9f4-4366-92dc-d75577e0aea6
+  ✗ f8odSaqkr3A | Fetch failed for 1409ab6d-05d5-4114-9ed8-8403718d59bd
+  ✗ oxaowBe-1DY | Fetch failed for e28f91c5-4012-4889-ba84-18c03144b35f
+  ✗ KzVXXd38MuU | Fetch failed for 508876a6-d425-4348-b110-05a0d539a226
+  ✗ oCkaCil_z7M | Fetch failed for db11fcd0-8857-4fab-8906-2eba18691ae2
+  ✗ UdE1cogpjLk | Fetch failed for ba560271-bf07-4e45-8b74-3c92518ff174
+  ✗ Ia-z2JTDc2U | Fetch failed for c02842ed-6a9d-4d57-a3b2-9d375f43eae4
+  ✗ LYOzOlVSc2c | Fetch failed for 9312222b-9fa1-4961-bc51-d4920aa4dcd4
+  ✗ 21oX9QEKbfw | Fetch failed for 793b5fca-dd32-425e-b900-f70043778967
+  ✗ y3nRG7gpRVk | Fetch failed for 748ed2af-7496-4c9d-9ea9-0255c3af0fdb
+  ✗ C-_soeq-hyY | Fetch failed for c56ab2ed-79cc-45c2-8edc-25d07e4ca0e3
+  ✗ v_6NQd6IRZ4 | Fetch failed for 2081c7f0-147b-409b-a4d0-379751bf2f48
+  ✗ -RXO1_sTm90 | Fetch failed for b574b027-60a2-42ab-9b50-1ac6b7cbb01f
+  ✗ oPTtE9wIXdc | Fetch failed for 03b85188-c347-4e8d-bcbd-6d9fbfbf5169
+  ✗ Y3OLEutGvqU | Fetch failed for 7fff69b0-ddd2-4686-9281-33c88b750b7a
+  ✗ Q9PRj9ZsdmU | Fetch failed for e534ef19-4c31-4c9c-ba80-ba3505099532
+  ✗ MvlQmo0pzdw | Fetch failed for 54d2b564-fd4f-4852-b9b4-90c53122d437
+  ✗ 4mbHKUtvA08 | Fetch failed for e96365f5-b415-4fcc-a370-9050ea43c46d
+  ✗ NOzT9g4u06Y | Fetch failed for ec343ae5-5225-43b3-a9cf-dc64f668babb
+  ✗ u_RJ9bdGpo0 | Fetch failed for cc09fc35-23b2-401d-b550-9b8200350d41
+  ✗ 1wnCq2wGjkU | Fetch failed for 58b0e83b-b1ac-41a0-ad6f-aeaf180763f8
+  ✗ jc3NwG3eZqk | Fetch failed for 1b2918c5-3074-4634-9116-f90233f6fec1
+  ✗ S2K6ZBAFF_8 | Fetch failed for 2b6fe666-2b8f-4e3d-b0b3-94f068e77ca5
+  ✗ W99qmlFYqh4 | Fetch failed for 1b6d312c-2bfe-4d8d-9ed8-d9bb5e69132a
+  ✗ siMwM6NDblI | Fetch failed for 5aa78896-dc58-49fb-8f77-71bd34c1eefd
+  ✗ B5jLGUr7zi8 | Fetch failed for 12b0dca6-01e6-413d-a337-b6a2bfc10861
+  ✗ 0i0NeJzjnFQ | Fetch failed for c97af16f-cccd-47a2-98cd-c9afd8d45451
+  ✗ A_x2lnDwCcc | Fetch failed for 6b12cb85-1412-4f22-8a89-ed1b6a8a06fa
+  ✗ i1Tzjfq2QrM | Fetch failed for 8021d8a5-3d63-4441-8650-4ba393062d6d
+  ✗ RBDNcz5Kg0I | Fetch failed for d3fd8cf9-2c09-4824-a14f-49c34fbda200
+  ✗ kINIH9aRhmA | Fetch failed for b355d20b-5849-4c7e-85af-10054b5da593
+  ✗ LDFie8oSRJo | Fetch failed for 4d05c7a1-51f7-451e-b543-9e6f886d61e2
+  ✗ 7AyKdbJeUTA | Fetch failed for 63c3bc21-0867-40d5-82e2-c90a006d266a
+  ✗ oF-wbAaynG8 | Fetch failed for d5b06b4e-688d-4b44-ac8b-ea41eba17cd9
+  ✗ GU2GSS92DuY | Fetch failed for a113bd81-3b77-49da-a888-0953b1ec9195
+  ✗ -YjojjNMgJ4 | Fetch failed for 0c06a4bf-66a6-4c2f-bad3-756330ed4f9d
+  ✗ gaxPJBxIZ-8 | Fetch failed for 52e4ae42-e53b-4bd2-90b3-fb99ba64ac15
+  ✗ ry8exJJBIlw | Fetch failed for f72cd138-f7be-464c-9ef2-8f51966581e8
+  ✗ xn0UqTiBd6k | Fetch failed for fac80f4b-d901-4beb-9637-309e5ed08c44
+  ✗ WRF8zybKvDs | Fetch failed for 60f29879-7a24-4df0-b5ab-df5256ede578
+  ✗ A1tyhN1NCdA | Fetch failed for b78a3d27-b29d-425b-9c55-f3ad76804436
+  ✗ r24UMfHG9ZI | Fetch failed for 070f1792-5d80-45ed-9674-765d270922ef
+  ✗ 1IKMhsZ6SWw | Fetch failed for 6d631d1c-fd86-445c-8afa-dedbafffe25b
+  ✗ QJjSqG6wwfs | Fetch failed for 1ebb1789-a2d8-493f-95c9-1270dfca8213
+  ✗ rIC-8ULn7Jk | Fetch failed for 81451abd-d820-4b14-9290-c711b20fb5fc
+  ✗ Js0x5rQ9v3Q | Fetch failed for 520953aa-2fe6-4253-9e7e-673e53c0f55d
+  ✗ F2ppxkyFtro | Fetch failed for 0978289e-f60b-4f24-bfaf-382ea11af06f
+  ✗ gldhGtCoQeQ | Fetch failed for 62bd21fc-91bc-4bc2-a156-45b3c60ca574
+  ✗ JSne5SHLwrc | Fetch failed for 5bacde9f-5603-44ce-8550-2cf62a51395a
+  ✗ XrA7ImuLygE | Fetch failed for 9ec925e8-93b5-4a24-bf5b-41fee7f813ae
+  ✗ -6hKpNY11V8 | Fetch failed for 8a732cc0-991f-4d8e-b5ad-78aae89c4831
+  ✗ i1jY44gWk7g | Fetch failed for 8a14e17a-8b66-4343-9c80-836e7880dd5d
+  ✗ Z5uhBf4FVXc | Fetch failed for 303a880e-485b-43e5-9f97-1f40b918bd72
+  ✗ Tc6An510ykc | Fetch failed for abcf105b-b1c0-4da9-8cf2-111474e2c9e6
+  ✗ ULsvqPlQAcg | Fetch failed for 16ec548a-49d7-4cae-bdfb-4716c85122d6
+  ✗ RNedo1cFBiw | Fetch failed for 42ef0827-3f02-4932-8187-ba9b3ca2eef4
+  ✗ nFvg2FdgMg0 | Fetch failed for e3bf4ec7-9694-4afb-8e3d-bd8515bdb3d4
+  ✗ wxEFR2ECTBE | Fetch failed for 6fb71f55-5e88-424e-8cc6-9da1f46a1d64
+  ✗ OTj6HEzJi_M | Fetch failed for a412355d-f0bc-4a1f-854e-1af35daa2807
+  ✗ rTsU1uKHJIc | Fetch failed for 33dece16-c8b7-4b68-99cc-44111094c431
+  ✗ 5Zq7SSMGg0s | Fetch failed for ed61ac69-f2b0-4db3-a119-6de98d48fa77
+  ✗ xxIxZG3Ids4 | Fetch failed for c041c920-f40d-4e5c-b0e6-0cedd45e27b3
+  ✗ aCqt0-kbVwc | Fetch failed for f097be2a-e8a0-4c97-85f7-5616f625c5cc
+  ✗ TYxbEGDrTyw | Fetch failed for 11307214-3285-4e48-b829-e218979ce331
+  ✗ fg_ftN9nWpA | Fetch failed for cc60e986-f621-49f4-bbc9-53f47a7006a5
+  ✗ uqJtRTF1Qws | Fetch failed for 926f2c1a-5d0b-4989-8934-26e1aabda938
+  ✗ 8FSN6dzgqVM | Fetch failed for b503e195-613b-4dc9-8eb3-4714b4ab6b82
+  ✗ EpYpnIejS3w | Fetch failed for c552a65c-62a0-4e74-8742-d3afd881b9cf
+  ✗ vfsImuJsjs4 | Fetch failed for 6efff636-f0a7-4a83-9cd0-cdcc51344a1a
+  ✗ -rqTIRBAvVQ | Fetch failed for e84cdd56-1450-4fda-839d-4f97b728242a
+  ✗ T2WtkoPsHZc | Fetch failed for 7775a0af-e750-4f33-8e32-c83e68137871
+  ✗ RknlHqv34YI | Fetch failed for a7cab5d8-ed8a-405d-8ba2-e571bc9127d1
+  ✗ XijHDyhmWP8 | Fetch failed for a7792e1f-611f-4d88-bfff-b6e8985375b3
+  ✗ vaOGE4izudk | Fetch failed for 1e0f741d-bbcd-45e1-ac87-a7f858e852a6
+  ✗ 14Vh7zk9gXI | Fetch failed for 73f26548-073c-406c-825b-f44b386058a3
+  ✗ De32F80NTIg | Fetch failed for 19b61d64-2ccf-4160-992d-b2540ed8fac7
+  ✗ 9YjYMbM9A5k | Fetch failed for 1be13dd9-b1f0-4ab4-ac26-dfb2bfce4c36
+  ✗ X0tfR6FX5vQ | Fetch failed for 69a4b7af-9000-40e5-9684-d36d9108e334
+  ✗ ow7oUBvOKNs | Fetch failed for 42cc4ad4-f2b9-4ddd-a221-2c6630725c5b
+  ✗ okNLrSTQHI8 | Fetch failed for 52ce88f4-58f8-44e0-bed6-72075aa6c9b8
+  ✗ ytnbRSJFk1w | Fetch failed for 6e4467ae-e7ba-4e17-a609-0cfeb2e2a3b6
+  ✗ mWFfU32W38A | Fetch failed for 063a1965-534c-47f7-8cb7-97c92eb26190
+  ✗ UwlgR97PZ1U | Fetch failed for fab346dc-a9e0-4611-8b27-16b056093f88
+  ✗ aMaqMwdXzis | Fetch failed for dbe35c22-7951-4f6b-a8c3-b364b3dc3425
+  ✗ _6DBKUNRhrg | Fetch failed for 1d638198-9f35-46bc-a2a9-232bda37291f
+  ✗ YxU7D2hJ6dQ | Fetch failed for 24335db6-a99d-4604-9522-62e3fbe2c1ee
+  ✗ eEgyRh5LEfs | Fetch failed for 9b99e05a-ce74-4c95-b7ae-e089ea7b48e1
+  ✗ MHD6W6VroZs | Fetch failed for ea3fcb12-a355-402d-a27f-4a133b2010a3
+  ✗ vd3MXyBHDWQ | Fetch failed for 635c1866-2232-450b-8076-e1d8dd43b89d
+  ✗ MbiGr3vGbhA | Fetch failed for 57e77a38-eaf6-4ae4-b40b-6015646e4d9b
+  ✗ 1wL2x_Dpb08 | Fetch failed for 89e4c1a7-5f2a-42a3-b125-303ba6399c8d
+  ✗ oD44N_L6Bx8 | Fetch failed for 86b40db6-1185-4e71-8cac-0122338ceded
+  ✗ -druTP2Uaig | Fetch failed for f414f2f0-10ad-4f08-bec0-6e342ae1dfa6
+  ✗ jOa7SN232EM | Fetch failed for b0f8a1d2-1e2a-4549-aac2-e2074c9ae74b
+  ✗ kYw1PsrSN7o | Fetch failed for 79eee5d4-f036-499c-8615-5ad9913b1ade
+  ✗ BqWBvjdBO4s | Fetch failed for 231d08ab-2ee4-42ee-9fd6-34477759565a
+  ✗ jx2yt-SJfbw | Fetch failed for d32dbdc0-9f72-463e-a3c0-7befae54ae46
+  ✗ -2am9SG-cds | Fetch failed for 014e02fa-af36-4668-bda7-101ea000dd75
+  ✗ VkCo1yI0bgw | Fetch failed for 80fac6c6-b192-4959-ab93-9907110f62a3
+  ✗ bf_ZjdYEsFg | Fetch failed for 31643230-8cb9-4091-9b4d-0154d7d884e9
+  ✗ pnMVqWEsQ-c | Fetch failed for b632fc04-8e0c-4f9a-a541-c391bdb9aaea
+  ✗ r9UvMAMp3ZQ | Fetch failed for a3306380-72de-49f3-8e4b-2f267df23791
+  ✗ E9MJxgaP8iU | Fetch failed for 32db4d57-9aa3-4688-b953-dbf7964500aa
+  ✗ eVgRVcOLyXk | Fetch failed for b72284c2-028a-4833-bdeb-e47b7012c768
+  ✗ 3vSXDXCSF_0 | Fetch failed for 348b2fa3-f073-4c29-9209-6abb4e1ad79f
+  ✗ 5ww_bUcU-oc | Fetch failed for 9768bfc0-2e7c-4ac1-9403-47463a35ef5f
+  ✗ ab1I2y2Dz2w | Fetch failed for 21349253-5493-4ddf-9788-4031c2a70d3b
+  ✗ kHZDUYzlV8I | Fetch failed for d3c8e658-807f-47bd-8205-8a362e8bd187
+  ✗ U-JtPrnxe7I | Fetch failed for d6d8f014-351e-45ab-980e-cc998fb7d65e
+  ✗ ODvII0kUhwc | Fetch failed for 9da8615f-5bac-43d4-850e-d0ba91087dc8
+  ✗ 9q0deHbSltU | Fetch failed for b0f96cd3-3e11-444c-b8ad-56be6a39c701
+  ✗ 4t5B91rcBXM | Fetch failed for 8d88ccaf-cd08-4ccc-853d-ce4c808c79bb
+  ✗ fNRFsaxi1FU | Fetch failed for 0310ae53-1dec-4413-b5ce-0a87b790369d
+  ✗ WeWjE0PhdfY | Fetch failed for 81758b60-b894-40af-ad4e-8549e0b079b3
+  ✗ NU5A91zwSuw | Fetch failed for 6a132caf-c756-4d1b-87e2-06c5a5714723
+  ✗ C-0nMwUz0HM | Fetch failed for 1fcec905-69d2-4d60-9eda-80ee16bf497b
+  ✗ -sSz1Hzp3mQ | Fetch failed for 0107150b-552d-4eb1-bc11-b7a8a534cfef
+  ✗ gwAEMWHeE4g | Fetch failed for 5b0947d0-91d0-424f-bfd8-9baa41afb2b5
+  ✗ ZSRBAQWoSnU | Fetch failed for 99972366-7697-44d1-b9cf-d49ecc74aa06
+  ✗ Qi07yb1S6Ps | Fetch failed for 500573a5-8142-4df6-bce1-64fd63fc5088
+  ✗ klP82OaYeJ4 | Fetch failed for f8e1b4e3-e6f3-4c52-85ce-1dcf5bf1f3bc
+  ✗ y3QK3e4O2VU | Fetch failed for 2fa70dac-932c-4130-acbe-7690980d85a4
+  ✗ NoVEbKJct5o | Fetch failed for fa814280-ada1-4854-a508-f9b85eefc7ea
+  ✗ rS6k_00Rv-o | Fetch failed for 81abe218-e528-40db-a78e-dbdb3d575614
+  ✗ Br_Dz5FZELU | Fetch failed for 93a601df-8f71-4a96-b9fc-13a4abf933e9
+  ✗ zCWV5Ca1Oes | Fetch failed for 4e4275ac-d36d-4f93-b251-687b5e05fb90
+  ✗ 2yZiNYLm5UQ | Fetch failed for 448182f8-f4c1-4672-89c3-b937eb86491b
+  ✗ DHNBlRRuHfk | Fetch failed for 011729c7-b117-48df-af14-a52f28881956
+  ✗ ya3spzEdJk4 | Fetch failed for 9bc72411-5e5e-44bb-af4a-f5c64e4ea162
+  ✗ n7gPjLr6p3E | Fetch failed for 45f0bd99-ae0a-436f-a40c-6c60f0b6a864
+  ✗ fm0SQ-6M0hY | Fetch failed for 7a0dcdd1-8e4a-45b5-91ab-69c672aa6487
+  ✗ amOhodeeU_s | Fetch failed for 796a0737-d0da-48ea-a28e-8d4ab4374583
+  ✗ uhi7kmAzmuU | Fetch failed for 9f6d9365-402c-46b6-a7cd-7720303779af
+  ✗ 6NvPxrOjW2A | Fetch failed for 6923bb70-b878-4728-8221-ee104c26fee4
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+  ✓ 51T-vwZy1Ok (notebooklm)
+  ✓ vj5KYKNaCPc (notebooklm)
+  ✓ vh6uM-e8iGw (notebooklm)
+  ✓ 5GrG3r0GJ9o (notebooklm)
+  ✓ _IJyIBdDIiY (notebooklm)
+  ✓ RxzG07IOfn4 (notebooklm)
+  ✓ d6onAtu83KQ (notebooklm)
+  ✓ I1NBq9S_HTc (notebooklm)
+  ✓ WjF_cS3goY4 (notebooklm)
+  ✓ bQqe5so9uJs (notebooklm)
+  ✓ MPPSHN4Wvoc (notebooklm)
+  ✓ ShxmcYoDZsk (notebooklm)
+  ✓ 14NVZw83mPY (notebooklm)
+  ✓ gIIfzM_gFyo (notebooklm)
+  ✓ m2JLZ-hDd4o (notebooklm)
+  ✓ vECl_z6UoUU (notebooklm)
+  ✓ 9Tki0U8X0bo (notebooklm)
+  ✓ EVWAzpJ2Egc (notebooklm)
+  ✓ qyJW8FbV834 (notebooklm)
+  ✓ 1F_YzKJC5os (notebooklm)
+  ✓ 9s42wOHmmik (notebooklm)
+  ✓ _r_HgDKvSMQ (notebooklm)
+  ✓ 7-KON5qI7Po (notebooklm)
+  ✓ -EyGM2fySKY (notebooklm)
+  ✓ X4Qx2UXEQVU (notebooklm)
+  ✓ 06bPQTYqQbM (notebooklm)
+  ✓ 2UxioYRoPP0 (notebooklm)
+  ✓ pNJyCcau6Mo (notebooklm)
+  ✓ dXxLu6LhDzU (notebooklm)
+  ✓ IherD4otL2I (notebooklm)
+  ✓ kyiFDpAyjDM (notebooklm)
+  ✓ kRFZuOPaYiw (notebooklm)
+  ✓ Kz8lyawTd68 (notebooklm)
+  ✓ yClP0-_2yAo (notebooklm)
+  ✓ 3z6P3oZutu0 (notebooklm)
+  ✓ HITaOAgc7vY (notebooklm)
+  ✓ 291XL164OM8 (notebooklm)
+  ✓ eNAQVDowSuw (notebooklm)
+  ✓ yRCyQdsMk5I (notebooklm)
+  ✓ q9fADurGNe4 (notebooklm)
+  ✓ xgPS-U0hi2s (notebooklm)
+  ✓ 7JtEOrMD34c (notebooklm)
+  ✓ m4V95AQ6-OQ (notebooklm)
+  ✓ OnSPkGS7yvA (notebooklm)
+  ✓ cBBIglyKivc (notebooklm)
+  ✓ jk8V3YbaFYY (notebooklm)
+  ✓ s7NCUt8_TlU (notebooklm)
+  ✓ 9aQmBpVnnJ4 (notebooklm)
+  ✓ XF9YFROSpDw (notebooklm)
+  ✓ Z2W7iNM-Hww (notebooklm)
+  ✗ TE9WpCZJkY8: Fetch failed for d94f5797-3f53-424c-a189-2ee435937de9
+  ✗ AwzS5Ui5eUU: Fetch failed for 3a35fc0f-2f87-42ea-aec4-b616ca40aa52
+  ✗ ojAjUKcx7p4: Fetch failed for e0e53e87-1112-4d0a-b4de-34df379f938a
+  ✗ PrGegzpxTGU: Fetch failed for 39422f1c-ded6-494b-9c2b-4ef3d7b01251
+  ✗ vBKUko9iexc: Fetch failed for ddc2404b-edbf-4c57-93a5-69f36e6c7357
+  ✗ u2hmsms-alg: Fetch failed for a56fb168-cf62-4a7c-b493-26a4b137c406
+  ✗ 7du2z9TtQ9U: Fetch failed for be9e6863-9f81-47a5-925f-0e62a75d469c
+  ✗ a1fOBOD4CJc: Fetch failed for 7957083d-9280-4d5e-8b2b-f66b47e0a0ea
+  ✗ f2AHrBTOM_M: Fetch failed for dd0ff8fd-b0d2-42e0-85a8-8751927178b2
+  ✗ LT8W2BE1xa4: Fetch failed for a7de49cd-d4e6-4134-b8b8-d1619b83a8eb
+  ✗ f8D3UR72FrU: Fetch failed for 0665b923-6bf8-4e02-907d-5ba0adb4a3b6
+  ✗ AvQuqSm26fQ: Fetch failed for 03ffe66f-04b6-4dd2-8233-8ea9eaa486a1
+  ✗ YdHHaeZinY8: Fetch failed for 4cfeb765-fb7f-40c7-9673-09684bc33779
+  ✗ WeTpxRPzjng: Fetch failed for 36b397cc-ab7e-47f0-bec7-e1185a03f9bf
+  ✗ Z5nO11Eg_j8: Fetch failed for eddddccb-54b9-40f6-aad0-db3c392849b5
+  ✗ 2L3n13C0s4k: Fetch failed for 850fac5d-bacd-4279-9a57-86c4ae8559d3
+  ✗ tg013DLayD0: Fetch failed for 075f52d5-a9f4-4366-92dc-d75577e0aea6
+  ✗ f8odSaqkr3A: Fetch failed for 1409ab6d-05d5-4114-9ed8-8403718d59bd
+  ✗ oxaowBe-1DY: Fetch failed for e28f91c5-4012-4889-ba84-18c03144b35f
+  ✗ KzVXXd38MuU: Fetch failed for 508876a6-d425-4348-b110-05a0d539a226
+  ✗ oCkaCil_z7M: Fetch failed for db11fcd0-8857-4fab-8906-2eba18691ae2
+  ✗ UdE1cogpjLk: Fetch failed for ba560271-bf07-4e45-8b74-3c92518ff174
+  ✗ Ia-z2JTDc2U: Fetch failed for c02842ed-6a9d-4d57-a3b2-9d375f43eae4
+  ✗ LYOzOlVSc2c: Fetch failed for 9312222b-9fa1-4961-bc51-d4920aa4dcd4
+  ✗ 21oX9QEKbfw: Fetch failed for 793b5fca-dd32-425e-b900-f70043778967
+  ✗ y3nRG7gpRVk: Fetch failed for 748ed2af-7496-4c9d-9ea9-0255c3af0fdb
+  ✗ C-_soeq-hyY: Fetch failed for c56ab2ed-79cc-45c2-8edc-25d07e4ca0e3
+  ✗ v_6NQd6IRZ4: Fetch failed for 2081c7f0-147b-409b-a4d0-379751bf2f48
+  ✗ -RXO1_sTm90: Fetch failed for b574b027-60a2-42ab-9b50-1ac6b7cbb01f
+  ✗ oPTtE9wIXdc: Fetch failed for 03b85188-c347-4e8d-bcbd-6d9fbfbf5169
+  ✗ Y3OLEutGvqU: Fetch failed for 7fff69b0-ddd2-4686-9281-33c88b750b7a
+  ✗ Q9PRj9ZsdmU: Fetch failed for e534ef19-4c31-4c9c-ba80-ba3505099532
+  ✗ MvlQmo0pzdw: Fetch failed for 54d2b564-fd4f-4852-b9b4-90c53122d437
+  ✗ 4mbHKUtvA08: Fetch failed for e96365f5-b415-4fcc-a370-9050ea43c46d
+  ✗ NOzT9g4u06Y: Fetch failed for ec343ae5-5225-43b3-a9cf-dc64f668babb
+  ✗ u_RJ9bdGpo0: Fetch failed for cc09fc35-23b2-401d-b550-9b8200350d41
+  ✗ 1wnCq2wGjkU: Fetch failed for 58b0e83b-b1ac-41a0-ad6f-aeaf180763f8
+  ✗ jc3NwG3eZqk: Fetch failed for 1b2918c5-3074-4634-9116-f90233f6fec1
+  ✗ S2K6ZBAFF_8: Fetch failed for 2b6fe666-2b8f-4e3d-b0b3-94f068e77ca5
+  ✗ W99qmlFYqh4: Fetch failed for 1b6d312c-2bfe-4d8d-9ed8-d9bb5e69132a
+  ✗ siMwM6NDblI: Fetch failed for 5aa78896-dc58-49fb-8f77-71bd34c1eefd
+  ✗ B5jLGUr7zi8: Fetch failed for 12b0dca6-01e6-413d-a337-b6a2bfc10861
+  ✗ 0i0NeJzjnFQ: Fetch failed for c97af16f-cccd-47a2-98cd-c9afd8d45451
+  ✗ A_x2lnDwCcc: Fetch failed for 6b12cb85-1412-4f22-8a89-ed1b6a8a06fa
+  ✗ i1Tzjfq2QrM: Fetch failed for 8021d8a5-3d63-4441-8650-4ba393062d6d
+  ✗ RBDNcz5Kg0I: Fetch failed for d3fd8cf9-2c09-4824-a14f-49c34fbda200
+  ✗ kINIH9aRhmA: Fetch failed for b355d20b-5849-4c7e-85af-10054b5da593
+  ✗ LDFie8oSRJo: Fetch failed for 4d05c7a1-51f7-451e-b543-9e6f886d61e2
+  ✗ 7AyKdbJeUTA: Fetch failed for 63c3bc21-0867-40d5-82e2-c90a006d266a
+  ✗ oF-wbAaynG8: Fetch failed for d5b06b4e-688d-4b44-ac8b-ea41eba17cd9
+  ✗ GU2GSS92DuY: Fetch failed for a113bd81-3b77-49da-a888-0953b1ec9195
+  ✗ -YjojjNMgJ4: Fetch failed for 0c06a4bf-66a6-4c2f-bad3-756330ed4f9d
+  ✗ gaxPJBxIZ-8: Fetch failed for 52e4ae42-e53b-4bd2-90b3-fb99ba64ac15
+  ✗ ry8exJJBIlw: Fetch failed for f72cd138-f7be-464c-9ef2-8f51966581e8
+  ✗ xn0UqTiBd6k: Fetch failed for fac80f4b-d901-4beb-9637-309e5ed08c44
+  ✗ WRF8zybKvDs: Fetch failed for 60f29879-7a24-4df0-b5ab-df5256ede578
+  ✗ A1tyhN1NCdA: Fetch failed for b78a3d27-b29d-425b-9c55-f3ad76804436
+  ✗ r24UMfHG9ZI: Fetch failed for 070f1792-5d80-45ed-9674-765d270922ef
+  ✗ 1IKMhsZ6SWw: Fetch failed for 6d631d1c-fd86-445c-8afa-dedbafffe25b
+  ✗ QJjSqG6wwfs: Fetch failed for 1ebb1789-a2d8-493f-95c9-1270dfca8213
+  ✗ rIC-8ULn7Jk: Fetch failed for 81451abd-d820-4b14-9290-c711b20fb5fc
+  ✗ Js0x5rQ9v3Q: Fetch failed for 520953aa-2fe6-4253-9e7e-673e53c0f55d
+  ✗ F2ppxkyFtro: Fetch failed for 0978289e-f60b-4f24-bfaf-382ea11af06f
+  ✗ gldhGtCoQeQ: Fetch failed for 62bd21fc-91bc-4bc2-a156-45b3c60ca574
+  ✗ JSne5SHLwrc: Fetch failed for 5bacde9f-5603-44ce-8550-2cf62a51395a
+  ✗ XrA7ImuLygE: Fetch failed for 9ec925e8-93b5-4a24-bf5b-41fee7f813ae
+  ✗ -6hKpNY11V8: Fetch failed for 8a732cc0-991f-4d8e-b5ad-78aae89c4831
+  ✗ i1jY44gWk7g: Fetch failed for 8a14e17a-8b66-4343-9c80-836e7880dd5d
+  ✗ Z5uhBf4FVXc: Fetch failed for 303a880e-485b-43e5-9f97-1f40b918bd72
+  ✗ Tc6An510ykc: Fetch failed for abcf105b-b1c0-4da9-8cf2-111474e2c9e6
+  ✗ ULsvqPlQAcg: Fetch failed for 16ec548a-49d7-4cae-bdfb-4716c85122d6
+  ✗ RNedo1cFBiw: Fetch failed for 42ef0827-3f02-4932-8187-ba9b3ca2eef4
+  ✗ nFvg2FdgMg0: Fetch failed for e3bf4ec7-9694-4afb-8e3d-bd8515bdb3d4
+  ✗ wxEFR2ECTBE: Fetch failed for 6fb71f55-5e88-424e-8cc6-9da1f46a1d64
+  ✗ OTj6HEzJi_M: Fetch failed for a412355d-f0bc-4a1f-854e-1af35daa2807
+  ✗ rTsU1uKHJIc: Fetch failed for 33dece16-c8b7-4b68-99cc-44111094c431
+  ✗ 5Zq7SSMGg0s: Fetch failed for ed61ac69-f2b0-4db3-a119-6de98d48fa77
+  ✗ xxIxZG3Ids4: Fetch failed for c041c920-f40d-4e5c-b0e6-0cedd45e27b3
+  ✗ aCqt0-kbVwc: Fetch failed for f097be2a-e8a0-4c97-85f7-5616f625c5cc
+  ✗ TYxbEGDrTyw: Fetch failed for 11307214-3285-4e48-b829-e218979ce331
+  ✗ fg_ftN9nWpA: Fetch failed for cc60e986-f621-49f4-bbc9-53f47a7006a5
+  ✗ uqJtRTF1Qws: Fetch failed for 926f2c1a-5d0b-4989-8934-26e1aabda938
+  ✗ 8FSN6dzgqVM: Fetch failed for b503e195-613b-4dc9-8eb3-4714b4ab6b82
+  ✗ EpYpnIejS3w: Fetch failed for c552a65c-62a0-4e74-8742-d3afd881b9cf
+  ✗ vfsImuJsjs4: Fetch failed for 6efff636-f0a7-4a83-9cd0-cdcc51344a1a
+  ✗ -rqTIRBAvVQ: Fetch failed for e84cdd56-1450-4fda-839d-4f97b728242a
+  ✗ T2WtkoPsHZc: Fetch failed for 7775a0af-e750-4f33-8e32-c83e68137871
+  ✗ RknlHqv34YI: Fetch failed for a7cab5d8-ed8a-405d-8ba2-e571bc9127d1
+  ✗ XijHDyhmWP8: Fetch failed for a7792e1f-611f-4d88-bfff-b6e8985375b3
+  ✗ vaOGE4izudk: Fetch failed for 1e0f741d-bbcd-45e1-ac87-a7f858e852a6
+  ✗ 14Vh7zk9gXI: Fetch failed for 73f26548-073c-406c-825b-f44b386058a3
+  ✗ De32F80NTIg: Fetch failed for 19b61d64-2ccf-4160-992d-b2540ed8fac7
+  ✗ 9YjYMbM9A5k: Fetch failed for 1be13dd9-b1f0-4ab4-ac26-dfb2bfce4c36
+  ✗ X0tfR6FX5vQ: Fetch failed for 69a4b7af-9000-40e5-9684-d36d9108e334
+  ✗ ow7oUBvOKNs: Fetch failed for 42cc4ad4-f2b9-4ddd-a221-2c6630725c5b
+  ✗ okNLrSTQHI8: Fetch failed for 52ce88f4-58f8-44e0-bed6-72075aa6c9b8
+  ✗ ytnbRSJFk1w: Fetch failed for 6e4467ae-e7ba-4e17-a609-0cfeb2e2a3b6
+  ✗ mWFfU32W38A: Fetch failed for 063a1965-534c-47f7-8cb7-97c92eb26190
+  ✗ UwlgR97PZ1U: Fetch failed for fab346dc-a9e0-4611-8b27-16b056093f88
+  ✗ aMaqMwdXzis: Fetch failed for dbe35c22-7951-4f6b-a8c3-b364b3dc3425
+  ✗ _6DBKUNRhrg: Fetch failed for 1d638198-9f35-46bc-a2a9-232bda37291f
+  ✗ YxU7D2hJ6dQ: Fetch failed for 24335db6-a99d-4604-9522-62e3fbe2c1ee
+  ✗ eEgyRh5LEfs: Fetch failed for 9b99e05a-ce74-4c95-b7ae-e089ea7b48e1
+  ✗ MHD6W6VroZs: Fetch failed for ea3fcb12-a355-402d-a27f-4a133b2010a3
+  ✗ vd3MXyBHDWQ: Fetch failed for 635c1866-2232-450b-8076-e1d8dd43b89d
+  ✗ MbiGr3vGbhA: Fetch failed for 57e77a38-eaf6-4ae4-b40b-6015646e4d9b
+  ✗ 1wL2x_Dpb08: Fetch failed for 89e4c1a7-5f2a-42a3-b125-303ba6399c8d
+  ✗ oD44N_L6Bx8: Fetch failed for 86b40db6-1185-4e71-8cac-0122338ceded
+  ✗ -druTP2Uaig: Fetch failed for f414f2f0-10ad-4f08-bec0-6e342ae1dfa6
+  ✗ jOa7SN232EM: Fetch failed for b0f8a1d2-1e2a-4549-aac2-e2074c9ae74b
+  ✗ kYw1PsrSN7o: Fetch failed for 79eee5d4-f036-499c-8615-5ad9913b1ade
+  ✗ BqWBvjdBO4s: Fetch failed for 231d08ab-2ee4-42ee-9fd6-34477759565a
+  ✗ jx2yt-SJfbw: Fetch failed for d32dbdc0-9f72-463e-a3c0-7befae54ae46
+  ✗ -2am9SG-cds: Fetch failed for 014e02fa-af36-4668-bda7-101ea000dd75
+  ✗ VkCo1yI0bgw: Fetch failed for 80fac6c6-b192-4959-ab93-9907110f62a3
+  ✗ bf_ZjdYEsFg: Fetch failed for 31643230-8cb9-4091-9b4d-0154d7d884e9
+  ✗ pnMVqWEsQ-c: Fetch failed for b632fc04-8e0c-4f9a-a541-c391bdb9aaea
+  ✗ r9UvMAMp3ZQ: Fetch failed for a3306380-72de-49f3-8e4b-2f267df23791
+  ✗ E9MJxgaP8iU: Fetch failed for 32db4d57-9aa3-4688-b953-dbf7964500aa
+  ✗ eVgRVcOLyXk: Fetch failed for b72284c2-028a-4833-bdeb-e47b7012c768
+  ✗ 3vSXDXCSF_0: Fetch failed for 348b2fa3-f073-4c29-9209-6abb4e1ad79f
+  ✗ 5ww_bUcU-oc: Fetch failed for 9768bfc0-2e7c-4ac1-9403-47463a35ef5f
+  ✗ ab1I2y2Dz2w: Fetch failed for 21349253-5493-4ddf-9788-4031c2a70d3b
+  ✗ kHZDUYzlV8I: Fetch failed for d3c8e658-807f-47bd-8205-8a362e8bd187
+  ✗ U-JtPrnxe7I: Fetch failed for d6d8f014-351e-45ab-980e-cc998fb7d65e
+  ✗ ODvII0kUhwc: Fetch failed for 9da8615f-5bac-43d4-850e-d0ba91087dc8
+  ✗ 9q0deHbSltU: Fetch failed for b0f96cd3-3e11-444c-b8ad-56be6a39c701
+  ✗ 4t5B91rcBXM: Fetch failed for 8d88ccaf-cd08-4ccc-853d-ce4c808c79bb
+  ✗ fNRFsaxi1FU: Fetch failed for 0310ae53-1dec-4413-b5ce-0a87b790369d
+  ✗ WeWjE0PhdfY: Fetch failed for 81758b60-b894-40af-ad4e-8549e0b079b3
+  ✗ NU5A91zwSuw: Fetch failed for 6a132caf-c756-4d1b-87e2-06c5a5714723
+  ✗ C-0nMwUz0HM: Fetch failed for 1fcec905-69d2-4d60-9eda-80ee16bf497b
+  ✗ -sSz1Hzp3mQ: Fetch failed for 0107150b-552d-4eb1-bc11-b7a8a534cfef
+  ✗ gwAEMWHeE4g: Fetch failed for 5b0947d0-91d0-424f-bfd8-9baa41afb2b5
+  ✗ ZSRBAQWoSnU: Fetch failed for 99972366-7697-44d1-b9cf-d49ecc74aa06
+  ✗ Qi07yb1S6Ps: Fetch failed for 500573a5-8142-4df6-bce1-64fd63fc5088
+  ✗ klP82OaYeJ4: Fetch failed for f8e1b4e3-e6f3-4c52-85ce-1dcf5bf1f3bc
+  ✗ y3QK3e4O2VU: Fetch failed for 2fa70dac-932c-4130-acbe-7690980d85a4
+  ✗ NoVEbKJct5o: Fetch failed for fa814280-ada1-4854-a508-f9b85eefc7ea
+  ✗ rS6k_00Rv-o: Fetch failed for 81abe218-e528-40db-a78e-dbdb3d575614
+  ✗ Br_Dz5FZELU: Fetch failed for 93a601df-8f71-4a96-b9fc-13a4abf933e9
+  ✗ zCWV5Ca1Oes: Fetch failed for 4e4275ac-d36d-4f93-b251-687b5e05fb90
+  ✗ 2yZiNYLm5UQ: Fetch failed for 448182f8-f4c1-4672-89c3-b937eb86491b
+  ✗ DHNBlRRuHfk: Fetch failed for 011729c7-b117-48df-af14-a52f28881956
+  ✗ ya3spzEdJk4: Fetch failed for 9bc72411-5e5e-44bb-af4a-f5c64e4ea162
+  ✗ n7gPjLr6p3E: Fetch failed for 45f0bd99-ae0a-436f-a40c-6c60f0b6a864
+  ✗ fm0SQ-6M0hY: Fetch failed for 7a0dcdd1-8e4a-45b5-91ab-69c672aa6487
+  ✗ amOhodeeU_s: Fetch failed for 796a0737-d0da-48ea-a28e-8d4ab4374583
+  ✗ uhi7kmAzmuU: Fetch failed for 9f6d9365-402c-46b6-a7cd-7720303779af
+  ✗ 6NvPxrOjW2A: Fetch failed for 6923bb70-b878-4728-8221-ee104c26fee4
+[Throttle] Success restored after 8 failures — delay reset
+
+[source] === Escalation Batch Complete ===
+[source] Successfully extracted: 297
+[source] Failed: 903
+[source] Skipped (cached): 0
+[source] Skipped (negative cache): 472
+[source] Skipped (terminal): 0
+[source] NotebookLM-eligible: 1200
+[source] Routed to transcript fallback: 0
+[source] Negative-cache reasons: unavailable=472
+[source] Total discovered: 1200
+[source] Total processed outcomes: 1200

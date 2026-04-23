@@ -62,7 +62,7 @@ def _run_worker(
 ) -> subprocess.CompletedProcess[str]:
     state_root.mkdir(parents=True, exist_ok=True)
     state_path = state_root / f"worker-{worker_id:02d}.json"
-    notebook_title = f"{notebook_prefix}::worker-{worker_id:02d}"
+    notebook_title = f"{notebook_prefix}-{worker_id:02d}"
     notebooklm_profile = f"ytis-worker-{worker_id:02d}"
     env = os.environ.copy()
     env["YTIS_NLM_REUSABLE_STATE_PATH"] = str(state_path)
@@ -94,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--input", required=True, type=Path, help="JSON list of batches; each batch is a list of video IDs")
     parser.add_argument("--workers", type=int, default=2, help="Maximum parallel workers")
     parser.add_argument("--state-root", type=Path, default=Path("P:/__csf/.data/yt-is/dev-workers"))
-    parser.add_argument("--notebook-prefix", default="yt-is::industrial::dev")
+    parser.add_argument("--notebook-prefix", default="yt-is-worker")
     args = parser.parse_args(argv)
 
     batches = _load_batches(args.input)

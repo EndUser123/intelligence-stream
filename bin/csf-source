@@ -1586,6 +1586,10 @@ def cmd_fetch(
     notebook_create_elapsed_s_total = 0.0
     notebook_retire_elapsed_s_total = 0.0
     add_sources_elapsed_s_total = 0.0
+    content_fetch_status_counts_total: Counter[str] = Counter()
+    source_ready_age_s_total = 0.0
+    source_ready_age_s_max = 0.0
+    source_ready_age_s_avg = 0.0
     extract_elapsed_s_total = 0.0
     cleanup_elapsed_s_total = 0.0
     batch_elapsed_s_total = 0.0
@@ -1716,7 +1720,7 @@ def cmd_fetch(
                     summary = {}
         return summary
 
-    def _worker_stage_totals_from_summary(summary: dict[str, object]) -> dict[str, float]:
+    def _worker_stage_totals_from_summary(summary: dict[str, object]) -> dict[str, object]:
         return {
             "startup_retire_elapsed_s_total": float(summary.get("startup_retire_elapsed_s", 0) or 0.0),
             "startup_notebook_check_elapsed_s_total": float(summary.get("startup_notebook_check_elapsed_s", 0) or 0.0),
@@ -1733,6 +1737,10 @@ def cmd_fetch(
             "extract_elapsed_s_total": float(summary.get("extract_elapsed_s_total", 0) or 0.0),
             "cleanup_elapsed_s_total": float(summary.get("cleanup_elapsed_s_total", 0) or 0.0),
             "batch_elapsed_s_total": float(summary.get("batch_elapsed_s_total", 0) or 0.0),
+            "content_fetch_status_counts_total": dict(summary.get("content_fetch_status_counts_total", {}) or {}),
+            "source_ready_age_s_total": float(summary.get("source_ready_age_s_total", 0) or 0.0),
+            "source_ready_age_s_max": float(summary.get("source_ready_age_s_max", 0) or 0.0),
+            "source_ready_age_s_avg": float(summary.get("source_ready_age_s_avg", 0) or 0.0),
         }
 
     def _add_worker_stage_totals(summary: dict[str, object]) -> None:
@@ -1746,6 +1754,10 @@ def cmd_fetch(
         nonlocal notebook_create_elapsed_s_total
         nonlocal notebook_retire_elapsed_s_total
         nonlocal add_sources_elapsed_s_total
+        nonlocal content_fetch_status_counts_total
+        nonlocal source_ready_age_s_total
+        nonlocal source_ready_age_s_max
+        nonlocal source_ready_age_s_avg
         nonlocal extract_elapsed_s_total
         nonlocal cleanup_elapsed_s_total
         nonlocal batch_elapsed_s_total
@@ -1762,12 +1774,16 @@ def cmd_fetch(
         add_sources_elapsed_s_total += float(summary.get("add_sources_elapsed_s_total", 0) or 0.0)
         # Split add timing is informative, but the aggregate add bucket remains the
         # primary accounting field for now.
+        content_fetch_status_counts_total.update(summary.get("content_fetch_status_counts_total", {}) or {})
+        source_ready_age_s_total += float(summary.get("source_ready_age_s_total", 0) or 0.0)
+        source_ready_age_s_max = max(source_ready_age_s_max, float(summary.get("source_ready_age_s_max", 0) or 0.0))
+        source_ready_age_s_avg = max(source_ready_age_s_avg, float(summary.get("source_ready_age_s_avg", 0) or 0.0))
         extract_elapsed_s_total += float(summary.get("extract_elapsed_s_total", 0) or 0.0)
         cleanup_elapsed_s_total += float(summary.get("cleanup_elapsed_s_total", 0) or 0.0)
         batch_elapsed_s_total += float(summary.get("batch_elapsed_s_total", 0) or 0.0)
         _merge_source_profile_totals(industrial_source_profile_totals, summary.get("source_profile"))
 
-    def _build_worker_stage_totals_payload() -> dict[str, float]:
+    def _build_worker_stage_totals_payload() -> dict[str, object]:
         return {
             "startup_retire_elapsed_s_total": startup_retire_elapsed_s_total,
             "startup_notebook_check_elapsed_s_total": startup_notebook_check_elapsed_s_total,
@@ -1779,6 +1795,10 @@ def cmd_fetch(
             "notebook_create_elapsed_s_total": notebook_create_elapsed_s_total,
             "notebook_retire_elapsed_s_total": notebook_retire_elapsed_s_total,
             "add_sources_elapsed_s_total": add_sources_elapsed_s_total,
+            "content_fetch_status_counts_total": dict(content_fetch_status_counts_total),
+            "source_ready_age_s_total": source_ready_age_s_total,
+            "source_ready_age_s_max": source_ready_age_s_max,
+            "source_ready_age_s_avg": source_ready_age_s_avg,
             "extract_elapsed_s_total": extract_elapsed_s_total,
             "cleanup_elapsed_s_total": cleanup_elapsed_s_total,
             "batch_elapsed_s_total": batch_elapsed_s_total,
@@ -1828,11 +1848,11 @@ def cmd_fetch(
         )
         notebook_prefix = os.getenv(
             "YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX",
-            "yt-is::industrial::worker",
+            "yt-is-worker",
         )
         state_root.mkdir(parents=True, exist_ok=True)
         state_path = state_root / f"worker-{worker_id:02d}.json"
-        notebook_title = f"{notebook_prefix}::worker-{worker_id:02d}"
+        notebook_title = f"{notebook_prefix}-{worker_id:02d}"
         os.environ["YTIS_NLM_OWNER_STATE_PATH"] = str(state_path)
         os.environ["YTIS_NLM_OWNER_NOTEBOOK_TITLE"] = notebook_title
         os.environ["YTIS_NLM_REUSABLE_STATE_PATH"] = str(state_path)
@@ -2597,7 +2617,7 @@ def cmd_fetch(
     if workers > 1:
         deleted, failed = cleanup_stale_worker_notebooks()
         print(
-            f"[source] Pre-flight worker cleanup: {deleted} stale notebooks deleted, {failed} failed"
+            f"[source] Pre-flight worker notebook audit: {deleted} worker notebooks reported, {failed} failed"
         )
         log_action(
             "fetch_worker_prewarm_summary",

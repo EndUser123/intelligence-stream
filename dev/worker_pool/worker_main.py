@@ -187,6 +187,10 @@ def main(argv: list[str] | None = None) -> int:
         "extract_elapsed_s_total": 0.0,
         "cleanup_elapsed_s_total": 0.0,
         "batch_elapsed_s_total": 0.0,
+        "content_fetch_status_counts_total": {},
+        "source_ready_age_s_total": 0.0,
+        "source_ready_age_s_max": 0.0,
+        "source_ready_age_s_avg": 0.0,
         "notebooklm_profile": notebooklm_profile,
         "state_path": args.state_path,
         "notebook_title": args.notebook_title,
@@ -294,6 +298,7 @@ def main(argv: list[str] | None = None) -> int:
         total_failed = 0
         for batch_index, video_ids in enumerate(batches, 1):
             batch_started_at = time.monotonic()
+            batch_started_at_epoch = time.time()
             total_video_count += len(video_ids)
             source_profile = summarize_video_ids(video_ids)
             _merge_source_profile_totals(worker_source_profile, source_profile)
@@ -309,6 +314,7 @@ def main(argv: list[str] | None = None) -> int:
                     "notebooklm_profile": notebooklm_profile,
                     "state_path": args.state_path,
                     "notebook_title": args.notebook_title,
+                    "started_at_epoch": batch_started_at_epoch,
                 },
             )
             results = process_industrial_batch_reusable(video_ids)
@@ -338,6 +344,8 @@ def main(argv: list[str] | None = None) -> int:
                     "notebooklm_profile": notebooklm_profile,
                     "state_path": args.state_path,
                     "notebook_title": args.notebook_title,
+                    "started_at_epoch": batch_started_at_epoch,
+                    "completed_at_epoch": time.time(),
                 },
             )
             metrics = get_last_reusable_process_metrics() or {}
@@ -351,6 +359,10 @@ def main(argv: list[str] | None = None) -> int:
             materialization_wait_elapsed_s = float(metrics.get("materialization_wait_elapsed_s") or 0.0)
             extract_elapsed_s = float(metrics.get("extract_elapsed_s") or 0.0)
             cleanup_elapsed_s = float(metrics.get("cleanup_elapsed_s") or 0.0)
+            content_fetch_status_counts = dict(metrics.get("content_fetch_status_counts") or {})
+            source_ready_age_s_total = float(metrics.get("source_ready_age_s_total") or 0.0)
+            source_ready_age_s_max = float(metrics.get("source_ready_age_s_max") or 0.0)
+            source_ready_age_s_avg = float(metrics.get("source_ready_age_s_avg") or 0.0)
             subbatch_metrics = list(metrics.get("subbatch_metrics") or [])
             worker_subbatch_metrics.extend([dict(item) for item in subbatch_metrics if isinstance(item, dict)])
             worker_result["setup_elapsed_s_total"] = float(worker_result["setup_elapsed_s_total"]) + setup_elapsed_s
@@ -363,6 +375,21 @@ def main(argv: list[str] | None = None) -> int:
             worker_result["extract_elapsed_s_total"] = float(worker_result["extract_elapsed_s_total"]) + extract_elapsed_s
             worker_result["cleanup_elapsed_s_total"] = float(worker_result["cleanup_elapsed_s_total"]) + cleanup_elapsed_s
             worker_result["batch_elapsed_s_total"] = float(worker_result["batch_elapsed_s_total"]) + batch_elapsed_s
+            worker_result["content_fetch_status_counts_total"] = dict(
+                Counter(worker_result.get("content_fetch_status_counts_total", {}) or {})
+                + Counter(content_fetch_status_counts)
+            )
+            worker_result["source_ready_age_s_total"] = float(worker_result.get("source_ready_age_s_total", 0.0)) + source_ready_age_s_total
+            worker_result["source_ready_age_s_max"] = max(
+                float(worker_result.get("source_ready_age_s_max", 0.0)),
+                source_ready_age_s_max,
+            )
+            counts_total = dict(worker_result.get("content_fetch_status_counts_total", {}) or {})
+            count_sum = sum(int(v) for v in counts_total.values())
+            worker_result["source_ready_age_s_avg"] = round(
+                float(worker_result["source_ready_age_s_total"]) / max(count_sum, 1),
+                3,
+            )
             log_action(
                 "worker_batch_metrics",
                 {
@@ -384,12 +411,18 @@ def main(argv: list[str] | None = None) -> int:
                     "batch_elapsed_s": batch_elapsed_s,
                     "succeeded": batch_succeeded,
                     "failed": batch_failed,
+                    "content_fetch_status_counts": content_fetch_status_counts,
+                    "source_ready_age_s_total": source_ready_age_s_total,
+                    "source_ready_age_s_max": source_ready_age_s_max,
+                    "source_ready_age_s_avg": source_ready_age_s_avg,
                     "source_profile": source_profile,
                     "subbatch_count": len(subbatch_metrics),
                     "subbatch_metrics": subbatch_metrics,
                     "notebooklm_profile": notebooklm_profile,
                     "state_path": args.state_path,
                     "notebook_title": args.notebook_title,
+                    "started_at_epoch": batch_started_at_epoch,
+                    "completed_at_epoch": time.time(),
                 },
             )
             log_action(
@@ -417,6 +450,10 @@ def main(argv: list[str] | None = None) -> int:
                     "extract_elapsed_s_total": worker_result["extract_elapsed_s_total"],
                     "cleanup_elapsed_s_total": worker_result["cleanup_elapsed_s_total"],
                     "batch_elapsed_s_total": worker_result["batch_elapsed_s_total"],
+                    "content_fetch_status_counts_total": worker_result["content_fetch_status_counts_total"],
+                    "source_ready_age_s_total": worker_result["source_ready_age_s_total"],
+                    "source_ready_age_s_max": worker_result["source_ready_age_s_max"],
+                    "source_ready_age_s_avg": worker_result["source_ready_age_s_avg"],
                     "notebooklm_profile": notebooklm_profile,
                     "state_path": args.state_path,
                     "notebook_title": args.notebook_title,
@@ -445,6 +482,10 @@ def main(argv: list[str] | None = None) -> int:
                 "extract_elapsed_s_total": worker_result["extract_elapsed_s_total"],
                 "cleanup_elapsed_s_total": worker_result["cleanup_elapsed_s_total"],
                 "batch_elapsed_s_total": worker_result["batch_elapsed_s_total"],
+                "content_fetch_status_counts_total": worker_result["content_fetch_status_counts_total"],
+                "source_ready_age_s_total": worker_result["source_ready_age_s_total"],
+                "source_ready_age_s_max": worker_result["source_ready_age_s_max"],
+                "source_ready_age_s_avg": worker_result["source_ready_age_s_avg"],
                 "status": "ok",
                 "returncode": 0,
             }

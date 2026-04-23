@@ -218,10 +218,13 @@ def _run_fetch_trial(
         env=env,
         check=False,
     )
+    returncode = proc.returncode
+    stdout_text = proc.stdout or ""
+    stderr_text = proc.stderr or ""
     elapsed_s = round(time.monotonic() - started_at, 3)
 
-    stdout_path.write_text(proc.stdout or "", encoding="utf-8")
-    stderr_path.write_text(proc.stderr or "", encoding="utf-8")
+    stdout_path.write_text(stdout_text, encoding="utf-8")
+    stderr_path.write_text(stderr_text, encoding="utf-8")
 
     fetch_completed = _load_fetch_completed_event(log_dir)
     log_file = _latest_jsonl_file(log_dir)
@@ -231,7 +234,7 @@ def _run_fetch_trial(
     return TrialArtifact(
         workers=workers,
         limit=limit,
-        returncode=proc.returncode,
+        returncode=returncode,
         elapsed_s=elapsed_s,
         stdout_path=str(stdout_path),
         stderr_path=str(stderr_path),

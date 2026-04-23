@@ -52,7 +52,7 @@ def test_load_fetch_completed_event_from_jsonl(tmp_path):
 
 
 def test_run_fetch_trial_captures_fetch_completed_summary(tmp_path, monkeypatch):
-    def fake_run(command, capture_output, text, cwd, env, check):
+    def fake_run(command, capture_output, text, cwd, env, check, timeout=None):
         assert command[0] == "python.exe" or command[0].endswith("python.exe") or command[0].endswith("python")
         assert command[2] == "fetch"
         assert command[4] == "2"
@@ -117,3 +117,4 @@ def test_run_fetch_trial_captures_fetch_completed_summary(tmp_path, monkeypatch)
     assert Path(summary.stdout_path).read_text(encoding="utf-8") == "done\n"
     assert Path(summary.stderr_path).read_text(encoding="utf-8") == ""
     assert Path(summary.log_file).exists()
+

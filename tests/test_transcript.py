@@ -852,7 +852,8 @@ class TestNLMConfig:
         """NLMConfig has correct defaults when no env var set."""
         # Reset singleton for clean test state
         import csf.transcript
-        csf.transcript._nlm_config = None
+        from csf import nlm_config
+        nlm_config.reset_nlm_config()
         try:
             config = csf.transcript.get_nlm_config()
             assert config.max_sources_per_notebook == 300
@@ -860,23 +861,25 @@ class TestNLMConfig:
             assert config.auth_max_calls_per_window == 10
             assert config.auth_cooldown == 300.0
         finally:
-            csf.transcript._nlm_config = None
+            nlm_config.reset_nlm_config()
 
     def test_nlm_config_env_fallback(self, monkeypatch):
         """YTIS_NLM_MAX_SOURCES_PER_NOTEBOOK env var is used as fallback."""
         import csf.transcript
-        csf.transcript._nlm_config = None
+        from csf import nlm_config
+        nlm_config.reset_nlm_config()
         monkeypatch.setenv("YTIS_NLM_MAX_SOURCES_PER_NOTEBOOK", "50")
         try:
             config = csf.transcript.get_nlm_config()
             assert config.max_sources_per_notebook == 50
         finally:
-            csf.transcript._nlm_config = None
+            nlm_config.reset_nlm_config()
 
     def test_nlm_config_override(self):
         """set_nlm_config overrides the singleton for testing."""
         import csf.transcript
-        csf.transcript._nlm_config = None
+        from csf import nlm_config
+        nlm_config.reset_nlm_config()
         try:
             new_config = csf.transcript.NLMConfig(
                 max_sources_per_notebook=100,
@@ -891,7 +894,7 @@ class TestNLMConfig:
             assert config.auth_max_calls_per_window == 5
             assert config.auth_cooldown == 60.0
         finally:
-            csf.transcript._nlm_config = None
+            nlm_config.reset_nlm_config()
 
 
 class TestTranscriptSourceStage:

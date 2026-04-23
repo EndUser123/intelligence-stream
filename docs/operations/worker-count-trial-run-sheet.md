@@ -1,18 +1,177 @@
 # Worker Count Trial Run Sheet
 
-Last updated: 2026-04-22
+Last updated: 2026-04-23
 
 ## Purpose
 
 Measure NotebookLM throughput under controlled load while holding batch size and notebook ownership constant.
 
+## Three-Phase Plan
+
+The test program is split into three phases so we do not mix discovery, validation, and lock-in.
+
+### Phase 1: Find the best shape
+
+Goal:
+- Identify the best operating point for successful videos/hour.
+- Separate the main failure source from the throughput ceiling.
+
+Runs:
+- Worker-count sweep: `1, 2, 3, 4, 6, 8` workers on the same sample family.
+- CLI retry A/B: current first-failure behavior vs retry-on-`NOT_FOUND` / `too_short`.
+- Batch-size check: `25` vs `50` on the free-tier notebook.
+
+Exit criteria:
+- We have a candidate winning configuration.
+- We know whether worker count, retry policy, or batch size is the dominant limiter.
+
+Execution checklist:
+1. Reconfirm CLI auth with `nlm login --check`.
+2. Bootstrap the persistent browser profile with `python P:\packages\yt-is\bin\nlm-playwright --bootstrap-auth`.
+3. Run the eight-URL readiness matrix once to verify the DOM/browser path is still healthy.
+4. Run the worker-count sweep on the same sample family with the candidate set:
+   - `1`
+   - `2`
+   - `3`
+   - `4`
+   - `6`
+   - `8`
+5. Record success-only throughput, fail rate, `source_ready_age_s_avg`, and `content_fetch_status_counts`.
+6. If the best candidate is ambiguous, rerun the top two worker counts on the same sample before moving on.
+7. Compare `25` vs `50` batch size only if the worker-count sweep does not already make the answer obvious.
+
+Pass criteria:
+- One worker count is clearly ahead on successful videos/hour.
+- The fail rate is not exploding at the top candidate.
+- The main false-fail behavior is understood well enough to decide whether retries are needed.
+
+Stop criteria:
+- The sweep cannot be compared on the same sample family.
+- DOM/browser auth becomes unstable again.
+- The candidate winner changes only because the sample changed.
+
+### Phase 2: Prove the winner is real
+
+Goal:
+- Verify the phase 1 winner is stable and not a one-off.
+- Measure DOM-ready vs CLI-ready behavior on the same URLs.
+- Understand whether source shape changes the answer.
+
+Runs:
+- Repeat the best config at least 3 times.
+- Repeat the eight-URL readiness matrix.
+- Run the four-URL comparison set with the two historical failures plus two known-good URLs.
+- Stratify by source shape:
+  - shorts
+  - long-form
+  - caption-rich vs caption-poor
+  - mixed backlog
+- Measure notebook fullness and warm-vs-cold reuse effects.
+
+Exit criteria:
+- The best config wins repeatedly.
+- DOM readiness and CLI readiness agree well enough to use together.
+- We know the remaining failure modes are stable enough to model.
+
+Execution checklist:
+1. Pick the phase 1 winner and rerun it at least 3 times on the same sample family.
+2. Re-run the eight-URL readiness matrix and confirm it stays at 8/8.
+3. Re-run the four-URL comparison set:
+   - the two historical failure URLs
+   - the two known-good control URLs
+4. Repeat the same source mix at least once more:
+   - shorts
+   - long-form
+   - caption-rich
+   - caption-poor
+5. Measure notebook fullness and warm-vs-cold behavior:
+   - first batch on a notebook
+   - later batch on the same notebook
+6. If CLI false fails still occur, test the retry-enabled branch/flag against the same URLs before changing anything else.
+
+Pass criteria:
+- The phase 1 winner repeats without a large throughput drop.
+- The historical false failures are explained by readiness timing, not bad inputs.
+- DOM and CLI readiness signals line up closely enough to drive the production path.
+
+Stop criteria:
+- The winner only works on one source shape.
+- The four-URL comparison still shows unexplained false failures.
+- Notebook reuse meaningfully degrades throughput or accuracy.
+
+### Phase 3: Lock it in
+
+Goal:
+- Turn the winning configuration into the default operating method.
+- Make the result durable for the free-tier baseline and the later Pro notebook pass.
+
+Runs:
+- Repeat the winning config on a larger representative sample.
+- Re-run the same shape on Pro NotebookLM with the `300`-source notebook limit.
+- Update defaults, docs, and retry policy based on the validated result.
+
+Exit criteria:
+- The winning setup is codified.
+- The retry and readiness rules are documented.
+- The free-tier and Pro tiers have a comparable operating baseline.
+
+Execution checklist:
+1. Re-run the winner on a larger representative sample.
+2. Re-run the same winner on the Pro NotebookLM `300`-source notebook limit.
+3. Lock the retry and readiness rules into the defaults:
+   - DOM spinner/checkmark gates probing
+   - CLI `source content` retries transient `NOT_FOUND` / `too_short`
+   - final failure only after the adaptive window is exceeded
+4. Update the run sheet and handoff with the final winner and the final stop conditions.
+5. Archive the obsolete benchmark variants so future runs do not drift back to old paths.
+
+Pass criteria:
+- The same configuration still wins on the larger sample.
+- Free-tier and Pro results are comparable.
+- The defaults and docs match the validated operating method.
+
+Stop criteria:
+- Pro behavior diverges enough that the free-tier winner does not translate.
+- The retry policy changes the ranking materially enough that a new phase 1 is needed.
+
+## Recent Execution Notes
+
+The following results were collected after the plan was written and should be treated as the current working evidence:
+
+- DOM/browser preflight is healthy again on the stable profile:
+  - eight-URL readiness matrix: `8/8 succeeded`
+  - four-URL comparison: `4/4 succeeded`
+- Batch-size experiment on the free-tier notebook:
+  - `--sizes 25,50 --count 300`
+  - `25`-source subbatches timed out at the current `600s` materialization cap on subbatch 3
+  - this is a negative result for lowering the batch size below `50`
+- Throughput repeat on the current winner:
+  - `--workers 2 --limit 400`
+  - `369 succeeded / 31 failed`
+  - `1472.1 successful videos/hour`
+- Larger free-tier confirmation run:
+  - `--workers 2 --limit 800`
+  - `770 succeeded / 30 failed`
+  - `1421.5 successful videos/hour`
+- Phase 3 Pro rerun remains pending until a Pro NotebookLM profile/account is available.
+
 ## Fixed Controls
 
 - NotebookLM account/profile: keep fixed for the whole sweep
+- DOM readiness browser profile: use one persistent Chrome profile signed into the same NotebookLM account
 - Worker notebook model: one worker owns one notebook, reused across batches
-- NotebookLM batch size: `200`
+- NotebookLM batch size: `50`
 - Materialization/readiness timeout: `600s`
 - Sample family: keep the same family for the whole comparison block
+
+## First Preflight
+
+Before any DOM readiness work:
+
+1. Run `nlm login --check` for the CLI profile.
+2. Bootstrap the persistent browser profile with `python P:\packages\yt-is\bin\nlm-playwright --bootstrap-auth`.
+3. Confirm NotebookLM loads without `Request access`.
+4. Only then run the readiness matrix.
 
 ## What To Measure
 
@@ -41,10 +200,11 @@ Run the worker-count sweep in this order:
 
 ## Run Rules
 
-- Keep `batch_size=200` fixed.
+- Keep `batch_size=50` fixed.
 - Keep the same sample family for all runs in the sweep.
 - Do not change worker count and sample family at the same time.
 - Stop the run if NotebookLM sources do not become ready within `600s`.
+- If the DOM profile shows `Request access`, stop and re-bootstrap the browser profile before continuing.
 - Use the JSONL trace plus the worker result file to reconstruct timings.
 - Treat completed-worker totals and stage timings as throughput truth.
 
@@ -111,6 +271,87 @@ After the main worker-count sweep, use these narrower passes to explain the resu
 - Compare it with later batches on the same notebook.
 - Measure startup penalty versus steady-state reuse.
 
+## Readiness Calibration Matrix
+
+Use this when you want to compare the DOM spinner/checkmark signal against the CLI `source content` readiness probe on the exact same URLs.
+
+### Current calibration set
+
+Known failures from the last run:
+
+- [https://www.youtube.com/watch?v=KvC7ct1UVBs](https://www.youtube.com/watch?v=KvC7ct1UVBs)
+- [https://www.youtube.com/watch?v=cbfnFt9lLV4](https://www.youtube.com/watch?v=cbfnFt9lLV4)
+- [https://www.youtube.com/watch?v=mzKV2BoSPvs](https://www.youtube.com/watch?v=mzKV2BoSPvs)
+- [https://www.youtube.com/watch?v=XA-dIgErCi8](https://www.youtube.com/watch?v=XA-dIgErCi8)
+
+Known-good controls from the same batch:
+
+- [https://www.youtube.com/watch?v=tduRayavmJI](https://www.youtube.com/watch?v=tduRayavmJI)
+- [https://www.youtube.com/watch?v=a7HW4SicO5M](https://www.youtube.com/watch?v=a7HW4SicO5M)
+- [https://www.youtube.com/watch?v=pMTpWGA64aM](https://www.youtube.com/watch?v=pMTpWGA64aM)
+- [https://www.youtube.com/watch?v=opRhPRMOFYs](https://www.youtube.com/watch?v=opRhPRMOFYs)
+
+### Preferred command
+
+Run the scraper in readiness-matrix mode with the same eight URLs every time:
+
+```powershell
+python P:\packages\yt-is\csf\nlm_scraper.py --readiness-matrix --video-ids KvC7ct1UVBs,cbfnFt9lLV4,mzKV2BoSPvs,XA-dIgErCi8,tduRayavmJI,a7HW4SicO5M,pMTpWGA64aM,opRhPRMOFYs
+```
+
+### What it logs
+
+- `staging_source_readiness_snapshot`
+- `staging_source_content_readiness_probe_window_started`
+- `staging_source_content_readiness_probe_started`
+- `staging_source_content_readiness_probe_completed`
+- `staging_source_content_readiness_probe_window_completed`
+- existing DOM source-materialization logs from `nlm_scraper.py`
+- the browser-auth preflight marker:
+  - `selenium_browser_auth_checked`
+  - `selenium_browser_auth_failed`
+
+### Bootstrap the DOM profile
+
+This step is already required by the first preflight above. Repeat it any time the browser profile starts showing `Request access`.
+
+### What to compare
+
+- DOM spinner active vs inactive
+- DOM checkmark inferred as spinner inactive
+- CLI `source content` status:
+  - `ready`
+  - `too_short`
+  - `command_failed`
+  - `parse_failed`
+- elapsed age from source materialization to first ready probe
+
+### Known-good DOM baseline
+
+Use this successful run as the current reference point for the eight-URL readiness matrix:
+
+| Metric | Value |
+|---|---:|
+| Run output | `P:\packages\yt-is\.logs\readiness_trials\latest_matrix_run_3.txt` |
+| Shell wall time | `121.867s` |
+| In-process matrix span | `99.094s` |
+| Sources | `8/8 succeeded` |
+| Transcript size | `13581 chars` for each URL |
+| First source log after start | `22.744s` |
+| DOM buttons ready after notebook open | effectively immediate in the captured trace |
+| Per-source completion cadence | about `12s` to `14s` between results |
+
+The successful trace shows the browser session is now valid, the DOM sources panel is reachable, and the scraper can read all eight calibration URLs from the NotebookLM UI.
+It also confirms the DOM spinner/checkmark readiness path is exercised end-to-end in the live matrix run, but it does not prove the spinner predicate is a perfect semantic oracle for every NotebookLM UI state.
+
+### Recommended next tests
+
+Use this order so the next passes build on the known-good baseline instead of jumping straight to load testing:
+
+1. Re-run the same eight-URL readiness matrix once more to confirm the DOM/browser auth path stays stable and the CLI readiness probes still agree on the same URLs.
+2. Run a four-URL comparison pass using the two previously troublesome URLs plus two known-good URLs, so we can compare spinner/checkmark timing against CLI `source content` timing on the exact items that used to fail.
+3. After the browser path is stable on repeated runs, go back to the free-tier throughput comparison: one worker versus two workers, same sample, same readiness logging.
+
 ## Evidence Sources
 
 - `P:/packages/yt-is/.logs/term_*.jsonl`
@@ -123,3 +364,11 @@ After the main worker-count sweep, use these narrower passes to explain the resu
 - The notebook lifecycle is reuse-only in the steady state.
 - Do not change batch size during this sweep.
 - Do not compare backlog-derived scan rates to throughput.
+
+## Future Phase: Pro NotebookLM
+
+After the free-tier `50`-source baseline is understood, repeat the same readiness and throughput matrix on a Pro NotebookLM subscription with the `300`-source notebook limit.
+
+- Keep the same logging fields and run order.
+- Keep the same worker-owned notebook model.
+- Compare the UI-ready vs CLI-ready lag and the failure mix against the free-tier baseline.

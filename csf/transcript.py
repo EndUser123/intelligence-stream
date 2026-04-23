@@ -24,6 +24,7 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Callable, Literal, TYPE_CHECKING
 
+from csf.nlm_config import NLMConfig, get_nlm_config, set_nlm_config
 from csf.batch_status import (
     get_source as _get_source_for_video,
     mark_failed as _mark_failed_video,
@@ -64,7 +65,7 @@ def _get_nlm_scraper() -> "NLMIndustrialScraper":
         _ensure_nlm_auth()
         from csf.nlm_scraper import NLMIndustrialScraper
 
-        _nlm_scraper = NLMIndustrialScraper(headless=True)
+        _nlm_scraper = NLMIndustrialScraper(headless=True, browser_cfg=get_nlm_config())
     else:
         # Refresh auth check on every call to catch mid-session expiry
         _ensure_nlm_auth()
@@ -139,55 +140,6 @@ _CIRCUIT_OPEN_THRESHOLD = 3  # consecutive 429s before skipping source
 _COOLDOWN_SECONDS = 300  # 5 minutes
 _BACKOFF_BASE = 2  # jitter multiplier per consecutive 429
 _MAX_BACKOFF_MULTIPLIER = 32  # cap jitter at 32x to prevent pathological sleeps
-
-# NLMConfig singleton — replaces module-level _NLM_MAX_SOURCES_PER_NOTEBOOK lazy env read
-_nlm_config_lock = threading.Lock()
-_nlm_config: "NLMConfig | None" = None
-
-
-@dataclass(frozen=True)
-class NLMConfig:
-    """Runtime configuration for NLM (NotebookLM) operations.
-
-    Attributes:
-        max_sources_per_notebook: Maximum YouTube sources per batch notebook.
-            Standard: ~50, Pro: ~300, Ultra: ~600. Default 300.
-        auth_check_interval: Seconds between auth check calls. Default 60.0.
-        auth_max_calls_per_window: Max auth calls per window before blocking.
-            Default 10.
-        auth_cooldown: Seconds to block after consecutive auth failures.
-            Default 300.0.
-    """
-
-    max_sources_per_notebook: int = 300
-    auth_check_interval: float = 60.0
-    auth_max_calls_per_window: int = 10
-    auth_cooldown: float = 300.0
-
-
-def get_nlm_config() -> NLMConfig:
-    """Return the NLMConfig singleton, initializing from env var on first access.
-
-    Thread-safe. Falls back to YTIS_NLM_MAX_SOURCES_PER_NOTEBOOK env var if
-    singleton is uninitialized.
-    """
-    global _nlm_config
-    with _nlm_config_lock:
-        if _nlm_config is None:
-            _nlm_config = NLMConfig(
-                max_sources_per_notebook=int(
-                    os.environ.get("YTIS_NLM_MAX_SOURCES_PER_NOTEBOOK", "300")
-                )
-            )
-        return _nlm_config
-
-
-def set_nlm_config(config: NLMConfig) -> None:
-    """Set the NLMConfig singleton (for testing override). Thread-safe."""
-    global _nlm_config
-    with _nlm_config_lock:
-        _nlm_config = config
-
 
 # Minimum transcript content length in characters (accepted at 21 chars, rejected below)
 _NLM_MIN_CONTENT_CHARS = 21

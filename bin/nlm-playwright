@@ -12,23 +12,28 @@ Requires:
     playwright install chromium  # or: playwright install --with-deps chromium
 
 On first run, log in manually in the browser window. After that, the session
-persists (cookies saved to the session directory).
+persists (cookies saved to the dedicated NotebookLM automation profile).
 
-Use --chrome-profile to use your actual Chrome profile instead of a fresh one.
-This avoids Google's "insecure browser" OAuth block since your existing session
-cookies are used directly. Chrome must be fully closed before using --chrome-profile.
+The default browser session uses the dedicated NotebookLM automation profile
+from ``csf/nlm_config.py``. ``--bootstrap-auth`` opens a normal Chrome window
+against that profile so you can sign in once without Playwright automation
+flags. Use ``--chrome-profile`` only for debug recovery against a real Chrome
+profile. Chrome must be fully closed before using ``--chrome-profile``.
 
 Examples:
     # Fresh session (may prompt for login if not cached):
     python nlm-playwright --list
 
-    # Use your actual Chrome profile (Chrome must be closed first):
-    python nlm-playwright --chrome-profile --list
+    # Open the dedicated NotebookLM bootstrap browser:
+    python nlm-playwright --bootstrap-auth
 """
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -36,17 +41,33 @@ from pathlib import Path
 # Add csf to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from csf.nlm_config import get_nlm_config
 from playwright.sync_api import sync_playwright
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-SESSION_DIR = Path("P:/__csf/.data/yt-is/notebooklm-browser-session")
-SESSION_DIR.mkdir(parents=True, exist_ok=True)
+def _automation_profile_root() -> Path:
+    cfg = get_nlm_config()
+    root = Path(cfg.nlm_browser_profile_root)
+    root.mkdir(parents=True, exist_ok=True)
+    return root
 
-# Default Chrome profile path on Windows
+
+def _browser_executable_path() -> Path | None:
+    cfg = get_nlm_config()
+    candidate = Path(cfg.nlm_browser_executable)
+    return candidate if candidate.is_file() else None
+
+
+def _browser_channel() -> str:
+    cfg = get_nlm_config()
+    return str(cfg.nlm_browser_channel or "chrome").strip() or "chrome"
+
+
+# Default Chrome user-data root on Windows for debug recovery mode.
 DEFAULT_CHROME_PROFILE = Path(
-    "C:/Users/brsth/AppData/Local/Google/Chrome/User Data/Default"
+    "C:/Users/brsth/AppData/Local/Google/Chrome/User Data"
 )
 
 # ---------------------------------------------------------------------------
@@ -144,6 +165,151 @@ def click_delete_notebook(page, notebook_card) -> bool:
     except Exception as e:
         print(f"  [warn] Delete click failed: {e}")
     return False
+
+
+def resolve_chrome_profile(user_data_path: Path) -> tuple[Path, str]:
+    """Resolve a Chrome user-data root and profile directory name.
+
+    The launcher historically assumed ``Default``. In practice Chrome often
+    uses ``Profile N`` as the last active profile, and NotebookLM auth needs the
+    same signed-in profile that the human last used.
+    """
+    local_state = user_data_path / "Local State"
+    if local_state.exists():
+        try:
+            data = json.loads(local_state.read_text(encoding="utf-8"))
+            profile_name = str(data.get("profile", {}).get("last_used", "")).strip()
+            if profile_name:
+                return user_data_path, profile_name
+        except Exception:
+            pass
+
+    if user_data_path.parent.is_dir() and (user_data_path.parent / "Local State").exists():
+        return user_data_path.parent, user_data_path.name
+
+    return user_data_path, "Default"
+
+
+def _seed_profile_tree(source_base: Path, target_base: Path) -> None:
+    """Copy a browser profile tree into the target user-data root."""
+    if target_base.exists():
+        shutil.rmtree(target_base, ignore_errors=True)
+    if not source_base.exists():
+        target_base.mkdir(parents=True, exist_ok=True)
+        return
+
+    target_base.mkdir(parents=True, exist_ok=True)
+    for root, dirs, files in os.walk(source_base):
+        root_path = Path(root)
+        rel_root = root_path.relative_to(source_base)
+        target_root = target_base / rel_root
+        target_root.mkdir(parents=True, exist_ok=True)
+        for directory in list(dirs):
+            if directory.startswith("Singleton") or directory == "lockfile":
+                dirs.remove(directory)
+        for file_name in files:
+            lower = file_name.lower()
+            if file_name.startswith("Singleton") or file_name == "lockfile":
+                continue
+            if lower in {"devtoolsactiveport"}:
+                continue
+            src = root_path / file_name
+            dst = target_root / file_name
+            try:
+                shutil.copy2(src, dst)
+            except Exception:
+                continue
+
+
+def _seed_automation_profile_from_chrome() -> Path:
+    """Seed the dedicated automation profile from the last-used Chrome profile."""
+    automation_root = _automation_profile_root()
+    candidate_roots = [
+        Path(r"C:\Users\brsth\AppData\Local\Perplexity\Comet\User Data"),
+        DEFAULT_CHROME_PROFILE,
+    ]
+    source_root = None
+    source_profile_directory = "Default"
+    for candidate in candidate_roots:
+        if not candidate.exists():
+            continue
+        source_root, source_profile_directory = resolve_chrome_profile(candidate)
+        break
+    if source_root is None:
+        source_root = DEFAULT_CHROME_PROFILE
+        source_profile_directory = "Default"
+
+    print(
+        f"[info] Seeding automation profile from Chrome: "
+        f"{source_root}/{source_profile_directory} -> {automation_root}"
+    )
+    _seed_profile_tree(source_root, automation_root)
+    return automation_root
+
+
+def _launch_persistent_browser(p, user_data_dir: str, profile_directory: str):
+    """Launch a visible persistent browser, preferring installed Chrome."""
+    args = ["--disable-blink-images", f"--profile-directory={profile_directory}"]
+    executable_path = _browser_executable_path()
+    if executable_path is not None:
+        try:
+            print(f"[info] Using Chrome executable: {executable_path}")
+            return p.chromium.launch_persistent_context(
+                user_data_dir,
+                executable_path=str(executable_path),
+                headless=False,
+                args=args,
+            )
+        except Exception as chrome_exc:
+            print(f"[warn] Chrome executable launch failed: {chrome_exc}")
+            print(f"[warn] Falling back to Playwright channel: {_browser_channel()}")
+            return p.chromium.launch_persistent_context(
+                user_data_dir,
+                channel=_browser_channel(),
+                headless=False,
+                args=args,
+            )
+
+    try:
+        print(f"[info] Using Playwright channel: {_browser_channel()}")
+        return p.chromium.launch_persistent_context(
+            user_data_dir,
+            channel=_browser_channel(),
+            headless=False,
+            args=args,
+        )
+    except Exception as channel_exc:
+        print(f"[warn] Chrome channel launch failed: {channel_exc}")
+        print("[warn] Falling back to bundled Chromium")
+        return p.chromium.launch_persistent_context(
+            user_data_dir,
+            headless=False,
+            args=args,
+        )
+
+
+def _launch_bootstrap_browser() -> int:
+    """Open the dedicated NotebookLM browser profile in a normal Chrome window."""
+    chrome_exe = _browser_executable_path()
+    if chrome_exe is None:
+        print("[error] Chrome executable not found.")
+        return 1
+
+    user_data_dir = _seed_automation_profile_from_chrome()
+    _, profile_directory = resolve_chrome_profile(user_data_dir)
+    cmd = [
+        str(chrome_exe),
+        f"--user-data-dir={user_data_dir}",
+        f"--profile-directory={profile_directory}",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "https://notebooklm.google.com/",
+    ]
+    print(f"[info] Launching dedicated NotebookLM Chrome profile: {user_data_dir}")
+    print(f"[info] Chrome executable: {chrome_exe}")
+    subprocess.Popen(cmd)
+    print("[auth] Chrome launched. Sign in in that window, then leave it open.")
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -381,6 +547,11 @@ def main() -> None:
     parser.add_argument("--delete-worker", action="store_true", help="Delete all worker notebooks")
     parser.add_argument("--test", action="store_true", help="Run full test workflow")
     parser.add_argument(
+        "--bootstrap-auth",
+        action="store_true",
+        help="Open NotebookLM in the selected profile and stop after confirming auth",
+    )
+    parser.add_argument(
         "--chrome-profile",
         action="store_true",
         help="Use your actual Chrome profile (avoids auth issues). Chrome must be closed first.",
@@ -392,8 +563,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if not any([args.list, args.delete_worker, args.test]):
+    if not any([args.list, args.delete_worker, args.test, args.bootstrap_auth]):
         args.test = True  # Default: run test workflow
+
+    if args.bootstrap_auth:
+        raise SystemExit(_launch_bootstrap_browser())
 
     # Determine user data dir
     if args.chrome_profile or args.chrome_profile_path:
@@ -402,17 +576,18 @@ def main() -> None:
             print(f"[error] Chrome profile not found at: {profile_path}")
             print("  Make sure Chrome is installed and you're logged in.")
             sys.exit(1)
-        user_data_dir = str(profile_path)
-        print(f"[info] Using Chrome profile: {profile_path}")
+        user_data_root, profile_directory = resolve_chrome_profile(profile_path)
+        user_data_dir = str(user_data_root)
+        print(f"[info] Using Chrome profile root: {user_data_root}")
+        print(f"[info] Using Chrome profile directory: {profile_directory}")
     else:
-        user_data_dir = str(SESSION_DIR)
+        user_data_root = _automation_profile_root()
+        user_data_dir = str(user_data_root)
+        profile_directory = "Default"
+        print(f"[info] Using dedicated NotebookLM browser profile root: {user_data_root}")
 
     with sync_playwright() as p:
-        browser = p.chromium.launch_persistent_context(
-            user_data_dir,
-            headless=False,
-            args=["--disable-blink-images"],
-        )
+        browser = _launch_persistent_browser(p, user_data_dir, profile_directory)
 
         page = browser.new_page()
 

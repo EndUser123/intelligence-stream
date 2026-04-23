@@ -1,0 +1,43 @@
+[source] Preflight scan: checking 732 active channels (0 blocked skipped) for pending videos...
+[source] Scan status: 1/732 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.001s, trigger=first_channel
+[source] Scan status: 73/732 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.083s, trigger=channel_checkpoint
+[source] Scan status: 146/732 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.155s, trigger=channel_checkpoint
+[source] Scan status: 219/732 channels, pending=0, cached=0, neg_cache=472, terminal=0, notebooklm=0, fallback=0, elapsed=0.863s, trigger=channel_checkpoint
+[source] Pending item limit reached at 10; stopping scan early.
+[source] Preflight scan complete: 732 active channels, 10 pending, 0 cached, 472 neg-cache, 0 terminal, 10 notebooklm, 0 transcript-fallback
+[source] Negative-cache sample: AOnyxxADgxE, hotranqYmYI, Z53T_FcXQDA, okL5wquiTFg, tljhsKc-EKg, tmJZ7atqgbI, 5GKfzZPJCcQ, L9SwLFxZ8h0, gMJSLLa-O0s, m82TaD_eUFs
+[source] Escalation Batch Process
+[source] Channels: 732 active / 743 tracked
+[source] Already cached: 0
+[source] Negative-cache skips: 472
+[source] Negative-cache sample: AOnyxxADgxE, hotranqYmYI, Z53T_FcXQDA, okL5wquiTFg, tljhsKc-EKg, tmJZ7atqgbI, 5GKfzZPJCcQ, L9SwLFxZ8h0, gMJSLLa-O0s, m82TaD_eUFs
+[source] Pending extraction: 10
+[source] Run limit: 10 pending items
+[source] Mode: LIVE
+[source] Strategy: Surgical (Chain)
+[source] Method: captioned/no-captions items use NotebookLM chain; live items use transcript fallback
+[source] Workers: 1
+
+[source] Starting Surgical Ingest (Sequential Escalation)...
+[1/10] ✓ rg4EWhqOmPc (ytdlp)
+[2/10] ✓ D5ehsTOKAZo (ytdlp)
+[3/10] ✓ Cx0BxfGpOl8 (ytdlp)
+[4/10] ✓ 5BFrD7wP0rM (ytdlp)
+[5/10] ✓ Jql5XNgoOkY (ytdlp)
+[6/10] ✓ rV_np7nvRsw (ytdlp)
+[7/10] ✓ Ntvv23lLb-A (ytdlp)
+[8/10] ✓ Dzj_cXDsgxI (ytdlp)
+[9/10] ✓ i_askIfKw2U (ytdlp)
+[10/10] ✓ qJssHU1KjWg (ytdlp)
+
+[source] === Escalation Batch Complete ===
+[source] Successfully extracted: 10
+[source] Failed: 0
+[source] Skipped (cached): 0
+[source] Skipped (negative cache): 472
+[source] Skipped (terminal): 0
+[source] NotebookLM-eligible: 10
+[source] Routed to transcript fallback: 0
+[source] Negative-cache reasons: unavailable=472
+[source] Total discovered: 10
+[source] Total processed outcomes: 10

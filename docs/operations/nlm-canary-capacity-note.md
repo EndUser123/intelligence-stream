@@ -20,10 +20,11 @@ The live question is how close we can safely get while keeping one notebook per 
 
 The failure is in the NotebookLM add boundary, not in routing, Selenium scraping, or transcript fallback.
 
-The current shared code constants are:
+The current shared NotebookLM config lives in `csf/nlm_config.py` and currently resolves to:
 
-- `DEFAULT_NOTEBOOKLM_BATCH_SIZE = 200`
-- `DEFAULT_NOTEBOOKLM_SOURCE_CAP = 225`
+- `notebook_batch_size = 50`
+- `notebook_source_cap = 50`
+- `notebook_source_materialization_timeout_s = 600`
 
 ## What this means
 
@@ -33,7 +34,7 @@ The current shared code constants are:
 
 ## Practical guidance
 
-1. Keep the NotebookLM add window at the throughput-optimal `200`.
+1. Keep the NotebookLM add window at the free-tier `50`.
 2. Keep one notebook per worker title and clear sources between batches.
 3. Log notebook id and current source count before each add attempt so failures can be correlated with notebook fullness and readiness delay.
 4. Keep using completed-worker totals and transcript-cache growth as throughput truth.

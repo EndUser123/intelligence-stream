@@ -5,7 +5,7 @@ import os
 import subprocess
 import pytest
 from unittest import mock
-from csf import nlm_batch
+from csf import nlm_batch, nlm_config
 
 
 class TestRateLimitDetection:
@@ -61,16 +61,18 @@ class TestRateLimitDetection:
 class TestNotebookBatchDefaults:
     """The notebook batch default should come from one shared constant."""
 
-    def test_shared_default_batch_size_is_200(self):
-        """The reusable and direct batch paths should agree on the 200-source default."""
-        assert nlm_batch.DEFAULT_NOTEBOOKLM_BATCH_SIZE == 200
-        assert nlm_batch.NLMBatchIngestor().batch_size == nlm_batch.DEFAULT_NOTEBOOKLM_BATCH_SIZE
-        assert nlm_batch.NLMReusableIngestor()._ingestor.batch_size == nlm_batch.DEFAULT_NOTEBOOKLM_BATCH_SIZE
+    def test_shared_default_batch_size_is_50(self):
+        """The reusable and direct batch paths should agree on the 50-source default."""
+        cfg = nlm_config.get_nlm_config()
+        assert nlm_batch.DEFAULT_NOTEBOOKLM_BATCH_SIZE == cfg.notebook_batch_size
+        assert nlm_batch.NLMBatchIngestor().batch_size == cfg.notebook_batch_size
+        assert nlm_batch.NLMReusableIngestor()._ingestor.batch_size == cfg.notebook_batch_size
 
-    def test_shared_notebook_source_cap_is_225(self):
+    def test_shared_notebook_source_cap_is_50(self):
         """The notebook-cap guard should come from one shared constant."""
-        assert nlm_batch.DEFAULT_NOTEBOOKLM_SOURCE_CAP == 225
-        assert nlm_batch._NOTEBOOK_SOURCE_CAP == nlm_batch.DEFAULT_NOTEBOOKLM_SOURCE_CAP
+        cfg = nlm_config.get_nlm_config()
+        assert nlm_batch.DEFAULT_NOTEBOOKLM_SOURCE_CAP == cfg.notebook_source_cap
+        assert nlm_batch._NOTEBOOK_SOURCE_CAP == cfg.notebook_source_cap
 
 
 class TestSubBatchReset:
@@ -258,8 +260,8 @@ class TestReusableBatchLogging:
         assert completed["succeeded"] == 1
         assert completed["failed"] == 0
 
-    def test_reusable_batch_uses_200_source_subbatches_by_default(self):
-        """Reusable notebook processing should forward the 200-source subbatch size."""
+    def test_reusable_batch_uses_50_source_subbatches_by_default(self):
+        """Reusable notebook processing should forward the 50-source subbatch size."""
         batch_ids = ["vid1", "vid2", "vid3"]
 
         def mock_run_cmd(self, args, timeout=300):
@@ -862,47 +864,40 @@ class TestNotebookCapRotation:
         assert ingestor._nb_id is None
         assert ingestor._get_current_source_count() == 0
 
-    def test_rotate_notebook_closes_old_and_creates_new(self):
-        """_rotate_notebook should delete the old notebook and create a fresh one."""
+    def test_rotate_notebook_recycles_old_without_creating_new(self):
+        """_rotate_notebook should clear sources and keep the same notebook."""
         ingestor = nlm_batch.NLMBatchIngestor()
         ingestor._nb_id = "nb-old"
-        ingestor._current_source_count = 275
-        create_response = type(
-            "CompletedProcess",
-            (),
-            {"returncode": 0, "stdout": "Created\nID: nb-new\n", "stderr": ""},
-        )()
+        ingestor._current_source_count = 50
 
-        with mock.patch.object(ingestor, "close") as mock_close:
-            with mock.patch("csf.nlm_batch._save_reusable_notebook_id") as mock_save:
-                with mock.patch.object(ingestor, "_run_cmd", return_value=create_response) as mock_run_cmd:
+        with mock.patch.object(ingestor, "reset_sources") as mock_reset:
+            with mock.patch.object(ingestor, "_get_current_source_count", return_value=0):
+                with mock.patch("csf.nlm_batch._save_reusable_notebook_id") as mock_save:
                     with mock.patch("csf.nlm_batch.log_action") as mock_log:
                         ingestor._rotate_notebook()
 
-        mock_close.assert_called_once()
-        assert ingestor._nb_id == "nb-new"
+        mock_reset.assert_called_once()
+        assert ingestor._nb_id == "nb-old"
         assert ingestor._current_source_count == 0
-        mock_save.assert_called_once_with("nb-new")
+        mock_save.assert_called_once_with("nb-old")
 
         log_names = [call.args[0] for call in mock_log.call_args_list]
-        assert "nlm_batch_notebook_rotated" in log_names
-        assert "nlm_batch_notebook_rotated_new_created" in log_names
+        assert "nlm_batch_notebook_recycled" in log_names
         assert "nlm_batch_reusable_state_saved" in log_names
-        rotate_event = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_notebook_rotated")
-        assert rotate_event["old_nb_id"] == "nb-old"
-        assert rotate_event["old_source_count"] == 275
-        assert rotate_event["reason"] == "source_cap_near_threshold"
-        assert rotate_event["cap_threshold"] == nlm_batch._NOTEBOOK_SOURCE_CAP
-        created_event = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_notebook_rotated_new_created")
-        assert created_event["nb_name"] == nlm_batch._get_reusable_notebook_title()
+        recycle_event = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_notebook_recycled")
+        assert recycle_event["nb_id"] == "nb-old"
+        assert recycle_event["old_source_count"] == 50
+        assert recycle_event["new_source_count"] == 0
+        assert recycle_event["reason"] == "source_cap_near_threshold"
+        assert recycle_event["cap_threshold"] == nlm_batch._NOTEBOOK_SOURCE_CAP
 
     def test_capacity_rotation_requests_before_add_when_at_cap(self):
-        """A notebook at capacity should rotate before attempting the next add."""
+        """A notebook at capacity should recycle before attempting the next add."""
         ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
         ingestor._nb_id = "nb-cap"
-        ingestor._current_source_count = 225
+        ingestor._current_source_count = 50
 
-        with mock.patch.object(ingestor, "_get_current_source_count", side_effect=[225, 225, 225, 225]):
+        with mock.patch.object(ingestor, "_get_current_source_count", side_effect=[50, 50, 0, 0]):
             with mock.patch.object(ingestor, "_add_sources_chunk", side_effect=[["v1", "v2"], ["v3", "v4"]]):
                 with mock.patch("csf.nlm_batch.log_action") as mock_log:
                     with mock.patch.object(ingestor, "_rotate_notebook") as mock_rotate:
@@ -910,21 +905,21 @@ class TestNotebookCapRotation:
 
         log_names = [call.args[0] for call in mock_log.call_args_list]
         assert "nlm_batch_subbatch_capacity_rotation_requested" in log_names
-        assert mock_rotate.call_count == 2
+        assert mock_rotate.call_count == 1
         capacity_rotation = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_subbatch_capacity_rotation_requested")
-        assert capacity_rotation["current_source_count"] == 225
+        assert capacity_rotation["current_source_count"] == 50
         assert capacity_rotation["cap_threshold"] == nlm_batch._NOTEBOOK_SOURCE_CAP
         assert capacity_rotation["rotation_reason"] == "source_cap_near_threshold"
 
     def test_shortfall_does_not_rotate_when_below_cap(self):
-        """Subbatch shortfall below cap threshold should NOT trigger notebook rotation."""
+        """Subbatch shortfall below cap threshold should NOT trigger notebook recycle."""
         ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
         ingestor._nb_id = "nb-fresh"
-        ingestor._current_source_count = 150
+        ingestor._current_source_count = 45
 
         def fake_run_cmd(cmd, timeout=300):
             if cmd[:2] == ["source", "list"]:
-                return type("CompletedProcess", (), {"returncode": 0, "stdout": json.dumps({"sources": [{"id": f"s{i}"} for i in range(151)]}), "stderr": ""})()
+                return type("CompletedProcess", (), {"returncode": 0, "stdout": json.dumps({"sources": [{"id": f"s{i}"} for i in range(46)]}), "stderr": ""})()
             if cmd[:2] == ["source", "add"]:
                 return type("CompletedProcess", (), {"returncode": 1, "stdout": "Could not add URL sources", "stderr": "could not add"})()
             return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
@@ -935,7 +930,7 @@ class TestNotebookCapRotation:
                     result = ingestor._add_sources_in_subbatches(["v1", "v2"], subbatch_size=2)
 
         log_names = [call.args[0] for call in mock_log.call_args_list]
-        assert "nlm_batch_notebook_rotated" not in log_names
+        assert "nlm_batch_notebook_recycled" not in log_names
         assert "nlm_batch_subbatch_add_shortfall" in log_names
         mock_rotate.assert_not_called()
 
@@ -943,21 +938,21 @@ class TestNotebookCapRotation:
         """Subbatch size should shrink to the remaining NotebookLM headroom."""
         ingestor = nlm_batch.NLMBatchIngestor(batch_size=50)
         ingestor._nb_id = "nb-room"
-        ingestor._current_source_count = 215
-        batch_ids = [f"v{i}" for i in range(60)]
+        ingestor._current_source_count = 45
+        batch_ids = [f"v{i}" for i in range(8)]
         add_calls = []
 
-        with mock.patch.object(ingestor, "_get_current_source_count", side_effect=[215, 215, 50, 50]):
+        with mock.patch.object(ingestor, "_get_current_source_count", side_effect=[45, 0, 0, 0]):
             with mock.patch.object(ingestor, "_add_sources_chunk", side_effect=lambda batch_ids, **kwargs: add_calls.append(list(batch_ids)) or list(batch_ids)):
                 with mock.patch("csf.nlm_batch.log_action") as mock_log:
                     ingestor._add_sources_in_subbatches(batch_ids, subbatch_size=50)
 
         assert add_calls, "expected at least one add command"
-        assert len(add_calls[0]) == 10
+        assert [len(batch) for batch in add_calls] == [5, 3]
         log_names = [call.args[0] for call in mock_log.call_args_list]
         assert "nlm_batch_subbatch_size_adjusted" in log_names
         adjusted = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_subbatch_size_adjusted")
-        assert adjusted["adjusted_subbatch_size"] == 10
+        assert adjusted["adjusted_subbatch_size"] == 5
         assert adjusted["rotation_reason"] == "capacity_headroom"
 
     def test_materialization_wait_logs_source_counts(self):

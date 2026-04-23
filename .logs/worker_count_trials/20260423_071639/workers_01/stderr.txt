@@ -1,0 +1,44 @@
+[source] NLM auth expired, re-authenticating...
+[source] NLM re-authenticated.
+Traceback (most recent call last):
+  File "P:\packages\yt-is\bin\csf-source", line 3346, in <module>
+    main()
+    ~~~~^^
+  File "P:\packages\yt-is\bin\csf-source", line 3324, in main
+    cmd_fetch(
+    ~~~~~~~~~^
+        source_filter=args.source,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        max_items=args.limit,
+        ^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "P:\packages\yt-is\bin\csf-source", line 2675, in cmd_fetch
+    _process_industrial_batch([(vid, "") for vid in batch])
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "P:\packages\yt-is\bin\csf-source", line 2072, in _process_industrial_batch
+    results = process_industrial_batch_reusable(batch)
+  File "P:\packages\yt-is\csf\nlm_batch.py", line 1928, in process_industrial_batch_reusable
+    return _reusable_ingestor.process_batch(video_ids)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "P:\packages\yt-is\csf\nlm_batch.py", line 1758, in process_batch
+    self._ingestor._add_sources_in_subbatches(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        video_ids,
+        ^^^^^^^^^^
+        subbatch_size=self._ingestor.batch_size,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "P:\packages\yt-is\csf\nlm_batch.py", line 969, in _add_sources_in_subbatches
+    added_chunk_ids = self._add_sources_chunk(
+        subbatch,
+    ...<2 lines>...
+        source_profile=source_profile,
+    )
+  File "P:\packages\yt-is\csf\nlm_batch.py", line 842, in _add_sources_chunk
+    raise NotebookSourceMaterializationTimeout(
+    ...<3 lines>...
+    )
+csf.nlm_batch.NotebookSourceMaterializationTimeout: NotebookLM sources were not ready after 600s (nb_id=3d02eba3-e9d8-4f65-ab97-c866da9e169a, subbatch_index=2, expected_total=200, source_count_before_wait=100)

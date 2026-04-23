@@ -20,6 +20,7 @@ import fasteners
 from csf.batch_status import summarize_video_ids
 from csf.display import format_result_row
 from csf.csf_logging import log_action
+from csf.nlm_config import get_nlm_config
 
 
 _DEFAULT_OWNER_NOTEBOOK_STATE_PATH = Path("P:/__csf/.data/yt-is/owner_nlm_notebook.json")
@@ -29,10 +30,20 @@ _DEFAULT_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX = "yt-is-worker"
 _LEGACY_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX = "yt-is::industrial::worker"
 _DEFAULT_NOTEBOOKLM_PROFILE = "default"
 _AUTH_LOCK_PATH = Path("P:/__csf/.data/yt-is/locks/nlm-auth.lock")
-DEFAULT_NOTEBOOKLM_BATCH_SIZE = 200
-DEFAULT_NOTEBOOKLM_SOURCE_CAP = 225
-DEFAULT_NOTEBOOKLM_SOURCE_MATERIALIZATION_TIMEOUT_S = 600
-_NOTEBOOK_SOURCE_CAP = DEFAULT_NOTEBOOKLM_SOURCE_CAP  # Rotate before the 300-source notebook ceiling and stay below the single-call add cliff.
+
+_NLM_CONFIG = get_nlm_config()
+DEFAULT_NOTEBOOKLM_BATCH_SIZE = _NLM_CONFIG.notebook_batch_size
+DEFAULT_NOTEBOOKLM_SOURCE_CAP = _NLM_CONFIG.notebook_source_cap
+DEFAULT_NOTEBOOKLM_SOURCE_MATERIALIZATION_TIMEOUT_S = _NLM_CONFIG.notebook_source_materialization_timeout_s
+_NOTEBOOK_SOURCE_CAP = DEFAULT_NOTEBOOKLM_SOURCE_CAP  # Keep the free-tier worker notebook below its source ceiling.
+_READY_PROBE_EARLY = os.getenv("YTIS_NLM_READY_PROBE_EARLY", "").strip().lower() in {"1", "true", "yes", "on"}
+_READY_PROBE_INTERVAL_S = float(os.getenv("YTIS_NLM_READY_PROBE_INTERVAL_S", "1.0"))
+_READY_PROBE_TIMEOUT_S = float(
+    os.getenv(
+        "YTIS_NLM_READY_PROBE_TIMEOUT_S",
+        str(DEFAULT_NOTEBOOKLM_SOURCE_MATERIALIZATION_TIMEOUT_S),
+    )
+)
 
 
 class NotebookSourceMaterializationTimeout(RuntimeError):
@@ -898,8 +909,8 @@ class NLMBatchIngestor:
     def _add_sources_in_subbatches(self, batch_ids: List[str], subbatch_size: int = DEFAULT_NOTEBOOKLM_BATCH_SIZE) -> List[str]:
         """Add sources in sub-batches to avoid NLM overload.
 
-        The reusable industrial path defaults to a 200-source window, which
-        was measured as the throughput-optimal setting for this backlog shape.
+        The reusable industrial path defaults to a 50-source window, which
+        matches the free-tier NotebookLM notebook limit for this workspace.
         Smaller or larger windows can still be passed explicitly for sweeps or
         recovery if needed.
         """
@@ -1153,6 +1164,131 @@ class NLMBatchIngestor:
                 "source_id_order_fallback_count": order_fallback_count,
             },
         )
+
+        def _probe_source_content_readiness(source_id: str, vid_hint: str) -> dict[str, object]:
+            """Poll a single source until content becomes readable or timeout."""
+            probe_started_at = time.monotonic()
+            probe_started_at_epoch = time.time()
+            probe_deadline = probe_started_at + _READY_PROBE_TIMEOUT_S
+            probe_attempt = 0
+            while True:
+                probe_attempt += 1
+                started_at_epoch = time.time()
+                ready_age_s = round(started_at_epoch - ready_reference_epoch, 3) if ready_reference_epoch else 0.0
+                log_action(
+                    "nlm_batch_source_content_readiness_probe_started",
+                    {
+                        "nb_id": self._nb_id,
+                        "source_id": source_id,
+                        "video_id": vid_hint,
+                        "probe_attempt": probe_attempt,
+                        "timeout_s": 30,
+                        "probe_started_at_epoch": started_at_epoch,
+                        "source_ready_age_s": ready_age_s,
+                        "materialization_ready_at_epoch": ready_reference_epoch,
+                    },
+                )
+                res = self._run_cmd(["source", "content", source_id, "--json"], timeout=30)
+                completed_at_epoch = time.time()
+                content = ""
+                content_length = 0
+                status = "command_failed" if res.returncode != 0 else "parse_failed"
+                if res.returncode == 0:
+                    try:
+                        data = json.loads(res.stdout)
+                        if isinstance(data, dict):
+                            content = data.get("value", {}).get("content", "")
+                            if not content:
+                                content = data.get("content", "")
+                        content_length = len(content)
+                        if content_length > 100:
+                            status = "ready"
+                            log_action(
+                                "nlm_batch_source_content_readiness_probe_completed",
+                                {
+                                    "nb_id": self._nb_id,
+                                    "source_id": source_id,
+                                    "video_id": vid_hint,
+                                    "probe_attempt": probe_attempt,
+                                    "timeout_s": 30,
+                                    "probe_started_at_epoch": started_at_epoch,
+                                    "probe_completed_at_epoch": completed_at_epoch,
+                                    "elapsed_s": round(completed_at_epoch - started_at_epoch, 3),
+                                    "returncode": res.returncode,
+                                    "content_length": content_length,
+                                    "status": status,
+                                    "ready_threshold": 100,
+                                    "source_ready_age_s": ready_age_s,
+                                    "materialization_ready_at_epoch": ready_reference_epoch,
+                                },
+                            )
+                            return {
+                                "status": status,
+                                "attempts": probe_attempt,
+                                "content_length": content_length,
+                                "ready_at_epoch": completed_at_epoch,
+                            }
+                        status = "too_short"
+                    except Exception:
+                        status = "parse_failed"
+                log_action(
+                    "nlm_batch_source_content_readiness_probe_completed",
+                    {
+                        "nb_id": self._nb_id,
+                        "source_id": source_id,
+                        "video_id": vid_hint,
+                        "probe_attempt": probe_attempt,
+                        "timeout_s": 30,
+                        "probe_started_at_epoch": started_at_epoch,
+                        "probe_completed_at_epoch": completed_at_epoch,
+                        "elapsed_s": round(completed_at_epoch - started_at_epoch, 3),
+                        "returncode": res.returncode,
+                        "content_length": content_length,
+                        "status": status,
+                        "ready_threshold": 100,
+                        "source_ready_age_s": ready_age_s,
+                        "materialization_ready_at_epoch": ready_reference_epoch,
+                        "stdout": (res.stdout or "")[:200],
+                        "stderr": (res.stderr or "")[:200],
+                    },
+                )
+                if time.monotonic() >= probe_deadline:
+                    return {
+                        "status": status,
+                        "attempts": probe_attempt,
+                        "content_length": content_length,
+                        "ready_at_epoch": 0.0,
+                    }
+                time.sleep(_READY_PROBE_INTERVAL_S)
+
+        if _READY_PROBE_EARLY and batch_ids:
+            probe_video_id = batch_ids[0]
+            probe_source_id = source_id_by_video_id.get(probe_video_id) or (source_id_list[0] if source_id_list else "")
+            if probe_source_id:
+                log_action(
+                    "nlm_batch_source_content_readiness_probe_window_started",
+                    {
+                        "nb_id": self._nb_id,
+                        "video_id": probe_video_id,
+                        "source_id": probe_source_id,
+                        "timeout_s": _READY_PROBE_TIMEOUT_S,
+                        "poll_interval_s": _READY_PROBE_INTERVAL_S,
+                        "materialization_ready_at_epoch": ready_reference_epoch,
+                    },
+                )
+                probe_result = _probe_source_content_readiness(probe_source_id, probe_video_id)
+                log_action(
+                    "nlm_batch_source_content_readiness_probe_window_completed",
+                    {
+                        "nb_id": self._nb_id,
+                        "video_id": probe_video_id,
+                        "source_id": probe_source_id,
+                        "timeout_s": _READY_PROBE_TIMEOUT_S,
+                        "poll_interval_s": _READY_PROBE_INTERVAL_S,
+                        "probe_result": probe_result,
+                        "materialization_ready_at_epoch": ready_reference_epoch,
+                    },
+                )
         
         def _fetch_content(source_id: str, vid_hint: str):
             # The 'content' command is NOT an AI query. It's a direct data fetch.
@@ -1341,30 +1477,21 @@ class NLMBatchIngestor:
             return 0
 
     def _rotate_notebook(self) -> None:
-        """Close the current notebook and create a fresh one, logging the rotation event."""
+        """Recycle the current notebook by clearing sources and keeping the same notebook."""
         old_nb_id = self._nb_id
         old_count = self._current_source_count
-        self.close()
+        self.reset_sources()
+        self._current_source_count = self._get_current_source_count()
         log_action(
-            "nlm_batch_notebook_rotated",
+            "nlm_batch_notebook_recycled",
             {
-                "old_nb_id": old_nb_id,
+                "nb_id": old_nb_id,
                 "old_source_count": old_count,
+                "new_source_count": self._current_source_count,
                 "reason": "source_cap_near_threshold",
                 "cap_threshold": _NOTEBOOK_SOURCE_CAP,
             },
         )
-        # Recreate the notebook under the same logical title so cleanup can
-        # retire the current worker notebook deterministically on restart.
-        nb_name = _get_reusable_notebook_title()
-        res = self._run_cmd(["notebook", "create", nb_name], timeout=60)
-        for line in res.stdout.split("\n"):
-            if "ID:" in line:
-                self._nb_id = line.split("ID:")[1].strip()
-                break
-        if not self._nb_id:
-            self._nb_id = res.stdout.strip()
-        self._current_source_count = 0
         if self._nb_id:
             _save_reusable_notebook_id(self._nb_id)
             log_action(
@@ -1375,15 +1502,6 @@ class NLMBatchIngestor:
                     "notebooklm_profile": _get_notebooklm_profile(),
                 },
             )
-        log_action(
-            "nlm_batch_notebook_rotated_new_created",
-            {
-                "old_nb_id": old_nb_id,
-                "new_nb_id": self._nb_id,
-                "old_source_count": old_count,
-                "nb_name": nb_name,
-            },
-        )
 
     def cleanup(self):
         """Delete all sources from the notebook (keeps notebook for reuse)."""

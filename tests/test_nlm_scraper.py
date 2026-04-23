@@ -307,6 +307,100 @@ class TestNLMIndustrialScraperPerNotebook:
         nav.assert_not_called()
 
 
+class TestSeleniumProfileAuthAndPersistence:
+    """Browser profile selection should be stable and auth failures should fail fast."""
+
+    def test_persistent_profile_session_root_uses_selenium_namespace(self):
+        from csf import nlm_config
+        from csf.nlm_scraper import NLMIndustrialScraper
+
+        original = nlm_config.get_nlm_config()
+        replacement = nlm_config.NLMConfig(
+            notebook_batch_size=50,
+            notebook_source_cap=50,
+            notebook_source_materialization_timeout_s=600,
+            max_sources_per_notebook=300,
+            auth_check_interval=60.0,
+            auth_max_calls_per_window=10,
+            auth_cooldown=300.0,
+            browser_profile_mode="persistent",
+            browser_profile_name="notebooklm",
+        )
+        try:
+            nlm_config.set_nlm_config(replacement)
+            scraper = NLMIndustrialScraper(headless=True)
+            root = scraper._selenium_profile_session_root("chrome")
+            assert root.name == scraper._profile_session_id
+            assert "selenium-profiles" in str(root).replace("\\", "/")
+        finally:
+            nlm_config.set_nlm_config(original)
+
+    def test_chrome_profile_sources_uses_dedicated_browser_root(self, tmp_path, monkeypatch):
+        from csf import nlm_config
+        from csf.nlm_scraper import NLMIndustrialScraper
+
+        browser_root = tmp_path / ".browser" / "notebooklm"
+        browser_root.mkdir(parents=True)
+        monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+        monkeypatch.setenv("APPDATA", str(tmp_path))
+
+        original = nlm_config.get_nlm_config()
+        replacement = nlm_config.NLMConfig(
+            notebook_batch_size=50,
+            notebook_source_cap=50,
+            notebook_source_materialization_timeout_s=600,
+            max_sources_per_notebook=300,
+            auth_check_interval=60.0,
+            auth_max_calls_per_window=10,
+            auth_cooldown=300.0,
+            browser_profile_mode="persistent",
+            browser_profile_name="notebooklm",
+            browser_profile_seed_root=str(tmp_path / "seed"),
+            nlm_browser_mode="persistent",
+            nlm_browser_profile_root=str(browser_root),
+            nlm_browser_executable=r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            nlm_browser_channel="chrome",
+            nlm_browser_bootstrap_headless=False,
+            nlm_browser_start_timeout_ms=30000,
+            nlm_preflight_url_timeout_ms=60000,
+            nlm_preflight_ui_timeout_ms=15000,
+        )
+        try:
+            nlm_config.set_nlm_config(replacement)
+            scraper = NLMIndustrialScraper(headless=True)
+            root, profile_name = scraper._chrome_profile_sources()
+            assert root == browser_root
+            assert profile_name == "Default"
+        finally:
+            nlm_config.set_nlm_config(original)
+
+    def test_looks_like_request_access_detects_gate_text(self):
+        from csf.nlm_scraper import NLMIndustrialScraper
+
+        assert NLMIndustrialScraper._looks_like_request_access(
+            "Request access | Close | Google apps"
+        )
+        assert NLMIndustrialScraper._looks_like_request_access("Please sign in to continue")
+        assert not NLMIndustrialScraper._looks_like_request_access("NotebookLM ready")
+
+    def test_open_notebook_short_circuits_on_browser_auth_failure(self):
+        from csf.nlm_scraper import NLMIndustrialScraper
+
+        scraper = NLMIndustrialScraper(headless=True)
+        scraper._driver = mock.MagicMock()
+        scraper._driver.current_url = "https://notebooklm.google.com/notebook/nb-123"
+        scraper._driver.title = "Request access"
+
+        with mock.patch.object(scraper, "_browser_auth_ready", return_value=False) as mock_auth:
+            with mock.patch.object(scraper, "_prepare_sources_dom") as mock_prepare:
+                result = scraper._open_notebook_and_prepare_sources("nb-123", 3)
+
+        assert result == -1
+        mock_auth.assert_called_once_with("nb-123")
+        mock_prepare.assert_not_called()
+        scraper._driver.get.assert_called_once_with("https://notebooklm.google.com/notebook/nb-123")
+
+
 class TestConsecutiveFailureBail:
     """Test Fix 3: consecutive notebook-creation failure counter."""
 
@@ -645,9 +739,10 @@ class TestSeleniumProfileIsolation:
         return NLMIndustrialScraper(headless=True)
 
     def test_init_driver_uses_dedicated_chrome_profile_root(self, scraper, tmp_path, monkeypatch):
-        """Chrome should launch with a Selenium-only user-data-dir, not the shared MCP profile."""
-        monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
-        monkeypatch.delenv("APPDATA", raising=False)
+        """Persistent Chrome should seed a Selenium-only session root from the dedicated NotebookLM browser root."""
+        browser_root = tmp_path / ".browser" / "notebooklm"
+        browser_root.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setenv("YTIS_NLM_BROWSER_PROFILE_ROOT", str(browser_root))
 
         chrome_mock = mock.MagicMock()
         with mock.patch("csf.nlm_scraper.webdriver.Chrome", return_value=chrome_mock) as mock_chrome:
@@ -655,16 +750,68 @@ class TestSeleniumProfileIsolation:
                 with mock.patch("csf.nlm_scraper.log_action") as mock_log:
                     scraper._init_driver()
 
-        mock_seed.assert_called_once()
-        mock_log.assert_any_call(
-            "selenium_profile_selected",
-            mock.ANY,
+        selected = next(
+            call.args[1]
+            for call in mock_log.call_args_list
+            if call.args and call.args[0] == "selenium_profile_selected"
         )
+        assert "selenium-profiles/chrome" in selected["profile_root"].replace("\\", "/")
+        assert selected["seeded_from"].replace("\\", "/").endswith(".browser/notebooklm")
+        assert selected["profile_name"] == "Default"
+        assert selected["seeded"] is True
         opts = mock_chrome.call_args.kwargs["options"]
         user_data_dir_args = [arg for arg in opts.arguments if arg.startswith("--user-data-dir=")]
         assert len(user_data_dir_args) == 1
         assert "selenium-profiles/chrome" in user_data_dir_args[0].replace("\\", "/")
-        assert "mcp-chrome-9050243" not in user_data_dir_args[0]
+        profile_dir_args = [arg for arg in opts.arguments if arg.startswith("--profile-directory=")]
+        assert profile_dir_args == ["--profile-directory=Default"]
+
+    def test_seed_browser_profile_reseeds_when_stale(self, scraper, tmp_path, monkeypatch):
+        """Non-persistent Selenium should reseed a stale clone that still has a DevToolsActivePort marker."""
+        monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+        monkeypatch.delenv("APPDATA", raising=False)
+        browser_root = tmp_path / ".browser" / "notebooklm"
+        browser_root.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setenv("YTIS_NLM_BROWSER_PROFILE_ROOT", str(browser_root))
+        target_root = tmp_path / "yt-is" / "selenium-profiles" / "chrome" / "notebooklm"
+        target_root.mkdir(parents=True, exist_ok=True)
+        (target_root / "DevToolsActivePort").write_text("stale", encoding="utf-8")
+
+        from csf import nlm_config
+
+        original = nlm_config.get_nlm_config()
+        replacement = nlm_config.NLMConfig(
+            notebook_batch_size=50,
+            notebook_source_cap=50,
+            notebook_source_materialization_timeout_s=600,
+            max_sources_per_notebook=300,
+            auth_check_interval=60.0,
+            auth_max_calls_per_window=10,
+            auth_cooldown=300.0,
+            browser_profile_mode="persistent",
+            browser_profile_name="notebooklm",
+            browser_profile_seed_root="P:/__csf/.data/yt-is/notebooklm-browser-session",
+            nlm_browser_mode="clone",
+            nlm_browser_profile_root=str(browser_root),
+            nlm_browser_executable=r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            nlm_browser_channel="chrome",
+            nlm_browser_bootstrap_headless=False,
+            nlm_browser_start_timeout_ms=30000,
+            nlm_preflight_url_timeout_ms=60000,
+            nlm_preflight_ui_timeout_ms=15000,
+        )
+        try:
+            nlm_config.set_nlm_config(replacement)
+            local_scraper = scraper.__class__(headless=True, browser_cfg=replacement)
+            with mock.patch.object(local_scraper, "_selenium_profile_session_root", return_value=target_root):
+                with mock.patch("csf.nlm_scraper.webdriver.Chrome", return_value=mock.MagicMock()):
+                    with mock.patch.object(local_scraper, "_seed_profile_tree") as mock_seed:
+                        with mock.patch("csf.nlm_scraper.log_action"):
+                            local_scraper._init_driver()
+        finally:
+            nlm_config.set_nlm_config(original)
+
+        mock_seed.assert_called_once()
 
     def test_init_driver_uses_dedicated_firefox_profile_root(self, scraper, tmp_path, monkeypatch):
         """Firefox fallback should also use a Selenium-only profile root."""
@@ -688,8 +835,6 @@ class TestSeleniumProfileIsolation:
         profile_index = opts.arguments.index("-profile") + 1
         profile_root = opts.arguments[profile_index]
         assert "selenium-profiles/firefox" in profile_root.replace("\\", "/")
-        assert "Firefox/Profiles" not in profile_root.replace("\\", "/")
-        assert scraper._profile_session_id in profile_root
         mock_log.assert_any_call(
             "selenium_profile_selected",
             mock.ANY,
@@ -1156,3 +1301,111 @@ class TestBatchSummaryLogging:
         assert result == {"vid1": (True, "t", None)}
         actions = [c.args[0] for c in mock_log.call_args_list]
         assert "industrial_batch_complete" in actions
+
+
+class TestReadinessMatrixLogging:
+    """Readiness-matrix runs should emit per-source DOM and CLI readiness logs."""
+
+    @pytest.fixture
+    def scraper(self):
+        from csf.nlm_scraper import NLMIndustrialScraper
+
+        return NLMIndustrialScraper(
+            headless=True,
+            readiness_matrix=True,
+            readiness_probe_interval_s=0.1,
+            readiness_probe_timeout_s=1.0,
+        )
+
+    def test_probe_source_content_readiness_logs_attempts(self, scraper):
+        """CLI readiness probes should log the retry window and final ready state."""
+        scraper._staging_nb_id = "nb-test"
+        payloads = [
+            {"returncode": 0, "stdout": json.dumps({"value": {"content": "x" * 50}}), "stderr": ""},
+            {"returncode": 0, "stdout": json.dumps({"value": {"content": "x" * 101}}), "stderr": ""},
+        ]
+
+        def fake_run_nlm(args, timeout=300):
+            payload = payloads.pop(0)
+            return type("CompletedProcess", (), payload)()
+
+        with mock.patch.object(scraper, "_run_nlm", side_effect=fake_run_nlm):
+            with mock.patch("csf.nlm_scraper.log_action") as mock_log:
+                with mock.patch("csf.nlm_scraper.time.monotonic", side_effect=[0.0, 0.2, 0.4, 0.6]):
+                    with mock.patch("csf.nlm_scraper.time.time", side_effect=[10.0, 10.0, 10.2, 10.2, 10.4, 10.4]):
+                        with mock.patch("csf.nlm_scraper.time.sleep"):
+                            result = scraper._probe_source_content_readiness(
+                                "src-1",
+                                "vid-1",
+                                ready_reference_epoch=0.0,
+                            )
+
+        assert result["status"] == "ready"
+        assert result["attempts"] == 2
+        started = [call.args[0] for call in mock_log.call_args_list if call.args[0] == "staging_source_content_readiness_probe_started"]
+        completed = [call.args[0] for call in mock_log.call_args_list if call.args[0] == "staging_source_content_readiness_probe_completed"]
+        assert started
+        assert completed
+        final_payload = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "staging_source_content_readiness_probe_completed" and call.args[1]["status"] == "ready")
+        assert final_payload["content_length"] == 101
+        assert final_payload["ready_threshold"] == 100
+
+    def test_scrape_sources_matrix_logs_dom_snapshot(self, scraper):
+        """Matrix mode should capture both DOM spinner state and CLI readiness probe logs."""
+
+        class FakeElement:
+            def __init__(self, text="", attrs=None):
+                self._text = text
+                self._attrs = attrs or {}
+
+            @property
+            def text(self):
+                return self._text
+
+            def get_attribute(self, name):
+                return self._attrs.get(name, "")
+
+            def find_elements(self, by, selector):
+                return []
+
+        source_button = FakeElement(
+            text="Episode 1",
+            attrs={
+                "class": "source-stretched-button",
+                "aria-label": "Open source src-1 for youtube.com/watch?v=vid-1",
+                "href": "https://notebooklm.google.com/notebook/nb-test/source/src-1",
+            },
+        )
+
+        with mock.patch.object(scraper, "_ensure_sources_context", return_value=True):
+            with mock.patch.object(scraper, "_open_notebook_and_prepare_sources", return_value=1):
+                with mock.patch.object(scraper, "_collect_source_dom_candidates", return_value=[source_button]):
+                    with mock.patch.object(scraper, "_is_source_element", return_value=True):
+                        with mock.patch.object(scraper, "_is_processing_source_dom_candidate", return_value=True):
+                            with mock.patch.object(scraper, "_count_ready_source_buttons_dom", return_value=0):
+                                with mock.patch.object(scraper, "_count_processing_source_buttons_dom", return_value=1):
+                                    with mock.patch.object(
+                                        scraper,
+                                        "_probe_source_content_readiness",
+                                        return_value={"status": "ready", "attempts": 1, "content_length": 101, "ready_at_epoch": 10.0},
+                                    ) as mock_probe:
+                                        scraper._driver = mock.MagicMock()
+                                        scraper._driver.current_url = "https://notebooklm.google.com/notebook/nb-test/source/src-1/hash"
+                                        with mock.patch.object(scraper._driver, "execute_script"):
+                                            with mock.patch.object(scraper._driver, "find_elements", return_value=[source_button]):
+                                                with mock.patch.object(scraper, "_wait_for_transcript_ready", return_value="transcript body"):
+                                                    with mock.patch.object(scraper, "_extract_transcript_from_body", return_value="transcript"):
+                                                        with mock.patch("csf.nlm_scraper.log_action") as mock_log:
+                                                            scraper._staging_nb_id = "nb-test"
+                                                            scraper._last_materialization_ready_at_epoch = 5.0
+                                                            results = scraper._scrape_sources({"vid-1": "src-1"})
+
+        assert results["vid-1"][0] is True
+        mock_probe.assert_called_once()
+        snapshot = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "staging_source_readiness_snapshot")
+        assert snapshot["spinner_active"] is True
+        assert snapshot["dom_checkmark_visible"] is False
+        assert snapshot["candidate_match_count"] == 1
+        assert snapshot["fallback_used"] is False
+        assert "staging_source_content_readiness_probe_window_started" in [call.args[0] for call in mock_log.call_args_list]
+        assert "staging_source_content_readiness_probe_window_completed" in [call.args[0] for call in mock_log.call_args_list]

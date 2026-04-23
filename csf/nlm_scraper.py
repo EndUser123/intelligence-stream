@@ -38,6 +38,7 @@ try:
     from selenium.webdriver.common.by import By
     from selenium.webdriver.remote.webelement import WebElement
     from csf.csf_logging import log_action
+    from csf.nlm_config import get_nlm_config
 except ImportError:
     print("Error: Selenium not installed. Run 'pip install selenium'.")
     sys.exit(1)
@@ -58,13 +59,42 @@ class NLMIndustrialScraper:
         "yt-is/selenium-profiles",
     )
 
-    def __init__(self, headless: bool = True):
+    def __init__(
+        self,
+        headless: bool = True,
+        *,
+        browser_cfg=None,
+        readiness_matrix: bool = False,
+        readiness_probe_interval_s: float = 1.0,
+        readiness_probe_timeout_s: float = 600.0,
+    ):
         self.headless = headless
+        self.browser_cfg = browser_cfg or get_nlm_config()
+        self._readiness_matrix = readiness_matrix
+        self._readiness_probe_interval_s = float(readiness_probe_interval_s)
+        self._readiness_probe_timeout_s = float(readiness_probe_timeout_s)
         self._driver = None
         self._staging_nb_id: str | None = None
         self._source_count: int = 0
         self._consecutive_nb_create_failures: int = 0
         self._profile_session_id = f"{os.getpid()}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+        self._last_materialization_ready_at_epoch: float = 0.0
+        self._last_vid_order: list[str] = []
+
+    @staticmethod
+    def _looks_like_request_access(text: str) -> bool:
+        """Return True when the browser content looks like a Google access gate."""
+        lower = (text or "").lower()
+        return any(
+            phrase in lower
+            for phrase in (
+                "request access",
+                "request-access",
+                "ask for access",
+                "signin",
+                "sign in",
+            )
+        )
 
     def _selenium_profile_root(self, browser: str) -> Path:
         """Return the per-browser Selenium-only profile root."""
@@ -74,6 +104,122 @@ class NLMIndustrialScraper:
     def _selenium_profile_session_root(self, browser: str) -> Path:
         """Return a per-run Selenium profile root for a specific browser."""
         return self._selenium_profile_root(browser) / self._profile_session_id
+
+    def _selenium_profile_is_persistent(self) -> bool:
+        """Return True when the Selenium profile should be reused across runs."""
+        mode = getattr(self.browser_cfg, "nlm_browser_mode", None) or getattr(
+            self.browser_cfg, "browser_profile_mode", "persistent"
+        )
+        return str(mode).strip().lower() == "persistent"
+
+    @staticmethod
+    def _resolve_chrome_profile_directory(user_data_root: Path) -> str:
+        """Resolve the active Chrome profile directory name from Local State."""
+        local_state = user_data_root / "Local State"
+        if local_state.is_file():
+            try:
+                data = json.loads(local_state.read_text(encoding="utf-8"))
+                profile_name = str(data.get("profile", {}).get("last_used", "")).strip()
+                if profile_name:
+                    return profile_name
+            except Exception:
+                pass
+        return "Default"
+
+    @staticmethod
+    def _resolve_chrome_binary() -> str | None:
+        """Return the installed Chrome executable path if present."""
+        candidates = [
+            Path("C:/Program Files/Google/Chrome/Application/chrome.exe"),
+            Path("C:/Program Files (x86)/Google/Chrome/Application/chrome.exe"),
+        ]
+        for candidate in candidates:
+            if candidate.is_file():
+                return str(candidate)
+        return None
+
+    def _seed_browser_profile_if_needed(self, source_base: Path, target_base: Path) -> bool:
+        """Seed a browser profile tree only when the target profile is empty."""
+        persistent = self._selenium_profile_is_persistent()
+        if not persistent:
+            self._seed_profile_tree(source_base, target_base)
+            return True
+
+        target_base.mkdir(parents=True, exist_ok=True)
+        try:
+            entries = list(target_base.iterdir())
+            if entries:
+                devtools_port = target_base / "DevToolsActivePort"
+                if devtools_port.exists():
+                    self._seed_profile_tree(source_base, target_base)
+                    return True
+                return False
+        except Exception:
+            pass
+        self._seed_profile_tree(source_base, target_base)
+        return True
+
+    def _browser_auth_probe_text(self) -> str:
+        """Collect a compact text snapshot for browser auth readiness checks."""
+        parts: list[str] = []
+        try:
+            current_url = str(self._driver.current_url or "")
+            if current_url:
+                parts.append(current_url)
+        except Exception:
+            pass
+        try:
+            title = str(self._driver.title or "")
+            if title:
+                parts.append(title)
+        except Exception:
+            pass
+        try:
+            body = self._driver.find_element(By.TAG_NAME, "body")
+            body_text = str(body.text or "").strip()
+            if body_text:
+                parts.append(body_text[:5000])
+        except Exception:
+            pass
+        return " | ".join(parts)
+
+    def _browser_auth_ready(self, notebook_id: str) -> bool:
+        """Return True when the browser session looks signed into NotebookLM."""
+        snapshot = self._browser_auth_probe_text()
+        current_url = ""
+        title = ""
+        try:
+            current_url = str(self._driver.current_url or "")
+        except Exception:
+            pass
+        try:
+            title = str(self._driver.title or "")
+        except Exception:
+            pass
+
+        if self._looks_like_request_access(snapshot) or "accounts.google.com" in snapshot.lower():
+            log_action(
+                "selenium_browser_auth_failed",
+                {
+                    "nb_id": notebook_id,
+                    "current_url": current_url[:300],
+                    "title": title[:200],
+                    "snapshot": snapshot[:500],
+                    "status": "request_access",
+                },
+            )
+            return False
+
+        log_action(
+            "selenium_browser_auth_checked",
+            {
+                "nb_id": notebook_id,
+                "current_url": current_url[:300],
+                "title": title[:200],
+                "status": "ok",
+            },
+        )
+        return True
 
     @staticmethod
     def _proc_name(proc) -> str:
@@ -217,12 +363,23 @@ class NLMIndustrialScraper:
         return killed, failed
 
     def _chrome_profile_sources(self) -> tuple[Path, str]:
-        """Return the source profile base and profile directory name for Chrome."""
-        appdata = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or ""
-        playwright_chrome_base = Path(appdata) / "ms-playwright" / "mcp-chrome-9050243"
-        if playwright_chrome_base.is_dir():
-            return playwright_chrome_base, "Default"
-        return Path(appdata) / "Google" / "Chrome" / "User Data", "default"
+        """Return the dedicated NotebookLM browser profile root and directory."""
+        browser_profile_root = Path(
+            getattr(self.browser_cfg, "nlm_browser_profile_root", "")
+            or getattr(self.browser_cfg, "browser_profile_seed_root", "")
+            or r"P:\packages\yt-is\.browser\notebooklm"
+        )
+        if browser_profile_root.exists():
+            local_state = browser_profile_root / "Local State"
+            if local_state.is_file():
+                try:
+                    data = json.loads(local_state.read_text(encoding="utf-8"))
+                    profile_name = str(data.get("profile", {}).get("last_used", "")).strip()
+                    if profile_name:
+                        return browser_profile_root, profile_name
+                except Exception:
+                    pass
+        return browser_profile_root, "Default"
 
     def _should_skip_profile_item(self, name: str) -> bool:
         """Skip lock/cache files that should not be cloned into a fresh profile."""
@@ -268,8 +425,12 @@ class NLMIndustrialScraper:
             return
 
         chrome_source_base, profile_name = self._chrome_profile_sources()
-        chrome_profile_base = self._selenium_profile_session_root("chrome")
-        self._seed_profile_tree(chrome_source_base, chrome_profile_base)
+        if self._selenium_profile_is_persistent():
+            chrome_profile_base = self._selenium_profile_session_root("chrome")
+            seeded = self._seed_browser_profile_if_needed(chrome_source_base, chrome_profile_base)
+        else:
+            chrome_profile_base = self._selenium_profile_session_root("chrome")
+            seeded = self._seed_browser_profile_if_needed(chrome_source_base, chrome_profile_base)
         log_action(
             "selenium_profile_selected",
             {
@@ -277,6 +438,8 @@ class NLMIndustrialScraper:
                 "profile_root": str(chrome_profile_base),
                 "profile_name": profile_name,
                 "seeded_from": str(chrome_source_base),
+                "persistent": self._selenium_profile_is_persistent(),
+                "seeded": seeded,
                 "profile_session_id": self._profile_session_id,
             },
         )
@@ -285,6 +448,9 @@ class NLMIndustrialScraper:
             opts = ChOptions()
             if self.headless:
                 opts.add_argument("--headless=new")
+            chrome_binary = self._resolve_chrome_binary()
+            if chrome_binary:
+                opts.binary_location = chrome_binary
             opts.add_argument(f"--user-data-dir={chrome_profile_base}")
             opts.add_argument(f"--profile-directory={profile_name}")
             opts.add_argument("--no-first-run")
@@ -315,7 +481,7 @@ class NLMIndustrialScraper:
                 firefox_profile_root = self._selenium_profile_session_root("firefox")
                 if profiles:
                     profile_path = profiles[0]
-                    self._seed_profile_tree(Path(profile_path), firefox_profile_root)
+                    seeded = self._seed_browser_profile_if_needed(Path(profile_path), firefox_profile_root)
                     log_action(
                         "selenium_profile_selected",
                         {
@@ -323,6 +489,8 @@ class NLMIndustrialScraper:
                             "profile_root": str(firefox_profile_root),
                             "profile_name": Path(profile_path).name,
                             "seeded_from": str(profile_path),
+                            "persistent": self._selenium_profile_is_persistent(),
+                            "seeded": seeded,
                             "profile_session_id": self._profile_session_id,
                         },
                     )
@@ -339,6 +507,8 @@ class NLMIndustrialScraper:
                             "profile_root": str(firefox_profile_root),
                             "profile_name": "new",
                             "seeded_from": None,
+                            "persistent": self._selenium_profile_is_persistent(),
+                            "seeded": False,
                             "profile_session_id": self._profile_session_id,
                         },
                     )
@@ -584,6 +754,9 @@ class NLMIndustrialScraper:
         url = f"https://notebooklm.google.com/notebook/{notebook_id}"
         print(f"[Industrial] Opening {url}...")
         self._driver.get(url)
+        if not self._browser_auth_ready(notebook_id):
+            print("[Industrial] NotebookLM browser session is not authenticated; aborting DOM scrape.")
+            return -1
         return self._prepare_sources_dom(notebook_id, expected_count)
 
     def _count_source_buttons_dom(self) -> int:
@@ -1200,6 +1373,7 @@ class NLMIndustrialScraper:
                 # The notebook did not reflect the expected source count in time.
                 self._clear_staging_notebook()
                 return None
+            self._last_materialization_ready_at_epoch = time.time()
             log_action(
                 "staging_source_materialization_wait_succeeded",
                 {
@@ -1215,6 +1389,132 @@ class NLMIndustrialScraper:
             added = len(subbatch)
             all_source_ids.extend(ids[:added])
         return all_source_ids
+
+    def _find_source_dom_candidate(self, source_id: str, vid: str) -> tuple[Optional[WebElement], int, bool]:
+        """Find the best DOM candidate for a specific source row."""
+        all_candidates = self._collect_source_dom_candidates()
+        source_buttons = [
+            elem
+            for elem in all_candidates
+            if self._is_source_element(elem, source_id, vid)
+        ]
+        target_btn = source_buttons[0] if source_buttons else None
+        fallback_used = False
+        if not target_btn:
+            src_pos = -1
+            try:
+                src_pos = self._last_vid_order.index(vid)  # type: ignore[attr-defined]
+            except Exception:
+                src_pos = -1
+            if src_pos >= 0 and src_pos < len(all_candidates):
+                target_btn = all_candidates[src_pos]
+                fallback_used = True
+        return target_btn, len(source_buttons), fallback_used
+
+    def _probe_source_content_readiness(
+        self,
+        source_id: str,
+        vid_hint: str,
+        *,
+        ready_reference_epoch: float,
+    ) -> dict[str, object]:
+        """Poll a single source until NotebookLM content becomes readable."""
+        probe_started_at = time.monotonic()
+        probe_started_at_epoch = time.time()
+        probe_deadline = probe_started_at + self._readiness_probe_timeout_s
+        probe_attempt = 0
+        while True:
+            probe_attempt += 1
+            started_at_epoch = time.time()
+            ready_age_s = round(started_at_epoch - ready_reference_epoch, 3) if ready_reference_epoch else 0.0
+            log_action(
+                "staging_source_content_readiness_probe_started",
+                {
+                    "nb_id": self._staging_nb_id,
+                    "source_id": source_id,
+                    "video_id": vid_hint,
+                    "probe_attempt": probe_attempt,
+                    "timeout_s": self._readiness_probe_timeout_s,
+                    "poll_interval_s": self._readiness_probe_interval_s,
+                    "probe_started_at_epoch": started_at_epoch,
+                    "source_ready_age_s": ready_age_s,
+                    "materialization_ready_at_epoch": ready_reference_epoch,
+                },
+            )
+            res = self._run_nlm(["source", "content", source_id, "--json"], timeout=30)
+            completed_at_epoch = time.time()
+            content = ""
+            content_length = 0
+            status = "command_failed" if res.returncode != 0 else "parse_failed"
+            if res.returncode == 0:
+                try:
+                    data = json.loads(res.stdout)
+                    if isinstance(data, dict):
+                        content = data.get("value", {}).get("content", "")
+                        if not content:
+                            content = data.get("content", "")
+                    content_length = len(content)
+                    if content_length > 100:
+                        status = "ready"
+                        log_action(
+                            "staging_source_content_readiness_probe_completed",
+                            {
+                                "nb_id": self._staging_nb_id,
+                                "source_id": source_id,
+                                "video_id": vid_hint,
+                                "probe_attempt": probe_attempt,
+                                "timeout_s": self._readiness_probe_timeout_s,
+                                "poll_interval_s": self._readiness_probe_interval_s,
+                                "probe_started_at_epoch": started_at_epoch,
+                                "probe_completed_at_epoch": completed_at_epoch,
+                                "elapsed_s": round(completed_at_epoch - started_at_epoch, 3),
+                                "returncode": res.returncode,
+                                "content_length": content_length,
+                                "status": status,
+                                "ready_threshold": 100,
+                                "source_ready_age_s": ready_age_s,
+                                "materialization_ready_at_epoch": ready_reference_epoch,
+                            },
+                        )
+                        return {
+                            "status": status,
+                            "attempts": probe_attempt,
+                            "content_length": content_length,
+                            "ready_at_epoch": completed_at_epoch,
+                        }
+                    status = "too_short"
+                except Exception:
+                    status = "parse_failed"
+            log_action(
+                "staging_source_content_readiness_probe_completed",
+                {
+                    "nb_id": self._staging_nb_id,
+                    "source_id": source_id,
+                    "video_id": vid_hint,
+                    "probe_attempt": probe_attempt,
+                    "timeout_s": self._readiness_probe_timeout_s,
+                    "poll_interval_s": self._readiness_probe_interval_s,
+                    "probe_started_at_epoch": started_at_epoch,
+                    "probe_completed_at_epoch": completed_at_epoch,
+                    "elapsed_s": round(completed_at_epoch - started_at_epoch, 3),
+                    "returncode": res.returncode,
+                    "content_length": content_length,
+                    "status": status,
+                    "ready_threshold": 100,
+                    "source_ready_age_s": ready_age_s,
+                    "materialization_ready_at_epoch": ready_reference_epoch,
+                    "stdout": (res.stdout or "")[:200],
+                    "stderr": (res.stderr or "")[:200],
+                },
+            )
+            if time.monotonic() >= probe_deadline:
+                return {
+                    "status": status,
+                    "attempts": probe_attempt,
+                    "content_length": content_length,
+                    "ready_at_epoch": 0.0,
+                }
+            time.sleep(self._readiness_probe_interval_s)
 
     def _clear_staging_notebook(self) -> bool:
         """Delete all sources from the staging notebook by deleting and recreating it."""
@@ -1422,7 +1722,9 @@ class NLMIndustrialScraper:
         if not self._staging_nb_id:
             return {vid: (False, None, "no staging notebook") for vid in vid_to_src}
 
-        self._open_notebook_and_prepare_sources(self._staging_nb_id, len(vid_to_src))
+        dom_ready = self._open_notebook_and_prepare_sources(self._staging_nb_id, len(vid_to_src))
+        if dom_ready == -1:
+            return {vid: (False, None, "browser auth unavailable") for vid in vid_to_src}
         batch_started_at = time.monotonic()
         log_action(
             "industrial_scrape_batch_started",
@@ -1517,30 +1819,23 @@ class NLMIndustrialScraper:
                 # page, all 299 remaining cached WebElement references go stale.
                 # By scanning the DOM fresh for every video, we eliminate stale
                 # references entirely.
-                all_candidates = self._collect_source_dom_candidates()
-                source_buttons = [
-                    elem
-                    for elem in all_candidates
-                    if self._is_source_element(elem, source_id, vid)
-                ]
-                target_btn = None
-                if source_buttons:
-                    target_btn = source_buttons[0]
-                if not target_btn:
-                    src_pos = list(vid_to_src.keys()).index(vid)
-                    if src_pos < len(all_candidates):
-                        target_btn = all_candidates[src_pos]
+                self._last_vid_order = list(vid_to_src.keys())  # type: ignore[attr-defined]
+                target_btn, source_button_match_count, fallback_used = self._find_source_dom_candidate(source_id, vid)
 
                 if not target_btn:
                     context_not_ready_streak = 0
                     print(
                         f"[Industrial] button lookup failed for vid={vid} source={source_id} "
-                        f"buttons={len(source_buttons)} url={self._driver.current_url}"
+                        f"buttons={source_button_match_count} url={self._driver.current_url}"
                     )
-                    if source_buttons:
-                        preview_buttons = source_buttons
+                    if source_button_match_count:
+                        preview_buttons = [
+                            elem
+                            for elem in self._collect_source_dom_candidates()
+                            if self._is_source_element(elem, source_id, vid)
+                        ]
                     else:
-                        preview_buttons = all_candidates
+                        preview_buttons = self._collect_source_dom_candidates()
                     print(
                         f"[Industrial] candidate labels: "
                         f"{self._button_label_preview(preview_buttons)}"
@@ -1560,6 +1855,64 @@ class NLMIndustrialScraper:
                     )
                     print("✗ button not found")
                     continue
+
+                dom_spinner_active = self._is_processing_source_dom_candidate(target_btn)
+                dom_snapshot_payload = {
+                    "nb_id": self._staging_nb_id,
+                    "video_id": vid,
+                    "source_id": source_id,
+                    "index": idx,
+                    "batch_size": len(vid_to_src),
+                    "spinner_active": dom_spinner_active,
+                    "dom_ready": not dom_spinner_active,
+                    "dom_checkmark_visible": not dom_spinner_active,
+                    "candidate_match_count": source_button_match_count,
+                    "fallback_used": fallback_used,
+                    "ready_total": self._count_ready_source_buttons_dom(),
+                    "processing_total": self._count_processing_source_buttons_dom(),
+                    "source_ready_age_s": round(
+                        time.time() - self._last_materialization_ready_at_epoch, 3
+                    )
+                    if self._last_materialization_ready_at_epoch
+                    else 0.0,
+                }
+                log_action("staging_source_readiness_snapshot", dom_snapshot_payload)
+
+                if self._readiness_matrix:
+                    probe_window_started_at = time.time()
+                    log_action(
+                        "staging_source_content_readiness_probe_window_started",
+                        {
+                            "nb_id": self._staging_nb_id,
+                            "video_id": vid,
+                            "source_id": source_id,
+                            "timeout_s": self._readiness_probe_timeout_s,
+                            "poll_interval_s": self._readiness_probe_interval_s,
+                            "materialization_ready_at_epoch": self._last_materialization_ready_at_epoch,
+                            "spinner_active": dom_spinner_active,
+                            "dom_checkmark_visible": not dom_spinner_active,
+                        },
+                    )
+                    probe_result = self._probe_source_content_readiness(
+                        source_id,
+                        vid,
+                        ready_reference_epoch=self._last_materialization_ready_at_epoch,
+                    )
+                    log_action(
+                        "staging_source_content_readiness_probe_window_completed",
+                        {
+                            "nb_id": self._staging_nb_id,
+                            "video_id": vid,
+                            "source_id": source_id,
+                            "timeout_s": self._readiness_probe_timeout_s,
+                            "poll_interval_s": self._readiness_probe_interval_s,
+                            "probe_result": probe_result,
+                            "materialization_ready_at_epoch": self._last_materialization_ready_at_epoch,
+                            "probe_window_elapsed_s": round(time.time() - probe_window_started_at, 3),
+                            "spinner_active": dom_spinner_active,
+                            "dom_checkmark_visible": not dom_spinner_active,
+                        },
+                    )
 
                 self._driver.execute_script(
                     "arguments[0].scrollIntoView({block:'center'});", target_btn
@@ -1814,7 +2167,9 @@ class NLMIndustrialScraper:
             print(f"[Industrial] Warning: {len(missing)} video IDs have no source mapping")
 
         self._init_driver()
-        self._open_notebook_and_prepare_sources(notebook_id, len(vid_to_src))
+        dom_ready = self._open_notebook_and_prepare_sources(notebook_id, len(vid_to_src))
+        if dom_ready == -1:
+            return {vid: (False, None, "browser auth unavailable") for vid in video_ids}
 
         # Build button map ONCE before any clicking — stable DOM at this point.
         # Buttons are matched by source_id via aria-label, with positional fallback.
@@ -1996,6 +2351,23 @@ def main():
         action="store_true",
         help="Force use of terminal-local staging notebook (default when no --notebook)",
     )
+    parser.add_argument(
+        "--readiness-matrix",
+        action="store_true",
+        help="Log per-source DOM spinner and CLI content-readiness timing during scraping",
+    )
+    parser.add_argument(
+        "--readiness-probe-interval-s",
+        type=float,
+        default=1.0,
+        help="Polling interval for readiness probes when --readiness-matrix is enabled",
+    )
+    parser.add_argument(
+        "--readiness-probe-timeout-s",
+        type=float,
+        default=600.0,
+        help="Timeout for readiness probes when --readiness-matrix is enabled",
+    )
     args = parser.parse_args()
 
     video_ids: List[str] = []
@@ -2005,7 +2377,12 @@ def main():
         print("Error: --video-ids is required")
         sys.exit(1)
 
-    scraper = NLMIndustrialScraper(headless=not args.no_headless)
+    scraper = NLMIndustrialScraper(
+        headless=not args.no_headless,
+        readiness_matrix=args.readiness_matrix,
+        readiness_probe_interval_s=args.readiness_probe_interval_s,
+        readiness_probe_timeout_s=args.readiness_probe_timeout_s,
+    )
     try:
         if args.staging or not args.notebook:
             # Staging mode: uses persistent per-terminal staging notebook

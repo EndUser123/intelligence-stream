@@ -97,6 +97,8 @@ Extract YouTube transcripts using NotebookLM's batch notebook workflow.
 
 **Recommended approach:** Worker-owned batch notebooks (one notebook per worker title, reused across batches; batch size 200) — uses `nlm source content` (raw text), has auth auto-recovery built in.
 
+**Auth contract for tests:** `nlm login` covers the CLI path only. The DOM/spinner readiness path uses a separate persistent Chrome profile and must be bootstrapped once with a signed-in browser session before DOM tests will work.
+
 **Old approach (deprecated):** Ephemeral notebooks — one notebook per video, slow, wastes NotebookLM slots.
 
 ## CLI Tools
@@ -227,9 +229,9 @@ graph TB
 
 **Key features:**
 - Automatic escalation chain for transcript download
-- Batch NotebookLM workflow with shared defaults in `csf/nlm_batch.py` (`DEFAULT_NOTEBOOKLM_BATCH_SIZE = 200`, `DEFAULT_NOTEBOOKLM_SOURCE_CAP = 225`) and one notebook per worker title
+- Batch NotebookLM workflow with shared defaults in `csf/nlm_config.py` (`notebook_batch_size = 50`, `notebook_source_cap = 50`) and one notebook per worker title
 - Auth auto-recovery for NotebookLM sessions
-- Configurable NLM batch size via `YTIS_NLM_MAX_SOURCES_PER_NOTEBOOK`
+- Configurable NotebookLM policy via `csf/nlm_config.py` and the `YTIS_NLM_*` env vars it reads
 - External transcript provider hook for custom sources
 - Multi-terminal safe batch processing with InterProcessLock
 - See [PLAYBOOK_LINKS.md](P:/packages/yt-is/PLAYBOOK_LINKS.md) for the debugging playbook, handoff, and memory pointers.

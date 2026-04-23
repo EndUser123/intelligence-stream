@@ -1677,9 +1677,10 @@ def cmd_fetch(
         nonlocal industrial_scraper
         if industrial_scraper is None:
             print("[source] Starting Industrial Ingest (NLM Selenium scraper)...")
+            from csf.nlm_config import get_nlm_config
             from csf.nlm_scraper import NLMIndustrialScraper
 
-            industrial_scraper = NLMIndustrialScraper(headless=True)
+            industrial_scraper = NLMIndustrialScraper(headless=False, browser_cfg=get_nlm_config())
             browser_cleanup = getattr(industrial_scraper, "preflight_browser_cleanup", None)
             if callable(browser_cleanup):
                 browser_deleted, browser_failed = browser_cleanup()

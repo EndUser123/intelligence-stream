@@ -1593,6 +1593,10 @@ def cmd_fetch(
     extract_elapsed_s_total = 0.0
     cleanup_elapsed_s_total = 0.0
     batch_elapsed_s_total = 0.0
+    shared_retry_deferred_count_total = 0.0
+    shared_retry_recovered_count_total = 0.0
+    shared_retry_final_failed_count_total = 0.0
+    shared_retry_processed_count_total = 0.0
     industrial_source_profile_totals = _empty_source_profile_totals()
     terminal_entries: list[BatchEntry] = []
     terminal_sample: list[dict[str, object]] = []
@@ -1742,6 +1746,10 @@ def cmd_fetch(
             "source_ready_age_s_total": float(summary.get("source_ready_age_s_total", 0) or 0.0),
             "source_ready_age_s_max": float(summary.get("source_ready_age_s_max", 0) or 0.0),
             "source_ready_age_s_avg": float(summary.get("source_ready_age_s_avg", 0) or 0.0),
+            "shared_retry_deferred_count_total": float(summary.get("shared_retry_deferred_count", 0) or 0.0),
+            "shared_retry_recovered_count_total": float(summary.get("shared_retry_recovered_count", 0) or 0.0),
+            "shared_retry_final_failed_count_total": float(summary.get("shared_retry_final_failed_count", 0) or 0.0),
+            "shared_retry_processed_count_total": float(summary.get("shared_retry_processed_count", 0) or 0.0),
         }
 
     def _add_worker_stage_totals(summary: dict[str, object]) -> None:
@@ -1762,6 +1770,10 @@ def cmd_fetch(
         nonlocal extract_elapsed_s_total
         nonlocal cleanup_elapsed_s_total
         nonlocal batch_elapsed_s_total
+        nonlocal shared_retry_deferred_count_total
+        nonlocal shared_retry_recovered_count_total
+        nonlocal shared_retry_final_failed_count_total
+        nonlocal shared_retry_processed_count_total
         nonlocal industrial_source_profile_totals
         startup_retire_elapsed_s_total += float(summary.get("startup_retire_elapsed_s", 0) or 0.0)
         startup_notebook_check_elapsed_s_total += float(summary.get("startup_notebook_check_elapsed_s", 0) or 0.0)
@@ -1782,6 +1794,10 @@ def cmd_fetch(
         extract_elapsed_s_total += float(summary.get("extract_elapsed_s_total", 0) or 0.0)
         cleanup_elapsed_s_total += float(summary.get("cleanup_elapsed_s_total", 0) or 0.0)
         batch_elapsed_s_total += float(summary.get("batch_elapsed_s_total", 0) or 0.0)
+        shared_retry_deferred_count_total += float(summary.get("shared_retry_deferred_count", 0) or 0.0)
+        shared_retry_recovered_count_total += float(summary.get("shared_retry_recovered_count", 0) or 0.0)
+        shared_retry_final_failed_count_total += float(summary.get("shared_retry_final_failed_count", 0) or 0.0)
+        shared_retry_processed_count_total += float(summary.get("shared_retry_processed_count", 0) or 0.0)
         _merge_source_profile_totals(industrial_source_profile_totals, summary.get("source_profile"))
 
     def _build_worker_stage_totals_payload() -> dict[str, object]:
@@ -1800,6 +1816,10 @@ def cmd_fetch(
             "source_ready_age_s_total": source_ready_age_s_total,
             "source_ready_age_s_max": source_ready_age_s_max,
             "source_ready_age_s_avg": source_ready_age_s_avg,
+            "shared_retry_deferred_count_total": shared_retry_deferred_count_total,
+            "shared_retry_recovered_count_total": shared_retry_recovered_count_total,
+            "shared_retry_final_failed_count_total": shared_retry_final_failed_count_total,
+            "shared_retry_processed_count_total": shared_retry_processed_count_total,
             "extract_elapsed_s_total": extract_elapsed_s_total,
             "cleanup_elapsed_s_total": cleanup_elapsed_s_total,
             "batch_elapsed_s_total": batch_elapsed_s_total,

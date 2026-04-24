@@ -21,6 +21,7 @@ from csf.batch_status import summarize_video_ids
 from csf.display import format_result_row
 from csf.csf_logging import log_action
 from csf.nlm_config import get_nlm_config
+from csf.shared_retry_pool import enqueue as enqueue_shared_retry
 from csf.youtube_page_inspector import inspect_youtube_watch_page, inspect_youtube_watch_page_via_ytdlp
 
 
@@ -54,6 +55,7 @@ _SOURCE_CONTENT_RETRY_MAX_DELAY_S = max(
 _SOURCE_CONTENT_RETRY_BUDGET_S = max(0.0, float(_NLM_CONFIG.source_content_retry_budget_s))
 _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S = max(0.0, float(_NLM_CONFIG.source_content_retry_queue_delay_s))
 _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S = max(0.0, float(_NLM_CONFIG.source_content_retry_queue_budget_s))
+_SOURCE_CONTENT_SHARED_RETRY_POOL_ENABLED = bool(_NLM_CONFIG.source_content_shared_retry_pool_enabled)
 
 
 class NotebookSourceMaterializationTimeout(RuntimeError):
@@ -1496,6 +1498,7 @@ class NLMBatchIngestor:
                     "success": False,
                     "content": None,
                     "error": None,
+                    "failure_reason": str(last_result["failure_reason"]),
                     "status": final_status,
                     "queued_for_retry": True,
                     "attempts": int(last_result["attempts"]),
@@ -1610,9 +1613,9 @@ class NLMBatchIngestor:
             *,
             pass_name: str,
             allow_retry_queue: bool,
-        ) -> tuple[dict[str, tuple[bool, Optional[str], Optional[str]]], list[tuple[str, str]]]:
+        ) -> tuple[dict[str, tuple[bool, Optional[str], Optional[str]]], list[tuple[str, str, str]]]:
             round_results: dict[str, tuple[bool, Optional[str], Optional[str]]] = {}
-            round_retry_queue: list[tuple[str, str]] = []
+            round_retry_queue: list[tuple[str, str, str]] = []
             if not round_items:
                 return round_results, round_retry_queue
             print(f"[NLM-Batch] Fetching {len(round_items)} sources in parallel ({pass_name})...")
@@ -1623,7 +1626,13 @@ class NLMBatchIngestor:
                     outcome = future.result()
                     vid = str(outcome["video_id"])
                     if outcome.get("queued_for_retry"):
-                        round_retry_queue.append((vid, str(outcome["source_id"])))
+                        round_retry_queue.append(
+                            (
+                                vid,
+                                str(outcome["source_id"]),
+                                str(outcome.get("failure_reason") or outcome.get("error") or "retry queued"),
+                            )
+                        )
                         continue
                     success = bool(outcome["success"])
                     text = outcome.get("content")
@@ -1646,12 +1655,46 @@ class NLMBatchIngestor:
         retry_queue_deferred_count = 0
         retry_queue_recovered_count = 0
         retry_queue_final_failed_count = 0
+        shared_retry_deferred_count = 0
+        shared_retry_recovered_count = 0
+        shared_retry_final_failed_count = 0
 
         primary_results, retry_queue = _run_fetch_round(batch_items, pass_name="primary", allow_retry_queue=True)
         results.update(primary_results)
         retry_queue_deferred_count += len(retry_queue)
 
-        if retry_queue and _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S > 0:
+        if retry_queue and _SOURCE_CONTENT_SHARED_RETRY_POOL_ENABLED:
+            log_action(
+                "nlm_batch_source_content_shared_retry_queue_window_started",
+                {
+                    "nb_id": self._nb_id,
+                    "batch_size": len(batch_ids),
+                    "shared_retry_queue_count": len(retry_queue),
+                    "shared_retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
+                    "shared_retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
+                    "materialization_ready_at_epoch": ready_reference_epoch,
+                },
+            )
+            for vid, _source_id, queued_error in retry_queue:
+                enqueue_shared_retry(
+                    vid,
+                    retry_count=0,
+                    delay_s=_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
+                    last_error=str(queued_error or "retry queued"),
+                )
+            shared_retry_deferred_count = len(retry_queue)
+            log_action(
+                "nlm_batch_source_content_shared_retry_queue_window_completed",
+                {
+                    "nb_id": self._nb_id,
+                    "batch_size": len(batch_ids),
+                    "shared_retry_queue_count": shared_retry_deferred_count,
+                    "shared_retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
+                    "shared_retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
+                    "materialization_ready_at_epoch": ready_reference_epoch,
+                },
+            )
+        elif retry_queue and _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S > 0:
             log_action(
                 "nlm_batch_source_content_retry_queue_window_started",
                 {
@@ -1665,7 +1708,11 @@ class NLMBatchIngestor:
             )
             if _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S > 0:
                 time.sleep(_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S)
-            retry_results, retry_queue = _run_fetch_round(retry_queue, pass_name="retry", allow_retry_queue=False)
+            retry_results, retry_queue = _run_fetch_round(
+                [(vid, source_id) for vid, source_id, _queued_error in retry_queue],
+                pass_name="retry",
+                allow_retry_queue=False,
+            )
             results.update(retry_results)
             retry_queue_recovered_count = sum(1 for ok, _, _ in retry_results.values() if ok)
             retry_queue_final_failed_count = len(retry_results) - retry_queue_recovered_count
@@ -1698,6 +1745,9 @@ class NLMBatchIngestor:
                 "retry_queue_deferred_count": retry_queue_deferred_count,
                 "retry_queue_recovered_count": retry_queue_recovered_count,
                 "retry_queue_final_failed_count": retry_queue_final_failed_count,
+                "shared_retry_deferred_count": shared_retry_deferred_count,
+                "shared_retry_recovered_count": shared_retry_recovered_count,
+                "shared_retry_final_failed_count": shared_retry_final_failed_count,
                 "retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
                 "retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
                 "source_ready_age_s_total": round(content_fetch_stats["ready_age_s_total"], 3),
@@ -1733,6 +1783,9 @@ class NLMBatchIngestor:
             "retry_queue_deferred_count": retry_queue_deferred_count,
             "retry_queue_recovered_count": retry_queue_recovered_count,
             "retry_queue_final_failed_count": retry_queue_final_failed_count,
+            "shared_retry_deferred_count": shared_retry_deferred_count,
+            "shared_retry_recovered_count": shared_retry_recovered_count,
+            "shared_retry_final_failed_count": shared_retry_final_failed_count,
             "retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
             "retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
             "materialization_ready_at_epoch": ready_reference_epoch,
@@ -2258,6 +2311,12 @@ class NLMReusableIngestor:
                 "content_fetch_attempts_total": int(extract_metrics.get("content_fetch_attempts_total", 0) or 0),
                 "content_fetch_attempts_max": int(extract_metrics.get("content_fetch_attempts_max", 0) or 0),
                 "content_fetch_attempts_avg": float(extract_metrics.get("content_fetch_attempts_avg", 0) or 0.0),
+                "retry_queue_deferred_count": int(extract_metrics.get("retry_queue_deferred_count", 0) or 0),
+                "retry_queue_recovered_count": int(extract_metrics.get("retry_queue_recovered_count", 0) or 0),
+                "retry_queue_final_failed_count": int(extract_metrics.get("retry_queue_final_failed_count", 0) or 0),
+                "shared_retry_deferred_count": int(extract_metrics.get("shared_retry_deferred_count", 0) or 0),
+                "shared_retry_recovered_count": int(extract_metrics.get("shared_retry_recovered_count", 0) or 0),
+                "shared_retry_final_failed_count": int(extract_metrics.get("shared_retry_final_failed_count", 0) or 0),
                 "materialization_ready_at_epoch": float(extract_metrics.get("materialization_ready_at_epoch", 0) or 0.0),
                 "started_at_epoch": batch_started_at_epoch,
                 "completed_at_epoch": time.time(),
@@ -2297,6 +2356,12 @@ class NLMReusableIngestor:
             "content_fetch_attempts_total": int(extract_metrics.get("content_fetch_attempts_total", 0) or 0),
             "content_fetch_attempts_max": int(extract_metrics.get("content_fetch_attempts_max", 0) or 0),
             "content_fetch_attempts_avg": float(extract_metrics.get("content_fetch_attempts_avg", 0) or 0.0),
+            "retry_queue_deferred_count": int(extract_metrics.get("retry_queue_deferred_count", 0) or 0),
+            "retry_queue_recovered_count": int(extract_metrics.get("retry_queue_recovered_count", 0) or 0),
+            "retry_queue_final_failed_count": int(extract_metrics.get("retry_queue_final_failed_count", 0) or 0),
+            "shared_retry_deferred_count": int(extract_metrics.get("shared_retry_deferred_count", 0) or 0),
+            "shared_retry_recovered_count": int(extract_metrics.get("shared_retry_recovered_count", 0) or 0),
+            "shared_retry_final_failed_count": int(extract_metrics.get("shared_retry_final_failed_count", 0) or 0),
             "materialization_ready_at_epoch": float(extract_metrics.get("materialization_ready_at_epoch", 0) or 0.0),
         }
         return results

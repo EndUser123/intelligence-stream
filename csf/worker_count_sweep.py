@@ -120,6 +120,30 @@ class TrialArtifact:
             return float(value or 0.0)
         return round(total / max(sum(int(v) for v in counts.values()), 1), 3)
 
+    @property
+    def shared_retry_deferred_count(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("shared_retry_deferred_count_total")
+        return float(value or 0.0)
+
+    @property
+    def shared_retry_recovered_count(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("shared_retry_recovered_count_total")
+        return float(value or 0.0)
+
+    @property
+    def shared_retry_final_failed_count(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("shared_retry_final_failed_count_total")
+        return float(value or 0.0)
+
+    @property
+    def shared_retry_processed_count(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("shared_retry_processed_count_total")
+        return float(value or 0.0)
+
     def to_row(self) -> dict[str, Any]:
         payload = asdict(self)
         elapsed_s = float(self.fetch_completed.get("elapsed_s", self.elapsed_s) or self.elapsed_s)
@@ -141,6 +165,10 @@ class TrialArtifact:
                 "source_ready_age_s_total": round(self.source_ready_age_s_total, 3),
                 "source_ready_age_s_max": round(self.source_ready_age_s_max, 3),
                 "source_ready_age_s_avg": round(self.source_ready_age_s_avg, 3),
+                "shared_retry_deferred_count": round(self.shared_retry_deferred_count, 3),
+                "shared_retry_recovered_count": round(self.shared_retry_recovered_count, 3),
+                "shared_retry_final_failed_count": round(self.shared_retry_final_failed_count, 3),
+                "shared_retry_processed_count": round(self.shared_retry_processed_count, 3),
                 "content_fetch_status_counts": self.content_fetch_status_counts,
             }
         )
@@ -307,6 +335,10 @@ def run_worker_count_sweep(
                 "source_ready_age_s_total",
                 "source_ready_age_s_max",
                 "source_ready_age_s_avg",
+                "shared_retry_deferred_count",
+                "shared_retry_recovered_count",
+                "shared_retry_final_failed_count",
+                "shared_retry_processed_count",
                 "content_fetch_status_counts",
                 "stdout_path",
                 "stderr_path",

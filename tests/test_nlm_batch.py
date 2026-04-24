@@ -1322,6 +1322,62 @@ class TestNotebookCapRotation:
         assert summary["content_fetch_attempts_total"] == 1
         assert summary["content_fetch_attempts_max"] == 1
 
+    def test_source_content_fetch_queues_shared_retry_pool_entries_when_enabled(self):
+        """Shared retry pool mode should enqueue retryable items instead of draining locally."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=1)
+        ingestor._nb_id = "nb-shared-retry"
+        content_attempts = {"count": 0}
+
+        def fake_run_cmd(cmd, timeout=300):
+            if cmd[:2] == ["source", "list"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 0, "stdout": json.dumps({"sources": [{"id": "s1"}]}), "stderr": ""},
+                )()
+            if cmd[:2] == ["source", "content"]:
+                content_attempts["count"] += 1
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 1, "stdout": "", "stderr": "API error (code 5): NOT_FOUND"},
+                )()
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_ATTEMPTS", 1):
+            with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_SHARED_RETRY_POOL_ENABLED", True):
+                with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S", 30.0):
+                    with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S", 0.0):
+                        with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
+                            with mock.patch(
+                                "csf.nlm_batch.inspect_youtube_watch_page_via_ytdlp",
+                                return_value={
+                                    "classification": "ok",
+                                    "available": True,
+                                    "availability": "public",
+                                    "live_status": "not_live",
+                                    "was_live": False,
+                                    "is_live": False,
+                                    "title": None,
+                                    "error": None,
+                                },
+                            ) as mock_ytdlp:
+                                with mock.patch("csf.nlm_batch.enqueue_shared_retry") as mock_enqueue:
+                                    with mock.patch("csf.nlm_batch.time.sleep") as mock_sleep:
+                                        with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                            results = ingestor.extract_transcripts(["vid1"])
+
+        assert results["vid1"][0] is False
+        assert content_attempts["count"] == 1
+        assert mock_ytdlp.call_count == 1
+        mock_enqueue.assert_called_once()
+        mock_sleep.assert_not_called()
+        summary = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_extract_completed")
+        assert summary["retry_queue_deferred_count"] == 1
+        assert summary["shared_retry_deferred_count"] == 1
+        assert summary["retry_queue_recovered_count"] == 0
+        assert summary["retry_queue_final_failed_count"] == 0
+
     def test_source_content_fetch_logs_direct_youtube_page_classification_on_failure(self):
         """Failed fetches should carry yt-dlp and direct YouTube page metadata."""
         ingestor = nlm_batch.NLMBatchIngestor(batch_size=1)

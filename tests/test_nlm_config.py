@@ -20,7 +20,7 @@ class TestSharedNlmConfig:
         assert cfg.browser_profile_name == "notebooklm"
         assert cfg.browser_profile_seed_root.endswith("notebooklm-browser-session")
         assert cfg.nlm_browser_mode == "persistent"
-        assert cfg.nlm_browser_profile_root.endswith(r".browser\notebooklm")
+        assert cfg.nlm_browser_profile_root.endswith(r"browser\notebooklm")
         assert cfg.nlm_browser_executable.endswith(r"chrome.exe")
         assert cfg.nlm_browser_channel == "chrome"
         assert cfg.nlm_browser_bootstrap_headless is False
@@ -33,6 +33,7 @@ class TestSharedNlmConfig:
         assert cfg.source_content_retry_budget_s == 30.0
         assert cfg.source_content_retry_queue_delay_s == 30.0
         assert cfg.source_content_retry_queue_budget_s == 30.0
+        assert cfg.source_content_shared_retry_pool_enabled is False
         assert transcript.get_nlm_config() is cfg
 
     def test_setter_updates_the_shared_singleton(self):
@@ -50,7 +51,7 @@ class TestSharedNlmConfig:
             browser_profile_name="notebooklm-test",
             browser_profile_seed_root="P:/__csf/.data/yt-is/notebooklm-browser-session-test",
             nlm_browser_mode="persistent",
-            nlm_browser_profile_root=r"P:\packages\yt-is\.browser\notebooklm-test",
+            nlm_browser_profile_root=r"P:\__csf\.data\yt-is\browser\notebooklm-test",
             nlm_browser_executable=r"C:\Program Files\Google\Chrome\Application\chrome.exe",
             nlm_browser_channel="chrome",
             nlm_browser_bootstrap_headless=False,
@@ -63,6 +64,7 @@ class TestSharedNlmConfig:
             source_content_retry_budget_s=30.0,
             source_content_retry_queue_delay_s=30.0,
             source_content_retry_queue_budget_s=30.0,
+            source_content_shared_retry_pool_enabled=False,
         )
         try:
             nlm_config.set_nlm_config(replacement)

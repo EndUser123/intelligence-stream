@@ -31,7 +31,7 @@ class NLMConfig:
     browser_profile_name: str = "notebooklm"
     browser_profile_seed_root: str = "P:/__csf/.data/yt-is/notebooklm-browser-session"
     nlm_browser_mode: str = "persistent"
-    nlm_browser_profile_root: str = r"P:\packages\yt-is\.browser\notebooklm"
+    nlm_browser_profile_root: str = r"P:\__csf\.data\yt-is\browser\notebooklm"
     nlm_browser_executable: str = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
     nlm_browser_channel: str = "chrome"
     nlm_browser_bootstrap_headless: bool = False
@@ -44,6 +44,7 @@ class NLMConfig:
     source_content_retry_budget_s: float = 30.0
     source_content_retry_queue_delay_s: float = 30.0
     source_content_retry_queue_budget_s: float = 30.0
+    source_content_shared_retry_pool_enabled: bool = False
 
 
 def get_nlm_config() -> NLMConfig:
@@ -78,9 +79,9 @@ def get_nlm_config() -> NLMConfig:
                 or "persistent",
                 nlm_browser_profile_root=os.environ.get(
                     "YTIS_NLM_BROWSER_PROFILE_ROOT",
-                    r"P:\packages\yt-is\.browser\notebooklm",
+                    r"P:\__csf\.data\yt-is\browser\notebooklm",
                 ).strip()
-                or r"P:\packages\yt-is\.browser\notebooklm",
+                or r"P:\__csf\.data\yt-is\browser\notebooklm",
                 nlm_browser_executable=os.environ.get(
                     "YTIS_NLM_BROWSER_EXECUTABLE",
                     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
@@ -118,6 +119,12 @@ def get_nlm_config() -> NLMConfig:
                 ),
                 source_content_retry_queue_budget_s=float(
                     os.environ.get("YTIS_NLM_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S", "30.0")
+                ),
+                source_content_shared_retry_pool_enabled=(
+                    os.environ.get("YTIS_NLM_SOURCE_CONTENT_SHARED_RETRY_POOL_ENABLED", "false")
+                    .strip()
+                    .lower()
+                    in {"1", "true", "yes", "on"}
                 ),
             )
         return _nlm_config

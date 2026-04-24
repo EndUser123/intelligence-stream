@@ -43,4 +43,18 @@ def clean_shared_cache():
                     wal_path.unlink()
                 except OSError:
                     pass
+    shared_retry_db = Path("P:/__csf/.data/yt-is/nlm_shared_retry_pool.sqlite")
+    if shared_retry_db.parent.exists():
+        if shared_retry_db.exists():
+            try:
+                shared_retry_db.unlink()
+            except OSError:
+                pass
+        for suffix in ("-wal", "-shm"):
+            wal_path = Path(str(shared_retry_db) + suffix)
+            if wal_path.exists():
+                try:
+                    wal_path.unlink()
+                except OSError:
+                    pass
     yield

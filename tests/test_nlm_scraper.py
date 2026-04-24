@@ -756,7 +756,7 @@ class TestSeleniumProfileIsolation:
             if call.args and call.args[0] == "selenium_profile_selected"
         )
         assert "selenium-profiles/chrome" in selected["profile_root"].replace("\\", "/")
-        assert selected["seeded_from"].replace("\\", "/").endswith(".browser/notebooklm")
+        assert selected["seeded_from"].replace("\\", "/").endswith("browser/notebooklm")
         assert selected["profile_name"] == "Default"
         assert selected["seeded"] is True
         opts = mock_chrome.call_args.kwargs["options"]

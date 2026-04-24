@@ -14,6 +14,7 @@ from pathlib import Path
 from csf.batch_status import mark_complete, summarize_video_ids
 from csf.cache import set_cached_transcript
 from csf.csf_logging import log_action
+from csf.nlm_config import get_nlm_config
 from csf.nlm_batch import (
     close_reusable_ingestor,
     get_last_prepare_metrics,
@@ -22,6 +23,10 @@ from csf.nlm_batch import (
     set_reusable_ingestor,
     NLMReusableIngestor,
 )
+from csf.shared_retry_pool import claim_ready as claim_shared_retry_ready
+from csf.shared_retry_pool import mark_complete as mark_shared_retry_complete
+from csf.shared_retry_pool import mark_permanent_failure as mark_shared_retry_permanent_failure
+from csf.shared_retry_pool import pending_count as shared_retry_pending_count
 
 
 def _load_batches(path: Path) -> list[list[str]]:
@@ -191,6 +196,10 @@ def main(argv: list[str] | None = None) -> int:
         "source_ready_age_s_total": 0.0,
         "source_ready_age_s_max": 0.0,
         "source_ready_age_s_avg": 0.0,
+        "shared_retry_deferred_count": 0,
+        "shared_retry_recovered_count": 0,
+        "shared_retry_final_failed_count": 0,
+        "shared_retry_processed_count": 0,
         "notebooklm_profile": notebooklm_profile,
         "state_path": args.state_path,
         "notebook_title": args.notebook_title,
@@ -296,6 +305,139 @@ def main(argv: list[str] | None = None) -> int:
         total_video_count = 0
         total_succeeded = 0
         total_failed = 0
+
+        cfg = get_nlm_config()
+
+        def _drain_shared_retry_pool() -> None:
+            nonlocal total_succeeded, total_failed
+            if not cfg.source_content_shared_retry_pool_enabled:
+                return
+            drain_started_at = time.monotonic()
+            drain_budget_s = max(0.0, float(cfg.source_content_retry_queue_budget_s))
+            drain_poll_s = max(1.0, min(float(cfg.source_content_retry_queue_delay_s) / 2.0, 5.0))
+            shared_retry_deferred = 0
+            shared_retry_recovered = 0
+            shared_retry_final_failed = 0
+            shared_retry_processed = 0
+            log_action(
+                "worker_shared_retry_drain_started",
+                {
+                    "worker_id": args.worker_id,
+                    "notebooklm_profile": notebooklm_profile,
+                    "state_path": args.state_path,
+                    "notebook_title": args.notebook_title,
+                    "drain_budget_s": drain_budget_s,
+                    "drain_poll_s": drain_poll_s,
+                },
+            )
+            print(
+                json.dumps(
+                    {
+                        "worker_id": args.worker_id,
+                        "event": "worker_shared_retry_drain_started",
+                        "notebooklm_profile": notebooklm_profile,
+                        "state_path": args.state_path,
+                        "notebook_title": args.notebook_title,
+                        "drain_budget_s": drain_budget_s,
+                        "drain_poll_s": drain_poll_s,
+                    },
+                    separators=(",", ":"),
+                )
+            )
+            while time.monotonic() - drain_started_at < drain_budget_s:
+                claimed = claim_shared_retry_ready(limit=8, claimant_id=args.worker_id)
+                if not claimed:
+                    if shared_retry_pending_count() <= 0:
+                        break
+                    time.sleep(drain_poll_s)
+                    continue
+                claimed_video_ids = [entry.video_id for entry in claimed]
+                shared_retry_processed += len(claimed_video_ids)
+                shared_results = process_industrial_batch_reusable(claimed_video_ids)
+                shared_metrics = get_last_reusable_process_metrics() or {}
+                deferred = int(shared_metrics.get("shared_retry_deferred_count") or 0)
+                success_in_round = sum(1 for ok, transcript, _ in shared_results.values() if ok and transcript)
+                final_failed = max(0, len(claimed_video_ids) - success_in_round - deferred)
+                shared_retry_deferred += deferred
+                shared_retry_recovered += success_in_round
+                shared_retry_final_failed += final_failed
+                total_succeeded += success_in_round
+                total_failed += final_failed
+                for video_id, (success, transcript, _error) in shared_results.items():
+                    if success and transcript:
+                        set_cached_transcript(video_id, "en", "notebooklm", transcript)
+                        mark_complete(video_id, last_stage="notebooklm")
+                        mark_shared_retry_complete(video_id)
+                    else:
+                        mark_shared_retry_permanent_failure(video_id, str(_error or "shared retry failed"))
+                log_action(
+                    "worker_shared_retry_drain_batch_completed",
+                    {
+                        "worker_id": args.worker_id,
+                        "claimed_count": len(claimed_video_ids),
+                        "succeeded": success_in_round,
+                        "failed": final_failed,
+                        "deferred": deferred,
+                        "processed": shared_retry_processed,
+                        "notebooklm_profile": notebooklm_profile,
+                        "state_path": args.state_path,
+                        "notebook_title": args.notebook_title,
+                    },
+                )
+                print(
+                    json.dumps(
+                        {
+                            "worker_id": args.worker_id,
+                            "event": "worker_shared_retry_drain_batch_completed",
+                            "claimed_count": len(claimed_video_ids),
+                            "succeeded": success_in_round,
+                            "failed": final_failed,
+                            "deferred": deferred,
+                            "processed": shared_retry_processed,
+                            "notebooklm_profile": notebooklm_profile,
+                            "state_path": args.state_path,
+                            "notebook_title": args.notebook_title,
+                        },
+                        separators=(",", ":"),
+                    )
+                )
+
+            worker_result["shared_retry_deferred_count"] = int(worker_result["shared_retry_deferred_count"]) + shared_retry_deferred
+            worker_result["shared_retry_recovered_count"] = int(worker_result["shared_retry_recovered_count"]) + shared_retry_recovered
+            worker_result["shared_retry_final_failed_count"] = int(worker_result["shared_retry_final_failed_count"]) + shared_retry_final_failed
+            worker_result["shared_retry_processed_count"] = int(worker_result["shared_retry_processed_count"]) + shared_retry_processed
+            log_action(
+                "worker_shared_retry_drain_completed",
+                {
+                    "worker_id": args.worker_id,
+                    "notebooklm_profile": notebooklm_profile,
+                    "state_path": args.state_path,
+                    "notebook_title": args.notebook_title,
+                    "deferred": shared_retry_deferred,
+                    "recovered": shared_retry_recovered,
+                    "final_failed": shared_retry_final_failed,
+                    "processed": shared_retry_processed,
+                    "elapsed_s": round(time.monotonic() - drain_started_at, 3),
+                },
+            )
+            print(
+                json.dumps(
+                    {
+                        "worker_id": args.worker_id,
+                        "event": "worker_shared_retry_drain_completed",
+                        "deferred": shared_retry_deferred,
+                        "recovered": shared_retry_recovered,
+                        "final_failed": shared_retry_final_failed,
+                        "processed": shared_retry_processed,
+                        "elapsed_s": round(time.monotonic() - drain_started_at, 3),
+                        "notebooklm_profile": notebooklm_profile,
+                        "state_path": args.state_path,
+                        "notebook_title": args.notebook_title,
+                    },
+                    separators=(",", ":"),
+                )
+            )
+
         for batch_index, video_ids in enumerate(batches, 1):
             batch_started_at = time.monotonic()
             batch_started_at_epoch = time.time()
@@ -363,6 +505,10 @@ def main(argv: list[str] | None = None) -> int:
             source_ready_age_s_total = float(metrics.get("source_ready_age_s_total") or 0.0)
             source_ready_age_s_max = float(metrics.get("source_ready_age_s_max") or 0.0)
             source_ready_age_s_avg = float(metrics.get("source_ready_age_s_avg") or 0.0)
+            shared_retry_deferred_count = int(metrics.get("shared_retry_deferred_count") or 0)
+            shared_retry_recovered_count = int(metrics.get("shared_retry_recovered_count") or 0)
+            shared_retry_final_failed_count = int(metrics.get("shared_retry_final_failed_count") or 0)
+            shared_retry_processed_count = int(metrics.get("shared_retry_processed_count") or 0)
             subbatch_metrics = list(metrics.get("subbatch_metrics") or [])
             worker_subbatch_metrics.extend([dict(item) for item in subbatch_metrics if isinstance(item, dict)])
             worker_result["setup_elapsed_s_total"] = float(worker_result["setup_elapsed_s_total"]) + setup_elapsed_s
@@ -384,6 +530,10 @@ def main(argv: list[str] | None = None) -> int:
                 float(worker_result.get("source_ready_age_s_max", 0.0)),
                 source_ready_age_s_max,
             )
+            worker_result["shared_retry_deferred_count"] = int(worker_result["shared_retry_deferred_count"]) + shared_retry_deferred_count
+            worker_result["shared_retry_recovered_count"] = int(worker_result["shared_retry_recovered_count"]) + shared_retry_recovered_count
+            worker_result["shared_retry_final_failed_count"] = int(worker_result["shared_retry_final_failed_count"]) + shared_retry_final_failed_count
+            worker_result["shared_retry_processed_count"] = int(worker_result["shared_retry_processed_count"]) + shared_retry_processed_count
             counts_total = dict(worker_result.get("content_fetch_status_counts_total", {}) or {})
             count_sum = sum(int(v) for v in counts_total.values())
             worker_result["source_ready_age_s_avg"] = round(
@@ -415,6 +565,10 @@ def main(argv: list[str] | None = None) -> int:
                     "source_ready_age_s_total": source_ready_age_s_total,
                     "source_ready_age_s_max": source_ready_age_s_max,
                     "source_ready_age_s_avg": source_ready_age_s_avg,
+                    "shared_retry_deferred_count": shared_retry_deferred_count,
+                    "shared_retry_recovered_count": shared_retry_recovered_count,
+                    "shared_retry_final_failed_count": shared_retry_final_failed_count,
+                    "shared_retry_processed_count": shared_retry_processed_count,
                     "source_profile": source_profile,
                     "subbatch_count": len(subbatch_metrics),
                     "subbatch_metrics": subbatch_metrics,
@@ -459,6 +613,7 @@ def main(argv: list[str] | None = None) -> int:
                     "notebook_title": args.notebook_title,
                 },
             )
+        _drain_shared_retry_pool()
         worker_result.update(
             {
                 "batch_count": len(batches),
@@ -486,6 +641,10 @@ def main(argv: list[str] | None = None) -> int:
                 "source_ready_age_s_total": worker_result["source_ready_age_s_total"],
                 "source_ready_age_s_max": worker_result["source_ready_age_s_max"],
                 "source_ready_age_s_avg": worker_result["source_ready_age_s_avg"],
+                "shared_retry_deferred_count": worker_result["shared_retry_deferred_count"],
+                "shared_retry_recovered_count": worker_result["shared_retry_recovered_count"],
+                "shared_retry_final_failed_count": worker_result["shared_retry_final_failed_count"],
+                "shared_retry_processed_count": worker_result["shared_retry_processed_count"],
                 "status": "ok",
                 "returncode": 0,
             }

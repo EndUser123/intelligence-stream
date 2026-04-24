@@ -51,6 +51,7 @@ _SOURCE_CONTENT_RETRY_MAX_DELAY_S = max(
     _SOURCE_CONTENT_RETRY_INITIAL_DELAY_S,
     float(_NLM_CONFIG.source_content_retry_max_delay_s),
 )
+_SOURCE_CONTENT_RETRY_BUDGET_S = max(0.0, float(_NLM_CONFIG.source_content_retry_budget_s))
 
 
 class NotebookSourceMaterializationTimeout(RuntimeError):
@@ -1315,6 +1316,7 @@ class NLMBatchIngestor:
             started_at_epoch = time.time()
             attempt = 0
             delay_s = _SOURCE_CONTENT_RETRY_INITIAL_DELAY_S
+            retry_deadline = started_at_epoch + _SOURCE_CONTENT_RETRY_BUDGET_S if _SOURCE_CONTENT_RETRY_BUDGET_S > 0 else None
             last_result: dict[str, object] = {
                 "status": "command_failed",
                 "content_length": 0,
@@ -1334,6 +1336,7 @@ class NLMBatchIngestor:
                     "source_id": source_id,
                     "video_id": vid_hint,
                     "timeout_s": 30,
+                    "retry_budget_s": _SOURCE_CONTENT_RETRY_BUDGET_S,
                     "started_at_epoch": started_at_epoch,
                     "source_ready_age_s": round(started_at_epoch - ready_reference_epoch, 3) if ready_reference_epoch else 0.0,
                     "materialization_ready_at_epoch": ready_reference_epoch,
@@ -1407,7 +1410,16 @@ class NLMBatchIngestor:
                     "attempts": attempt,
                     "content": None,
                 }
+                if retry_deadline is not None and time.time() >= retry_deadline:
+                    break
                 if not retryable or attempt >= _SOURCE_CONTENT_RETRY_ATTEMPTS:
+                    break
+                if retry_deadline is not None:
+                    remaining_budget_s = retry_deadline - time.time()
+                    if remaining_budget_s <= 0:
+                        break
+                    delay_s = min(delay_s, remaining_budget_s)
+                if delay_s <= 0:
                     break
                 time.sleep(delay_s)
                 delay_s = min(delay_s * 2 if delay_s > 0 else _SOURCE_CONTENT_RETRY_INITIAL_DELAY_S, _SOURCE_CONTENT_RETRY_MAX_DELAY_S)
@@ -1450,6 +1462,7 @@ class NLMBatchIngestor:
                     "stderr": str(last_result["stderr"])[:200],
                     "retry_initial_delay_s": _SOURCE_CONTENT_RETRY_INITIAL_DELAY_S,
                     "retry_max_delay_s": _SOURCE_CONTENT_RETRY_MAX_DELAY_S,
+                    "retry_budget_s": _SOURCE_CONTENT_RETRY_BUDGET_S,
                     "retry_attempts_limit": _SOURCE_CONTENT_RETRY_ATTEMPTS,
                     "youtube_ytdlp_classification": youtube_ytdlp_probe.get("classification"),
                     "youtube_ytdlp_available": youtube_ytdlp_probe.get("available"),

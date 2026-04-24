@@ -1,0 +1,564 @@
+[source] Preflight scan: checking 732 active channels (0 blocked skipped) for pending videos...
+[source] Scan status: 1/732 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.002s, trigger=first_channel
+[source] Scan status: 73/732 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.124s, trigger=channel_checkpoint
+[source] Scan status: 146/732 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.221s, trigger=channel_checkpoint
+[source] Scan status: 219/732 channels, pending=0, cached=0, neg_cache=472, terminal=0, notebooklm=0, fallback=0, elapsed=0.916s, trigger=channel_checkpoint
+[source] Parallel industrial dispatch: 1 batches across 1 workers...
+[source] Parallel industrial dispatch: 1 batches across 1 workers...
+[source] Pending item limit reached at 400; stopping scan early.
+[source] Preflight scan complete: 732 active channels, 400 pending, 0 cached, 472 neg-cache, 0 terminal, 400 notebooklm, 0 transcript-fallback
+[source] Negative-cache sample: AOnyxxADgxE, hotranqYmYI, Z53T_FcXQDA, okL5wquiTFg, tljhsKc-EKg, tmJZ7atqgbI, 5GKfzZPJCcQ, L9SwLFxZ8h0, gMJSLLa-O0s, m82TaD_eUFs
+[source] Escalation Batch Process
+[source] Channels: 732 active / 743 tracked
+[source] Already cached: 0
+[source] Negative-cache skips: 472
+[source] Negative-cache sample: AOnyxxADgxE, hotranqYmYI, Z53T_FcXQDA, okL5wquiTFg, tljhsKc-EKg, tmJZ7atqgbI, 5GKfzZPJCcQ, L9SwLFxZ8h0, gMJSLLa-O0s, m82TaD_eUFs
+[source] Pending extraction: 400
+[source] Run limit: 400 pending items
+[source] Mode: LIVE
+[source] Strategy: Industrial (Batch NLM)
+[source] Method: NotebookLM CLI batch for captioned/no-captions items; live items use transcript fallback
+[source] Workers: 2
+
+[source] Pre-flight worker notebook audit: 0 worker notebooks reported, 0 failed
+{"worker_id":"worker-02","event":"worker_notebook_reset_started","notebooklm_profile":"ytis-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json","notebook_title":"yt-is-worker-02","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json"}}
+{"worker_id":"worker-02","event":"worker_notebook_reset_completed","notebooklm_profile":"ytis-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json","notebook_title":"yt-is-worker-02","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json"}}
+{"worker_id":"worker-02","event":"notebook_prewarm","prepared":true,"setup_mode":"reuse","notebooklm_profile":"ytis-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json","notebook_title":"yt-is-worker-02","elapsed_s":14.085}
+[NLM-Batch] Adding 50 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-50/50...
+[NLM-Batch]   Adding sub-batch 1 (50 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 50 sources in parallel...
+  ✓ EeMm-kaYgI0 | 9326 chars
+  ✓ wszooGJ4ZdI | 8783 chars
+  ✓ bjzDKa5zhvM | 7472 chars
+  ✓ S1IEOAg5tBg | 9975 chars
+  ✓ QoXxUp3Ew9s | 8321 chars
+  ✓ m3erHnVdZVQ | 11746 chars
+  ✓ MS1HvgN-vSQ | 9136 chars
+  ✓ 76MHrzNozRM | 10532 chars
+  ✓ HU7nYUMeNTM | 10842 chars
+  ✓ w34R28JlJfQ | 10205 chars
+  ✓ _6_H7kYSYZg | 10621 chars
+  ✓ rblS1fJ5jzU | 10209 chars
+  ✓ dHE5EU2UB5Q | 12670 chars
+  ✓ 0ewj9rDZ_VM | 8385 chars
+  ✓ HZWKckdo2UU | 9376 chars
+  ✓ w4EAtEU0Lbg | 11571 chars
+  ✓ UxQmBTeNcls | 8299 chars
+  ✓ iNMJ22erQho | 13202 chars
+  ✓ -d_seB5zvAM | 11981 chars
+  ✓ ASxnsfBGDVs | 8551 chars
+  ✓ MUGznJYtXbU | 9520 chars
+  ✓ yoMgRqBkBIU | 9192 chars
+  ✓ Dm5zgBQoi_w | 9691 chars
+  ✓ mS1DlcndVTs | 9637 chars
+  ✓ USLv9B_oIOQ | 9097 chars
+  ✓ BsJvoNpFBA8 | 9233 chars
+  ✓ g5ZOZ7kqteo | 11312 chars
+  ✓ DF-QVyWx1gU | 8499 chars
+  ✓ 4tjfIJg40MY | 10719 chars
+  ✓ 5xgbRxA_7DI | 11014 chars
+  ✓ Xsr1OGv-Ihs | 8601 chars
+  ✓ QM-t9tCnl9M | 7971 chars
+  ✓ zzFuDPn4lDg | 11835 chars
+  ✓ d2SoTLaU4P4 | 9515 chars
+  ✓ eNeH4MS-e2I | 10825 chars
+  ✓ wBe53TE1EhE | 12004 chars
+  ✓ JrRfVGcY7Vw | 11824 chars
+  ✓ yklFHtlK4sQ | 8895 chars
+  ✓ sxP8fQRzg2M | 10351 chars
+  ✓ IVodZpsge3k | 11085 chars
+  ✓ Ca0rEWUEw5Q | 10666 chars
+  ✓ Ab4oms2Jb-s | 9991 chars
+  ✓ oUALGTEYlLM | 10852 chars
+  ✓ vALMC-C0m-w | 12190 chars
+  ✓ z79RD-Q8DOE | 9592 chars
+  ✓ KBv2pkgxZHM | 8745 chars
+  ✓ lUZvp49G7ZI | 9269 chars
+  ✓ fYZaMXA8Ss0 | 9509 chars
+  ✓ 3GDf9xArVJw | 8272 chars
+  ✓ VeegkvKlC9k | 9731 chars
+{"worker_id":"worker-02","input":"C:\\Users\\brsth\\AppData\\Local\\Temp\\tmpeq0i7o9b.json","batch_count":1,"video_count":50,"succeeded":50,"failed":0,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"no_captions":50},"status_counts":{"pending":50},"privacy_status_counts":{"public":50},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"subbatch_metrics":[{"subbatch_index":1,"subbatch_size":50,"target_subbatch_size":50,"attempted_count":50,"added_count":50,"add_cmd_elapsed_s":151.596,"materialization_wait_elapsed_s":3.173,"elapsed_s":154.769,"returncode":0,"failure_reason":null,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"no_captions":50},"status_counts":{"pending":50},"privacy_status_counts":{"public":50},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"current_source_count":50,"source_materialization_ready_at_epoch":1776992171.236917,"status":"ok"}],"startup_retire_elapsed_s":0.0,"startup_notebook_check_elapsed_s":8.139,"startup_notebook_create_elapsed_s":0.0,"startup_prepare_cleanup_elapsed_s":5.944,"startup_prepare_total_elapsed_s":14.083,"setup_elapsed_s_total":172.654,"notebook_check_elapsed_s_total":4.677,"notebook_create_elapsed_s_total":0.0,"notebook_retire_elapsed_s_total":0.0,"add_sources_elapsed_s_total":167.976,"add_cmd_elapsed_s_total":151.596,"materialization_wait_elapsed_s_total":3.173,"extract_elapsed_s_total":12.068,"cleanup_elapsed_s_total":15.114,"batch_elapsed_s_total":199.837,"content_fetch_status_counts_total":{"ready":50},"source_ready_age_s_total":658.122,"source_ready_age_s_max":16.638,"source_ready_age_s_avg":13.162,"notebooklm_profile":"ytis-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json","notebook_title":"yt-is-worker-02","status":"ok","returncode":0}
+[source] Parallel industrial dispatch: 4 batches across 1 workers...
+{"worker_id":"worker-01","event":"worker_notebook_reset_started","notebooklm_profile":"ytis-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json","notebook_title":"yt-is-worker-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json"}}
+{"worker_id":"worker-01","event":"worker_notebook_reset_completed","notebooklm_profile":"ytis-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json","notebook_title":"yt-is-worker-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json"}}
+{"worker_id":"worker-01","event":"notebook_prewarm","prepared":true,"setup_mode":"reuse","notebooklm_profile":"ytis-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json","notebook_title":"yt-is-worker-01","elapsed_s":17.611}
+[NLM-Batch] Adding 50 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-50/50...
+[NLM-Batch]   Adding sub-batch 1 (50 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 50 sources in parallel...
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] Success restored after 3 failures — delay reset
+  ✓ JtdFDf4N9sQ | 10954 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ gSUJuR-2Rko | 14915 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ J-8upo9coSM | 7320 chars
+[Throttle] Success restored after 2 failures — delay reset
+  ✓ QfKqweRB0pY | 25084 chars
+  ✓ pKxYAnYfMdc | 6826 chars
+  ✓ 7Qrqfme55ag | 13110 chars
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] Success restored after 7 failures — delay reset
+  ✓ h8GNc8jHYbk | 13617 chars
+  ✓ 3zZIG9EkoAQ | 10422 chars
+  ✓ JFyfLHywx54 | 14591 chars
+  ✓ iTC7LGRnLMo | 13449 chars
+  ✓ 6esyxExst1U | 11515 chars
+  ✓ 0ybJ5wXk63A | 18139 chars
+  ✓ C0-dKiKWtKQ | 10189 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ lrT4h8AxMHE | 18047 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ U38m6yA8qgQ | 5634 chars
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] Success restored after 5 failures — delay reset
+  ✓ yqr-tui_pWQ | 6080 chars
+  ✓ SIpb0-Fmcag | 8411 chars
+  ✓ oopE9DfRuwQ | 9082 chars
+  ✓ 8NELGNKfy8k | 9704 chars
+  ✓ lXyuy-8xtQY | 7629 chars
+  ✓ VSoryzlZJHk | 5945 chars
+  ✓ Cx892EOdmeU | 11931 chars
+  ✓ vozs41_Iifw | 10149 chars
+  ✓ dPRNzPtgOeI | 11152 chars
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] Success restored after 6 failures — delay reset
+  ✓ fKO28Zsz9WQ | 11232 chars
+  ✓ FsskFJNN5j8 | 759 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ qB4HGMvrhwE | 10094 chars
+  ✗ VdunqscAV5Q | Fetch failed for a220145a-7c64-4f3b-b298-3cae8cf9b0dc: command_failed
+  ✓ AeCexQR4L3w | 11228 chars
+  ✓ jAXOgq3oYU8 | 49391 chars
+  ✓ A8aVBCXqrRE | 11123 chars
+  ✗ V7GWGym7Qmg | Fetch failed for 7b5e6568-56a3-4204-95e7-f88056d9123b: command_failed
+  ✗ GPL0SWb1p00 | Fetch failed for 067f42bc-2f21-429e-a9e9-cdb5a25a0110: command_failed
+  ✗ 0aJ23HTEuH0 | Fetch failed for f4fea48e-b787-43e7-b8ca-b89ea602bf18: command_failed
+  ✗ jGKeNYIh3eI | Fetch failed for f54c5a4a-218a-4e39-ab90-0ae2b36328a2: command_failed
+  ✗ iiQM5VfIXEM | Fetch failed for 89d3af56-3fa5-4bf9-b182-a44e95c4afdc: command_failed
+  ✗ HUIoPtQ1e6Q | Fetch failed for b91d5e2b-b5ea-4f22-af7f-07ae44edc398: command_failed
+  ✓ eT3_OwLXNRU | 11104 chars
+  ✓ pO96e22aprc | 5210 chars
+  ✓ VfoS3q8YdXI | 11441 chars
+  ✓ 5_siSiamymk | 6552 chars
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] Success restored after 5 failures — delay reset
+  ✓ ddo0uVKxKJM | 4809 chars
+[Throttle] Success restored after 2 failures — delay reset
+  ✓ xEEdsVYi6tE | 1088 chars
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+[Throttle] 9 consecutive failures — throttling 60.0s
+[Throttle] 10 consecutive failures — throttling 60.0s
+[Throttle] 11 consecutive failures — throttling 60.0s
+[Throttle] 12 consecutive failures — throttling 60.0s
+[Throttle] 13 consecutive failures — throttling 60.0s
+[Throttle] 14 consecutive failures — throttling 60.0s
+[Throttle] 15 consecutive failures — throttling 60.0s
+[Throttle] 16 consecutive failures — throttling 60.0s
+[Throttle] 17 consecutive failures — throttling 60.0s
+[Throttle] 18 consecutive failures — throttling 60.0s
+[Throttle] 19 consecutive failures — throttling 60.0s
+[Throttle] 20 consecutive failures — throttling 60.0s
+[Throttle] 21 consecutive failures — throttling 60.0s
+  ✗ 5jze9Zddq5c | Fetch failed for 7b5e6568-56a3-4204-95e7-f88056d9123b: command_failed
+  ✗ HAAAM2Q2a04 | Fetch failed for 89d3af56-3fa5-4bf9-b182-a44e95c4afdc: command_failed
+  ✗ P0tT2i3TZx8 | Fetch failed for f4fea48e-b787-43e7-b8ca-b89ea602bf18: command_failed
+  ✗ Zr6r3qUaEVs | Fetch failed for b91d5e2b-b5ea-4f22-af7f-07ae44edc398: command_failed
+  ✗ 3sf618GmS-o | Fetch failed for a220145a-7c64-4f3b-b298-3cae8cf9b0dc: command_failed
+  ✗ kQp7EbxHcKA | Fetch failed for 067f42bc-2f21-429e-a9e9-cdb5a25a0110: command_failed
+  ✗ wz8lg_3j3Ok | Fetch failed for f54c5a4a-218a-4e39-ab90-0ae2b36328a2: command_failed
+[Throttle] Success restored after 21 failures — delay reset
+{"worker_id":"worker-01","input":"C:\\Users\\brsth\\AppData\\Local\\Temp\\tmpeq746mym.json","batch_count":1,"video_count":50,"succeeded":36,"failed":14,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"no_captions":49,"status_pending":1},"status_counts":{"pending":50},"privacy_status_counts":{"public":49,"unknown":1},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"subbatch_metrics":[{"subbatch_index":1,"subbatch_size":50,"target_subbatch_size":50,"attempted_count":50,"added_count":50,"add_cmd_elapsed_s":199.031,"materialization_wait_elapsed_s":4.541,"elapsed_s":203.572,"returncode":0,"failure_reason":null,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"no_captions":49,"status_pending":1},"status_counts":{"pending":50},"privacy_status_counts":{"public":49,"unknown":1},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"current_source_count":50,"source_materialization_ready_at_epoch":1776992228.0205462,"status":"ok"}],"startup_retire_elapsed_s":0.0,"startup_notebook_check_elapsed_s":10.848,"startup_notebook_create_elapsed_s":0.0,"startup_prepare_cleanup_elapsed_s":6.76,"startup_prepare_total_elapsed_s":17.609,"setup_elapsed_s_total":228.298,"notebook_check_elapsed_s_total":6.168,"notebook_create_elapsed_s_total":0.0,"notebook_retire_elapsed_s_total":0.0,"add_sources_elapsed_s_total":222.13,"add_cmd_elapsed_s_total":199.031,"materialization_wait_elapsed_s_total":4.541,"extract_elapsed_s_total":122.402,"cleanup_elapsed_s_total":77.559,"batch_elapsed_s_total":428.26,"content_fetch_status_counts_total":{"ready":36,"command_failed":14},"source_ready_age_s_total":1890.026,"source_ready_age_s_max":129.37,"source_ready_age_s_avg":37.801,"notebooklm_profile":"ytis-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json","notebook_title":"yt-is-worker-01","status":"ok","returncode":0}
+[source] Parallel industrial dispatch: 2 batches across 1 workers...
+{"worker_id":"worker-01","event":"worker_notebook_reset_started","notebooklm_profile":"ytis-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json","notebook_title":"yt-is-worker-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json"}}
+{"worker_id":"worker-01","event":"worker_notebook_reset_completed","notebooklm_profile":"ytis-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json","notebook_title":"yt-is-worker-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json"}}
+{"worker_id":"worker-01","event":"notebook_prewarm","prepared":true,"setup_mode":"reuse","notebooklm_profile":"ytis-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json","notebook_title":"yt-is-worker-01","elapsed_s":9.508}
+[NLM-Batch] Adding 50 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-50/50...
+[NLM-Batch]   Adding sub-batch 1 (50 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 50 sources in parallel...
+  ✓ hPyeMay32Yc | 2030 chars
+  ✓ _eyGuXi_ubA | 3214 chars
+  ✓ SmVkxRGaELE | 1934 chars
+  ✓ Hc-GEhHinl4 | 8956 chars
+  ✓ NVxsggyOuWc | 11710 chars
+  ✓ yva0mrl_3aE | 12516 chars
+  ✓ iqQ5V34DXhg | 12001 chars
+  ✓ 0oTUqKVtFd4 | 2403 chars
+  ✓ 2Lha-pG5QAw | 18603 chars
+  ✓ 1A9GJjmDyKI | 2971 chars
+  ✓ MWGNBkl4VsE | 2049 chars
+  ✓ ORs6YD-r7M4 | 2508 chars
+  ✓ W3mYmxmZRsM | 1240 chars
+  ✓ kEMxzRbB4JQ | 2163 chars
+  ✓ bMYfpigaUbc | 2855 chars
+  ✓ fpVlsnV3MoQ | 9103 chars
+  ✓ Gz89hmBk7tQ | 2944 chars
+  ✓ GYA6g4nFFh8 | 2691 chars
+  ✓ _kj4YBUOqeQ | 1896 chars
+  ✓ L7_xkCIwXm0 | 11218 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ xvhAt6lbsBU | 2985 chars
+  ✓ FGf5llEYCZM | 2125 chars
+  ✓ 7h2fRXNWC5M | 1675 chars
+  ✓ 8uHmgOEM2QM | 3203 chars
+  ✓ DIEZNFHzaZ0 | 15190 chars
+  ✓ qyZ0wwHTZQ8 | 3125 chars
+  ✓ M4mz3vMvVjs | 2922 chars
+  ✓ Uk41VSpUxUU | 13805 chars
+  ✓ dXC3HScRZIE | 1752 chars
+  ✗ -35BJVOA1n4 | Fetch failed for 56c03b93-504f-4d5f-aad8-ee8c5a2b50b8: command_failed
+[Throttle] Success restored after 2 failures — delay reset
+  ✓ fZgy1vMD7B8 | 2134 chars
+  ✓ dbSUsZsfdQc | 12296 chars
+  ✓ c8npSfBJ43w | 10388 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ 9nH8nIBYfZw | 4086 chars
+  ✓ A5TQG_JYkSU | 12148 chars
+  ✓ cwAyvcyWZ1U | 11312 chars
+  ✓ AhUCVYqXWoE | 2654 chars
+[Throttle] 3 consecutive failures — throttling 2.0s
+  ✗ kF_Jf8MPcl0 | Fetch failed for a5ccf7da-dad7-4212-b9be-00ef4540b56a: command_failed
+  ✗ hQMOGdkCIPM | Fetch failed for 55523fc1-27c1-40ff-97bb-852e41fab704: command_failed
+  ✗ WGkFZZjTpTs | Fetch failed for e070c7f2-a588-4511-ab97-880eab098f01: command_failed
+  ✗ B_GSOzvHTds | Fetch failed for f1e02ea9-65e7-4c82-bd2d-a0277e7ef2fc: command_failed
+[Throttle] Success restored after 3 failures — delay reset
+  ✓ uYKcPfazvHs | 2970 chars
+  ✓ mETAgaZWvrc | 2492 chars
+  ✓ 8PUKunSAnys | 3424 chars
+  ✓ ii11dmIsuJo | 3241 chars
+  ✗ TWB3f7CsCq0 | Fetch failed for f224c241-26b6-4ffc-ab52-59281ced03c0: command_failed
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ Em5KssMHDYA | 2143 chars
+  ✓ KWfwiTyFvls | 2243 chars
+  ✓ -vwCkHZ-y7I | 2856 chars
+  ✗ -_2DIBJsgFw | Fetch failed for 61839fe8-f4fa-44f8-b9de-787303d5d161: command_failed
+[Throttle] Success restored after 2 failures — delay reset
+[Throttle] Success restored after 2 failures — delay reset
+[NLM-Batch] Adding 50 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-50/50...
+[NLM-Batch]   Adding sub-batch 1 (50 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 50 sources in parallel...
+  ✓ GLS6wvKyStw | 2878 chars
+  ✓ pahVmoQxpyw | 2515 chars
+  ✓ PQfuMvf8l0k | 1509 chars
+  ✓ mgttAx20ixM | 6602 chars
+  ✓ oqw5I2QM9sk | 2908 chars
+  ✓ nRWLTIhMIQI | 2460 chars
+  ✓ JQd_0ooqz-w | 3338 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ YfQPuDPtqGQ | 36691 chars
+  ✓ v1DzLRhEjE8 | 11757 chars
+  ✓ y6gjZzBI7nA | 13295 chars
+  ✓ kbczYJJ0Scw | 2463 chars
+  ✓ wd702pFWlo0 | 1433 chars
+  ✓ 2oJXm3I8nxg | 2656 chars
+  ✓ h9f6nseMt4Q | 20980 chars
+  ✓ hCvvSJVbPDs | 13743 chars
+  ✓ PxyIbwhVgdY | 2363 chars
+  ✓ kR9LeT_aF3k | 11034 chars
+  ✓ w0owC6Al1yU | 10793 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ W1o-Wxjb9cg | 17716 chars
+  ✓ QknY_XqxD4Q | 2216 chars
+  ✓ FKsmVFUQWKI | 14700 chars
+  ✓ iQteJ5_sJF0 | 12170 chars
+  ✓ rz7fwjX87xo | 10172 chars
+  ✓ RnISO02IBcw | 16997 chars
+  ✓ wkwYcNu8yNY | 1796 chars
+  ✓ 6bIVA0CrZhw | 2045 chars
+  ✓ 1MAbAUNhMVw | 2709 chars
+  ✓ Y_g9GOufFAA | 13549 chars
+  ✓ R7cZWSKHmIY | 2693 chars
+  ✓ BoRkDnpExa4 | 3191 chars
+  ✓ DujMeMHHfDc | 10805 chars
+  ✓ Kh32HhB1D-s | 1940 chars
+  ✓ fRtKZf8QwBM | 12499 chars
+  ✓ ujjt29zqMbQ | 2233 chars
+  ✓ qP7ukloRLCk | 14017 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ lybWTvBgwas | 8252 chars
+  ✓ 4Kw6n1mPGcI | 15097 chars
+  ✓ KPbVz3EG2n4 | 9683 chars
+  ✓ blBJbhZT8gQ | 13587 chars
+  ✓ bXN9B8_Pfl8 | 8813 chars
+  ✓ 3G9pPw4ErLs | 13986 chars
+  ✓ I_oSqFaRZ68 | 10288 chars
+  ✓ LSqkF4ypDU0 | 2814 chars
+  ✓ fJO-q7tV0zE | 5312 chars
+  ✓ EkBqCzRAxdY | 1971 chars
+  ✓ YimMyqB17IY | 3350 chars
+  ✓ BXGLk3fRtRY | 15604 chars
+  ✓ m01mdCX87rE | 2882 chars
+  ✗ 9_IiZr92Fcc | Fetch failed for 67c8c7cd-ca98-4a2b-bef5-b25dafd69019: command_failed
+[Throttle] Success restored after 1 failures — delay reset
+  ✗ NnVhDrwj4po | Fetch failed for ab2abace-9ad0-4ebf-b18e-7216aacf56b1: too_short
+{"worker_id":"worker-01","input":"C:\\Users\\brsth\\AppData\\Local\\Temp\\tmpw9i8y999.json","batch_count":2,"video_count":100,"succeeded":91,"failed":9,"source_profile":{"total":100,"matched":100,"missing":0,"source_class_counts":{"no_captions":100},"status_counts":{"pending":100},"privacy_status_counts":{"public":100},"upload_status_counts":{"unknown":100},"unavailable_reason_counts":{"unknown":100},"failure_reason_counts":{"unknown":100}},"subbatch_metrics":[{"subbatch_index":1,"subbatch_size":50,"target_subbatch_size":50,"attempted_count":50,"added_count":50,"add_cmd_elapsed_s":213.897,"materialization_wait_elapsed_s":4.567,"elapsed_s":218.464,"returncode":0,"failure_reason":null,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"no_captions":50},"status_counts":{"pending":50},"privacy_status_counts":{"public":50},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"current_source_count":50,"source_materialization_ready_at_epoch":1776992697.1340482,"status":"ok"},{"subbatch_index":1,"subbatch_size":50,"target_subbatch_size":50,"attempted_count":50,"added_count":50,"add_cmd_elapsed_s":219.397,"materialization_wait_elapsed_s":5.101,"elapsed_s":224.498,"returncode":0,"failure_reason":null,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"no_captions":50},"status_counts":{"pending":50},"privacy_status_counts":{"public":50},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"current_source_count":50,"source_materialization_ready_at_epoch":1776992991.5692797,"status":"ok"}],"startup_retire_elapsed_s":0.0,"startup_notebook_check_elapsed_s":5.503,"startup_notebook_create_elapsed_s":0.0,"startup_prepare_cleanup_elapsed_s":4.003,"startup_prepare_total_elapsed_s":9.506,"setup_elapsed_s_total":493.08000000000004,"notebook_check_elapsed_s_total":12.280999999999999,"notebook_create_elapsed_s_total":0.0,"notebook_retire_elapsed_s_total":0.0,"add_sources_elapsed_s_total":480.798,"add_cmd_elapsed_s_total":433.294,"materialization_wait_elapsed_s_total":9.668,"extract_elapsed_s_total":47.664,"cleanup_elapsed_s_total":37.992999999999995,"batch_elapsed_s_total":578.737,"content_fetch_status_counts_total":{"ready":91,"command_failed":8,"too_short":1},"source_ready_age_s_total":1834.568,"source_ready_age_s_max":33.289,"source_ready_age_s_avg":18.346,"notebooklm_profile":"ytis-worker-01","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-01.json","notebook_title":"yt-is-worker-01","status":"ok","returncode":0}
+{"worker_id":"worker-02","event":"worker_notebook_reset_started","notebooklm_profile":"ytis-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json","notebook_title":"yt-is-worker-02","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json"}}
+{"worker_id":"worker-02","event":"worker_notebook_reset_completed","notebooklm_profile":"ytis-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json","notebook_title":"yt-is-worker-02","cleanup_info":{"status":"owner_title_reuse","notebook_title":"yt-is-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json"}}
+{"worker_id":"worker-02","event":"notebook_prewarm","prepared":true,"setup_mode":"reuse","notebooklm_profile":"ytis-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json","notebook_title":"yt-is-worker-02","elapsed_s":7.725}
+[NLM-Batch] Adding 50 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-50/50...
+[NLM-Batch]   Adding sub-batch 1 (50 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 50 sources in parallel...
+  ✓ MGYU62X_e7U | 10308 chars
+  ✓ 1G4ZAhUUusg | 9995 chars
+  ✓ gXJyZ_vfx3A | 9945 chars
+  ✓ Pl9NqlTSCac | 15648 chars
+  ✓ YLa9NWv1wzs | 12510 chars
+  ✓ FklTPN8SrxQ | 10571 chars
+  ✓ QGIyhnjq6ak | 13789 chars
+  ✓ ScrEJIJdqiU | 11806 chars
+  ✓ HGwz9ZlkVAA | 7808 chars
+  ✓ BWDL2goJ98o | 10808 chars
+  ✓ xCkjo7Xxblk | 13485 chars
+  ✓ w-GiUY-DcJY | 15761 chars
+  ✓ wBmixJ77_Ik | 8881 chars
+  ✓ WYZlNkLA6ss | 11361 chars
+  ✓ 0uEhomecyuE | 9805 chars
+  ✓ sGnW7W0QfTA | 10734 chars
+  ✓ 2936_Y80nUk | 12596 chars
+  ✓ yVSJP6GrLto | 8451 chars
+  ✓ 3d6c-8LGX8k | 11596 chars
+  ✓ ojltC-ZvMaI | 10503 chars
+  ✓ yQvTQJeGEh4 | 17341 chars
+  ✓ xLneuUde3-s | 13748 chars
+  ✓ t9CyWIvQt2o | 12239 chars
+  ✓ GlWA_Kdv-xs | 9218 chars
+  ✓ smWlQ5u-0Jc | 7104 chars
+  ✓ 0UkKi47hiuU | 9525 chars
+  ✓ VwLHvxMeIIU | 9468 chars
+  ✓ 9nci4YvuRAo | 9449 chars
+  ✓ 9Y0olMFE_ps | 13083 chars
+  ✓ GrC2vS9j30g | 10948 chars
+  ✓ e2QiaUzvgnk | 12255 chars
+  ✓ j4REKdEbkeY | 10386 chars
+  ✓ pwUhj7j7xDw | 10799 chars
+  ✓ dkOEWWfqIZA | 12693 chars
+  ✓ 6CkHKHorqiM | 9895 chars
+  ✓ ReM-HQQmOoQ | 10363 chars
+  ✓ YbW9V7Ix8do | 10439 chars
+  ✓ rYuzC0oT7-4 | 8879 chars
+  ✓ Ct80979DhbE | 9231 chars
+  ✓ 8RdZpZkPrfo | 6017 chars
+  ✓ GBkRD5Z1rQc | 8875 chars
+  ✓ _wZkRXZXFIM | 12536 chars
+  ✓ A9gKRU3cixQ | 11673 chars
+  ✓ sgAlFPMugWw | 10368 chars
+  ✓ rLEcM8bo0x4 | 8207 chars
+  ✓ XHv740P0wfI | 8669 chars
+  ✓ 5tfEqh74BPY | 9572 chars
+  ✓ xLVTIWJa_gk | 9598 chars
+  ✓ OMNw70Kgw6w | 9232 chars
+  ✓ yEbdSFFyO4w | 11403 chars
+[Throttle] Success restored after 2 failures — delay reset
+[NLM-Batch] Adding 50 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-50/50...
+[NLM-Batch]   Adding sub-batch 1 (50 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 50 sources in parallel...
+  ✓ 6PgB3qxMAvk | 11153 chars
+  ✓ bzPhOCobMI8 | 10854 chars
+  ✓ -ViDaRJkay4 | 13020 chars
+  ✓ D0KFko8a-aA | 10413 chars
+  ✓ PoaHIJetw6o | 9081 chars
+  ✓ ev6j62H93og | 9781 chars
+  ✓ OKjJ-MwLzXE | 10790 chars
+  ✓ s0AHnhCif7k | 9619 chars
+  ✓ wxAxhnpD7S4 | 9818 chars
+  ✓ phVlIdFR5CU | 13233 chars
+  ✓ 2kwEbGljc5I | 9461 chars
+  ✓ lT37ok1GG7Q | 9197 chars
+  ✓ vDL7WOtDLnw | 8067 chars
+  ✓ FIWK7bs1z-E | 11270 chars
+  ✓ yMCK4jTBEj0 | 11361 chars
+  ✓ cY7o918lCR0 | 10821 chars
+  ✓ S5tj96duvGI | 15848 chars
+  ✓ 66wWt9iDTPU | 13319 chars
+  ✓ EZk0CFf0UV4 | 11884 chars
+  ✓ 25j_qFFk5bI | 8035 chars
+  ✓ mjtNokMNZik | 12182 chars
+  ✓ dqYon46gt1Y | 10474 chars
+  ✓ lpjxmWJJ0Vw | 9861 chars
+  ✓ 0B79y4QqSlg | 9921 chars
+  ✓ IVNVd-Rp0rg | 11833 chars
+  ✓ 8oEOa9wStjk | 10558 chars
+  ✓ -u6MYxM450o | 11278 chars
+  ✓ bj6L6hkVRqM | 10529 chars
+  ✓ zoFtybjgmss | 8502 chars
+  ✓ bC-oOxCJZXY | 9664 chars
+  ✓ feD5cjvWEoI | 18620 chars
+  ✓ 8JNARiJUus8 | 9136 chars
+  ✓ Mvj1Q5WoGb8 | 8482 chars
+  ✓ 16a4ht5Tnlc | 11013 chars
+  ✓ 3jtmld1lPPI | 40276 chars
+  ✓ _R3mloi2TsA | 9830 chars
+  ✓ ZwiTqrVfDFU | 9999 chars
+  ✓ z5nLMdpxggM | 11261 chars
+  ✓ RRjdbm5mbU0 | 9688 chars
+  ✓ K5iEdjq5bE4 | 12681 chars
+  ✓ LmA6x1KmxCk | 11070 chars
+  ✓ yDdLOdffh5Y | 8382 chars
+  ✓ CaNyiSUcLe4 | 10646 chars
+  ✓ 4ZVL3shwI10 | 10830 chars
+  ✓ m2b6rMzdCU8 | 8155 chars
+  ✓ 45CbZaXzb0M | 10419 chars
+  ✓ amYGy2uXpbA | 9371 chars
+  ✓ pkps1mNmkvc | 10829 chars
+  ✓ hz0TZ7bs-MA | 10214 chars
+  ✗ f6ankxixZWM | Fetch failed for 054b870e-ac25-44d9-ac5a-502b9998a53d: too_short
+[Throttle] Success restored after 2 failures — delay reset
+[NLM-Batch] Adding 50 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-50/50...
+[NLM-Batch]   Adding sub-batch 1 (50 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 50 sources in parallel...
+  ✓ Wy5RN3Wwvrs | 570 chars
+  ✓ aKml-EevgFY | 11050 chars
+  ✓ SEXVB4hyiXw | 763 chars
+  ✓ yLoP4ub-cJg | 12854 chars
+  ✓ M_9lmAOfVgw | 893 chars
+  ✓ zpYZB6x5It0 | 14542 chars
+  ✓ Vr7vOwhBymM | 774 chars
+  ✓ hNuMaa5nezM | 16227 chars
+  ✓ Noz597gUyUY | 991 chars
+  ✓ _Su9y38R0Gc | 31053 chars
+  ✓ y6BgV643ITk | 12353 chars
+  ✓ P_LhKoq2LQg | 850 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ RyhcCsVS3d0 | 11999 chars
+  ✓ H8_U90u6U-I | 10218 chars
+  ✓ VBzQrac6lUE | 6750 chars
+  ✓ Jv6lmO7OCEE | 19362 chars
+  ✓ a0x1ZXHePEw | 7993 chars
+  ✓ d8B1EqwjKhE | 22085 chars
+  ✓ LM91MXgfmLc | 9315 chars
+  ✓ 2MEzrx-LUf8 | 12253 chars
+  ✓ jqy40OrqDl0 | 9202 chars
+  ✓ EuSRwo-Gbqk | 21560 chars
+  ✓ Xk4CzX2UjS0 | 869 chars
+  ✓ uPhwnKX0sWQ | 1027 chars
+  ✓ XAOs-frRfa4 | 839 chars
+  ✓ 44uhvaoVpew | 643 chars
+  ✓ DTpPvDt7k98 | 671 chars
+  ✓ Sm5Zt09yx18 | 20781 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ tPHufaC7M7Q | 18391 chars
+  ✓ JOSAbgBpx_g | 796 chars
+  ✓ Wotxet9WK28 | 10029 chars
+  ✓ jL-gGhjvLeA | 17953 chars
+  ✓ erTlLWBu9mg | 12630 chars
+  ✓ ha0qBRn-g4c | 15478 chars
+  ✓ UbyZ8bph2uI | 11490 chars
+  ✓ 90tRGjsfDW4 | 13748 chars
+  ✓ F_M19e8MI10 | 13081 chars
+  ✓ 4OCsutmHRVk | 844 chars
+  ✓ y2Y2Bj350-k | 13403 chars
+  ✓ 7b9DZu7eb7Y | 889 chars
+  ✓ RbTOzHGUqdU | 742 chars
+  ✓ cTwq-65lA5E | 845 chars
+  ✓ S8hblQT_n0Y | 626 chars
+  ✓ B1jyDq5B0Uk | 15903 chars
+  ✓ z6g4GJDXhYI | 14518 chars
+  ✓ 7JbzLYsjBw0 | 659 chars
+  ✓ Gk7PcVcQKD4 | 814 chars
+  ✓ P7-RUQCRYSw | 14459 chars
+  ✓ U1jMG6MfK7I | 898 chars
+  ✗ 7_LzWth-Oh8 | Fetch failed for 43be3416-a331-48f1-969c-4a43b2009701: command_failed
+[Throttle] Success restored after 2 failures — delay reset
+[Throttle] Success restored after 2 failures — delay reset
+[NLM-Batch] Adding 50 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-50/50...
+[NLM-Batch]   Adding sub-batch 1 (50 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 50 sources in parallel...
+  ✓ -AWI4A2PQr0 | 14066 chars
+  ✓ jZlTHB3bZrw | 9941 chars
+  ✓ _JZNRoVWakA | 735 chars
+  ✓ 73wH7SbIAr4 | 747 chars
+  ✓ c22okqXBAdU | 15353 chars
+  ✓ UMSkEy7wwIY | 13638 chars
+  ✓ llB5RqcBWQY | 18794 chars
+  ✓ bBh1yoUT_pY | 672 chars
+  ✓ -7Z6kL1uq0s | 14181 chars
+  ✓ UShAqoCM6FA | 13664 chars
+  ✓ YkcGd3yE4bU | 760 chars
+  ✓ 4WxH-_uy8vk | 760 chars
+  ✓ AYksAmQSruM | 14746 chars
+  ✓ 2Azm1dKloY8 | 16701 chars
+  ✓ gRcLu3uH1iQ | 12521 chars
+  ✓ DIG9i_xr93g | 14519 chars
+  ✓ WlR_5V2IAf0 | 13464 chars
+  ✓ MeIyzYIGe3w | 11356 chars
+  ✓ YiuCXYG54_4 | 766 chars
+  ✓ 5sSeLa2DNEU | 11580 chars
+  ✓ R-3GdvyDmlA | 13198 chars
+  ✓ x1bO4wS9HT8 | 28371 chars
+  ✓ Bww4H43CZEM | 840 chars
+  ✓ ALbjYBwYoZM | 764 chars
+  ✓ GXy9btLm_FE | 784 chars
+  ✓ v3T_HE4PlE4 | 565 chars
+  ✓ unCVFUOT7Ec | 794 chars
+  ✓ vTlqR0NZeDs | 776 chars
+  ✓ HXNyA3kmGKQ | 753 chars
+  ✓ YMUeyi0w_-0 | 14251 chars
+  ✓ j_QjztIT_FQ | 14592 chars
+  ✓ CRvv0c4WX2g | 13730 chars
+  ✓ bdiOTsrhqqc | 11398 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ 2THLYNzr9is | 17304 chars
+  ✓ l2_5aewygSk | 739 chars
+  ✓ SFPjZVYGymA | 594 chars
+  ✓ Uclo52y8Uyo | 9187 chars
+  ✓ 195gO2d3T6s | 12567 chars
+[Throttle] Success restored after 2 failures — delay reset
+  ✓ jq88bis-ehg | 13742 chars
+  ✓ G7BFU3o1yjY | 14857 chars
+  ✓ 0cDsq7ZzWvI | 655 chars
+  ✓ FAZ0ip_SGIk | 751 chars
+  ✓ s5nLdm4Dt-0 | 844 chars
+  ✓ sdp3WeJi-5Q | 810 chars
+  ✓ QvwPxDQR3zE | 833 chars
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] Success restored after 3 failures — delay reset
+  ✓ QGKd8GqhdyM | 746 chars
+  ✗ 52HJW-tsCmA | Fetch failed for 15be5247-8650-4425-9c44-91b10b16b3de: command_failed
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+  ✗ nBDRSgtA99U | Fetch failed for 6f3b3a9d-42f6-4e27-8f62-35ff04d06be1: command_failed
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+  ✗ PN7GLRWIYiw | Fetch failed for a74c7d16-7296-472e-ba63-f4b3236331e6: command_failed
+  ✗ 7fDnan79L7o | Fetch failed for a74c7d16-7296-472e-ba63-f4b3236331e6: command_failed
+[Throttle] Success restored after 7 failures — delay reset
+{"worker_id":"worker-02","input":"C:\\Users\\brsth\\AppData\\Local\\Temp\\tmpszlb022c.json","batch_count":4,"video_count":200,"succeeded":194,"failed":6,"source_profile":{"total":200,"matched":200,"missing":0,"source_class_counts":{"no_captions":200},"status_counts":{"pending":200},"privacy_status_counts":{"public":200},"upload_status_counts":{"unknown":200},"unavailable_reason_counts":{"unknown":200},"failure_reason_counts":{"unknown":200}},"subbatch_metrics":[{"subbatch_index":1,"subbatch_size":50,"target_subbatch_size":50,"attempted_count":50,"added_count":50,"add_cmd_elapsed_s":148.684,"materialization_wait_elapsed_s":3.246,"elapsed_s":151.93,"returncode":0,"failure_reason":null,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"no_captions":50},"status_counts":{"pending":50},"privacy_status_counts":{"public":50},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"current_source_count":50,"source_materialization_ready_at_epoch":1776992393.558982,"status":"ok"},{"subbatch_index":1,"subbatch_size":50,"target_subbatch_size":50,"attempted_count":50,"added_count":50,"add_cmd_elapsed_s":151.065,"materialization_wait_elapsed_s":3.39,"elapsed_s":154.45499999999998,"returncode":0,"failure_reason":null,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"no_captions":50},"status_counts":{"pending":50},"privacy_status_counts":{"public":50},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"current_source_count":50,"source_materialization_ready_at_epoch":1776992593.7027652,"status":"ok"},{"subbatch_index":1,"subbatch_size":50,"target_subbatch_size":50,"attempted_count":50,"added_count":50,"add_cmd_elapsed_s":152.167,"materialization_wait_elapsed_s":3.461,"elapsed_s":155.62800000000001,"returncode":0,"failure_reason":null,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"no_captions":50},"status_counts":{"pending":50},"privacy_status_counts":{"public":50},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"current_source_count":50,"source_materialization_ready_at_epoch":1776992801.8324194,"status":"ok"},{"subbatch_index":1,"subbatch_size":50,"target_subbatch_size":50,"attempted_count":50,"added_count":50,"add_cmd_elapsed_s":150.015,"materialization_wait_elapsed_s":3.615,"elapsed_s":153.63,"returncode":0,"failure_reason":null,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"no_captions":50},"status_counts":{"pending":50},"privacy_status_counts":{"public":50},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"current_source_count":50,"source_materialization_ready_at_epoch":1776993010.480474,"status":"ok"}],"startup_retire_elapsed_s":0.0,"startup_notebook_check_elapsed_s":4.779,"startup_notebook_create_elapsed_s":0.0,"startup_prepare_cleanup_elapsed_s":2.943,"startup_prepare_total_elapsed_s":7.723,"setup_elapsed_s_total":692.4929999999999,"notebook_check_elapsed_s_total":20.159,"notebook_create_elapsed_s_total":0.0,"notebook_retire_elapsed_s_total":0.0,"add_sources_elapsed_s_total":672.333,"add_cmd_elapsed_s_total":601.931,"materialization_wait_elapsed_s_total":13.712,"extract_elapsed_s_total":84.85300000000001,"cleanup_elapsed_s_total":90.661,"batch_elapsed_s_total":868.0060000000001,"content_fetch_status_counts_total":{"ready":194,"too_short":1,"command_failed":5},"source_ready_age_s_total":2887.446,"source_ready_age_s_max":41.014,"source_ready_age_s_avg":14.437,"notebooklm_profile":"ytis-worker-02","state_path":"P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-02.json","notebook_title":"yt-is-worker-02","status":"ok","returncode":0}
+
+[source] === Escalation Batch Complete ===
+[source] Successfully extracted: 371
+[source] Failed: 29
+[source] Skipped (cached): 0
+[source] Skipped (negative cache): 472
+[source] Skipped (terminal): 0
+[source] NotebookLM-eligible: 400
+[source] Routed to transcript fallback: 0
+[source] Negative-cache reasons: unavailable=472
+[source] Worker notebook cleanup: 0 deleted, 0 failed
+[source] Stage totals: startup=48.9s, setup=1586.5s, add=1543.2s, extract=267.0s, cleanup=221.3s, batch=2074.8s
+[source] Worker source profile: no_captions=399, status_pending=1
+[source] Total discovered: 400
+[source] Total processed outcomes: 400

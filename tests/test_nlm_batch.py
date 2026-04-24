@@ -1088,6 +1088,9 @@ class TestNotebookCapRotation:
         assert completed["started_at_epoch"] <= completed["completed_at_epoch"]
         summary = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_extract_completed")
         assert summary["content_fetch_status_counts"]["too_short"] == 1
+        assert summary["content_fetch_attempts_total"] == 4
+        assert summary["content_fetch_attempts_max"] == 4
+        assert summary["content_fetch_attempts_avg"] == 4.0
 
     def test_source_content_fetch_logs_command_failed_status(self):
         """A failed content command should log a command-failed status."""
@@ -1122,6 +1125,53 @@ class TestNotebookCapRotation:
         assert completed["source_ready_age_s"] == 0.0
         summary = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_extract_completed")
         assert summary["content_fetch_status_counts"]["command_failed"] == 1
+        assert summary["content_fetch_attempts_total"] == 1
+        assert summary["content_fetch_attempts_max"] == 1
+        assert summary["content_fetch_attempts_avg"] == 1.0
+
+    def test_source_content_fetch_retries_transient_not_found_and_recovers(self):
+        """A transient NOT_FOUND should be retried until content becomes ready."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=1)
+        ingestor._nb_id = "nb-retry"
+        content_attempts = {"count": 0}
+
+        def fake_run_cmd(cmd, timeout=300):
+            if cmd[:2] == ["source", "list"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 0, "stdout": json.dumps({"sources": [{"id": "s1"}]}), "stderr": ""},
+                )()
+            if cmd[:2] == ["source", "content"]:
+                content_attempts["count"] += 1
+                if content_attempts["count"] == 1:
+                    return type(
+                        "CompletedProcess",
+                        (),
+                        {"returncode": 1, "stdout": "", "stderr": "API error (code 5): NOT_FOUND"},
+                    )()
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 0, "stdout": json.dumps({"value": {"content": "x" * 101}}), "stderr": ""},
+                )()
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
+            with mock.patch("csf.nlm_batch.time.sleep") as mock_sleep:
+                with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                    results = ingestor.extract_transcripts(["vid1"])
+
+        assert results["vid1"][0] is True
+        assert results["vid1"][1] == "x" * 101
+        assert content_attempts["count"] == 2
+        assert mock_sleep.call_count >= 1
+        completed = [call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_source_content_fetch_completed"]
+        assert any(entry["status"] == "ready" for entry in completed)
+        summary = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_extract_completed")
+        assert summary["content_fetch_attempts_total"] == 2
+        assert summary["content_fetch_attempts_max"] == 2
+        assert summary["content_fetch_attempts_avg"] == 2.0
 
     def test_extract_transcripts_matches_sources_by_title_instead_of_order(self):
         """Source list order should not control which video ID gets which source ID."""

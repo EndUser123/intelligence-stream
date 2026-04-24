@@ -44,6 +44,12 @@ _READY_PROBE_TIMEOUT_S = float(
         str(DEFAULT_NOTEBOOKLM_SOURCE_MATERIALIZATION_TIMEOUT_S),
     )
 )
+_SOURCE_CONTENT_RETRY_ATTEMPTS = max(1, int(_NLM_CONFIG.source_content_retry_attempts))
+_SOURCE_CONTENT_RETRY_INITIAL_DELAY_S = max(0.0, float(_NLM_CONFIG.source_content_retry_initial_delay_s))
+_SOURCE_CONTENT_RETRY_MAX_DELAY_S = max(
+    _SOURCE_CONTENT_RETRY_INITIAL_DELAY_S,
+    float(_NLM_CONFIG.source_content_retry_max_delay_s),
+)
 
 
 class NotebookSourceMaterializationTimeout(RuntimeError):
@@ -104,6 +110,17 @@ def _extract_video_id_from_source_entry(source: object) -> str | None:
         if re.fullmatch(r"[a-zA-Z0-9_-]{11}", value):
             return value
     return None
+
+
+def _should_retry_source_content_fetch(status: str, res: subprocess.CompletedProcess) -> bool:
+    """Retry content fetches that look transient rather than terminal."""
+    if status == "too_short":
+        return True
+    if status != "command_failed":
+        return False
+    combined = f"{res.stdout or ''}\n{res.stderr or ''}".upper()
+    transient_markers = ("NOT_FOUND", "RATE LIMIT", "TOO MANY REQUESTS", "TEMPORARILY UNAVAILABLE")
+    return any(marker in combined for marker in transient_markers)
 
 
 def _load_reusable_notebook_id() -> Optional[str]:
@@ -1151,6 +1168,8 @@ class NLMBatchIngestor:
             "status_counts": {"ready": 0, "too_short": 0, "command_failed": 0, "parse_failed": 0},
             "ready_age_s_total": 0.0,
             "ready_age_s_max": 0.0,
+            "attempts_total": 0,
+            "attempts_max": 0,
         }
         status_lock = threading.Lock()
         log_action(
@@ -1293,7 +1312,20 @@ class NLMBatchIngestor:
         def _fetch_content(source_id: str, vid_hint: str):
             # The 'content' command is NOT an AI query. It's a direct data fetch.
             started_at_epoch = time.time()
-            ready_age_s = round(started_at_epoch - ready_reference_epoch, 3) if ready_reference_epoch else 0.0
+            attempt = 0
+            delay_s = _SOURCE_CONTENT_RETRY_INITIAL_DELAY_S
+            last_result: dict[str, object] = {
+                "status": "command_failed",
+                "content_length": 0,
+                "failure_reason": f"Fetch failed for {source_id}: command_failed",
+                "returncode": 1,
+                "stdout": "",
+                "stderr": "",
+                "completed_at_epoch": started_at_epoch,
+                "attempts": 0,
+                "content": None,
+            }
+
             log_action(
                 "nlm_batch_source_content_fetch_started",
                 {
@@ -1302,58 +1334,92 @@ class NLMBatchIngestor:
                     "video_id": vid_hint,
                     "timeout_s": 30,
                     "started_at_epoch": started_at_epoch,
-                    "source_ready_age_s": ready_age_s,
+                    "source_ready_age_s": round(started_at_epoch - ready_reference_epoch, 3) if ready_reference_epoch else 0.0,
                     "materialization_ready_at_epoch": ready_reference_epoch,
                 },
             )
-            res = self._run_cmd(["source", "content", source_id, "--json"], timeout=30)
-            completed_at_epoch = time.time()
-            content = ""
-            content_length = 0
-            status = "command_failed" if res.returncode != 0 else "parse_failed"
-            failure_reason = f"Fetch failed for {source_id}: {status}"
-            if res.returncode == 0:
-                try:
-                    data = json.loads(res.stdout)
-                    # Support both raw and wrapped JSON
-                    if isinstance(data, dict):
-                        content = data.get("value", {}).get("content", "")
-                        if not content: content = data.get("content", "")
-                    content_length = len(content)
-                    if content_length > 100:
-                        status = "ready"
-                        with status_lock:
-                            content_fetch_stats["status_counts"][status] = content_fetch_stats["status_counts"].get(status, 0) + 1
-                            content_fetch_stats["ready_age_s_total"] += ready_age_s
-                            content_fetch_stats["ready_age_s_max"] = max(content_fetch_stats["ready_age_s_max"], ready_age_s)
-                        log_action(
-                            "nlm_batch_source_content_fetch_completed",
-                            {
-                                "nb_id": self._nb_id,
-                                "source_id": source_id,
-                                "video_id": vid_hint,
-                                "timeout_s": 30,
-                                "started_at_epoch": started_at_epoch,
-                                "completed_at_epoch": completed_at_epoch,
-                                "elapsed_s": round(completed_at_epoch - started_at_epoch, 3),
-                                "returncode": res.returncode,
-                                "content_length": content_length,
-                                "status": status,
-                                "ready_threshold": 100,
-                                "source_ready_age_s": ready_age_s,
-                                "materialization_ready_at_epoch": ready_reference_epoch,
-                            },
-                        )
-                        return vid_hint, True, content, None
-                    status = "too_short"
-                    failure_reason = f"Fetch failed for {source_id}: {status}"
-                except:
-                    status = "parse_failed"
-                    failure_reason = f"Fetch failed for {source_id}: {status}"
+
+            while True:
+                attempt += 1
+                attempt_started_at_epoch = time.time()
+                attempt_ready_age_s = round(attempt_started_at_epoch - ready_reference_epoch, 3) if ready_reference_epoch else 0.0
+                res = self._run_cmd(["source", "content", source_id, "--json"], timeout=30)
+                attempt_completed_at_epoch = time.time()
+                content = ""
+                content_length = 0
+                status = "command_failed" if res.returncode != 0 else "parse_failed"
+                failure_reason = f"Fetch failed for {source_id}: {status}"
+                retryable = False
+                if res.returncode == 0:
+                    try:
+                        data = json.loads(res.stdout)
+                        # Support both raw and wrapped JSON
+                        if isinstance(data, dict):
+                            content = data.get("value", {}).get("content", "")
+                            if not content:
+                                content = data.get("content", "")
+                        content_length = len(content)
+                        if content_length > 100:
+                            status = "ready"
+                            with status_lock:
+                                content_fetch_stats["status_counts"][status] = content_fetch_stats["status_counts"].get(status, 0) + 1
+                                content_fetch_stats["ready_age_s_total"] += attempt_ready_age_s
+                                content_fetch_stats["ready_age_s_max"] = max(content_fetch_stats["ready_age_s_max"], attempt_ready_age_s)
+                                content_fetch_stats["attempts_total"] += attempt
+                                content_fetch_stats["attempts_max"] = max(content_fetch_stats["attempts_max"], attempt)
+                            log_action(
+                                "nlm_batch_source_content_fetch_completed",
+                                {
+                                    "nb_id": self._nb_id,
+                                    "source_id": source_id,
+                                    "video_id": vid_hint,
+                                    "timeout_s": 30,
+                                    "started_at_epoch": started_at_epoch,
+                                    "completed_at_epoch": attempt_completed_at_epoch,
+                                    "elapsed_s": round(attempt_completed_at_epoch - started_at_epoch, 3),
+                                    "returncode": res.returncode,
+                                    "content_length": content_length,
+                                    "status": status,
+                                    "ready_threshold": 100,
+                                    "source_ready_age_s": attempt_ready_age_s,
+                                    "materialization_ready_at_epoch": ready_reference_epoch,
+                                    "attempts": attempt,
+                                },
+                            )
+                            return vid_hint, True, content, None
+                        status = "too_short"
+                        failure_reason = f"Fetch failed for {source_id}: {status}"
+                        retryable = _should_retry_source_content_fetch(status, res)
+                    except Exception:
+                        status = "parse_failed"
+                        failure_reason = f"Fetch failed for {source_id}: {status}"
+                else:
+                    retryable = _should_retry_source_content_fetch(status, res)
+                last_result = {
+                    "status": status,
+                    "content_length": content_length,
+                    "failure_reason": failure_reason,
+                    "returncode": res.returncode,
+                    "stdout": res.stdout or "",
+                    "stderr": res.stderr or "",
+                    "completed_at_epoch": attempt_completed_at_epoch,
+                    "attempts": attempt,
+                    "content": None,
+                }
+                if not retryable or attempt >= _SOURCE_CONTENT_RETRY_ATTEMPTS:
+                    break
+                time.sleep(delay_s)
+                delay_s = min(delay_s * 2 if delay_s > 0 else _SOURCE_CONTENT_RETRY_INITIAL_DELAY_S, _SOURCE_CONTENT_RETRY_MAX_DELAY_S)
+
+            final_completed_at_epoch = time.time()
+            final_status = str(last_result["status"])
+            final_ready_age_s = round(final_completed_at_epoch - ready_reference_epoch, 3) if ready_reference_epoch else 0.0
             with status_lock:
-                content_fetch_stats["status_counts"][status] = content_fetch_stats["status_counts"].get(status, 0) + 1
-                content_fetch_stats["ready_age_s_total"] += ready_age_s
-                content_fetch_stats["ready_age_s_max"] = max(content_fetch_stats["ready_age_s_max"], ready_age_s)
+                content_fetch_stats["status_counts"][final_status] = content_fetch_stats["status_counts"].get(final_status, 0) + 1
+                content_fetch_stats["ready_age_s_total"] += final_ready_age_s
+                content_fetch_stats["ready_age_s_max"] = max(content_fetch_stats["ready_age_s_max"], final_ready_age_s)
+                content_fetch_stats["attempts_total"] += int(last_result["attempts"])
+                content_fetch_stats["attempts_max"] = max(content_fetch_stats["attempts_max"], int(last_result["attempts"]))
 
             log_action(
                 "nlm_batch_source_content_fetch_completed",
@@ -1363,20 +1429,24 @@ class NLMBatchIngestor:
                     "video_id": vid_hint,
                     "timeout_s": 30,
                     "started_at_epoch": started_at_epoch,
-                    "completed_at_epoch": completed_at_epoch,
-                    "elapsed_s": round(completed_at_epoch - started_at_epoch, 3),
-                    "returncode": res.returncode,
-                    "content_length": content_length,
-                    "status": status,
+                    "completed_at_epoch": final_completed_at_epoch,
+                    "elapsed_s": round(final_completed_at_epoch - started_at_epoch, 3),
+                    "returncode": int(last_result["returncode"]),
+                    "content_length": int(last_result["content_length"]),
+                    "status": final_status,
                     "ready_threshold": 100,
-                    "source_ready_age_s": ready_age_s,
+                    "source_ready_age_s": final_ready_age_s,
                     "materialization_ready_at_epoch": ready_reference_epoch,
-                    "failure_reason": failure_reason,
-                    "stdout": (res.stdout or "")[:200],
-                    "stderr": (res.stderr or "")[:200],
+                    "failure_reason": str(last_result["failure_reason"]),
+                    "attempts": int(last_result["attempts"]),
+                    "stdout": str(last_result["stdout"])[:200],
+                    "stderr": str(last_result["stderr"])[:200],
+                    "retry_initial_delay_s": _SOURCE_CONTENT_RETRY_INITIAL_DELAY_S,
+                    "retry_max_delay_s": _SOURCE_CONTENT_RETRY_MAX_DELAY_S,
+                    "retry_attempts_limit": _SOURCE_CONTENT_RETRY_ATTEMPTS,
                 },
             )
-            return vid_hint, False, None, failure_reason
+            return vid_hint, False, None, str(last_result["failure_reason"])
 
         print(f"[NLM-Batch] Fetching {len(sources)} sources in parallel...")
         video_width = max(len(vid) for vid in batch_ids) if batch_ids else 0
@@ -1411,6 +1481,12 @@ class NLMBatchIngestor:
                     content_fetch_stats["ready_age_s_total"] / max(sum(content_fetch_stats["status_counts"].values()), 1),
                     3,
                 ),
+                "content_fetch_attempts_total": int(content_fetch_stats["attempts_total"]),
+                "content_fetch_attempts_max": int(content_fetch_stats["attempts_max"]),
+                "content_fetch_attempts_avg": round(
+                    content_fetch_stats["attempts_total"] / max(sum(content_fetch_stats["status_counts"].values()), 1),
+                    3,
+                ),
                 "content_fetch_status_counts": content_fetch_stats["status_counts"],
                 "materialization_ready_at_epoch": ready_reference_epoch,
             },
@@ -1421,6 +1497,12 @@ class NLMBatchIngestor:
             "source_ready_age_s_max": round(content_fetch_stats["ready_age_s_max"], 3),
             "source_ready_age_s_avg": round(
                 content_fetch_stats["ready_age_s_total"] / max(sum(content_fetch_stats["status_counts"].values()), 1),
+                3,
+            ),
+            "content_fetch_attempts_total": int(content_fetch_stats["attempts_total"]),
+            "content_fetch_attempts_max": int(content_fetch_stats["attempts_max"]),
+            "content_fetch_attempts_avg": round(
+                content_fetch_stats["attempts_total"] / max(sum(content_fetch_stats["status_counts"].values()), 1),
                 3,
             ),
             "materialization_ready_at_epoch": ready_reference_epoch,
@@ -1943,6 +2025,9 @@ class NLMReusableIngestor:
                 "source_ready_age_s_total": float(extract_metrics.get("source_ready_age_s_total", 0) or 0.0),
                 "source_ready_age_s_max": float(extract_metrics.get("source_ready_age_s_max", 0) or 0.0),
                 "source_ready_age_s_avg": float(extract_metrics.get("source_ready_age_s_avg", 0) or 0.0),
+                "content_fetch_attempts_total": int(extract_metrics.get("content_fetch_attempts_total", 0) or 0),
+                "content_fetch_attempts_max": int(extract_metrics.get("content_fetch_attempts_max", 0) or 0),
+                "content_fetch_attempts_avg": float(extract_metrics.get("content_fetch_attempts_avg", 0) or 0.0),
                 "materialization_ready_at_epoch": float(extract_metrics.get("materialization_ready_at_epoch", 0) or 0.0),
                 "started_at_epoch": batch_started_at_epoch,
                 "completed_at_epoch": time.time(),
@@ -1979,6 +2064,9 @@ class NLMReusableIngestor:
             "source_ready_age_s_total": float(extract_metrics.get("source_ready_age_s_total", 0) or 0.0),
             "source_ready_age_s_max": float(extract_metrics.get("source_ready_age_s_max", 0) or 0.0),
             "source_ready_age_s_avg": float(extract_metrics.get("source_ready_age_s_avg", 0) or 0.0),
+            "content_fetch_attempts_total": int(extract_metrics.get("content_fetch_attempts_total", 0) or 0),
+            "content_fetch_attempts_max": int(extract_metrics.get("content_fetch_attempts_max", 0) or 0),
+            "content_fetch_attempts_avg": float(extract_metrics.get("content_fetch_attempts_avg", 0) or 0.0),
             "materialization_ready_at_epoch": float(extract_metrics.get("materialization_ready_at_epoch", 0) or 0.0),
         }
         return results

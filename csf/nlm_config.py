@@ -38,6 +38,9 @@ class NLMConfig:
     nlm_browser_start_timeout_ms: int = 30000
     nlm_preflight_url_timeout_ms: int = 60000
     nlm_preflight_ui_timeout_ms: int = 15000
+    source_content_retry_attempts: int = 4
+    source_content_retry_initial_delay_s: float = 1.0
+    source_content_retry_max_delay_s: float = 8.0
 
 
 def get_nlm_config() -> NLMConfig:
@@ -94,6 +97,15 @@ def get_nlm_config() -> NLMConfig:
                 ),
                 nlm_preflight_ui_timeout_ms=int(
                     os.environ.get("YTIS_NLM_PREFLIGHT_UI_TIMEOUT_MS", "15000")
+                ),
+                source_content_retry_attempts=int(
+                    os.environ.get("YTIS_NLM_SOURCE_CONTENT_RETRY_ATTEMPTS", "4")
+                ),
+                source_content_retry_initial_delay_s=float(
+                    os.environ.get("YTIS_NLM_SOURCE_CONTENT_RETRY_INITIAL_DELAY_S", "1.0")
+                ),
+                source_content_retry_max_delay_s=float(
+                    os.environ.get("YTIS_NLM_SOURCE_CONTENT_RETRY_MAX_DELAY_S", "8.0")
                 ),
             )
         return _nlm_config

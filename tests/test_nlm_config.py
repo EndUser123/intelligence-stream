@@ -27,6 +27,9 @@ class TestSharedNlmConfig:
         assert cfg.nlm_browser_start_timeout_ms == 30000
         assert cfg.nlm_preflight_url_timeout_ms == 60000
         assert cfg.nlm_preflight_ui_timeout_ms == 15000
+        assert cfg.source_content_retry_attempts == 4
+        assert cfg.source_content_retry_initial_delay_s == 1.0
+        assert cfg.source_content_retry_max_delay_s == 8.0
         assert transcript.get_nlm_config() is cfg
 
     def test_setter_updates_the_shared_singleton(self):
@@ -51,6 +54,9 @@ class TestSharedNlmConfig:
             nlm_browser_start_timeout_ms=30000,
             nlm_preflight_url_timeout_ms=60000,
             nlm_preflight_ui_timeout_ms=15000,
+            source_content_retry_attempts=4,
+            source_content_retry_initial_delay_s=1.0,
+            source_content_retry_max_delay_s=8.0,
         )
         try:
             nlm_config.set_nlm_config(replacement)

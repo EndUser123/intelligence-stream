@@ -1173,6 +1173,67 @@ class TestNotebookCapRotation:
         assert summary["content_fetch_attempts_max"] == 2
         assert summary["content_fetch_attempts_avg"] == 2.0
 
+    def test_source_content_fetch_logs_direct_youtube_page_classification_on_failure(self):
+        """Failed fetches should carry yt-dlp and direct YouTube page metadata."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=1)
+        ingestor._nb_id = "nb-inspect"
+
+        def fake_run_cmd(cmd, timeout=300):
+            if cmd[:2] == ["source", "list"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 0, "stdout": json.dumps({"sources": [{"id": "s1"}]}), "stderr": ""},
+                )()
+            if cmd[:2] == ["source", "content"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 1, "stdout": "", "stderr": "API error (code 5): NOT_FOUND"},
+                )()
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
+            with mock.patch(
+                "csf.nlm_batch.inspect_youtube_watch_page_via_ytdlp",
+                return_value={
+                    "classification": "unknown",
+                    "available": False,
+                    "availability": None,
+                    "live_status": None,
+                    "was_live": False,
+                    "is_live": False,
+                    "title": None,
+                    "error": None,
+                },
+            ) as mock_ytdlp:
+                with mock.patch(
+                    "csf.nlm_batch.inspect_youtube_watch_page",
+                    return_value={
+                        "classification": "removed_by_owner",
+                        "available": False,
+                        "status": "ERROR",
+                        "reason": "Video unavailable",
+                        "subreason": "This video has been removed by the uploader",
+                        "is_live_content": False,
+                        "title": None,
+                    },
+                ) as mock_inspect:
+                    with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                        results = ingestor.extract_transcripts(["vid1"])
+
+        assert results["vid1"][0] is False
+        mock_ytdlp.assert_called_once_with("vid1")
+        mock_inspect.assert_called_once_with("vid1")
+        completed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_source_content_fetch_completed")
+        assert completed["youtube_page_classification"] == "removed_by_owner"
+        assert completed["youtube_page_available"] is False
+        assert completed["youtube_page_status"] == "ERROR"
+        assert completed["youtube_page_reason"] == "Video unavailable"
+        assert completed["youtube_ytdlp_classification"] == "unknown"
+        assert completed["youtube_ytdlp_available"] is False
+        assert completed["youtube_ytdlp_availability"] is None
+
     def test_extract_transcripts_matches_sources_by_title_instead_of_order(self):
         """Source list order should not control which video ID gets which source ID."""
         ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)

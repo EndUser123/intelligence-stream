@@ -21,6 +21,7 @@ from csf.batch_status import summarize_video_ids
 from csf.display import format_result_row
 from csf.csf_logging import log_action
 from csf.nlm_config import get_nlm_config
+from csf.youtube_page_inspector import inspect_youtube_watch_page, inspect_youtube_watch_page_via_ytdlp
 
 
 _DEFAULT_OWNER_NOTEBOOK_STATE_PATH = Path("P:/__csf/.data/yt-is/owner_nlm_notebook.json")
@@ -1414,6 +1415,12 @@ class NLMBatchIngestor:
             final_completed_at_epoch = time.time()
             final_status = str(last_result["status"])
             final_ready_age_s = round(final_completed_at_epoch - ready_reference_epoch, 3) if ready_reference_epoch else 0.0
+            youtube_ytdlp_probe: dict[str, object] = {}
+            youtube_page_probe: dict[str, object] = {}
+            if final_status != "ready" and vid_hint:
+                youtube_ytdlp_probe = inspect_youtube_watch_page_via_ytdlp(vid_hint)
+                if str(youtube_ytdlp_probe.get("classification") or "").strip() in {"error", "unknown"}:
+                    youtube_page_probe = inspect_youtube_watch_page(vid_hint)
             with status_lock:
                 content_fetch_stats["status_counts"][final_status] = content_fetch_stats["status_counts"].get(final_status, 0) + 1
                 content_fetch_stats["ready_age_s_total"] += final_ready_age_s
@@ -1444,6 +1451,24 @@ class NLMBatchIngestor:
                     "retry_initial_delay_s": _SOURCE_CONTENT_RETRY_INITIAL_DELAY_S,
                     "retry_max_delay_s": _SOURCE_CONTENT_RETRY_MAX_DELAY_S,
                     "retry_attempts_limit": _SOURCE_CONTENT_RETRY_ATTEMPTS,
+                    "youtube_ytdlp_classification": youtube_ytdlp_probe.get("classification"),
+                    "youtube_ytdlp_available": youtube_ytdlp_probe.get("available"),
+                    "youtube_ytdlp_availability": youtube_ytdlp_probe.get("availability"),
+                    "youtube_ytdlp_live_status": youtube_ytdlp_probe.get("live_status"),
+                    "youtube_ytdlp_was_live": youtube_ytdlp_probe.get("was_live"),
+                    "youtube_ytdlp_is_live": youtube_ytdlp_probe.get("is_live"),
+                    "youtube_ytdlp_title": youtube_ytdlp_probe.get("title"),
+                    "youtube_ytdlp_returncode": youtube_ytdlp_probe.get("returncode"),
+                    "youtube_ytdlp_error": youtube_ytdlp_probe.get("error"),
+                    "youtube_page_classification": youtube_page_probe.get("classification"),
+                    "youtube_page_available": youtube_page_probe.get("available"),
+                    "youtube_page_status": youtube_page_probe.get("status"),
+                    "youtube_page_reason": youtube_page_probe.get("reason"),
+                    "youtube_page_subreason": youtube_page_probe.get("subreason"),
+                    "youtube_page_is_live_content": youtube_page_probe.get("is_live_content"),
+                    "youtube_page_title": youtube_page_probe.get("title"),
+                    "youtube_page_http_status": youtube_page_probe.get("http_status"),
+                    "youtube_page_error": youtube_page_probe.get("error"),
                 },
             )
             return vid_hint, False, None, str(last_result["failure_reason"])

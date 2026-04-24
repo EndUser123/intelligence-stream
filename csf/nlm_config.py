@@ -41,7 +41,9 @@ class NLMConfig:
     source_content_retry_attempts: int = 4
     source_content_retry_initial_delay_s: float = 1.0
     source_content_retry_max_delay_s: float = 8.0
-    source_content_retry_budget_s: float = 0.0
+    source_content_retry_budget_s: float = 30.0
+    source_content_retry_queue_delay_s: float = 30.0
+    source_content_retry_queue_budget_s: float = 30.0
 
 
 def get_nlm_config() -> NLMConfig:
@@ -109,7 +111,13 @@ def get_nlm_config() -> NLMConfig:
                     os.environ.get("YTIS_NLM_SOURCE_CONTENT_RETRY_MAX_DELAY_S", "8.0")
                 ),
                 source_content_retry_budget_s=float(
-                    os.environ.get("YTIS_NLM_SOURCE_CONTENT_RETRY_BUDGET_S", "0.0")
+                    os.environ.get("YTIS_NLM_SOURCE_CONTENT_RETRY_BUDGET_S", "30.0")
+                ),
+                source_content_retry_queue_delay_s=float(
+                    os.environ.get("YTIS_NLM_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S", "30.0")
+                ),
+                source_content_retry_queue_budget_s=float(
+                    os.environ.get("YTIS_NLM_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S", "30.0")
                 ),
             )
         return _nlm_config

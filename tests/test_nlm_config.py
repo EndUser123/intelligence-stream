@@ -30,7 +30,9 @@ class TestSharedNlmConfig:
         assert cfg.source_content_retry_attempts == 4
         assert cfg.source_content_retry_initial_delay_s == 1.0
         assert cfg.source_content_retry_max_delay_s == 8.0
-        assert cfg.source_content_retry_budget_s == 0.0
+        assert cfg.source_content_retry_budget_s == 30.0
+        assert cfg.source_content_retry_queue_delay_s == 30.0
+        assert cfg.source_content_retry_queue_budget_s == 30.0
         assert transcript.get_nlm_config() is cfg
 
     def test_setter_updates_the_shared_singleton(self):
@@ -58,7 +60,9 @@ class TestSharedNlmConfig:
             source_content_retry_attempts=4,
             source_content_retry_initial_delay_s=1.0,
             source_content_retry_max_delay_s=8.0,
-            source_content_retry_budget_s=0.0,
+            source_content_retry_budget_s=30.0,
+            source_content_retry_queue_delay_s=30.0,
+            source_content_retry_queue_budget_s=30.0,
         )
         try:
             nlm_config.set_nlm_config(replacement)

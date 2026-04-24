@@ -1075,22 +1075,23 @@ class TestNotebookCapRotation:
                 )()
             return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
-        with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
-            with mock.patch(
-                "csf.nlm_batch.inspect_youtube_watch_page_via_ytdlp",
-                return_value={
-                    "classification": "ok",
-                    "available": False,
-                    "availability": None,
-                    "live_status": None,
-                    "was_live": False,
-                    "is_live": False,
-                    "title": None,
-                    "error": None,
-                },
-            ) as mock_ytdlp:
-                with mock.patch("csf.nlm_batch.log_action") as mock_log:
-                    results = ingestor.extract_transcripts(["vid1"])
+        with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S", 0.0):
+            with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
+                with mock.patch(
+                    "csf.nlm_batch.inspect_youtube_watch_page_via_ytdlp",
+                    return_value={
+                        "classification": "ok",
+                        "available": False,
+                        "availability": None,
+                        "live_status": None,
+                        "was_live": False,
+                        "is_live": False,
+                        "title": None,
+                        "error": None,
+                    },
+                ) as mock_ytdlp:
+                    with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                        results = ingestor.extract_transcripts(["vid1"])
 
         assert results["vid1"][0] is False
         assert mock_ytdlp.call_count == 1
@@ -1126,22 +1127,23 @@ class TestNotebookCapRotation:
                 )()
             return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
-        with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
-            with mock.patch(
-                "csf.nlm_batch.inspect_youtube_watch_page_via_ytdlp",
-                return_value={
-                    "classification": "ok",
-                    "available": False,
-                    "availability": None,
-                    "live_status": None,
-                    "was_live": False,
-                    "is_live": False,
-                    "title": None,
-                    "error": None,
-                },
-            ) as mock_ytdlp:
-                with mock.patch("csf.nlm_batch.log_action") as mock_log:
-                    results = ingestor.extract_transcripts(["vid1"])
+        with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S", 0.0):
+            with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
+                with mock.patch(
+                    "csf.nlm_batch.inspect_youtube_watch_page_via_ytdlp",
+                    return_value={
+                        "classification": "ok",
+                        "available": False,
+                        "availability": None,
+                        "live_status": None,
+                        "was_live": False,
+                        "is_live": False,
+                        "title": None,
+                        "error": None,
+                    },
+                ) as mock_ytdlp:
+                    with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                        results = ingestor.extract_transcripts(["vid1"])
 
         assert results["vid1"][0] is False
         assert mock_ytdlp.call_count == 1
@@ -1226,24 +1228,28 @@ class TestNotebookCapRotation:
             return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
         with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_BUDGET_S", 0.01):
-            with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
-                with mock.patch(
-                    "csf.nlm_batch.inspect_youtube_watch_page_via_ytdlp",
-                    return_value={
-                        "classification": "ok",
-                        "available": False,
-                        "availability": None,
-                        "live_status": None,
-                        "was_live": False,
-                        "is_live": False,
-                        "title": None,
-                        "error": None,
-                    },
-                ) as mock_ytdlp:
-                    with mock.patch("csf.nlm_batch.time.time", side_effect=[1000.0, 1000.01, 1000.02, 1000.03, 1000.04, 1000.05, 1000.06, 1000.07, 1000.08, 1000.09]):
-                        with mock.patch("csf.nlm_batch.time.sleep") as mock_sleep:
-                            with mock.patch("csf.nlm_batch.log_action") as mock_log:
-                                results = ingestor.extract_transcripts(["vid1"])
+            with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S", 0.0):
+                with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
+                    with mock.patch(
+                        "csf.nlm_batch.inspect_youtube_watch_page_via_ytdlp",
+                        return_value={
+                            "classification": "ok",
+                            "available": False,
+                            "availability": None,
+                            "live_status": None,
+                            "was_live": False,
+                            "is_live": False,
+                            "title": None,
+                            "error": None,
+                        },
+                    ) as mock_ytdlp:
+                        with mock.patch(
+                            "csf.nlm_batch.time.time",
+                            side_effect=[1000.0, 1000.01, 1000.02, 1000.03, 1000.04, 1000.05, 1000.06, 1000.07, 1000.08, 1000.09],
+                        ):
+                            with mock.patch("csf.nlm_batch.time.sleep") as mock_sleep:
+                                with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                    results = ingestor.extract_transcripts(["vid1"])
 
         assert results["vid1"][0] is False
         assert content_attempts["count"] == 1
@@ -1252,6 +1258,69 @@ class TestNotebookCapRotation:
         completed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_source_content_fetch_completed")
         assert completed["attempts"] == 1
         assert completed["status"] == "command_failed"
+
+    def test_source_content_fetch_queues_retry_pass_for_ytdlp_ok(self):
+        """A ytdlp-ok miss should enter the second NotebookLM pass and recover there."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=1)
+        ingestor._nb_id = "nb-retry-queue"
+        content_attempts = {"count": 0}
+
+        def fake_run_cmd(cmd, timeout=300):
+            if cmd[:2] == ["source", "list"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 0, "stdout": json.dumps({"sources": [{"id": "s1"}]}), "stderr": ""},
+                )()
+            if cmd[:2] == ["source", "content"]:
+                content_attempts["count"] += 1
+                if content_attempts["count"] == 1:
+                    return type(
+                        "CompletedProcess",
+                        (),
+                        {"returncode": 1, "stdout": "", "stderr": "API error (code 5): NOT_FOUND"},
+                    )()
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 0, "stdout": json.dumps({"value": {"content": "x" * 101}}), "stderr": ""},
+                )()
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_ATTEMPTS", 1):
+            with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S", 0.1):
+                with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S", 30.0):
+                    with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
+                        with mock.patch(
+                            "csf.nlm_batch.inspect_youtube_watch_page_via_ytdlp",
+                            return_value={
+                                "classification": "ok",
+                                "available": True,
+                                "availability": "public",
+                                "live_status": "not_live",
+                                "was_live": False,
+                                "is_live": False,
+                                "title": None,
+                                "error": None,
+                            },
+                        ) as mock_ytdlp:
+                            with mock.patch("csf.nlm_batch.time.sleep") as mock_sleep:
+                                with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                    results = ingestor.extract_transcripts(["vid1"])
+
+        assert results["vid1"][0] is True
+        assert results["vid1"][1] == "x" * 101
+        assert content_attempts["count"] == 2
+        assert mock_ytdlp.call_count == 1
+        mock_sleep.assert_called_once_with(0.1)
+        completed = [call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_source_content_fetch_completed"]
+        assert any(entry["pass_name"] == "retry" and entry["status"] == "ready" for entry in completed)
+        summary = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_extract_completed")
+        assert summary["retry_queue_deferred_count"] == 1
+        assert summary["retry_queue_recovered_count"] == 1
+        assert summary["retry_queue_final_failed_count"] == 0
+        assert summary["content_fetch_attempts_total"] == 1
+        assert summary["content_fetch_attempts_max"] == 1
 
     def test_source_content_fetch_logs_direct_youtube_page_classification_on_failure(self):
         """Failed fetches should carry yt-dlp and direct YouTube page metadata."""

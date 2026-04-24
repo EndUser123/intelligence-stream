@@ -52,6 +52,8 @@ _SOURCE_CONTENT_RETRY_MAX_DELAY_S = max(
     float(_NLM_CONFIG.source_content_retry_max_delay_s),
 )
 _SOURCE_CONTENT_RETRY_BUDGET_S = max(0.0, float(_NLM_CONFIG.source_content_retry_budget_s))
+_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S = max(0.0, float(_NLM_CONFIG.source_content_retry_queue_delay_s))
+_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S = max(0.0, float(_NLM_CONFIG.source_content_retry_queue_budget_s))
 
 
 class NotebookSourceMaterializationTimeout(RuntimeError):
@@ -123,6 +125,14 @@ def _should_retry_source_content_fetch(status: str, res: subprocess.CompletedPro
     combined = f"{res.stdout or ''}\n{res.stderr or ''}".upper()
     transient_markers = ("NOT_FOUND", "RATE LIMIT", "TOO MANY REQUESTS", "TEMPORARILY UNAVAILABLE")
     return any(marker in combined for marker in transient_markers)
+
+
+def _should_defer_source_content_fetch(ytdlp_probe: dict[str, object], status: str) -> bool:
+    """Return True when a failure should be queued for a second NotebookLM pass."""
+    if status not in {"command_failed", "too_short"}:
+        return False
+    classification = str(ytdlp_probe.get("classification") or "").strip().lower()
+    return classification == "ok"
 
 
 def _load_reusable_notebook_id() -> Optional[str]:
@@ -1311,12 +1321,22 @@ class NLMBatchIngestor:
                     },
                 )
         
-        def _fetch_content(source_id: str, vid_hint: str):
-            # The 'content' command is NOT an AI query. It's a direct data fetch.
+        def _fetch_content_round(
+            source_id: str,
+            vid_hint: str,
+            *,
+            pass_name: str,
+            allow_retry_queue: bool,
+        ) -> dict[str, object]:
+            """Fetch source content with NotebookLM retries and optional second-pass queuing."""
             started_at_epoch = time.time()
             attempt = 0
             delay_s = _SOURCE_CONTENT_RETRY_INITIAL_DELAY_S
-            retry_deadline = started_at_epoch + _SOURCE_CONTENT_RETRY_BUDGET_S if _SOURCE_CONTENT_RETRY_BUDGET_S > 0 else None
+            retry_deadline = (
+                started_at_epoch + _SOURCE_CONTENT_RETRY_BUDGET_S
+                if _SOURCE_CONTENT_RETRY_BUDGET_S > 0
+                else None
+            )
             last_result: dict[str, object] = {
                 "status": "command_failed",
                 "content_length": 0,
@@ -1328,7 +1348,6 @@ class NLMBatchIngestor:
                 "attempts": 0,
                 "content": None,
             }
-
             log_action(
                 "nlm_batch_source_content_fetch_started",
                 {
@@ -1337,9 +1356,11 @@ class NLMBatchIngestor:
                     "video_id": vid_hint,
                     "timeout_s": 30,
                     "retry_budget_s": _SOURCE_CONTENT_RETRY_BUDGET_S,
+                    "retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
                     "started_at_epoch": started_at_epoch,
                     "source_ready_age_s": round(started_at_epoch - ready_reference_epoch, 3) if ready_reference_epoch else 0.0,
                     "materialization_ready_at_epoch": ready_reference_epoch,
+                    "pass_name": pass_name,
                 },
             )
 
@@ -1357,7 +1378,6 @@ class NLMBatchIngestor:
                 if res.returncode == 0:
                     try:
                         data = json.loads(res.stdout)
-                        # Support both raw and wrapped JSON
                         if isinstance(data, dict):
                             content = data.get("value", {}).get("content", "")
                             if not content:
@@ -1388,9 +1408,22 @@ class NLMBatchIngestor:
                                     "source_ready_age_s": attempt_ready_age_s,
                                     "materialization_ready_at_epoch": ready_reference_epoch,
                                     "attempts": attempt,
+                                    "pass_name": pass_name,
                                 },
                             )
-                            return vid_hint, True, content, None
+                            return {
+                                "video_id": vid_hint,
+                                "source_id": source_id,
+                                "success": True,
+                                "content": content,
+                                "error": None,
+                                "status": status,
+                                "queued_for_retry": False,
+                                "attempts": attempt,
+                                "returncode": res.returncode,
+                                "content_length": content_length,
+                                "youtube_ytdlp_classification": None,
+                            }
                         status = "too_short"
                         failure_reason = f"Fetch failed for {source_id}: {status}"
                         retryable = _should_retry_source_content_fetch(status, res)
@@ -1433,6 +1466,60 @@ class NLMBatchIngestor:
                 youtube_ytdlp_probe = inspect_youtube_watch_page_via_ytdlp(vid_hint)
                 if str(youtube_ytdlp_probe.get("classification") or "").strip() in {"error", "unknown"}:
                     youtube_page_probe = inspect_youtube_watch_page(vid_hint)
+            retry_queue_eligible = (
+                allow_retry_queue
+                and _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S > 0
+                and _should_defer_source_content_fetch(youtube_ytdlp_probe, final_status)
+            )
+            if retry_queue_eligible:
+                log_action(
+                    "nlm_batch_source_content_retry_queued",
+                    {
+                        "nb_id": self._nb_id,
+                        "source_id": source_id,
+                        "video_id": vid_hint,
+                        "status": final_status,
+                        "attempts": int(last_result["attempts"]),
+                        "retry_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
+                        "retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
+                        "youtube_ytdlp_classification": youtube_ytdlp_probe.get("classification"),
+                        "youtube_ytdlp_available": youtube_ytdlp_probe.get("available"),
+                        "youtube_ytdlp_availability": youtube_ytdlp_probe.get("availability"),
+                        "pass_name": pass_name,
+                        "source_ready_age_s": final_ready_age_s,
+                        "materialization_ready_at_epoch": ready_reference_epoch,
+                    },
+                )
+                return {
+                    "video_id": vid_hint,
+                    "source_id": source_id,
+                    "success": False,
+                    "content": None,
+                    "error": None,
+                    "status": final_status,
+                    "queued_for_retry": True,
+                    "attempts": int(last_result["attempts"]),
+                    "returncode": int(last_result["returncode"]),
+                    "content_length": int(last_result["content_length"]),
+                    "youtube_ytdlp_classification": youtube_ytdlp_probe.get("classification"),
+                    "youtube_ytdlp_available": youtube_ytdlp_probe.get("available"),
+                    "youtube_ytdlp_availability": youtube_ytdlp_probe.get("availability"),
+                    "youtube_ytdlp_live_status": youtube_ytdlp_probe.get("live_status"),
+                    "youtube_ytdlp_was_live": youtube_ytdlp_probe.get("was_live"),
+                    "youtube_ytdlp_is_live": youtube_ytdlp_probe.get("is_live"),
+                    "youtube_ytdlp_title": youtube_ytdlp_probe.get("title"),
+                    "youtube_ytdlp_returncode": youtube_ytdlp_probe.get("returncode"),
+                    "youtube_ytdlp_error": youtube_ytdlp_probe.get("error"),
+                    "youtube_page_classification": youtube_page_probe.get("classification"),
+                    "youtube_page_available": youtube_page_probe.get("available"),
+                    "youtube_page_status": youtube_page_probe.get("status"),
+                    "youtube_page_reason": youtube_page_probe.get("reason"),
+                    "youtube_page_subreason": youtube_page_probe.get("subreason"),
+                    "youtube_page_is_live_content": youtube_page_probe.get("is_live_content"),
+                    "youtube_page_title": youtube_page_probe.get("title"),
+                    "youtube_page_http_status": youtube_page_probe.get("http_status"),
+                    "youtube_page_error": youtube_page_probe.get("error"),
+                }
             with status_lock:
                 content_fetch_stats["status_counts"][final_status] = content_fetch_stats["status_counts"].get(final_status, 0) + 1
                 content_fetch_stats["ready_age_s_total"] += final_ready_age_s
@@ -1463,7 +1550,10 @@ class NLMBatchIngestor:
                     "retry_initial_delay_s": _SOURCE_CONTENT_RETRY_INITIAL_DELAY_S,
                     "retry_max_delay_s": _SOURCE_CONTENT_RETRY_MAX_DELAY_S,
                     "retry_budget_s": _SOURCE_CONTENT_RETRY_BUDGET_S,
+                    "retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
+                    "retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
                     "retry_attempts_limit": _SOURCE_CONTENT_RETRY_ATTEMPTS,
+                    "pass_name": pass_name,
                     "youtube_ytdlp_classification": youtube_ytdlp_probe.get("classification"),
                     "youtube_ytdlp_available": youtube_ytdlp_probe.get("available"),
                     "youtube_ytdlp_availability": youtube_ytdlp_probe.get("availability"),
@@ -1484,26 +1574,118 @@ class NLMBatchIngestor:
                     "youtube_page_error": youtube_page_probe.get("error"),
                 },
             )
-            return vid_hint, False, None, str(last_result["failure_reason"])
+            return {
+                "video_id": vid_hint,
+                "source_id": source_id,
+                "success": False,
+                "content": None,
+                "error": str(last_result["failure_reason"]),
+                "status": final_status,
+                "queued_for_retry": False,
+                "attempts": int(last_result["attempts"]),
+                "returncode": int(last_result["returncode"]),
+                "content_length": int(last_result["content_length"]),
+                "youtube_ytdlp_classification": youtube_ytdlp_probe.get("classification"),
+                "youtube_ytdlp_available": youtube_ytdlp_probe.get("available"),
+                "youtube_ytdlp_availability": youtube_ytdlp_probe.get("availability"),
+                "youtube_ytdlp_live_status": youtube_ytdlp_probe.get("live_status"),
+                "youtube_ytdlp_was_live": youtube_ytdlp_probe.get("was_live"),
+                "youtube_ytdlp_is_live": youtube_ytdlp_probe.get("is_live"),
+                "youtube_ytdlp_title": youtube_ytdlp_probe.get("title"),
+                "youtube_ytdlp_returncode": youtube_ytdlp_probe.get("returncode"),
+                "youtube_ytdlp_error": youtube_ytdlp_probe.get("error"),
+                "youtube_page_classification": youtube_page_probe.get("classification"),
+                "youtube_page_available": youtube_page_probe.get("available"),
+                "youtube_page_status": youtube_page_probe.get("status"),
+                "youtube_page_reason": youtube_page_probe.get("reason"),
+                "youtube_page_subreason": youtube_page_probe.get("subreason"),
+                "youtube_page_is_live_content": youtube_page_probe.get("is_live_content"),
+                "youtube_page_title": youtube_page_probe.get("title"),
+                "youtube_page_http_status": youtube_page_probe.get("http_status"),
+                "youtube_page_error": youtube_page_probe.get("error"),
+            }
 
-        print(f"[NLM-Batch] Fetching {len(sources)} sources in parallel...")
-        video_width = max(len(vid) for vid in batch_ids) if batch_ids else 0
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = []
-            for i, vid in enumerate(batch_ids):
-                source_id = source_id_by_video_id.get(vid)
-                if not source_id and i < len(source_id_list):
-                    source_id = source_id_list[i]
-                if source_id:
-                    futures.append(executor.submit(_fetch_content, source_id, vid))
-            
-            for future in as_completed(futures):
-                vid, success, text, error = future.result()
-                results[vid] = (success, text, error)
-                if success:
-                    print(format_result_row(vid, True, f"{len(text)} chars", video_width))
-                else:
-                    print(format_result_row(vid, False, error, video_width))
+        def _run_fetch_round(
+            round_items: list[tuple[str, str]],
+            *,
+            pass_name: str,
+            allow_retry_queue: bool,
+        ) -> tuple[dict[str, tuple[bool, Optional[str], Optional[str]]], list[tuple[str, str]]]:
+            round_results: dict[str, tuple[bool, Optional[str], Optional[str]]] = {}
+            round_retry_queue: list[tuple[str, str]] = []
+            if not round_items:
+                return round_results, round_retry_queue
+            print(f"[NLM-Batch] Fetching {len(round_items)} sources in parallel ({pass_name})...")
+            video_width = max(len(vid) for vid, _ in round_items) if round_items else 0
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                futures = [executor.submit(_fetch_content_round, source_id, vid, pass_name=pass_name, allow_retry_queue=allow_retry_queue) for vid, source_id in round_items]
+                for future in as_completed(futures):
+                    outcome = future.result()
+                    vid = str(outcome["video_id"])
+                    if outcome.get("queued_for_retry"):
+                        round_retry_queue.append((vid, str(outcome["source_id"])))
+                        continue
+                    success = bool(outcome["success"])
+                    text = outcome.get("content")
+                    error = outcome.get("error")
+                    round_results[vid] = (success, text if isinstance(text, str) else None, error if isinstance(error, str) else None)
+                    if success and isinstance(text, str):
+                        print(format_result_row(vid, True, f"{len(text)} chars", video_width))
+                    else:
+                        print(format_result_row(vid, False, str(error) if error is not None else "unknown error", video_width))
+            return round_results, round_retry_queue
+
+        batch_items: list[tuple[str, str]] = []
+        for i, vid in enumerate(batch_ids):
+            source_id = source_id_by_video_id.get(vid)
+            if not source_id and i < len(source_id_list):
+                source_id = source_id_list[i]
+            if source_id:
+                batch_items.append((vid, source_id))
+
+        retry_queue_deferred_count = 0
+        retry_queue_recovered_count = 0
+        retry_queue_final_failed_count = 0
+
+        primary_results, retry_queue = _run_fetch_round(batch_items, pass_name="primary", allow_retry_queue=True)
+        results.update(primary_results)
+        retry_queue_deferred_count += len(retry_queue)
+
+        if retry_queue and _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S > 0:
+            log_action(
+                "nlm_batch_source_content_retry_queue_window_started",
+                {
+                    "nb_id": self._nb_id,
+                    "batch_size": len(batch_ids),
+                    "retry_queue_count": len(retry_queue),
+                    "retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
+                    "retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
+                    "materialization_ready_at_epoch": ready_reference_epoch,
+                },
+            )
+            if _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S > 0:
+                time.sleep(_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S)
+            retry_results, retry_queue = _run_fetch_round(retry_queue, pass_name="retry", allow_retry_queue=False)
+            results.update(retry_results)
+            retry_queue_recovered_count = sum(1 for ok, _, _ in retry_results.values() if ok)
+            retry_queue_final_failed_count = len(retry_results) - retry_queue_recovered_count
+            log_action(
+                "nlm_batch_source_content_retry_queue_window_completed",
+                {
+                    "nb_id": self._nb_id,
+                    "batch_size": len(batch_ids),
+                    "retry_queue_count": retry_queue_deferred_count,
+                    "recovered_count": retry_queue_recovered_count,
+                    "final_failed_count": retry_queue_final_failed_count,
+                    "retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
+                    "retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
+                    "materialization_ready_at_epoch": ready_reference_epoch,
+                },
+            )
+
+        for vid in batch_ids:
+            if vid not in results:
+                results[vid] = (False, None, "Source not found")
         succeeded = sum(1 for ok, _, _ in results.values() if ok)
         log_action(
             "nlm_batch_extract_completed",
@@ -1513,6 +1695,11 @@ class NLMBatchIngestor:
                 "succeeded": succeeded,
                 "failed": len(results) - succeeded,
                 "elapsed_s": round(time.time() - start, 3),
+                "retry_queue_deferred_count": retry_queue_deferred_count,
+                "retry_queue_recovered_count": retry_queue_recovered_count,
+                "retry_queue_final_failed_count": retry_queue_final_failed_count,
+                "retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
+                "retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
                 "source_ready_age_s_total": round(content_fetch_stats["ready_age_s_total"], 3),
                 "source_ready_age_s_max": round(content_fetch_stats["ready_age_s_max"], 3),
                 "source_ready_age_s_avg": round(
@@ -1543,6 +1730,11 @@ class NLMBatchIngestor:
                 content_fetch_stats["attempts_total"] / max(sum(content_fetch_stats["status_counts"].values()), 1),
                 3,
             ),
+            "retry_queue_deferred_count": retry_queue_deferred_count,
+            "retry_queue_recovered_count": retry_queue_recovered_count,
+            "retry_queue_final_failed_count": retry_queue_final_failed_count,
+            "retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
+            "retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
             "materialization_ready_at_epoch": ready_reference_epoch,
         }
 

@@ -1,0 +1,195 @@
+{
+  "started_at": 1777008573.254439,
+  "output_root": "P:\\packages\\yt-is\\.logs\\worker_count_trials",
+  "sweep_dir": "P:\\packages\\yt-is\\.logs\\worker_count_trials\\20260423_232933",
+  "limit": 400,
+  "worker_counts": [
+    2
+  ],
+  "results": [
+    {
+      "workers": 2,
+      "limit": 400,
+      "returncode": 0,
+      "elapsed_s": 2523.851,
+      "stdout_path": "P:\\packages\\yt-is\\.logs\\worker_count_trials\\20260423_232933\\workers_02\\stdout.txt",
+      "stderr_path": "P:\\packages\\yt-is\\.logs\\worker_count_trials\\20260423_232933\\workers_02\\stderr.txt",
+      "log_dir": "P:\\packages\\yt-is\\.logs\\worker_count_trials\\20260423_232933\\workers_02\\logs",
+      "log_file": "P:\\packages\\yt-is\\.logs\\worker_count_trials\\20260423_232933\\workers_02\\logs\\term_b2de178f.jsonl",
+      "fetch_completed": {
+        "source_filter": null,
+        "strategy": "industrial_cli_batch",
+        "backend": "notebooklm_cli_batch",
+        "backlog_threshold": 50,
+        "batch_size": 50,
+        "max_items": 400,
+        "workers": 2,
+        "channels_tracked_total": 743,
+        "channels_blocked_total": 0,
+        "channels_active_total": 732,
+        "pending_total": 400,
+        "cached_total": 0,
+        "cached_hit_rate": 0.0,
+        "cached_sample": [],
+        "industrial_batches_processed": 8,
+        "notebooklm_pending_count": 400,
+        "transcript_fallback_processed_count": 0,
+        "transcript_fallback_queued_count": 0,
+        "terminal_count": 0,
+        "negative_cache_count": 472,
+        "terminal_reason_counts": {},
+        "negative_cache_reason_counts": {
+          "unavailable": 472
+        },
+        "negative_cache_sample": [
+          {
+            "video_id": "AOnyxxADgxE",
+            "source": "https://www.youtube.com/channel/UC057bZ2YLcUaWSp_joOQEtw",
+            "channel_index": 169,
+            "reason": "unavailable",
+            "last_stage": "direct_api"
+          },
+          {
+            "video_id": "hotranqYmYI",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          },
+          {
+            "video_id": "Z53T_FcXQDA",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          },
+          {
+            "video_id": "okL5wquiTFg",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          },
+          {
+            "video_id": "tljhsKc-EKg",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          },
+          {
+            "video_id": "tmJZ7atqgbI",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          },
+          {
+            "video_id": "5GKfzZPJCcQ",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          },
+          {
+            "video_id": "L9SwLFxZ8h0",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          },
+          {
+            "video_id": "gMJSLLa-O0s",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          },
+          {
+            "video_id": "m82TaD_eUFs",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          }
+        ],
+        "worker_cleanup_deleted": 0,
+        "worker_cleanup_failed": 0,
+        "worker_stage_totals": {
+          "startup_retire_elapsed_s_total": 0.0,
+          "startup_notebook_check_elapsed_s_total": 23.233999999999998,
+          "startup_notebook_create_elapsed_s_total": 0.0,
+          "startup_prepare_cleanup_elapsed_s_total": 17.194,
+          "startup_prepare_total_elapsed_s_total": 40.429,
+          "setup_elapsed_s_total": 1755.1259999999997,
+          "notebook_check_elapsed_s_total": 45.01700000000001,
+          "notebook_create_elapsed_s_total": 0.0,
+          "notebook_retire_elapsed_s_total": 0.0,
+          "add_sources_elapsed_s_total": 1710.106,
+          "content_fetch_status_counts_total": {
+            "ready": 370,
+            "command_failed": 30
+          },
+          "source_ready_age_s_total": 44458.106,
+          "source_ready_age_s_max": 1982.093,
+          "source_ready_age_s_avg": 766.25,
+          "extract_elapsed_s_total": 2713.345,
+          "cleanup_elapsed_s_total": 260.74199999999996,
+          "batch_elapsed_s_total": 4729.216
+        },
+        "worker_source_profile_totals": {
+          "total": 400,
+          "matched": 400,
+          "missing": 0,
+          "source_class_counts": {
+            "no_captions": 397,
+            "status_pending": 3
+          },
+          "status_counts": {
+            "pending": 400
+          },
+          "privacy_status_counts": {
+            "public": 397,
+            "unknown": 3
+          },
+          "upload_status_counts": {
+            "unknown": 400
+          },
+          "unavailable_reason_counts": {
+            "unknown": 400
+          },
+          "failure_reason_counts": {
+            "unknown": 400
+          }
+        },
+        "success_count": 370,
+        "fail_count": 30,
+        "skip_count": 0,
+        "processed_count": 400,
+        "elapsed_s": 2523.851,
+        "success_per_min": 8.8,
+        "processed_per_min": 9.51,
+        "status": "completed"
+      },
+      "process_elapsed_s": 2523.995,
+      "success_count": 370,
+      "fail_count": 30,
+      "skip_count": 0,
+      "processed_count": 400,
+      "videos_per_hour": 527.76,
+      "processed_per_hour": 570.56,
+      "add_elapsed_s": 1710.106,
+      "readiness_elapsed_s": 0.0,
+      "cleanup_elapsed_s": 260.742,
+      "materialization_started": false,
+      "timeout_hit": false,
+      "source_ready_age_s_total": 44458.106,
+      "source_ready_age_s_max": 1982.093,
+      "source_ready_age_s_avg": 111.145,
+      "content_fetch_status_counts": {
+        "ready": 370,
+        "command_failed": 30
+      }
+    }
+  ]
+}

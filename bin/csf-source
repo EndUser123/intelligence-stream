@@ -194,6 +194,7 @@ def _build_fetch_completed_payload(
     terminal_reason_counts: dict[str, int] | None = None,
     negative_cache_reason_counts: dict[str, int] | None = None,
     negative_cache_sample: list[dict[str, object]] | None = None,
+    route_no_captions_to_fallback: bool = False,
 ) -> dict[str, object]:
     return {
         "source_filter": source_filter,
@@ -223,6 +224,7 @@ def _build_fetch_completed_payload(
         "worker_cleanup_failed": worker_cleanup_failed,
         "worker_stage_totals": worker_stage_totals or {},
         "worker_source_profile_totals": worker_source_profile_totals or {},
+        "route_no_captions_to_fallback": route_no_captions_to_fallback,
         "success_count": success_count,
         "fail_count": fail_count,
         "skip_count": skip_count,
@@ -304,6 +306,7 @@ def _log_fetch_completed(
     terminal_reason_counts: dict[str, int] | None = None,
     negative_cache_reason_counts: dict[str, int] | None = None,
     negative_cache_sample: list[dict[str, object]] | None = None,
+    route_no_captions_to_fallback: bool = False,
 ) -> None:
     processed_count = success_count + fail_count + skip_count
     log_action(
@@ -331,6 +334,7 @@ def _log_fetch_completed(
             worker_cleanup_failed=worker_cleanup_failed,
             worker_stage_totals=worker_stage_totals,
             worker_source_profile_totals=worker_source_profile_totals,
+            route_no_captions_to_fallback=route_no_captions_to_fallback,
             notebooklm_pending_count=notebooklm_pending_count,
             transcript_fallback_queued_count=transcript_fallback_queued_count,
             terminal_reason_counts=terminal_reason_counts,
@@ -1440,6 +1444,20 @@ def cmd_fetch(
             value = os.getenv(fallback)
         return float(value or default)
 
+    def _env_bool(primary: str, fallback: str | None, default: bool) -> bool:
+        value = os.getenv(primary)
+        if value is None or not value.strip():
+            value = os.getenv(fallback) if fallback else None
+        if value is None or not str(value).strip():
+            return default
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+    route_no_captions_to_fallback = _env_bool(
+        "YTIS_ROUTE_NO_CAPTIONS_TO_FALLBACK",
+        "YTIS_TRANSCRIPT_ROUTE_NO_CAPTIONS_TO_FALLBACK",
+        False,
+    )
+
     log_action(
         "fetch_invoked",
         {
@@ -1463,6 +1481,7 @@ def cmd_fetch(
                 1,
                 _env_int("YTIS_INDUSTRIAL_BATCHES_PER_WORKER", "YTIS_INDUSTRIAL_BATCHES_PER_LAUNCH", 4),
             ),
+            "route_no_captions_to_fallback": route_no_captions_to_fallback,
         },
     )
     first_download_logged = False
@@ -1651,6 +1670,8 @@ def cmd_fetch(
         if has_captions in (True, 1):
             return "notebooklm", "captioned"
         if has_captions in (False, 0):
+            if route_no_captions_to_fallback:
+                return "transcript_fallback", "no_captions"
             return "notebooklm", "no_captions"
         return "notebooklm", "unknown"
 
@@ -2221,8 +2242,29 @@ def cmd_fetch(
             video_id=video_id,
             source_url=source_url,
         )
+        admission_metadata = None
+        try:
+            for entry in get_entries_for_source_details(source_url):
+                if str(entry.get("video_id")) == video_id:
+                    admission_metadata = {
+                        "title": entry.get("title"),
+                        "description": entry.get("description"),
+                        "duration": entry.get("duration"),
+                        "privacy_status": entry.get("privacy_status"),
+                        "upload_status": entry.get("upload_status"),
+                        "is_live_content": entry.get("is_live_content"),
+                        "unavailable_reason": entry.get("unavailable_reason"),
+                    }
+                    break
+        except Exception:
+            admission_metadata = None
         config = LanguageConfig(prefer_lang="en", allow_translation=False)
-        result = fetch_transcript_chain(video_id, config, skip_notebooklm=skip_notebooklm)
+        result = fetch_transcript_chain(
+            video_id,
+            config,
+            skip_notebooklm=skip_notebooklm,
+            admission_metadata=admission_metadata,
+        )
         if result.transcript:
             set_cached_transcript(
                 video_id,
@@ -2579,6 +2621,7 @@ def cmd_fetch(
             negative_cache_count=negative_cache_count,
             negative_cache_reason_counts=dict(negative_cache_reason_counts),
             negative_cache_sample=negative_cache_sample,
+            route_no_captions_to_fallback=route_no_captions_to_fallback,
             industrial_batches_processed=industrial_batches_processed,
             notebooklm_pending_count=notebooklm_pending_count,
             transcript_fallback_processed_count=transcript_fallback_processed_count,
@@ -2662,6 +2705,7 @@ def cmd_fetch(
             negative_cache_count=negative_cache_count,
             negative_cache_reason_counts=dict(negative_cache_reason_counts),
             negative_cache_sample=negative_cache_sample,
+            route_no_captions_to_fallback=route_no_captions_to_fallback,
             industrial_batches_processed=industrial_batches_processed,
             notebooklm_pending_count=notebooklm_pending_count,
             transcript_fallback_processed_count=transcript_fallback_processed_count,
@@ -2924,6 +2968,7 @@ def cmd_fetch(
         negative_cache_count=negative_cache_count,
         negative_cache_reason_counts=dict(negative_cache_reason_counts),
         negative_cache_sample=negative_cache_sample,
+        route_no_captions_to_fallback=route_no_captions_to_fallback,
         industrial_batches_processed=industrial_batches_processed,
         notebooklm_pending_count=notebooklm_pending_count,
         transcript_fallback_processed_count=transcript_fallback_processed_count,

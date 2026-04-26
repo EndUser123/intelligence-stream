@@ -1333,8 +1333,9 @@ class _BatchStatusStorage:
             for candidate in candidates:
                 cursor = conn.execute(
                     """
-                    SELECT video_id, status, has_captions, duration, privacy_status,
-                           upload_status, is_live_content, unavailable_reason, source, channel_id
+                    SELECT video_id, status, has_captions, title, description, duration,
+                           privacy_status, upload_status, is_live_content, unavailable_reason,
+                           source, channel_id
                     FROM analysis_status
                     WHERE source = ? OR channel_id = ?
                     """,
@@ -1348,13 +1349,15 @@ class _BatchStatusStorage:
                 "video_id": row[0],
                 "status": row[1],
                 "has_captions": row[2],
-                "duration": row[3],
-                "privacy_status": row[4],
-                "upload_status": row[5],
-                "is_live_content": row[6],
-                "unavailable_reason": row[7],
-                "source": row[8],
-                "channel_id": row[9],
+                "title": row[3],
+                "description": row[4],
+                "duration": row[5],
+                "privacy_status": row[6],
+                "upload_status": row[7],
+                "is_live_content": row[8],
+                "unavailable_reason": row[9],
+                "source": row[10],
+                "channel_id": row[11],
             }
             for row in rows
         ]

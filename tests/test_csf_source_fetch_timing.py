@@ -983,8 +983,93 @@ def test_cmd_fetch_routes_non_captioned_items_to_notebooklm_first():
 
     log_names = [call.args[0] for call in mock_log.call_args_list]
     assert "fetch_completed" in log_names
-    assert mock_process.call_count == 1
+    assert mock_process.call_count >= 1
     assert "transcript_fallback_queued" not in log_names
+
+
+def test_cmd_fetch_routes_non_captioned_items_to_transcript_fallback_when_enabled():
+    """The opt-in routing toggle should bypass NotebookLM for no-caption items."""
+    mod = _load_csf_source_module()
+    channel_rows = [("https://www.youtube.com/@active", "pl-1")]
+    pending_entries = [
+        {
+            "video_id": "vid000",
+            "status": "pending",
+            "has_captions": False,
+            "privacy_status": "public",
+            "upload_status": "uploaded",
+            "is_live_content": False,
+            "unavailable_reason": None,
+            "source": "https://www.youtube.com/@active",
+        }
+    ]
+
+    class FakeCursor:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def fetchall(self):
+            return self._rows
+
+    class FakeConn:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def execute(self, *_args, **_kwargs):
+            return FakeCursor(self._rows)
+
+        def close(self):
+            return None
+
+    class FakeStorage:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def _get_conn(self):
+            return FakeConn(self._rows)
+
+    transcript_result = mock.Mock(
+        transcript="fallback transcript",
+        lang="en",
+        source="selenium",
+        view_count=None,
+        like_count=None,
+        comment_count=None,
+        duration=None,
+        video_title=None,
+        video_description=None,
+        error=None,
+    )
+
+    with mock.patch.object(mod, "_get_batch_status_storage", return_value=FakeStorage(channel_rows)):
+        with mock.patch.object(mod, "is_channel_blocked", return_value=False):
+            with mock.patch.object(mod, "get_entries_for_source_details", return_value=pending_entries):
+                with mock.patch.object(mod, "has_cached_transcript", return_value=False):
+                    with mock.patch.dict(
+                        mod.os.environ,
+                        {
+                            "YTIS_ROUTE_NO_CAPTIONS_TO_FALLBACK": "true",
+                            "YTIS_TRANSCRIPT_FALLBACK_MIN_START_INTERVAL_S": "0",
+                            "YTIS_TRANSCRIPT_FALLBACK_WORKERS": "4",
+                        },
+                        clear=False,
+                    ):
+                        with mock.patch.object(mod.subprocess, "run") as mock_run:
+                            mock_run.return_value = mock.MagicMock(returncode=0, stdout="", stderr="")
+                            with mock.patch("csf.transcript.fetch_transcript_chain", return_value=transcript_result) as mock_fetch:
+                                with mock.patch.object(mod, "process_industrial_batch_reusable") as mock_process:
+                                    with mock.patch.object(mod, "close_reusable_ingestor"):
+                                        with mock.patch.object(mod, "set_cached_transcript"):
+                                            with mock.patch.object(mod, "mark_complete"):
+                                                with mock.patch.object(mod, "log_action") as mock_log:
+                                                    mod.cmd_fetch(dry_run=False, workers=1)
+
+    log_names = [call.args[0] for call in mock_log.call_args_list]
+    assert "fetch_completed" in log_names
+    assert mock_process.call_count == 0
+    assert mock_fetch.call_count == 1
+    fetch_invoked = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "fetch_invoked")
+    assert fetch_invoked["route_no_captions_to_fallback"] is True
 
 
 def test_cmd_fetch_routes_live_items_to_transcript_fallback_first():

@@ -1,0 +1,93 @@
+[source] Preflight scan: checking 1102 active channels (0 blocked skipped) for pending videos...
+[source] Scan status: 1/1102 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.002s, trigger=first_channel
+[source] Pending item limit reached at 10; stopping scan early.
+[source] Preflight scan complete: 1102 active channels, 10 pending, 0 cached, 0 neg-cache, 0 terminal, 10 notebooklm, 0 transcript-fallback
+[source] Parallel industrial dispatch: 1 batches across 1 workers...
+[source] Escalation Batch Process
+[source] Channels: 1102 active / 1102 tracked
+[source] Already cached: 0
+[source] Negative-cache skips: 0
+[source] Pending extraction: 10
+[source] Run limit: 10 pending items
+[source] Mode: LIVE
+[source] Strategy: Industrial (Batch NLM)
+[source] Method: NotebookLM CLI batch for captioned/no-captions items; live items use transcript fallback
+[source] Workers: 2
+
+[source] Pre-flight worker notebook audit: 0 worker notebooks reported, 0 failed
+{"worker_id":"worker-01","event":"worker_notebook_reset_started","notebooklm_profile":"ytis-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\load_ladder_benchmark\\worker_states\\worker-01.json","notebook_title":"benchmark-notebooklm_only_30s-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"benchmark-notebooklm_only_30s-01","state_path":"P:\\packages\\yt-is\\.logs\\load_ladder_benchmark\\worker_states\\worker-01.json"}}
+{"worker_id":"worker-01","event":"worker_notebook_reset_completed","notebooklm_profile":"ytis-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\load_ladder_benchmark\\worker_states\\worker-01.json","notebook_title":"benchmark-notebooklm_only_30s-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"benchmark-notebooklm_only_30s-01","state_path":"P:\\packages\\yt-is\\.logs\\load_ladder_benchmark\\worker_states\\worker-01.json"}}
+[NLM-Batch] Creating notebook...
+[NLM-Batch] Adding 0 sources in sub-batches...
+{"worker_id":"worker-01","event":"notebook_prewarm","prepared":true,"setup_mode":"create","notebooklm_profile":"ytis-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\load_ladder_benchmark\\worker_states\\worker-01.json","notebook_title":"benchmark-notebooklm_only_30s-01","elapsed_s":4.33}
+[NLM-Batch] Adding 10 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-10/10...
+[NLM-Batch]   Adding sub-batch 1 (10 sources, retry_depth=0, nb_sources_before=0)...
+[Throttle] Success restored after 1 failures — delay reset
+[NLM-Batch]   Sub-batch 1 add rc=1 (retry_depth=0)
+[NLM-Batch] Fetching 10 sources in parallel (primary)...
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+[Throttle] 9 consecutive failures — throttling 60.0s
+[Throttle] 10 consecutive failures — throttling 60.0s
+[Throttle] 11 consecutive failures — throttling 60.0s
+[Throttle] 12 consecutive failures — throttling 60.0s
+[Throttle] 13 consecutive failures — throttling 60.0s
+[Throttle] 14 consecutive failures — throttling 60.0s
+[Throttle] 15 consecutive failures — throttling 60.0s
+[Throttle] 16 consecutive failures — throttling 60.0s
+[Throttle] 17 consecutive failures — throttling 60.0s
+[Throttle] 18 consecutive failures — throttling 60.0s
+[Throttle] 19 consecutive failures — throttling 60.0s
+[Throttle] 20 consecutive failures — throttling 60.0s
+[NLM-Batch] Fetching 10 sources in parallel (retry)...
+[Throttle] 21 consecutive failures — throttling 60.0s
+[Throttle] 22 consecutive failures — throttling 60.0s
+[Throttle] 23 consecutive failures — throttling 60.0s
+[Throttle] 24 consecutive failures — throttling 60.0s
+[Throttle] 25 consecutive failures — throttling 60.0s
+[Throttle] 26 consecutive failures — throttling 60.0s
+[Throttle] 27 consecutive failures — throttling 60.0s
+[Throttle] 28 consecutive failures — throttling 60.0s
+[Throttle] 29 consecutive failures — throttling 60.0s
+[Throttle] 30 consecutive failures — throttling 60.0s
+[Throttle] 31 consecutive failures — throttling 60.0s
+[Throttle] 32 consecutive failures — throttling 60.0s
+[Throttle] 33 consecutive failures — throttling 60.0s
+[Throttle] 34 consecutive failures — throttling 60.0s
+[Throttle] 35 consecutive failures — throttling 60.0s
+[Throttle] 36 consecutive failures — throttling 60.0s
+[Throttle] 37 consecutive failures — throttling 60.0s
+[Throttle] 38 consecutive failures — throttling 60.0s
+[Throttle] 39 consecutive failures — throttling 60.0s
+[Throttle] 40 consecutive failures — throttling 60.0s
+  ✗ dO8nlwJVtPc | Fetch failed for 877ae9b6-7eb1-4018-94b8-0426bce06401: command_failed
+  ✗ kEo5_GaOtlU | Fetch failed for 2ffefcb8-0c1c-4dff-8e78-2d407c5b747b: command_failed
+  ✗ XSbEmJ9Cvss | Fetch failed for f0547c64-b00c-47f0-9114-3b996597b582: command_failed
+  ✗ Aoegt_Ru29w | Fetch failed for 3db4fbaf-452b-478b-a8bd-1d15cd6ad989: command_failed
+  ✗ vGsSDzvQoWE | Fetch failed for 76006feb-afef-4bc8-93f4-917a8e51620f: command_failed
+  ✗ eXuBP1o_1IY | Fetch failed for f4e584be-027e-4e85-9350-4b5164e88bcb: command_failed
+  ✗ RJkFfWR2gM4 | Fetch failed for 1e03de75-2c4e-46a9-8437-eecd4ac79a4f: command_failed
+  ✗ _Z1WNBvpsxM | Fetch failed for cb13ed9d-e273-4cef-b3a8-c35c934aa0c5: command_failed
+  ✗ _AbYvOlWRl0 | Fetch failed for 002c3382-847e-4dd6-9fe2-9c138cca9893: command_failed
+  ✗ XTv_EQwSwCM | Fetch failed for 3db08d9e-484a-43c3-b5c3-10c6bb2e9d37: command_failed
+[Throttle] Success restored after 40 failures — delay reset
+{"worker_id":"worker-01","input":"C:\\Users\\brsth\\AppData\\Local\\Temp\\tmporv7_z03.json","batch_count":1,"video_count":10,"succeeded":0,"failed":10,"source_profile":{"total":10,"matched":10,"missing":0,"source_class_counts":{"no_captions":10},"status_counts":{"pending":10},"privacy_status_counts":{"public":10},"upload_status_counts":{"unknown":10},"unavailable_reason_counts":{"unknown":10},"failure_reason_counts":{"unknown":10}},"subbatch_metrics":[{"subbatch_index":1,"subbatch_size":10,"target_subbatch_size":50,"attempted_count":10,"added_count":0,"add_cmd_elapsed_s":4.717,"materialization_wait_elapsed_s":0.0,"elapsed_s":4.717,"returncode":1,"failure_reason":"source_add_failed","source_profile":{"total":10,"matched":10,"missing":0,"source_class_counts":{"no_captions":10},"status_counts":{"pending":10},"privacy_status_counts":{"public":10},"upload_status_counts":{"unknown":10},"unavailable_reason_counts":{"unknown":10},"failure_reason_counts":{"unknown":10}},"current_source_count":10,"source_materialization_ready_at_epoch":0.0,"status":"shortfall"}],"startup_retire_elapsed_s":0.0,"startup_notebook_check_elapsed_s":0.0,"startup_notebook_create_elapsed_s":1.6,"startup_prepare_cleanup_elapsed_s":1.331,"startup_prepare_total_elapsed_s":4.327,"setup_elapsed_s_total":12.236,"notebook_check_elapsed_s_total":2.954,"notebook_create_elapsed_s_total":0.0,"notebook_retire_elapsed_s_total":0.0,"add_sources_elapsed_s_total":9.282,"add_cmd_elapsed_s_total":4.717,"materialization_wait_elapsed_s_total":0.0,"extract_elapsed_s_total":191.015,"cleanup_elapsed_s_total":61.484,"batch_elapsed_s_total":264.736,"content_fetch_status_counts_total":{"command_failed":10},"source_ready_age_s_total":0.0,"source_ready_age_s_max":0.0,"source_ready_age_s_avg":0.0,"youtube_ytdlp_elapsed_s_total":38.881,"youtube_ytdlp_elapsed_s_max":2.612,"youtube_ytdlp_elapsed_s_count":20,"youtube_ytdlp_elapsed_s_avg":1.944,"youtube_page_elapsed_s_total":0.0,"youtube_page_elapsed_s_max":0.0,"youtube_page_elapsed_s_count":0,"youtube_page_elapsed_s_avg":0.0,"shared_retry_deferred_count":0,"shared_retry_recovered_count":0,"shared_retry_final_failed_count":0,"shared_retry_processed_count":0,"notebooklm_profile":"ytis-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\load_ladder_benchmark\\worker_states\\worker-01.json","notebook_title":"benchmark-notebooklm_only_30s-01","status":"ok","returncode":0}
+
+[source] === Escalation Batch Complete ===
+[source] Successfully extracted: 0
+[source] Failed: 10
+[source] Skipped (cached): 0
+[source] Skipped (negative cache): 0
+[source] Skipped (terminal): 0
+[source] NotebookLM-eligible: 10
+[source] Routed to transcript fallback: 0
+[source] Worker notebook cleanup: 0 deleted, 0 failed
+[source] Stage totals: startup=4.3s, setup=12.2s, add=9.3s, extract=191.0s, cleanup=61.5s, batch=264.7s
+[source] Worker source profile: no_captions=10
+[source] Total discovered: 10
+[source] Total processed outcomes: 10

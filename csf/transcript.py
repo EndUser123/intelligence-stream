@@ -24,7 +24,12 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Callable, Literal, TYPE_CHECKING
 
-from csf.nlm_config import NLMConfig, get_nlm_config, set_nlm_config
+from csf.nlm_config import (
+    NLMConfig,
+    get_nlm_config,
+    get_transcript_worker_jitter_bounds,
+    set_nlm_config,
+)
 from csf.batch_status import (
     get_source as _get_source_for_video,
     mark_failed as _mark_failed_video,
@@ -88,6 +93,23 @@ _SOURCE_NLM = "notebooklm"
 _SOURCE_EXTERNAL = "external"
 _SOURCE_DIRECT_API = "direct_api"
 
+_WHISPER_STRONG_NON_SPEECH_PHRASES = (
+    "official audio",
+    "music video",
+    "instrumental",
+    "karaoke",
+    "lyrics",
+    "live performance",
+)
+
+_WHISPER_WEAK_NON_SPEECH_TOKENS = (
+    "cover",
+    "remix",
+    "dance",
+    "performance",
+    "song",
+)
+
 # Source-stage versioning for transcript provenance
 # When NotebookLM changes its JSON response structure, source_stage increments.
 # Re-fetches with higher source_stage win over stale lower-stage content.
@@ -119,12 +141,6 @@ def register_external_transcript_provider(provider: Callable[[str, str], tuple[b
     """
     global _external_provider
     _external_provider = provider
-
-# Jitter bounds for rate limit avoidance
-# PERF-006: Wider range (was 0.5-2.5) to prevent thundering herd.
-# Workers stagger over a 10s window so concurrent requests are spread.
-_JITTER_MIN = 2.0
-_JITTER_MAX = 10.0
 
 # BCP-47 validation regex: language is [a-z]{2}, region is [A-Z]{2} optional
 _BCP47_PATTERN = re.compile(r"^[a-z]{2}(-[A-Z]{2})?$")
@@ -500,9 +516,15 @@ def _validate_video_id(video_id: str) -> bool:
     return bool(_VIDEO_ID_PATTERN.match(video_id))
 
 
+def _get_worker_jitter_bounds() -> tuple[float, float]:
+    """Return the worker jitter bounds used by transcript fetch loops."""
+    return get_transcript_worker_jitter_bounds()
+
+
 def _apply_jitter() -> None:
     """Apply random jitter between parallel fetch attempts to avoid rate limiting."""
-    jitter = random.uniform(_JITTER_MIN, _JITTER_MAX)
+    jitter_min_s, jitter_max_s = _get_worker_jitter_bounds()
+    jitter = random.uniform(jitter_min_s, jitter_max_s)
     time.sleep(jitter)
 
 
@@ -564,7 +586,8 @@ def _apply_jitter_with_backoff(source: str) -> None:
     multiplier = (
         min(_BACKOFF_BASE**count, _MAX_BACKOFF_MULTIPLIER) if count > 0 else 1.0
     )
-    jitter = random.uniform(_JITTER_MIN, _JITTER_MAX) * multiplier
+    jitter_min_s, jitter_max_s = _get_worker_jitter_bounds()
+    jitter = random.uniform(jitter_min_s, jitter_max_s) * multiplier
     time.sleep(jitter)
 
 
@@ -1316,6 +1339,85 @@ def _summarize_whisper_empty_result(segments: list[object]) -> str:
     return f"whisper produced empty transcript (segments={segment_count})"
 
 
+def _normalize_admission_text(value: object | None) -> str:
+    if value is None:
+        return ""
+    return re.sub(r"\s+", " ", str(value)).strip().lower()
+
+
+def _coerce_positive_int(value: object | None) -> int | None:
+    try:
+        if value is None:
+            return None
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
+def _whisper_admission_check(
+    admission_metadata: dict[str, object] | None,
+) -> tuple[bool, str | None, str | None]:
+    """Decide whether Whisper should run for a no-caption candidate.
+
+    Returns:
+        (should_attempt, failure_reason, error_message)
+    """
+
+    if not admission_metadata:
+        return (True, None, None)
+
+    privacy_status = _normalize_admission_text(admission_metadata.get("privacy_status"))
+    upload_status = _normalize_admission_text(admission_metadata.get("upload_status"))
+    unavailable_reason = _normalize_admission_text(admission_metadata.get("unavailable_reason"))
+    is_live_content = bool(admission_metadata.get("is_live_content"))
+
+    if is_live_content or upload_status in {"live", "live_stream", "premiere"}:
+        return (
+            False,
+            "unavailable",
+            "whisper admission skipped: unavailable live or premiere metadata",
+        )
+    if privacy_status in {"private", "deleted"}:
+        return (
+            False,
+            "unavailable",
+            f"whisper admission skipped: terminal privacy metadata ({privacy_status})",
+        )
+    if unavailable_reason in {"deleted", "private", "removed", "unavailable"}:
+        return (
+            False,
+            "unavailable",
+            f"whisper admission skipped: terminal unavailable metadata ({unavailable_reason})",
+        )
+
+    title = _normalize_admission_text(admission_metadata.get("title"))
+    description = _normalize_admission_text(admission_metadata.get("description"))
+    channel_title = _normalize_admission_text(admission_metadata.get("channel_title"))
+    text_blob = " ".join(part for part in (title, channel_title, description) if part)
+
+    if not text_blob:
+        return (True, None, None)
+
+    if any(phrase in text_blob for phrase in _WHISPER_STRONG_NON_SPEECH_PHRASES):
+        return (
+            False,
+            "no_transcript",
+            "whisper admission skipped: likely music or silence",
+        )
+
+    duration = _coerce_positive_int(admission_metadata.get("duration"))
+    if duration is not None and duration <= 15:
+        if any(token in text_blob for token in _WHISPER_WEAK_NON_SPEECH_TOKENS):
+            return (
+                False,
+                "no_transcript",
+                f"whisper admission skipped: likely music or silence (duration={duration})",
+            )
+
+    return (True, None, None)
+
+
 def _fetch_via_selenium_firefox(
     video_id: str, lang: str
 ) -> tuple[bool, str | None, str | None]:
@@ -1735,6 +1837,7 @@ def fetch_transcript_chain(
     config: LanguageConfig,
     *,
     skip_notebooklm: bool = False,
+    admission_metadata: dict[str, object] | None = None,
 ) -> TranscriptResult:
     """Fetch transcript using yt-dlp → Selenium → NotebookLM fallback chain.
 
@@ -1751,6 +1854,8 @@ def fetch_transcript_chain(
         config: LanguageConfig specifying prefer_lang and allow_translation
         skip_notebooklm: If True, skip the NotebookLM stage and fall back to
             Selenium, Whisper, and direct API only.
+        admission_metadata: Optional cheap metadata used to decide whether
+            Whisper should run for this candidate.
 
     Returns:
         TranscriptResult with all fields populated including detected_lang.
@@ -1915,6 +2020,27 @@ def fetch_transcript_chain(
                 _WHISPER_ENABLED = os.getenv("YTIS_WHISPER_ENABLED", "true").lower() == "true"
             if not _WHISPER_ENABLED:
                 continue
+            should_attempt_whisper, whisper_failure_reason, whisper_error = _whisper_admission_check(
+                admission_metadata
+            )
+            if not should_attempt_whisper:
+                _log_transcript_chain_event(
+                    "transcript_whisper_admission_skipped",
+                    video_id,
+                    last_stage="whisper_admission",
+                    failure_reason=whisper_failure_reason,
+                    error=whisper_error,
+                )
+                if whisper_failure_reason == "unavailable":
+                    _persist_terminal_failure(video_id, whisper_error, "whisper_admission")
+                else:
+                    _record_soft_negative(
+                        video_id,
+                        "no_transcript",
+                        last_stage="whisper_admission",
+                        error=whisper_error,
+                    )
+                return _none_result(whisper_error, "whisper_admission")
 
         last_stage_reached = source  # Track the last stage we actually tried
 

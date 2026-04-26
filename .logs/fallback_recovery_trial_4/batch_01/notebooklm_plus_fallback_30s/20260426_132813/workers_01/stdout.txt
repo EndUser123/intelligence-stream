@@ -1,0 +1,56 @@
+[source] Preflight scan: checking 1 active channels (0 blocked skipped) for pending videos...
+[source] Pending item limit reached at 3; stopping scan early.
+[source] Preflight scan complete: 1 active channels, 3 pending, 0 cached, 0 neg-cache, 0 terminal, 3 notebooklm, 0 transcript-fallback
+[source] Escalation Batch Process
+[source] Channels: 1 active / 1 tracked
+[source] Already cached: 0
+[source] Negative-cache skips: 0
+[source] Pending extraction: 3
+[source] Run limit: 3 pending items
+[source] Mode: LIVE
+[source] Strategy: Industrial (Batch NLM)
+[source] Method: NotebookLM CLI batch for captioned/no-captions items; live items use transcript fallback
+[source] Workers: 1
+
+[source] Processing batch 1 (3 videos) via NotebookLM CLI batch...
+[NLM-Batch] Adding 3 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-3/3...
+[NLM-Batch]   Adding sub-batch 1 (3 sources, retry_depth=0, nb_sources_before=3)...
+[Throttle] Success restored after 1 failures — delay reset
+[NLM-Batch]   Sub-batch 1 add rc=1 (retry_depth=0)
+[NLM-Batch] Fetching 3 sources in parallel (primary)...
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+[Throttle] 9 consecutive failures — throttling 60.0s
+[Throttle] 10 consecutive failures — throttling 60.0s
+[Throttle] 11 consecutive failures — throttling 60.0s
+[Throttle] 12 consecutive failures — throttling 60.0s
+[NLM-Batch] Fetching 3 sources in parallel (retry)...
+[Throttle] 13 consecutive failures — throttling 60.0s
+[Throttle] 14 consecutive failures — throttling 60.0s
+[Throttle] 15 consecutive failures — throttling 60.0s
+[Throttle] 16 consecutive failures — throttling 60.0s
+[Throttle] 17 consecutive failures — throttling 60.0s
+[Throttle] 18 consecutive failures — throttling 60.0s
+  ✗ gL9fq9ybx_Q | Fetch failed for 46ef166a-4de4-49d1-aa01-45eee636c453: command_failed
+  ✗ 4qTixOM76EQ | Fetch failed for a123220c-3158-488f-9a4d-aa7d0bdeae69: command_failed
+  ✗ zgf2d8gsy70 | Fetch failed for 8b8ae8d0-3864-4c55-8eb5-daf02960ddb9: command_failed
+[Throttle] Success restored after 18 failures — delay reset
+  ✗ gL9fq9ybx_Q: Fetch failed for 46ef166a-4de4-49d1-aa01-45eee636c453: command_failed
+  ✗ 4qTixOM76EQ: Fetch failed for a123220c-3158-488f-9a4d-aa7d0bdeae69: command_failed
+  ✗ zgf2d8gsy70: Fetch failed for 8b8ae8d0-3864-4c55-8eb5-daf02960ddb9: command_failed
+
+[source] === Escalation Batch Complete ===
+[source] Successfully extracted: 0
+[source] Failed: 3
+[source] Skipped (cached): 0
+[source] Skipped (negative cache): 0
+[source] Skipped (terminal): 0
+[source] NotebookLM-eligible: 3
+[source] Routed to transcript fallback: 0
+[source] Total discovered: 3
+[source] Total processed outcomes: 3

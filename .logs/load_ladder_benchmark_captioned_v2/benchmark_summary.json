@@ -1,0 +1,713 @@
+{
+  "generated_at": "2026-04-26T16:54:47.096388+00:00",
+  "trace_root": "P:\\packages\\yt-is\\.logs",
+  "cohort_json": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\cohort.json",
+  "source_url": "https://www.youtube.com/channel/UCYTISFALLBACKBMK",
+  "policy": "notebooklm_only_30s",
+  "cohort_shape": "captioned",
+  "sample_label": "caption_rich",
+  "workers": 2,
+  "limit": 10,
+  "batch_size": 10,
+  "scenario_names": [
+    "baseline",
+    "route_no_captions_to_fallback"
+  ],
+  "shared_worker_state_root": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\worker_states",
+  "scenarios": [
+    {
+      "name": "baseline",
+      "description": "Current notebook settings and current jitter defaults.",
+      "env_overrides": {},
+      "preserve_worker_state_root": false,
+      "returncode": 0,
+      "scenario_output_root": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\baseline",
+      "benchmark_summary_path": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\baseline\\benchmark_summary.json",
+      "benchmark_summary": {
+        "generated_at": "2026-04-26T16:59:39.250044+00:00",
+        "trace_root": "P:\\packages\\yt-is\\.logs",
+        "cohort_json": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\cohort.json",
+        "source_url": "https://www.youtube.com/channel/UCYTISFALLBACKBMK",
+        "cohort_shape": "captioned",
+        "sample_label": "caption_rich",
+        "workers": 2,
+        "limit": 10,
+        "batch_size": 10,
+        "items": [
+          {
+            "video_id": "ucMazNkOSE4",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "8ota37xIArc",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "wZ11C9zV8p0",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "ZfcDAEQN9s4",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "4-RjomgNtcs",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "hw22rsCBkL8",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "3cY-xhYT02g",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "3FUbfTHhko4",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "m-I23CRfQic",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "jwV4_NHychk",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          }
+        ],
+        "batches": [
+          {
+            "batch_index": 1,
+            "batch_size": 10,
+            "items": [
+              {
+                "video_id": "ucMazNkOSE4",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "8ota37xIArc",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "wZ11C9zV8p0",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "ZfcDAEQN9s4",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "4-RjomgNtcs",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "hw22rsCBkL8",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "3cY-xhYT02g",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "3FUbfTHhko4",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "m-I23CRfQic",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "jwV4_NHychk",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              }
+            ],
+            "policies": [
+              {
+                "policy": "notebooklm_only_30s",
+                "sweep_dir": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\baseline\\batch_01\\notebooklm_only_30s\\20260426_105447",
+                "results": [
+                  {
+                    "workers": 2,
+                    "limit": 10,
+                    "sample_label": "caption_rich",
+                    "returncode": 0,
+                    "elapsed_s": 291.122,
+                    "stdout_path": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\baseline\\batch_01\\notebooklm_only_30s\\20260426_105447\\workers_02\\stdout.txt",
+                    "stderr_path": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\baseline\\batch_01\\notebooklm_only_30s\\20260426_105447\\workers_02\\stderr.txt",
+                    "log_dir": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\baseline\\batch_01\\notebooklm_only_30s\\20260426_105447\\workers_02\\logs",
+                    "log_file": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\baseline\\batch_01\\notebooklm_only_30s\\20260426_105447\\workers_02\\logs\\term_ee65ef76.jsonl",
+                    "fetch_completed": {
+                      "source_filter": null,
+                      "strategy": "industrial_cli_batch",
+                      "backend": "notebooklm_cli_batch",
+                      "backlog_threshold": 1,
+                      "batch_size": 50,
+                      "max_items": 10,
+                      "workers": 2,
+                      "channels_tracked_total": 1102,
+                      "channels_blocked_total": 0,
+                      "channels_active_total": 1102,
+                      "pending_total": 10,
+                      "cached_total": 0,
+                      "cached_hit_rate": 0.0,
+                      "cached_sample": [],
+                      "industrial_batches_processed": 1,
+                      "notebooklm_pending_count": 10,
+                      "transcript_fallback_processed_count": 0,
+                      "transcript_fallback_queued_count": 0,
+                      "terminal_count": 0,
+                      "negative_cache_count": 0,
+                      "terminal_reason_counts": {},
+                      "negative_cache_reason_counts": {},
+                      "negative_cache_sample": [],
+                      "worker_cleanup_deleted": 0,
+                      "worker_cleanup_failed": 0,
+                      "worker_stage_totals": {
+                        "startup_retire_elapsed_s_total": 0.0,
+                        "startup_notebook_check_elapsed_s_total": 0.0,
+                        "startup_notebook_create_elapsed_s_total": 1.879,
+                        "startup_prepare_cleanup_elapsed_s_total": 1.459,
+                        "startup_prepare_total_elapsed_s_total": 4.729,
+                        "setup_elapsed_s_total": 12.892,
+                        "notebook_check_elapsed_s_total": 3.095,
+                        "notebook_create_elapsed_s_total": 0.0,
+                        "notebook_retire_elapsed_s_total": 0.0,
+                        "add_sources_elapsed_s_total": 9.797,
+                        "content_fetch_status_counts_total": {
+                          "command_failed": 10
+                        },
+                        "source_ready_age_s_total": 0.0,
+                        "source_ready_age_s_max": 0.0,
+                        "source_ready_age_s_avg": 0.0,
+                        "youtube_ytdlp_elapsed_s_total": 43.273,
+                        "youtube_ytdlp_elapsed_s_max": 2.621,
+                        "youtube_ytdlp_elapsed_s_count": 20,
+                        "youtube_ytdlp_elapsed_s_avg": 2.164,
+                        "youtube_page_elapsed_s_total": 0.0,
+                        "youtube_page_elapsed_s_max": 0.0,
+                        "youtube_page_elapsed_s_count": 0,
+                        "youtube_page_elapsed_s_avg": 0.0,
+                        "shared_retry_deferred_count_total": 0.0,
+                        "shared_retry_recovered_count_total": 0.0,
+                        "shared_retry_final_failed_count_total": 0.0,
+                        "shared_retry_processed_count_total": 0.0,
+                        "extract_elapsed_s_total": 192.202,
+                        "cleanup_elapsed_s_total": 62.007,
+                        "batch_elapsed_s_total": 267.101
+                      },
+                      "worker_source_profile_totals": {
+                        "total": 10,
+                        "matched": 10,
+                        "missing": 0,
+                        "source_class_counts": {
+                          "no_captions": 10
+                        },
+                        "status_counts": {
+                          "pending": 10
+                        },
+                        "privacy_status_counts": {
+                          "public": 10
+                        },
+                        "upload_status_counts": {
+                          "unknown": 10
+                        },
+                        "unavailable_reason_counts": {
+                          "unknown": 10
+                        },
+                        "failure_reason_counts": {
+                          "unknown": 10
+                        }
+                      },
+                      "route_no_captions_to_fallback": false,
+                      "success_count": 0,
+                      "fail_count": 10,
+                      "skip_count": 0,
+                      "processed_count": 10,
+                      "elapsed_s": 291.122,
+                      "success_per_min": 0.0,
+                      "processed_per_min": 2.06,
+                      "status": "completed"
+                    },
+                    "process_elapsed_s": 291.276,
+                    "success_count": 0,
+                    "fail_count": 10,
+                    "skip_count": 0,
+                    "processed_count": 10,
+                    "videos_per_hour": 0.0,
+                    "processed_per_hour": 123.66,
+                    "add_elapsed_s": 9.797,
+                    "readiness_elapsed_s": 0.0,
+                    "cleanup_elapsed_s": 62.007,
+                    "worker_idle_wait_s": 219.318,
+                    "materialization_started": false,
+                    "timeout_hit": false,
+                    "source_ready_age_s_total": 0.0,
+                    "source_ready_age_s_max": 0.0,
+                    "source_ready_age_s_avg": 0.0,
+                    "shared_retry_deferred_count": 0.0,
+                    "shared_retry_recovered_count": 0.0,
+                    "shared_retry_final_failed_count": 0.0,
+                    "shared_retry_processed_count": 0.0,
+                    "youtube_ytdlp_elapsed_s_total": 43.273,
+                    "youtube_ytdlp_elapsed_s_max": 2.621,
+                    "youtube_ytdlp_elapsed_s_count": 20,
+                    "youtube_ytdlp_elapsed_s_avg": 2.164,
+                    "youtube_page_elapsed_s_total": 0.0,
+                    "youtube_page_elapsed_s_max": 0.0,
+                    "youtube_page_elapsed_s_count": 0,
+                    "youtube_page_elapsed_s_avg": 0.0,
+                    "content_fetch_status_counts": {
+                      "command_failed": 10
+                    }
+                  }
+                ],
+                "fallback_processed_count": 0
+              }
+            ]
+          }
+        ],
+        "fallback_exercised": false
+      }
+    },
+    {
+      "name": "route_no_captions_to_fallback",
+      "description": "Route no-caption items directly to transcript fallback to measure source-shape splitting.",
+      "env_overrides": {
+        "YTIS_ROUTE_NO_CAPTIONS_TO_FALLBACK": "true"
+      },
+      "preserve_worker_state_root": false,
+      "returncode": 0,
+      "scenario_output_root": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\route_no_captions_to_fallback",
+      "benchmark_summary_path": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\route_no_captions_to_fallback\\benchmark_summary.json",
+      "benchmark_summary": {
+        "generated_at": "2026-04-26T16:59:43.490253+00:00",
+        "trace_root": "P:\\packages\\yt-is\\.logs",
+        "cohort_json": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\cohort.json",
+        "source_url": "https://www.youtube.com/channel/UCYTISFALLBACKBMK",
+        "cohort_shape": "captioned",
+        "sample_label": "caption_rich",
+        "workers": 2,
+        "limit": 10,
+        "batch_size": 10,
+        "items": [
+          {
+            "video_id": "ucMazNkOSE4",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "8ota37xIArc",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "wZ11C9zV8p0",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "ZfcDAEQN9s4",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "4-RjomgNtcs",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "hw22rsCBkL8",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "3cY-xhYT02g",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "3FUbfTHhko4",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "m-I23CRfQic",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          },
+          {
+            "video_id": "jwV4_NHychk",
+            "source_url": "",
+            "final_status": null,
+            "youtube_ytdlp_elapsed_s": null,
+            "youtube_page_elapsed_s": null,
+            "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+            "has_captions": true
+          }
+        ],
+        "batches": [
+          {
+            "batch_index": 1,
+            "batch_size": 10,
+            "items": [
+              {
+                "video_id": "ucMazNkOSE4",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "8ota37xIArc",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "wZ11C9zV8p0",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "ZfcDAEQN9s4",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "4-RjomgNtcs",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "hw22rsCBkL8",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "3cY-xhYT02g",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "3FUbfTHhko4",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "m-I23CRfQic",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              },
+              {
+                "video_id": "jwV4_NHychk",
+                "source_url": "",
+                "final_status": null,
+                "youtube_ytdlp_elapsed_s": null,
+                "youtube_page_elapsed_s": null,
+                "trace_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\batch_01\\notebooklm_only_30s\\20260424_223146\\workers_02\\logs\\term_16fdc603.jsonl",
+                "has_captions": true
+              }
+            ],
+            "policies": [
+              {
+                "policy": "notebooklm_only_30s",
+                "sweep_dir": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\route_no_captions_to_fallback\\batch_01\\notebooklm_only_30s\\20260426_105939",
+                "results": [
+                  {
+                    "workers": 2,
+                    "limit": 10,
+                    "sample_label": "caption_rich",
+                    "returncode": 0,
+                    "elapsed_s": 3.944,
+                    "stdout_path": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\route_no_captions_to_fallback\\batch_01\\notebooklm_only_30s\\20260426_105939\\workers_02\\stdout.txt",
+                    "stderr_path": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\route_no_captions_to_fallback\\batch_01\\notebooklm_only_30s\\20260426_105939\\workers_02\\stderr.txt",
+                    "log_dir": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\route_no_captions_to_fallback\\batch_01\\notebooklm_only_30s\\20260426_105939\\workers_02\\logs",
+                    "log_file": "P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_captioned_v2\\route_no_captions_to_fallback\\batch_01\\notebooklm_only_30s\\20260426_105939\\workers_02\\logs\\term_893c9070.jsonl",
+                    "fetch_completed": {
+                      "source_filter": null,
+                      "strategy": "transcript_fallback_chain",
+                      "backend": "yt_dlp_plus_selenium",
+                      "backlog_threshold": 1,
+                      "batch_size": 50,
+                      "max_items": 10,
+                      "workers": 2,
+                      "channels_tracked_total": 1102,
+                      "channels_blocked_total": 0,
+                      "channels_active_total": 1102,
+                      "pending_total": 10,
+                      "cached_total": 0,
+                      "cached_hit_rate": 0.0,
+                      "cached_sample": [],
+                      "industrial_batches_processed": 0,
+                      "notebooklm_pending_count": 0,
+                      "transcript_fallback_processed_count": 0,
+                      "transcript_fallback_queued_count": 10,
+                      "terminal_count": 0,
+                      "negative_cache_count": 0,
+                      "terminal_reason_counts": {},
+                      "negative_cache_reason_counts": {},
+                      "negative_cache_sample": [],
+                      "worker_cleanup_deleted": 0,
+                      "worker_cleanup_failed": 0,
+                      "worker_stage_totals": {
+                        "startup_retire_elapsed_s_total": 0.0,
+                        "startup_notebook_check_elapsed_s_total": 0.0,
+                        "startup_notebook_create_elapsed_s_total": 0.0,
+                        "startup_prepare_cleanup_elapsed_s_total": 0.0,
+                        "startup_prepare_total_elapsed_s_total": 0.0,
+                        "setup_elapsed_s_total": 0.0,
+                        "notebook_check_elapsed_s_total": 0.0,
+                        "notebook_create_elapsed_s_total": 0.0,
+                        "notebook_retire_elapsed_s_total": 0.0,
+                        "add_sources_elapsed_s_total": 0.0,
+                        "content_fetch_status_counts_total": {},
+                        "source_ready_age_s_total": 0.0,
+                        "source_ready_age_s_max": 0.0,
+                        "source_ready_age_s_avg": 0.0,
+                        "youtube_ytdlp_elapsed_s_total": 0.0,
+                        "youtube_ytdlp_elapsed_s_max": 0.0,
+                        "youtube_ytdlp_elapsed_s_count": 0,
+                        "youtube_ytdlp_elapsed_s_avg": 0.0,
+                        "youtube_page_elapsed_s_total": 0.0,
+                        "youtube_page_elapsed_s_max": 0.0,
+                        "youtube_page_elapsed_s_count": 0,
+                        "youtube_page_elapsed_s_avg": 0.0,
+                        "shared_retry_deferred_count_total": 0.0,
+                        "shared_retry_recovered_count_total": 0.0,
+                        "shared_retry_final_failed_count_total": 0.0,
+                        "shared_retry_processed_count_total": 0.0,
+                        "extract_elapsed_s_total": 0.0,
+                        "cleanup_elapsed_s_total": 0.0,
+                        "batch_elapsed_s_total": 0.0
+                      },
+                      "worker_source_profile_totals": {
+                        "total": 0,
+                        "matched": 0,
+                        "missing": 0,
+                        "source_class_counts": {},
+                        "status_counts": {},
+                        "privacy_status_counts": {},
+                        "upload_status_counts": {},
+                        "unavailable_reason_counts": {},
+                        "failure_reason_counts": {}
+                      },
+                      "route_no_captions_to_fallback": true,
+                      "success_count": 0,
+                      "fail_count": 10,
+                      "skip_count": 0,
+                      "processed_count": 10,
+                      "elapsed_s": 3.944,
+                      "success_per_min": 0.0,
+                      "processed_per_min": 152.13,
+                      "status": "completed"
+                    },
+                    "process_elapsed_s": 4.076,
+                    "success_count": 0,
+                    "fail_count": 10,
+                    "skip_count": 0,
+                    "processed_count": 10,
+                    "videos_per_hour": 0.0,
+                    "processed_per_hour": 9127.79,
+                    "add_elapsed_s": 0.0,
+                    "readiness_elapsed_s": 0.0,
+                    "cleanup_elapsed_s": 0.0,
+                    "worker_idle_wait_s": 3.944,
+                    "materialization_started": false,
+                    "timeout_hit": false,
+                    "source_ready_age_s_total": 0.0,
+                    "source_ready_age_s_max": 0.0,
+                    "source_ready_age_s_avg": 0.0,
+                    "shared_retry_deferred_count": 0.0,
+                    "shared_retry_recovered_count": 0.0,
+                    "shared_retry_final_failed_count": 0.0,
+                    "shared_retry_processed_count": 0.0,
+                    "youtube_ytdlp_elapsed_s_total": 0.0,
+                    "youtube_ytdlp_elapsed_s_max": 0.0,
+                    "youtube_ytdlp_elapsed_s_count": 0,
+                    "youtube_ytdlp_elapsed_s_avg": 0.0,
+                    "youtube_page_elapsed_s_total": 0.0,
+                    "youtube_page_elapsed_s_max": 0.0,
+                    "youtube_page_elapsed_s_count": 0,
+                    "youtube_page_elapsed_s_avg": 0.0,
+                    "content_fetch_status_counts": {}
+                  }
+                ],
+                "fallback_processed_count": 0
+              }
+            ]
+          }
+        ],
+        "fallback_exercised": false
+      }
+    }
+  ]
+}

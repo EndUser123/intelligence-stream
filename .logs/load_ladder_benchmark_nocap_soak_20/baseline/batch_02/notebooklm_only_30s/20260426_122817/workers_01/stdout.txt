@@ -1,0 +1,93 @@
+[source] Preflight scan: checking 1 active channels (0 blocked skipped) for pending videos...
+[source] Pending item limit reached at 10; stopping scan early.
+[source] Preflight scan complete: 1 active channels, 10 pending, 0 cached, 0 neg-cache, 0 terminal, 10 notebooklm, 0 transcript-fallback
+[source] Escalation Batch Process
+[source] Channels: 1 active / 1 tracked
+[source] Already cached: 0
+[source] Negative-cache skips: 0
+[source] Pending extraction: 10
+[source] Run limit: 10 pending items
+[source] Mode: LIVE
+[source] Strategy: Industrial (Batch NLM)
+[source] Method: NotebookLM CLI batch for captioned/no-captions items; live items use transcript fallback
+[source] Workers: 1
+
+[source] Processing batch 1 (10 videos) via NotebookLM CLI batch...
+[NLM-Batch] Adding 10 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-10/10...
+[NLM-Batch]   Adding sub-batch 1 (10 sources, retry_depth=0, nb_sources_before=0)...
+[Throttle] Success restored after 1 failures — delay reset
+[NLM-Batch]   Sub-batch 1 add rc=1 (retry_depth=0)
+[NLM-Batch] Fetching 10 sources in parallel (primary)...
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+[Throttle] 9 consecutive failures — throttling 60.0s
+[Throttle] 10 consecutive failures — throttling 60.0s
+[Throttle] 11 consecutive failures — throttling 60.0s
+[Throttle] 12 consecutive failures — throttling 60.0s
+[Throttle] 13 consecutive failures — throttling 60.0s
+[Throttle] 14 consecutive failures — throttling 60.0s
+[Throttle] 15 consecutive failures — throttling 60.0s
+[Throttle] 16 consecutive failures — throttling 60.0s
+[Throttle] 17 consecutive failures — throttling 60.0s
+[Throttle] 18 consecutive failures — throttling 60.0s
+[Throttle] 19 consecutive failures — throttling 60.0s
+[Throttle] 20 consecutive failures — throttling 60.0s
+[NLM-Batch] Fetching 10 sources in parallel (retry)...
+[Throttle] 21 consecutive failures — throttling 60.0s
+[Throttle] 22 consecutive failures — throttling 60.0s
+[Throttle] 23 consecutive failures — throttling 60.0s
+[Throttle] 24 consecutive failures — throttling 60.0s
+[Throttle] 25 consecutive failures — throttling 60.0s
+[Throttle] 26 consecutive failures — throttling 60.0s
+[Throttle] 27 consecutive failures — throttling 60.0s
+[Throttle] 28 consecutive failures — throttling 60.0s
+[Throttle] 29 consecutive failures — throttling 60.0s
+[Throttle] 30 consecutive failures — throttling 60.0s
+[Throttle] 31 consecutive failures — throttling 60.0s
+[Throttle] 32 consecutive failures — throttling 60.0s
+[Throttle] 33 consecutive failures — throttling 60.0s
+[Throttle] 34 consecutive failures — throttling 60.0s
+[Throttle] 35 consecutive failures — throttling 60.0s
+[Throttle] 36 consecutive failures — throttling 60.0s
+[Throttle] 37 consecutive failures — throttling 60.0s
+[Throttle] 38 consecutive failures — throttling 60.0s
+[Throttle] 39 consecutive failures — throttling 60.0s
+[Throttle] 40 consecutive failures — throttling 60.0s
+  ✗ dze4fz4nJ_Q | Fetch failed for e70b281a-2406-45c0-b515-efe60253b2b9: command_failed
+  ✗ p9gzhf5f16g | Fetch failed for 176113ad-bd3c-421f-822b-aad3ad6e7d9d: command_failed
+  ✗ Gtk4zb3sAyY | Fetch failed for fd131888-d197-4502-9f3e-118ce5f2ae00: command_failed
+  ✗ 9vwywoisi_U | Fetch failed for 40b3d773-e1ba-4ec2-85d7-2370bc4ccce9: command_failed
+  ✗ L_SWLvKHZhw | Fetch failed for 9ab0fd4b-50b7-4926-98bb-df049e7f26b3: command_failed
+  ✗ fZqIVB9Q6R0 | Fetch failed for 8430dbb7-83a1-4d10-a932-7223eefade11: command_failed
+  ✗ dO8nlwJVtPc | Fetch failed for ad8c7104-678b-414d-bcb3-8ec714f24df7: command_failed
+  ✗ SLOToGGGHII | Fetch failed for 5ef0e1bd-3aab-4287-9b89-a48a85bba90e: command_failed
+  ✗ 3YeZIXqsSNM | Fetch failed for a8400676-0922-478a-91f9-7ca3b2222b5e: command_failed
+  ✗ _AbYvOlWRl0 | Fetch failed for 51668ea2-6af0-442e-b967-a2081d166a61: command_failed
+[Throttle] Success restored after 40 failures — delay reset
+  ✗ dze4fz4nJ_Q: Fetch failed for e70b281a-2406-45c0-b515-efe60253b2b9: command_failed
+  ✗ p9gzhf5f16g: Fetch failed for 176113ad-bd3c-421f-822b-aad3ad6e7d9d: command_failed
+  ✗ Gtk4zb3sAyY: Fetch failed for fd131888-d197-4502-9f3e-118ce5f2ae00: command_failed
+  ✗ 9vwywoisi_U: Fetch failed for 40b3d773-e1ba-4ec2-85d7-2370bc4ccce9: command_failed
+  ✗ L_SWLvKHZhw: Fetch failed for 9ab0fd4b-50b7-4926-98bb-df049e7f26b3: command_failed
+  ✗ fZqIVB9Q6R0: Fetch failed for 8430dbb7-83a1-4d10-a932-7223eefade11: command_failed
+  ✗ dO8nlwJVtPc: Fetch failed for ad8c7104-678b-414d-bcb3-8ec714f24df7: command_failed
+  ✗ SLOToGGGHII: Fetch failed for 5ef0e1bd-3aab-4287-9b89-a48a85bba90e: command_failed
+  ✗ 3YeZIXqsSNM: Fetch failed for a8400676-0922-478a-91f9-7ca3b2222b5e: command_failed
+  ✗ _AbYvOlWRl0: Fetch failed for 51668ea2-6af0-442e-b967-a2081d166a61: command_failed
+[Throttle] Success restored after 1 failures — delay reset
+
+[source] === Escalation Batch Complete ===
+[source] Successfully extracted: 0
+[source] Failed: 10
+[source] Skipped (cached): 0
+[source] Skipped (negative cache): 0
+[source] Skipped (terminal): 0
+[source] NotebookLM-eligible: 10
+[source] Routed to transcript fallback: 0
+[source] Total discovered: 10
+[source] Total processed outcomes: 10

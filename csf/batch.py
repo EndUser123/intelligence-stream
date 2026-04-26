@@ -18,9 +18,15 @@ from collections.abc import Callable
 from csf.batch_status import is_complete, mark_complete, mark_failed
 from csf.cache import has_cached_transcript
 from csf.csf_logging import log_action
+from csf.nlm_config import get_transcript_worker_jitter_bounds
 
 # Lazy-loaded reference to analyze_video (set once, can be mocked)
 _analyze_video_ref: Callable[..., Any] | None = None
+
+
+def _get_worker_jitter_bounds() -> tuple[float, float]:
+    """Return the shared worker jitter bounds used by round-robin dispatch."""
+    return get_transcript_worker_jitter_bounds()
 
 
 @dataclass
@@ -214,7 +220,7 @@ def analyze_videos_round_robin(
 
     effective_workers = min(os.cpu_count() or 4, 8, effective_max_workers)
 
-    from csf.batch_scheduler import BatchScheduler, _JITTER_MAX, _JITTER_MIN
+    from csf.batch_scheduler import BatchScheduler
 
     scheduler = BatchScheduler()
 
@@ -294,7 +300,8 @@ def analyze_videos_round_robin(
                     futures[new_future] = (next_video_id, next_source)
                     # Per-worker jitter: stagger request timing across workers to avoid
                     # thundering-herd on the same channel/source.
-                    time.sleep(random.uniform(_JITTER_MIN, _JITTER_MAX))
+                    jitter_min_s, jitter_max_s = _get_worker_jitter_bounds()
+                    time.sleep(random.uniform(jitter_min_s, jitter_max_s))
 
             # Keep only still-waiting futures (not the newly submitted ones)
             futures = {f: futures[f] for f in not_done}

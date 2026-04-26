@@ -27,6 +27,7 @@ class TrialArtifact:
     workers: int
     limit: int
     sample_label: str
+    source_filter: str | None
     returncode: int
     elapsed_s: float
     stdout_path: str
@@ -56,7 +57,26 @@ class TrialArtifact:
         elapsed = float(self.fetch_completed.get("elapsed_s", 0) or 0.0)
         if elapsed <= 0:
             return 0.0
-        return round(self.success_count / elapsed * 3600.0, 2)
+        return round(self.hot_path_success_count / elapsed * 3600.0, 2)
+
+    @property
+    def hot_path_success_count(self) -> int:
+        return max(self.success_count - self.transcript_fallback_success_count, 0)
+
+    @property
+    def transcript_fallback_success_count(self) -> int:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("transcript_fallback_success_count_total")
+        if value is None:
+            value = self.fetch_completed.get("transcript_fallback_success_count", 0)
+        return int(value or 0)
+
+    @property
+    def transcript_fallback_videos_per_hour(self) -> float:
+        elapsed = float(self.fetch_completed.get("elapsed_s", 0) or 0.0)
+        if elapsed <= 0:
+            return 0.0
+        return round(self.transcript_fallback_success_count / elapsed * 3600.0, 2)
 
     @property
     def processed_per_hour(self) -> float:
@@ -216,7 +236,10 @@ class TrialArtifact:
                 "fail_count": self.fail_count,
                 "skip_count": self.skip_count,
                 "processed_count": self.processed_count,
+                "hot_path_success_count": self.hot_path_success_count,
+                "transcript_fallback_success_count": self.transcript_fallback_success_count,
                 "videos_per_hour": self.videos_per_hour,
+                "transcript_fallback_videos_per_hour": self.transcript_fallback_videos_per_hour,
                 "processed_per_hour": self.processed_per_hour,
                 "add_elapsed_s": round(self.add_elapsed_s, 3),
                 "readiness_elapsed_s": round(self.readiness_elapsed_s, 3),
@@ -288,8 +311,9 @@ def _run_fetch_trial(
     limit: int,
     sample_label: str,
     output_dir: Path,
-    python_executable: str | None = None,
-) -> TrialArtifact:
+        source_filter: str | None = None,
+        python_executable: str | None = None,
+    ) -> TrialArtifact:
     run_dir = output_dir / f"workers_{workers:02d}"
     log_dir = run_dir / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -304,11 +328,18 @@ def _run_fetch_trial(
         python_executable or sys.executable,
         str(CSF_SOURCE_SCRIPT),
         "fetch",
+    ]
+    if source_filter:
+        command.extend([
+            "--source",
+            source_filter,
+        ])
+    command.extend([
         "--workers",
         str(workers),
         "--limit",
         str(limit),
-    ]
+    ])
     proc = subprocess.run(
         command,
         capture_output=True,
@@ -334,6 +365,7 @@ def _run_fetch_trial(
         workers=workers,
         limit=limit,
         sample_label=sample_label,
+        source_filter=source_filter,
         returncode=returncode,
         elapsed_s=elapsed_s,
         stdout_path=str(stdout_path),
@@ -349,6 +381,7 @@ def run_worker_count_sweep(
     worker_counts: list[int] | tuple[int, ...] = DEFAULT_WORKER_COUNTS,
     limit: int = DEFAULT_LIMIT,
     sample_label: str = "",
+    source_filter: str | None = None,
     output_root: Path = DEFAULT_OUTPUT_ROOT,
     python_executable: str | None = None,
 ) -> dict[str, Any]:
@@ -364,13 +397,15 @@ def run_worker_count_sweep(
             limit=limit,
             sample_label=sample_label,
             output_dir=sweep_dir,
+            source_filter=source_filter,
             python_executable=python_executable,
         )
         row = trial.to_row()
         results.append(row)
         print(
             f"[trial] workers={workers} success={trial.success_count} fail={trial.fail_count} "
-            f"elapsed={trial.elapsed_s:.1f}s vph={trial.videos_per_hour:.1f}"
+            f"elapsed={trial.elapsed_s:.1f}s hot_vph={trial.videos_per_hour:.1f} "
+            f"fallback_recovered={trial.transcript_fallback_success_count}"
         )
 
     summary = {
@@ -379,6 +414,7 @@ def run_worker_count_sweep(
         "sweep_dir": str(sweep_dir),
         "limit": limit,
         "sample_label": sample_label,
+        "source_filter": source_filter,
         "worker_counts": list(worker_counts),
         "results": results,
     }
@@ -394,6 +430,7 @@ def run_worker_count_sweep(
                 "workers",
                 "limit",
                 "sample_label",
+                "source_filter",
                 "returncode",
                 "elapsed_s",
                 "process_elapsed_s",
@@ -401,7 +438,10 @@ def run_worker_count_sweep(
                 "fail_count",
                 "skip_count",
                 "processed_count",
+                "hot_path_success_count",
+                "transcript_fallback_success_count",
                 "videos_per_hour",
+                "transcript_fallback_videos_per_hour",
                 "processed_per_hour",
                 "add_elapsed_s",
                 "readiness_elapsed_s",
@@ -438,6 +478,7 @@ def run_worker_count_sweep(
                     "workers": row["workers"],
                     "limit": row["limit"],
                     "sample_label": row["sample_label"],
+                    "source_filter": row.get("source_filter"),
                     "returncode": row["returncode"],
                     "elapsed_s": row["elapsed_s"],
                     "process_elapsed_s": row["process_elapsed_s"],
@@ -445,7 +486,10 @@ def run_worker_count_sweep(
                     "fail_count": row["fail_count"],
                     "skip_count": row["skip_count"],
                     "processed_count": row["processed_count"],
+                    "hot_path_success_count": row["hot_path_success_count"],
+                    "transcript_fallback_success_count": row["transcript_fallback_success_count"],
                     "videos_per_hour": row["videos_per_hour"],
+                    "transcript_fallback_videos_per_hour": row["transcript_fallback_videos_per_hour"],
                     "processed_per_hour": row["processed_per_hour"],
                     "add_elapsed_s": row["add_elapsed_s"],
                     "readiness_elapsed_s": row["readiness_elapsed_s"],
@@ -485,12 +529,16 @@ def _print_summary(summary: dict[str, Any]) -> None:
     sample_label = str(summary.get("sample_label", "") or "")
     if sample_label:
         print(f"[trial] sample_label={sample_label}")
-    print(f"{'workers':>7} {'succ':>6} {'fail':>6} {'elapsed_s':>10} {'v/hr':>10} {'idle_s':>8} {'add_s':>8} {'ready_s':>9} {'timeout':>8}")
-    print("-" * 84)
+    print(
+        f"{'workers':>7} {'succ':>6} {'fail':>6} {'elapsed_s':>10} {'hot_v/hr':>10} "
+        f"{'fb_v/hr':>9} {'idle_s':>8} {'add_s':>8} {'ready_s':>9} {'timeout':>8}"
+    )
+    print("-" * 96)
     for row in results:
         print(
             f"{int(row['workers']):>7} {int(row['success_count']):>6} {int(row['fail_count']):>6} "
             f"{float(row['elapsed_s']):>10.1f} {float(row['videos_per_hour']):>10.1f} "
+            f"{float(row['transcript_fallback_videos_per_hour']):>9.1f} "
             f"{float(row['worker_idle_wait_s']):>8.1f} {float(row['add_elapsed_s']):>8.1f} {float(row['readiness_elapsed_s']):>9.1f} "
             f"{str(bool(row['timeout_hit'])):>8}"
         )
@@ -498,8 +546,8 @@ def _print_summary(summary: dict[str, Any]) -> None:
     best = max(results, key=lambda row: float(row.get("videos_per_hour", 0) or 0.0))
     print("-" * 74)
     print(
-        f"[trial] Best observed throughput: workers={best['workers']} "
-        f"v/hr={float(best['videos_per_hour']):.1f}"
+        f"[trial] Best observed hot-path throughput: workers={best['workers']} "
+        f"hot_v/hr={float(best['videos_per_hour']):.1f}"
     )
 
 

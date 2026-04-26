@@ -1,0 +1,186 @@
+[source] Preflight scan: checking 1 active channels (0 blocked skipped) for pending videos...
+[source] Pending item limit reached at 50; stopping scan early.
+[source] Preflight scan complete: 1 active channels, 50 pending, 0 cached, 0 neg-cache, 0 terminal, 50 notebooklm, 0 transcript-fallback
+[source] Parallel industrial dispatch: 1 batches across 1 workers...
+[source] Escalation Batch Process
+[source] Channels: 1 active / 1 tracked
+[source] Already cached: 0
+[source] Negative-cache skips: 0
+[source] Pending extraction: 50
+[source] Run limit: 50 pending items
+[source] Mode: LIVE
+[source] Strategy: Industrial (Batch NLM)
+[source] Method: NotebookLM CLI batch for captioned/no-captions items; live items use transcript fallback
+[source] Workers: 2
+
+[source] Pre-flight worker notebook audit: 0 worker notebooks reported, 0 failed
+{"worker_id":"worker-01","event":"worker_notebook_reset_started","notebooklm_profile":"ytis-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_mixed_v3\\worker_states\\worker-01.json","notebook_title":"benchmark-notebooklm_only_30s-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"benchmark-notebooklm_only_30s-01","state_path":"P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_mixed_v3\\worker_states\\worker-01.json"}}
+{"worker_id":"worker-01","event":"worker_notebook_reset_completed","notebooklm_profile":"ytis-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_mixed_v3\\worker_states\\worker-01.json","notebook_title":"benchmark-notebooklm_only_30s-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"benchmark-notebooklm_only_30s-01","state_path":"P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_mixed_v3\\worker_states\\worker-01.json"}}
+[NLM-Batch] Creating notebook...
+[NLM-Batch] Adding 0 sources in sub-batches...
+{"worker_id":"worker-01","event":"notebook_prewarm","prepared":true,"setup_mode":"create","notebooklm_profile":"ytis-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_mixed_v3\\worker_states\\worker-01.json","notebook_title":"benchmark-notebooklm_only_30s-01","elapsed_s":4.491}
+[NLM-Batch] Adding 50 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-50/50...
+[NLM-Batch]   Adding sub-batch 1 (50 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 50 sources in parallel (primary)...
+  ✓ 8ota37xIArc | 1845 chars
+  ✓ wZ11C9zV8p0 | 1532 chars
+  ✓ XV6Gbg5VoVc | 28772 chars
+  ✓ ucMazNkOSE4 | 48164 chars
+  ✓ ZfcDAEQN9s4 | 203910 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ 4-RjomgNtcs | 34677 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ 1TA9qnKKUpk | 879 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ hw22rsCBkL8 | 22048 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ 3cY-xhYT02g | 25185 chars
+[Throttle] Success restored after 1 failures — delay reset
+  ✓ m-I23CRfQic | 653 chars
+  ✓ 3FUbfTHhko4 | 1998 chars
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] Success restored after 5 failures — delay reset
+  ✓ jwV4_NHychk | 25364 chars
+  ✓ wxblXN2_a-Q | 19841 chars
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] Success restored after 4 failures — delay reset
+  ✓ bKvF3zWhbCg | 4365 chars
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+[Throttle] 9 consecutive failures — throttling 60.0s
+[Throttle] 10 consecutive failures — throttling 60.0s
+[Throttle] 11 consecutive failures — throttling 60.0s
+[Throttle] 12 consecutive failures — throttling 60.0s
+[Throttle] 13 consecutive failures — throttling 60.0s
+[Throttle] 14 consecutive failures — throttling 60.0s
+[Throttle] 15 consecutive failures — throttling 60.0s
+[Throttle] 16 consecutive failures — throttling 60.0s
+[Throttle] 17 consecutive failures — throttling 60.0s
+[Throttle] 18 consecutive failures — throttling 60.0s
+[Throttle] 19 consecutive failures — throttling 60.0s
+[Throttle] 20 consecutive failures — throttling 60.0s
+[Throttle] Success restored after 20 failures — delay reset
+  ✓ -MwvlbIHYWU | 24440 chars
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] Success restored after 3 failures — delay reset
+  ✓ _WNn0FsXYdE | 18500 chars
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+[Throttle] 9 consecutive failures — throttling 60.0s
+[Throttle] 10 consecutive failures — throttling 60.0s
+[Throttle] 11 consecutive failures — throttling 60.0s
+[Throttle] 12 consecutive failures — throttling 60.0s
+[Throttle] 13 consecutive failures — throttling 60.0s
+[Throttle] 14 consecutive failures — throttling 60.0s
+[Throttle] 15 consecutive failures — throttling 60.0s
+[Throttle] 16 consecutive failures — throttling 60.0s
+[Throttle] 17 consecutive failures — throttling 60.0s
+  ✗ sV2bhFXVC1Y | Fetch failed for cf67bdaf-9592-4a79-aacb-24ef08bbd763: command_failed
+[Throttle] 18 consecutive failures — throttling 60.0s
+[Throttle] 19 consecutive failures — throttling 60.0s
+[Throttle] Success restored after 19 failures — delay reset
+  ✓ gkx5VPKRItE | 21299 chars
+[Throttle] 3 consecutive failures — throttling 2.0s
+[NLM-Batch] Fetching 32 sources in parallel (retry)...
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+[Throttle] 9 consecutive failures — throttling 60.0s
+[Throttle] 10 consecutive failures — throttling 60.0s
+[Throttle] 11 consecutive failures — throttling 60.0s
+[Throttle] 12 consecutive failures — throttling 60.0s
+[Throttle] 13 consecutive failures — throttling 60.0s
+[Throttle] 14 consecutive failures — throttling 60.0s
+[Throttle] 15 consecutive failures — throttling 60.0s
+[Throttle] 16 consecutive failures — throttling 60.0s
+[Throttle] 17 consecutive failures — throttling 60.0s
+[Throttle] 18 consecutive failures — throttling 60.0s
+[Throttle] 19 consecutive failures — throttling 60.0s
+[Throttle] 20 consecutive failures — throttling 60.0s
+[Throttle] 21 consecutive failures — throttling 60.0s
+[Throttle] 22 consecutive failures — throttling 60.0s
+[Throttle] 23 consecutive failures — throttling 60.0s
+  ✗ vGsSDzvQoWE | Fetch failed for 472ee89c-0de6-4fab-b164-2f396d0e00b4: command_failed
+  ✗ RJkFfWR2gM4 | Fetch failed for eabe6378-50ab-4e60-9a04-6748e135dd70: command_failed
+  ✗ kEo5_GaOtlU | Fetch failed for 03403240-1558-45b9-8e0c-6841ba2a088b: command_failed
+  ✗ dO8nlwJVtPc | Fetch failed for 4bf2a76b-e27e-4177-be01-65841e615e8c: command_failed
+  ✗ Aoegt_Ru29w | Fetch failed for 2c096ccc-cef0-4c28-a4e1-52efadf90d22: command_failed
+  ✗ XTv_EQwSwCM | Fetch failed for 0c3e654d-7ce3-4981-8e30-f933e34af379: command_failed
+  ✗ XSbEmJ9Cvss | Fetch failed for b1eec6ce-2b38-4e76-8fa5-398010cc25da: command_failed
+  ✗ eXuBP1o_1IY | Fetch failed for 5ac969b7-3f6e-4151-9ddf-dcb5b96177bd: command_failed
+  ✗ _AbYvOlWRl0 | Fetch failed for cf67bdaf-9592-4a79-aacb-24ef08bbd763: command_failed
+  ✗ _Z1WNBvpsxM | Fetch failed for 712f73f7-2bb2-4e1c-951d-786c58c9f8dd: command_failed
+[Throttle] 24 consecutive failures — throttling 60.0s
+[Throttle] 25 consecutive failures — throttling 60.0s
+[Throttle] 26 consecutive failures — throttling 60.0s
+[Throttle] 27 consecutive failures — throttling 60.0s
+[Throttle] 28 consecutive failures — throttling 60.0s
+[Throttle] 29 consecutive failures — throttling 60.0s
+[Throttle] 30 consecutive failures — throttling 60.0s
+[Throttle] 31 consecutive failures — throttling 60.0s
+[Throttle] 32 consecutive failures — throttling 60.0s
+[Throttle] 33 consecutive failures — throttling 60.0s
+  ✗ Gtk4zb3sAyY | Fetch failed for 66a662e4-ed6e-4852-8604-f9da9f9cf78a: command_failed
+  ✗ Y_uS2fjNz3M | Fetch failed for 8f4a2627-eb35-4e50-910d-26bf3c88c63f: command_failed
+  ✗ fZqIVB9Q6R0 | Fetch failed for 7ea9c2db-c8f8-48be-9ef5-e703d0d32a43: command_failed
+  ✗ L_SWLvKHZhw | Fetch failed for 6fc4a98d-2059-4bd5-9827-b2875f797247: command_failed
+  ✗ 3YeZIXqsSNM | Fetch failed for 1ed5168b-ad87-45e0-a47f-4a3ac99366d5: command_failed
+  ✗ 3N9q435VnRc | Fetch failed for dfabfee2-464e-4f06-b34b-47951bb02e29: command_failed
+  ✗ SLOToGGGHII | Fetch failed for d426dd26-a0d5-48dc-933c-be1cec7f1ce9: command_failed
+  ✗ BKmpLGdl3_s | Fetch failed for 66a662e4-ed6e-4852-8604-f9da9f9cf78a: command_failed
+  ✗ vSI6vqkKB00 | Fetch failed for eabe6378-50ab-4e60-9a04-6748e135dd70: command_failed
+  ✗ dze4fz4nJ_Q | Fetch failed for a4ad7346-58d1-45ab-94b7-a900591b79af: command_failed
+[Throttle] 34 consecutive failures — throttling 60.0s
+[Throttle] 35 consecutive failures — throttling 60.0s
+[Throttle] 36 consecutive failures — throttling 60.0s
+[Throttle] 37 consecutive failures — throttling 60.0s
+[Throttle] 38 consecutive failures — throttling 60.0s
+[Throttle] 39 consecutive failures — throttling 60.0s
+[Throttle] 40 consecutive failures — throttling 60.0s
+[Throttle] 41 consecutive failures — throttling 60.0s
+[Throttle] 42 consecutive failures — throttling 60.0s
+[Throttle] 43 consecutive failures — throttling 60.0s
+  ✗ o3J3wpmW1KU | Fetch failed for 37d0f1fe-63b0-44e2-91e3-ae3309db30df: command_failed
+  ✗ dvyU5hwq04Y | Fetch failed for 4bf2a76b-e27e-4177-be01-65841e615e8c: command_failed
+  ✗ 2Fur71uqqo8 | Fetch failed for dfabfee2-464e-4f06-b34b-47951bb02e29: command_failed
+  ✗ 9vwywoisi_U | Fetch failed for 8f4a2627-eb35-4e50-910d-26bf3c88c63f: command_failed
+  ✗ f_B9K5u2Z-8 | Fetch failed for 60ca44f6-3328-48b8-b5fe-133c0aaa9c8c: command_failed
+  ✗ IQ4VcltBQM0 | Fetch failed for 60ca44f6-3328-48b8-b5fe-133c0aaa9c8c: command_failed
+  ✗ ChjalTz_-2w | Fetch failed for 5ac969b7-3f6e-4151-9ddf-dcb5b96177bd: command_failed
+  ✗ CCpNDnh4ylI | Fetch failed for b1eec6ce-2b38-4e76-8fa5-398010cc25da: command_failed
+  ✗ p9gzhf5f16g | Fetch failed for 45d8a9b0-3c03-4f51-892e-213088294a5d: command_failed
+  ✗ YDhh7x2YXdU | Fetch failed for 472ee89c-0de6-4fab-b164-2f396d0e00b4: command_failed
+[Throttle] 44 consecutive failures — throttling 60.0s
+[Throttle] 45 consecutive failures — throttling 60.0s
+  ✗ rGnRlvZUJas | Fetch failed for 03403240-1558-45b9-8e0c-6841ba2a088b: command_failed
+  ✗ DrKdkzDyjWs | Fetch failed for 37d0f1fe-63b0-44e2-91e3-ae3309db30df: command_failed
+[Throttle] Success restored after 45 failures — delay reset
+{"worker_id":"worker-01","input":"C:\\Users\\brsth\\AppData\\Local\\Temp\\tmpc8sulpnu.json","batch_count":1,"video_count":50,"succeeded":17,"failed":33,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"captioned":25,"no_captions":25},"status_counts":{"pending":50},"privacy_status_counts":{"unknown":50},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"subbatch_metrics":[{"subbatch_index":1,"subbatch_size":50,"target_subbatch_size":50,"attempted_count":50,"added_count":50,"add_cmd_elapsed_s":47.27,"materialization_wait_elapsed_s":1.777,"elapsed_s":49.047000000000004,"returncode":0,"failure_reason":null,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"captioned":25,"no_captions":25},"status_counts":{"pending":50},"privacy_status_counts":{"unknown":50},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"current_source_count":50,"source_materialization_ready_at_epoch":1777226737.1523461,"status":"ok"}],"startup_retire_elapsed_s":0.0,"startup_notebook_check_elapsed_s":0.0,"startup_notebook_create_elapsed_s":1.656,"startup_prepare_cleanup_elapsed_s":1.354,"startup_prepare_total_elapsed_s":4.489,"setup_elapsed_s_total":57.971,"notebook_check_elapsed_s_total":2.874,"notebook_create_elapsed_s_total":0.0,"notebook_retire_elapsed_s_total":0.0,"add_sources_elapsed_s_total":55.097,"add_cmd_elapsed_s_total":47.27,"materialization_wait_elapsed_s_total":1.777,"extract_elapsed_s_total":652.751,"cleanup_elapsed_s_total":67.034,"batch_elapsed_s_total":777.756,"content_fetch_status_counts_total":{"ready":17,"command_failed":33},"source_ready_age_s_total":18207.924,"source_ready_age_s_max":653.925,"source_ready_age_s_avg":364.158,"youtube_ytdlp_elapsed_s_total":141.413,"youtube_ytdlp_elapsed_s_max":3.031,"youtube_ytdlp_elapsed_s_count":65,"youtube_ytdlp_elapsed_s_avg":2.176,"youtube_page_elapsed_s_total":0.0,"youtube_page_elapsed_s_max":0.0,"youtube_page_elapsed_s_count":0,"youtube_page_elapsed_s_avg":0.0,"shared_retry_deferred_count":0,"shared_retry_recovered_count":0,"shared_retry_final_failed_count":0,"shared_retry_processed_count":0,"notebooklm_profile":"ytis-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\load_ladder_benchmark_mixed_v3\\worker_states\\worker-01.json","notebook_title":"benchmark-notebooklm_only_30s-01","status":"ok","returncode":0}
+
+[source] === Escalation Batch Complete ===
+[source] Successfully extracted: 17
+[source] Failed: 33
+[source] Skipped (cached): 0
+[source] Skipped (negative cache): 0
+[source] Skipped (terminal): 0
+[source] NotebookLM-eligible: 50
+[source] Routed to transcript fallback: 0
+[source] Worker notebook cleanup: 0 deleted, 0 failed
+[source] Stage totals: startup=4.5s, setup=58.0s, add=55.1s, extract=652.8s, cleanup=67.0s, batch=777.8s
+[source] Worker source profile: captioned=25, no_captions=25
+[source] Total discovered: 50
+[source] Total processed outcomes: 50

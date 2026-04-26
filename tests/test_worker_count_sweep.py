@@ -26,6 +26,7 @@ def test_load_fetch_completed_event_from_jsonl(tmp_path):
                             "skip_count": 1,
                             "processed_count": 13,
                             "elapsed_s": 26.0,
+                            "transcript_fallback_success_count": 3,
                             "worker_stage_totals": {
                                 "add_sources_elapsed_s_total": 3.0,
                                 "content_fetch_status_counts_total": {"ready": 2, "too_short": 1},
@@ -53,6 +54,7 @@ def test_load_fetch_completed_event_from_jsonl(tmp_path):
     assert payload["fail_count"] == 2
     assert payload["skip_count"] == 1
     assert payload["processed_count"] == 13
+    assert payload["transcript_fallback_success_count"] == 3
     assert payload["worker_stage_totals"]["add_sources_elapsed_s_total"] == 3.0
     assert payload["worker_stage_totals"]["content_fetch_status_counts_total"]["ready"] == 2
     assert payload["worker_stage_totals"]["youtube_ytdlp_elapsed_s_total"] == 2.5
@@ -63,26 +65,30 @@ def test_run_fetch_trial_captures_fetch_completed_summary(tmp_path, monkeypatch)
     def fake_run(command, capture_output, text, cwd, env, check, timeout=None):
         assert command[0] == "python.exe" or command[0].endswith("python.exe") or command[0].endswith("python")
         assert command[2] == "fetch"
-        assert command[4] == "2"
-        assert command[6] == "37"
+        assert command[3] == "--source"
+        assert command[5] == "--workers"
+        assert command[6] == "2"
+        assert command[7] == "--limit"
+        assert command[8] == "37"
         log_dir = Path(env["INTELLIGENCE_STREAM_LOG_DIR"])
         log_dir.mkdir(parents=True, exist_ok=True)
         trace = log_dir / "fake-terminal.jsonl"
         trace.write_text(
             json.dumps(
-                {
-                    "action": "fetch_completed",
-                    "data": {
-                        "success_count": 12,
-                        "fail_count": 3,
-                        "skip_count": 5,
-                        "processed_count": 20,
-                        "elapsed_s": 10.0,
-                        "worker_stage_totals": {
-                            "add_sources_elapsed_s_total": 4.5,
-                            "materialization_wait_elapsed_s_total": 2.0,
-                            "cleanup_elapsed_s_total": 0.5,
-                            "content_fetch_status_counts_total": {"ready": 2, "too_short": 1},
+                    {
+                        "action": "fetch_completed",
+                        "data": {
+                            "success_count": 12,
+                            "fail_count": 3,
+                            "skip_count": 5,
+                            "processed_count": 20,
+                            "elapsed_s": 10.0,
+                            "transcript_fallback_success_count": 4,
+                            "worker_stage_totals": {
+                                "add_sources_elapsed_s_total": 4.5,
+                                "materialization_wait_elapsed_s_total": 2.0,
+                                "cleanup_elapsed_s_total": 0.5,
+                                "content_fetch_status_counts_total": {"ready": 2, "too_short": 1},
                             "source_ready_age_s_total": 6.0,
                             "source_ready_age_s_max": 4.0,
                             "youtube_ytdlp_elapsed_s_total": 2.5,
@@ -108,6 +114,7 @@ def test_run_fetch_trial_captures_fetch_completed_summary(tmp_path, monkeypatch)
         limit=37,
         sample_label="mixed_lane",
         output_dir=tmp_path,
+        source_filter="https://www.youtube.com/channel/UCYTISFALLBACKBMK",
         python_executable="python.exe",
     )
 
@@ -118,13 +125,17 @@ def test_run_fetch_trial_captures_fetch_completed_summary(tmp_path, monkeypatch)
     assert summary.fail_count == 3
     assert summary.skip_count == 5
     assert summary.processed_count == 20
-    assert summary.videos_per_hour == 4320.0
+    assert summary.hot_path_success_count == 8
+    assert summary.transcript_fallback_success_count == 4
+    assert summary.videos_per_hour == 2880.0
+    assert summary.transcript_fallback_videos_per_hour == 1440.0
     assert summary.processed_per_hour == 7200.0
     assert summary.add_elapsed_s == 4.5
     assert summary.readiness_elapsed_s == 2.0
     assert summary.cleanup_elapsed_s == 0.5
     assert summary.worker_idle_wait_s == 3.0
     assert summary.sample_label == "mixed_lane"
+    assert summary.source_filter == "https://www.youtube.com/channel/UCYTISFALLBACKBMK"
     assert summary.materialization_started is True
     assert summary.timeout_hit is False
     assert summary.content_fetch_status_counts == {"ready": 2, "too_short": 1}

@@ -24,6 +24,8 @@ class NLMConfig:
     notebook_source_cap: int = 50
     notebook_source_materialization_timeout_s: int = 600
     max_sources_per_notebook: int = 300
+    transcript_worker_jitter_min_s: float = 2.0
+    transcript_worker_jitter_max_s: float = 10.0
     auth_check_interval: float = 60.0
     auth_max_calls_per_window: int = 10
     auth_cooldown: float = 300.0
@@ -60,6 +62,12 @@ def get_nlm_config() -> NLMConfig:
                 ),
                 max_sources_per_notebook=int(
                     os.environ.get("YTIS_NLM_MAX_SOURCES_PER_NOTEBOOK", "300")
+                ),
+                transcript_worker_jitter_min_s=float(
+                    os.environ.get("YTIS_TRANSCRIPT_WORKER_JITTER_MIN_S", "2.0")
+                ),
+                transcript_worker_jitter_max_s=float(
+                    os.environ.get("YTIS_TRANSCRIPT_WORKER_JITTER_MAX_S", "10.0")
                 ),
                 auth_check_interval=float(os.environ.get("YTIS_NLM_AUTH_CHECK_INTERVAL", "60.0")),
                 auth_max_calls_per_window=int(
@@ -142,3 +150,15 @@ def reset_nlm_config() -> None:
     global _nlm_config
     with _nlm_config_lock:
         _nlm_config = None
+
+
+def get_transcript_worker_jitter_bounds() -> tuple[float, float]:
+    """Return the worker jitter bounds used by transcript and scheduler paths."""
+    cfg = get_nlm_config()
+    bounds = sorted(
+        (
+            float(cfg.transcript_worker_jitter_min_s),
+            float(cfg.transcript_worker_jitter_max_s),
+        )
+    )
+    return bounds[0], bounds[1]

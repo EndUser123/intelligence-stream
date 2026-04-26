@@ -549,6 +549,104 @@ class TestWhisperEmptyClassification:
             assert "likely music or silence" in result.error
 
 
+class TestWhisperAdmission:
+    """Tests for pre-Whisper admission filtering."""
+
+    def test_whisper_skips_obvious_music_title_without_calling_whisper(self):
+        with (
+            mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
+            mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
+            mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
+            mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
+            mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
+            mock.patch("time.sleep"),
+        ):
+            mock_ytdlp.return_value = (False, None, "no captions")
+            mock_ejs.return_value = (False, None, "no cookies")
+            mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
+            mock_selenium.return_value = (False, None, "selenium failed")
+            mock_nlm.return_value = (False, None, "nlm failed")
+
+            result = fetch_transcript_chain(
+                "dQw4w9WgXcQ",
+                LanguageConfig(prefer_lang="en"),
+                admission_metadata={
+                    "title": "Official Audio",
+                    "description": "track",
+                    "duration": 10,
+                },
+            )
+
+            assert mock_whisper.call_count == 0
+            assert result.source == "none"
+            assert result.last_stage == "whisper_admission"
+            assert result.failure_reason == "no_transcript"
+
+    def test_short_speech_like_clip_still_reaches_whisper(self):
+        with (
+            mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
+            mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
+            mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
+            mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
+            mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
+            mock.patch("time.sleep"),
+        ):
+            mock_ytdlp.return_value = (False, None, "no captions")
+            mock_ejs.return_value = (False, None, "no cookies")
+            mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
+            mock_selenium.return_value = (False, None, "selenium failed")
+            mock_nlm.return_value = (False, None, "nlm failed")
+            mock_whisper.return_value = (True, "short spoken transcript", None)
+
+            result = fetch_transcript_chain(
+                "dQw4w9WgXcQ",
+                LanguageConfig(prefer_lang="en"),
+                admission_metadata={
+                    "title": "Quick Interview",
+                    "description": "a tiny spoken clip",
+                    "duration": 10,
+                },
+            )
+
+            assert mock_whisper.call_count == 1
+            assert result.transcript == "short spoken transcript"
+            assert result.source == "whisper"
+
+    def test_live_item_skips_whisper_as_terminal(self):
+        with (
+            mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
+            mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
+            mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
+            mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
+            mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
+            mock.patch("time.sleep"),
+        ):
+            mock_ytdlp.return_value = (False, None, "no captions")
+            mock_ejs.return_value = (False, None, "no cookies")
+            mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
+            mock_selenium.return_value = (False, None, "selenium failed")
+            mock_nlm.return_value = (False, None, "nlm failed")
+
+            result = fetch_transcript_chain(
+                "dQw4w9WgXcQ",
+                LanguageConfig(prefer_lang="en"),
+                admission_metadata={
+                    "title": "Live Stream Replay",
+                    "description": "watch live",
+                    "upload_status": "live_stream",
+                    "is_live_content": True,
+                },
+            )
+
+            assert mock_whisper.call_count == 0
+            assert result.source == "none"
+            assert result.last_stage == "whisper_admission"
+            assert result.failure_reason == "unavailable"
+
+
 class TestJitter:
     """Test random jitter for rate limit avoidance."""
 

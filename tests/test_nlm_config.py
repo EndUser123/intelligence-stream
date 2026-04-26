@@ -1,6 +1,6 @@
 """Tests for the shared NotebookLM config module."""
 
-from csf import nlm_config, transcript
+from csf import batch, nlm_config, transcript
 
 
 class TestSharedNlmConfig:
@@ -13,6 +13,8 @@ class TestSharedNlmConfig:
         assert cfg.notebook_source_cap == 50
         assert cfg.notebook_source_materialization_timeout_s == 600
         assert cfg.max_sources_per_notebook == 300
+        assert cfg.transcript_worker_jitter_min_s == 2.0
+        assert cfg.transcript_worker_jitter_max_s == 10.0
         assert cfg.auth_check_interval == 60.0
         assert cfg.auth_max_calls_per_window == 10
         assert cfg.auth_cooldown == 300.0
@@ -36,6 +38,21 @@ class TestSharedNlmConfig:
         assert cfg.source_content_shared_retry_pool_enabled is False
         assert transcript.get_nlm_config() is cfg
 
+    def test_jitter_bounds_follow_env_and_stay_shared(self, monkeypatch):
+        """Transcript and batch loops should read the same jitter bounds from config."""
+        monkeypatch.setenv("YTIS_TRANSCRIPT_WORKER_JITTER_MIN_S", "1.5")
+        monkeypatch.setenv("YTIS_TRANSCRIPT_WORKER_JITTER_MAX_S", "8.5")
+        nlm_config.reset_nlm_config()
+        try:
+            cfg = nlm_config.get_nlm_config()
+            assert cfg.transcript_worker_jitter_min_s == 1.5
+            assert cfg.transcript_worker_jitter_max_s == 8.5
+            assert nlm_config.get_transcript_worker_jitter_bounds() == (1.5, 8.5)
+            assert transcript._get_worker_jitter_bounds() == (1.5, 8.5)
+            assert batch._get_worker_jitter_bounds() == (1.5, 8.5)
+        finally:
+            nlm_config.reset_nlm_config()
+
     def test_setter_updates_the_shared_singleton(self):
         """set_nlm_config should affect both modules because they share the singleton."""
         original = nlm_config.get_nlm_config()
@@ -44,6 +61,8 @@ class TestSharedNlmConfig:
             notebook_source_cap=88,
             notebook_source_materialization_timeout_s=99,
             max_sources_per_notebook=123,
+            transcript_worker_jitter_min_s=1.1,
+            transcript_worker_jitter_max_s=2.2,
             auth_check_interval=11.0,
             auth_max_calls_per_window=12,
             auth_cooldown=13.0,

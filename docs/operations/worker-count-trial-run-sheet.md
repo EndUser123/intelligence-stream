@@ -1,6 +1,6 @@
 # Worker Count Trial Run Sheet
 
-Last updated: 2026-04-25
+Last updated: 2026-04-26
 
 ## Purpose
 
@@ -163,6 +163,24 @@ The following results were collected after the plan was written and should be tr
   - source: `whisper`
   - transcript length: `15419`
   - cached at `2026-04-24T23:06:39.164905`
+
+## Routing Conclusion
+
+The current working conclusion for source-shape routing is:
+
+- Caption-rich cohort, isolated to the synthetic benchmark source:
+  - `10/10` succeeded
+  - baseline: `53.0s`, `680.76 videos/hour`, `worker_idle_wait_s = 27.82`
+  - `route_no_captions_to_fallback`: `52.1s`, `692.25 videos/hour`, `worker_idle_wait_s = 27.55`
+  - meaning: the routing split does not hurt caption-rich throughput.
+- No-caption cohort:
+  - baseline NotebookLM-first: `0/10` succeeded, about `291s`
+  - route-to-fallback: `0/10` succeeded, about `4s`
+  - meaning: no-caption items should not burn NotebookLM time when the fallback lane can take them immediately.
+- Operating rule:
+  - keep caption-rich items on NotebookLM
+  - route no-caption items away from NotebookLM earlier
+  - keep the split in place unless a later benchmark shows a real regression on caption-rich throughput
 
 ## Robustness Matrix
 

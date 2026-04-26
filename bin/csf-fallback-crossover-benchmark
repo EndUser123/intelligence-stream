@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sqlite3
 import sys
 import shutil
 from collections import OrderedDict
@@ -15,7 +16,13 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from csf.batch_status import BatchEntry, delete_channel, set_channel_metadata, set_status_batch
+from csf.batch_status import (
+    BatchEntry,
+    _get_default_db_path,
+    delete_channel,
+    set_channel_metadata,
+    set_status_batch,
+)
 from csf.cache import clear_all_storages, delete_cached_transcripts
 from csf.worker_count_sweep import run_worker_count_sweep
 
@@ -25,6 +32,7 @@ DEFAULT_OUTPUT_ROOT = REPO_ROOT / ".logs" / "fallback_crossover_benchmark"
 DEFAULT_TRACE_ROOT = REPO_ROOT / ".logs" / "worker_count_trials"
 DEFAULT_SOURCE_URL = "https://www.youtube.com/channel/UCYTISFALLBACKBMK"
 DEFAULT_WORKERS = 2
+DEFAULT_COHORT_SHAPE = "trace"
 
 
 POLICY_ENV: dict[str, dict[str, str]] = {
@@ -43,6 +51,16 @@ POLICY_ENV: dict[str, dict[str, str]] = {
         "YTIS_NLM_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S": "30",
         "YTIS_NLM_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S": "30",
         "YTIS_NLM_SOURCE_CONTENT_SHARED_RETRY_POOL_ENABLED": "false",
+        "YTIS_TRANSCRIPT_FALLBACK_WORKERS": "2",
+        "YTIS_TRANSCRIPT_FALLBACK_MIN_START_INTERVAL_S": "0",
+    },
+    "notebooklm_route_plus_fallback_30s": {
+        "YTIS_INDUSTRIAL_BACKLOG_THRESHOLD": "1",
+        "YTIS_NLM_SOURCE_CONTENT_RETRY_BUDGET_S": "30",
+        "YTIS_NLM_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S": "30",
+        "YTIS_NLM_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S": "30",
+        "YTIS_NLM_SOURCE_CONTENT_SHARED_RETRY_POOL_ENABLED": "false",
+        "YTIS_ROUTE_NO_CAPTIONS_TO_FALLBACK": "true",
         "YTIS_TRANSCRIPT_FALLBACK_WORKERS": "2",
         "YTIS_TRANSCRIPT_FALLBACK_MIN_START_INTERVAL_S": "0",
     },
@@ -76,7 +94,7 @@ def _iter_trace_files(trace_root: Path) -> list[Path]:
     return files
 
 
-def _load_cohort_from_trace(trace_root: Path) -> list[dict[str, Any]]:
+def _load_cohort_from_trace(trace_root: Path, *, include_ready: bool = False) -> list[dict[str, Any]]:
     items: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
     for path in _iter_trace_files(trace_root):
         with path.open("r", encoding="utf-8") as handle:
@@ -88,14 +106,26 @@ def _load_cohort_from_trace(trace_root: Path) -> list[dict[str, Any]]:
                     row = json.loads(line)
                 except Exception:
                     continue
-                if row.get("action") != "nlm_batch_source_content_fetch_completed":
+                action = str(row.get("action") or "").strip()
+                if include_ready:
+                    if action not in {
+                        "nlm_batch_source_content_fetch_completed",
+                        "nlm_batch_source_content_readiness_probe_completed",
+                        "staging_source_content_readiness_probe_completed",
+                    }:
+                        continue
+                elif action != "nlm_batch_source_content_fetch_completed":
                     continue
                 data = row.get("data")
                 if not isinstance(data, dict):
                     continue
-                if data.get("youtube_ytdlp_classification") != "ok":
+                status = str(data.get("status") or "").strip().lower()
+                if include_ready:
+                    if status != "ready":
+                        continue
+                elif status == "ready":
                     continue
-                if str(data.get("status") or "").strip().lower() == "ready":
+                if not include_ready and data.get("youtube_ytdlp_classification") != "ok":
                     continue
                 video_id = str(data.get("video_id") or "").strip()
                 source_url = str(data.get("source_url") or "").strip()
@@ -109,22 +139,102 @@ def _load_cohort_from_trace(trace_root: Path) -> list[dict[str, Any]]:
                         "youtube_ytdlp_elapsed_s": data.get("youtube_ytdlp_elapsed_s"),
                         "youtube_page_elapsed_s": data.get("youtube_page_elapsed_s"),
                         "trace_file": str(path),
+                        "has_captions": True if include_ready else False,
                     }
     return list(items.values())
 
 
-def _load_or_build_cohort(cohort_path: Path, trace_root: Path) -> dict[str, Any]:
+def _load_captioned_cohort_from_db(db_path: Path | None = None) -> list[dict[str, Any]]:
+    source_db = db_path or _get_default_db_path()
+    if not source_db.exists():
+        return []
+
+    items: list[dict[str, Any]] = []
+    with sqlite3.connect(source_db) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT video_id, source, status, published_at, has_captions
+            FROM analysis_status
+            WHERE has_captions IN (1, '1')
+            ORDER BY CASE WHEN published_at IS NULL THEN 1 ELSE 0 END, published_at DESC, video_id ASC
+            """
+        ).fetchall()
+
+    for row in rows:
+        video_id = str(row["video_id"] or "").strip()
+        if not video_id:
+            continue
+        items.append(
+            {
+                "video_id": video_id,
+                "source_url": str(row["source"] or "").strip(),
+                "final_status": row["status"],
+                "published_at": row["published_at"],
+                "has_captions": True,
+            }
+        )
+    return items
+
+
+def _merge_trace_cohorts(
+    ready_items: list[dict[str, Any]],
+    non_ready_items: list[dict[str, Any]],
+    *,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    left_index = 0
+    right_index = 0
+    max_items = limit if limit is not None and limit > 0 else None
+
+    while left_index < len(ready_items) or right_index < len(non_ready_items):
+        if max_items is not None and len(merged) >= max_items:
+            break
+        if left_index < len(ready_items):
+            item = ready_items[left_index]
+            left_index += 1
+            video_id = str(item.get("video_id") or "").strip()
+            if video_id and video_id not in seen:
+                seen.add(video_id)
+                merged.append(item)
+                if max_items is not None and len(merged) >= max_items:
+                    break
+        if right_index < len(non_ready_items):
+            item = non_ready_items[right_index]
+            right_index += 1
+            video_id = str(item.get("video_id") or "").strip()
+            if video_id and video_id not in seen:
+                seen.add(video_id)
+                merged.append(item)
+    return merged
+
+
+def _load_or_build_cohort(cohort_path: Path, trace_root: Path, cohort_shape: str) -> dict[str, Any]:
     if cohort_path.exists():
         existing = json.loads(cohort_path.read_text(encoding="utf-8"))
         items = existing.get("items", []) if isinstance(existing, dict) else []
-        if items:
+        if items and existing.get("cohort_shape") == cohort_shape:
             return existing
-    items = _load_cohort_from_trace(trace_root)
+    if cohort_shape == "captioned":
+        items = _load_cohort_from_trace(trace_root, include_ready=True)
+        if not items:
+            items = _load_captioned_cohort_from_db()
+    elif cohort_shape == "mixed":
+        ready_items = _load_cohort_from_trace(trace_root, include_ready=True)
+        non_ready_items = _load_cohort_from_trace(trace_root, include_ready=False)
+        items = _merge_trace_cohorts(ready_items, non_ready_items)
+    else:
+        items = _load_cohort_from_trace(trace_root, include_ready=False)
     cohort = {
         "trace_root": str(trace_root),
+        "cohort_shape": cohort_shape,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "items": items,
     }
+    if cohort_shape == "captioned":
+        cohort["batch_status_db_path"] = str(_get_default_db_path())
     cohort_path.parent.mkdir(parents=True, exist_ok=True)
     cohort_path.write_text(json.dumps(cohort, indent=2), encoding="utf-8")
     return cohort
@@ -144,6 +254,7 @@ def _seed_synthetic_source(source_url: str, items: list[dict[str, Any]]) -> None
             video_id=str(item["video_id"]),
             status="pending",
             source=source_url,
+            has_captions=item.get("has_captions") if isinstance(item.get("has_captions"), bool) else None,
         )
         for item in items
     ]
@@ -165,11 +276,15 @@ def _run_policy(
     workers: int,
     limit: int,
     python_executable: str | None,
+    sample_label: str,
+    worker_state_root_override: Path | None = None,
+    preserve_worker_state_root: bool = False,
 ) -> dict[str, Any]:
     previous_env: dict[str, str | None] = {}
     policy_root = output_root / policy_name
-    worker_state_root = policy_root / "worker_states"
-    shutil.rmtree(worker_state_root, ignore_errors=True)
+    worker_state_root = worker_state_root_override or (policy_root / "worker_states")
+    if not preserve_worker_state_root:
+        shutil.rmtree(worker_state_root, ignore_errors=True)
     try:
         for key, value in POLICY_ENV[policy_name].items():
             previous_env[key] = os.environ.get(key)
@@ -183,6 +298,8 @@ def _run_policy(
         sweep_summary = run_worker_count_sweep(
             worker_counts=[workers],
             limit=limit,
+            sample_label=sample_label,
+            source_filter=source_url,
             output_root=policy_root,
             python_executable=python_executable,
         )
@@ -244,19 +361,42 @@ def main(argv: list[str] | None = None) -> int:
         help="Comma-separated policies to run",
     )
     parser.add_argument(
+        "--cohort-shape",
+        choices=("trace", "captioned", "mixed"),
+        default=DEFAULT_COHORT_SHAPE,
+        help="Frozen cohort shape to build and benchmark",
+    )
+    parser.add_argument(
+        "--sample-label",
+        default=None,
+        help="Optional label to stamp into the worker-count sweep summary",
+    )
+    parser.add_argument(
         "--python",
         default=None,
         help="Python executable to use for csf-source (default: current interpreter)",
     )
+    parser.add_argument(
+        "--worker-state-root",
+        type=Path,
+        default=None,
+        help="Optional shared worker-state root to reuse across benchmark invocations",
+    )
+    parser.add_argument(
+        "--preserve-worker-state-root",
+        action="store_true",
+        help="Reuse the worker-state root instead of deleting it before each policy run",
+    )
     args = parser.parse_args(argv)
 
-    cohort = _load_or_build_cohort(args.cohort_json, args.trace_root)
+    cohort = _load_or_build_cohort(args.cohort_json, args.trace_root, args.cohort_shape)
     items = list(cohort.get("items", []) or [])
     if not items:
         print(f"[benchmark] No cohort items found in {args.cohort_json}", file=sys.stderr)
         return 1
     limit = args.limit if args.limit and args.limit > 0 else len(items)
     items = items[:limit]
+    sample_label = args.sample_label or args.cohort_shape
     policies = _parse_policy_list(args.policy)
 
     args.output_root.mkdir(parents=True, exist_ok=True)
@@ -280,6 +420,9 @@ def main(argv: list[str] | None = None) -> int:
                 workers=args.workers,
                 limit=len(batch_items),
                 python_executable=args.python,
+                sample_label=sample_label,
+                worker_state_root_override=args.worker_state_root,
+                preserve_worker_state_root=args.preserve_worker_state_root,
             )
             row = (sweep_summary.get("results", []) or [{}])[0]
             policy_results.append(
@@ -309,6 +452,8 @@ def main(argv: list[str] | None = None) -> int:
         "trace_root": str(args.trace_root),
         "cohort_json": str(args.cohort_json),
         "source_url": args.source_url,
+        "cohort_shape": args.cohort_shape,
+        "sample_label": sample_label,
         "workers": args.workers,
         "limit": len(items),
         "batch_size": args.batch_size,
@@ -331,8 +476,8 @@ def main(argv: list[str] | None = None) -> int:
                 f"[benchmark] batch={batch['batch_index']} {result['policy']}: "
                 f"success={row.get('success_count', 0)} "
                 f"fail={row.get('fail_count', 0)} "
-                f"vph={row.get('videos_per_hour', 0)} "
-                f"fallback={result.get('fallback_processed_count', 0)}"
+                f"hot_vph={row.get('videos_per_hour', 0)} "
+                f"fallback_recovered={row.get('transcript_fallback_success_count', 0)}"
             )
     return 0
 

@@ -66,7 +66,18 @@ def test_load_cohort_from_trace_include_ready_collects_ready_events(tmp_path):
                 json.dumps(
                     {
                         "action": "nlm_batch_source_content_fetch_completed",
-                        "data": {"video_id": "vid-fetch", "status": "ready", "source_url": "https://example.invalid/1"},
+                        "data": {
+                            "video_id": "vid-fetch",
+                            "status": "ready",
+                            "source_url": "https://example.invalid/1",
+                            "title": "Demo Title",
+                            "description": "Demo Description",
+                            "duration": 12,
+                            "privacy_status": "public",
+                            "upload_status": "uploaded",
+                            "is_live_content": False,
+                            "unavailable_reason": None,
+                        },
                     }
                 ),
                 json.dumps(
@@ -92,6 +103,8 @@ def test_load_cohort_from_trace_include_ready_collects_ready_events(tmp_path):
     assert [item["video_id"] for item in items] == ["vid-fetch", "vid-probe"]
     assert all(item["source_url"].startswith("https://example.invalid/") for item in items)
     assert all(item["has_captions"] is True for item in items)
+    assert items[0]["title"] == "Demo Title"
+    assert items[0]["duration"] == 12
 
 
 def test_load_captioned_cohort_from_db_filters_and_orders_by_publish_date(tmp_path, monkeypatch):
@@ -133,7 +146,12 @@ def test_load_or_build_cohort_mixed_shape_combines_ready_and_non_ready_trace_ite
                 json.dumps(
                     {
                         "action": "nlm_batch_source_content_fetch_completed",
-                        "data": {"video_id": "vid-ready-1", "status": "ready", "source_url": ""},
+                        "data": {
+                            "video_id": "vid-ready-1",
+                            "status": "ready",
+                            "source_url": "",
+                            "title": "Ready Title",
+                        },
                     }
                 ),
                 json.dumps(
@@ -144,13 +162,20 @@ def test_load_or_build_cohort_mixed_shape_combines_ready_and_non_ready_trace_ite
                             "status": "pending",
                             "source_url": "",
                             "youtube_ytdlp_classification": "ok",
+                            "title": "Pending Title",
+                            "duration": 9,
                         },
                     }
                 ),
                 json.dumps(
                     {
                         "action": "nlm_batch_source_content_fetch_completed",
-                        "data": {"video_id": "vid-ready-2", "status": "ready", "source_url": ""},
+                        "data": {
+                            "video_id": "vid-ready-2",
+                            "status": "ready",
+                            "source_url": "",
+                            "title": "Ready Title 2",
+                        },
                     }
                 ),
                 json.dumps(
@@ -161,6 +186,8 @@ def test_load_or_build_cohort_mixed_shape_combines_ready_and_non_ready_trace_ite
                             "status": "too_short",
                             "source_url": "",
                             "youtube_ytdlp_classification": "ok",
+                            "title": "Pending Title 2",
+                            "duration": 11,
                         },
                     }
                 ),

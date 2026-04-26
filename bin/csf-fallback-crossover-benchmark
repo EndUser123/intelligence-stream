@@ -138,6 +138,13 @@ def _load_cohort_from_trace(trace_root: Path, *, include_ready: bool = False) ->
                         "final_status": data.get("final_status"),
                         "youtube_ytdlp_elapsed_s": data.get("youtube_ytdlp_elapsed_s"),
                         "youtube_page_elapsed_s": data.get("youtube_page_elapsed_s"),
+                        "title": data.get("title"),
+                        "description": data.get("description"),
+                        "duration": data.get("duration"),
+                        "privacy_status": data.get("privacy_status"),
+                        "upload_status": data.get("upload_status"),
+                        "is_live_content": data.get("is_live_content"),
+                        "unavailable_reason": data.get("unavailable_reason"),
                         "trace_file": str(path),
                         "has_captions": True if include_ready else False,
                     }
@@ -255,6 +262,13 @@ def _seed_synthetic_source(source_url: str, items: list[dict[str, Any]]) -> None
             status="pending",
             source=source_url,
             has_captions=item.get("has_captions") if isinstance(item.get("has_captions"), bool) else None,
+            title=item.get("title") if isinstance(item.get("title"), str) else None,
+            description=item.get("description") if isinstance(item.get("description"), str) else None,
+            duration=item.get("duration") if isinstance(item.get("duration"), int) else None,
+            privacy_status=item.get("privacy_status") if isinstance(item.get("privacy_status"), str) else None,
+            upload_status=item.get("upload_status") if isinstance(item.get("upload_status"), str) else None,
+            is_live_content=item.get("is_live_content") if isinstance(item.get("is_live_content"), bool) else None,
+            unavailable_reason=item.get("unavailable_reason") if isinstance(item.get("unavailable_reason"), str) else None,
         )
         for item in items
     ]

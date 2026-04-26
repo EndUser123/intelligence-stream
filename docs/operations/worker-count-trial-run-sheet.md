@@ -6,6 +6,9 @@ Last updated: 2026-04-26
 
 Measure NotebookLM throughput under controlled load while holding batch size and notebook ownership constant.
 
+Canonical test registry:
+- [Test Registry](test-registry.md)
+
 ## Three-Phase Plan
 
 The test program is split into three phases so we do not mix discovery, validation, and lock-in.

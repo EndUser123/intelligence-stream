@@ -147,6 +147,14 @@ _NLM_MIN_CONTENT_CHARS = 21
 # Whisper fallback — set YTIS_WHISPER_ENABLED=false to disable
 _WHISPER_ENABLED: bool | None = None  # lazily loaded from env
 
+# Whisper audio download prefers broad selectors so we do not fail valid
+# videos just because a particular extension is unavailable.
+_WHISPER_AUDIO_FORMATS: tuple[str, ...] = (
+    "bestaudio/best",
+    "bestaudio",
+    "best",
+)
+
 # Cookie file cache - avoid repeated Firefox cookies.sqlite extraction per video
 _cookie_cache: dict[str, str | int | float] = {}  # {path: str, refcount: int, expiry: float}
 _cookie_lock = threading.Lock()
@@ -1176,32 +1184,64 @@ def _fetch_via_whisper(video_id: str, lang: str) -> tuple[bool, str | None, str 
     tmp_dir = tempfile.mkdtemp(prefix="whisper_audio_")
     audio_path = os.path.join(tmp_dir, "audio")
     try:
-        # Download audio only via yt-dlp
-        cmd = [
-            "yt-dlp",
-            *get_browser_cookies("firefox"),
-            "-f",
-            "bestaudio[ext=m4a]",
-            "--extract-audio",
-            "--audio-format",
-            "mp3",
-            "--output",
-            audio_path,
-            video_url,
-        ]
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
-        if proc.returncode != 0:
-            stderr_lower = proc.stderr.lower()
+        # Download audio only via yt-dlp. Use broad selectors so we still
+        # capture videos that do not expose an m4a stream.
+        last_audio_error: str | None = None
+        js_runtime_args = ["--js-runtimes", "node"] if shutil.which("node") else []
+        for audio_format in _WHISPER_AUDIO_FORMATS:
+            cmd = [
+                "yt-dlp",
+                *get_browser_cookies("firefox"),
+                *js_runtime_args,
+                "-f",
+                audio_format,
+                "--extract-audio",
+                "--audio-format",
+                "mp3",
+                "--output",
+                audio_path,
+                video_url,
+            ]
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if proc.returncode == 0:
+                break
+
+            stderr_lower = (proc.stderr or "").lower()
             if "429" in proc.stderr or "too many requests" in stderr_lower:
                 return (False, None, "audio download rate limited (429)")
             if "not found" in stderr_lower or "video unavailable" in stderr_lower:
                 return (False, None, "video unavailable for audio download")
-            return (False, None, f"audio download failed: {proc.stderr.strip()[:200]}")
+
+            last_audio_error = f"audio download failed: {proc.stderr.strip()[:200]}"
+            if any(
+                hint in stderr_lower
+                for hint in (
+                    "requested format is not available",
+                    "format is not available",
+                    "no such format",
+                    "no formats available",
+                )
+            ):
+                continue
+
+            if any(
+                hint in stderr_lower
+                for hint in (
+                    "sign in to confirm",
+                    "not a bot",
+                    "challenge solving failed",
+                )
+            ):
+                continue
+
+            return (False, None, last_audio_error)
+        else:
+            return (False, None, last_audio_error or "audio download failed")
 
         # Find the downloaded audio file
         audio_files = list(Path(tmp_dir).glob("*.mp3"))

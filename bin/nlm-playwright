@@ -225,7 +225,6 @@ def _seed_automation_profile_from_chrome() -> Path:
     """Seed the dedicated automation profile from the last-used Chrome profile."""
     automation_root = _automation_profile_root()
     candidate_roots = [
-        Path(r"C:\Users\brsth\AppData\Local\Perplexity\Comet\User Data"),
         DEFAULT_CHROME_PROFILE,
     ]
     source_root = None

@@ -89,7 +89,12 @@ class TestMaxRetries:
         """Video is stored with permanent_failure status after max retries."""
         clear_all_storages()
         enqueue_retry("dQw4w9WgXcQ", "final error", retry_count=_MAX_RETRIES)
-        entry = get_retry_entry("dQw4w9WgXcQ")
+        entry = None
+        for _ in range(20):
+            entry = get_retry_entry("dQw4w9WgXcQ")
+            if entry is not None:
+                break
+            time.sleep(0.05)
         assert entry is not None
         assert entry.status == "permanent_failure"
         assert entry.retry_count == _MAX_RETRIES

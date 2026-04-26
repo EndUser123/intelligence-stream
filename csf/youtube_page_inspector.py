@@ -218,7 +218,8 @@ def inspect_youtube_watch_page_via_ytdlp(video_id: str, *, timeout_s: float = _Y
     """Fetch and classify a YouTube watch page using yt-dlp JSON output."""
     video_id = str(video_id or "").strip()
     url = _YOUTUBE_WATCH_URL.format(video_id=video_id)
-    started_at = time.time()
+    started_at_epoch = time.time()
+    started_at_perf = time.perf_counter()
     ytdlp = shutil.which("yt-dlp")
     if not ytdlp:
         return {
@@ -234,8 +235,8 @@ def inspect_youtube_watch_page_via_ytdlp(video_id: str, *, timeout_s: float = _Y
             "stdout": "",
             "stderr": "yt-dlp not found on PATH",
             "returncode": None,
-            "checked_at_epoch": started_at,
-            "elapsed_s": round(time.time() - started_at, 3),
+            "checked_at_epoch": started_at_epoch,
+            "elapsed_s": round(time.perf_counter() - started_at_perf, 3),
         }
 
     proc = subprocess.run(
@@ -259,8 +260,8 @@ def inspect_youtube_watch_page_via_ytdlp(video_id: str, *, timeout_s: float = _Y
                     "stdout": stdout[:4000],
                     "stderr": stderr[:4000],
                     "returncode": proc.returncode,
-                    "checked_at_epoch": started_at,
-                    "elapsed_s": round(time.time() - started_at, 3),
+                    "checked_at_epoch": started_at_epoch,
+                    "elapsed_s": round(time.perf_counter() - started_at_perf, 3),
                 }
             )
             return classified
@@ -278,8 +279,8 @@ def inspect_youtube_watch_page_via_ytdlp(video_id: str, *, timeout_s: float = _Y
                 "stdout": stdout[:4000],
                 "stderr": stderr[:4000],
                 "returncode": proc.returncode,
-                "checked_at_epoch": started_at,
-                "elapsed_s": round(time.time() - started_at, 3),
+                "checked_at_epoch": started_at_epoch,
+                "elapsed_s": round(time.perf_counter() - started_at_perf, 3),
                 "error": str(e),
             }
 
@@ -315,8 +316,8 @@ def inspect_youtube_watch_page_via_ytdlp(video_id: str, *, timeout_s: float = _Y
         "stdout": stdout[:4000],
         "stderr": stderr[:4000],
         "returncode": proc.returncode,
-        "checked_at_epoch": started_at,
-        "elapsed_s": round(time.time() - started_at, 3),
+        "checked_at_epoch": started_at_epoch,
+        "elapsed_s": round(time.perf_counter() - started_at_perf, 3),
     }
 
 
@@ -324,7 +325,8 @@ def inspect_youtube_watch_page(video_id: str, *, timeout_s: float = _YOUTUBE_PAG
     """Fetch and classify a public YouTube watch page when possible."""
     video_id = str(video_id or "").strip()
     url = _YOUTUBE_WATCH_URL.format(video_id=video_id)
-    started_at = time.time()
+    started_at_epoch = time.time()
+    started_at_perf = time.perf_counter()
     req = urllib.request.Request(url, headers=_YOUTUBE_PAGE_HEADERS)
     try:
         with urllib.request.urlopen(req, timeout=timeout_s) as resp:
@@ -337,8 +339,8 @@ def inspect_youtube_watch_page(video_id: str, *, timeout_s: float = _YOUTUBE_PAG
                 "video_id": video_id,
                 "url": url,
                 "http_status": http_status,
-                "checked_at_epoch": started_at,
-                "elapsed_s": round(time.time() - started_at, 3),
+                "checked_at_epoch": started_at_epoch,
+                "elapsed_s": round(time.perf_counter() - started_at_perf, 3),
             }
         )
         return classified
@@ -359,8 +361,8 @@ def inspect_youtube_watch_page(video_id: str, *, timeout_s: float = _YOUTUBE_PAG
             "is_live_content": None,
             "title": None,
             "http_status": e.code,
-            "checked_at_epoch": started_at,
-            "elapsed_s": round(time.time() - started_at, 3),
+            "checked_at_epoch": started_at_epoch,
+            "elapsed_s": round(time.perf_counter() - started_at_perf, 3),
             "error": str(e),
         }
     except Exception as e:
@@ -375,7 +377,7 @@ def inspect_youtube_watch_page(video_id: str, *, timeout_s: float = _YOUTUBE_PAG
             "is_live_content": None,
             "title": None,
             "http_status": None,
-            "checked_at_epoch": started_at,
-            "elapsed_s": round(time.time() - started_at, 3),
+            "checked_at_epoch": started_at_epoch,
+            "elapsed_s": round(time.perf_counter() - started_at_perf, 3),
             "error": str(e),
         }

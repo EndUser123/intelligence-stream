@@ -25,13 +25,13 @@ from csf.shared_retry_pool import enqueue as enqueue_shared_retry
 from csf.youtube_page_inspector import inspect_youtube_watch_page, inspect_youtube_watch_page_via_ytdlp
 
 
-_DEFAULT_OWNER_NOTEBOOK_STATE_PATH = Path("P:/__csf/.data/yt-is/owner_nlm_notebook.json")
+_DEFAULT_OWNER_NOTEBOOK_STATE_PATH = Path("P:/.data/yt-is/owner_nlm_notebook.json")
 _DEFAULT_OWNER_NOTEBOOK_TITLE = "yt-is-worker-01"
-_DEFAULT_INDUSTRIAL_WORKER_STATE_ROOT = Path("P:/__csf/.data/yt-is/industrial-worker-states")
+_DEFAULT_INDUSTRIAL_WORKER_STATE_ROOT = Path("P:/.data/yt-is/industrial-worker-states")
 _DEFAULT_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX = "yt-is-worker"
 _LEGACY_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX = "yt-is::industrial::worker"
 _DEFAULT_NOTEBOOKLM_PROFILE = "default"
-_AUTH_LOCK_PATH = Path("P:/__csf/.data/yt-is/locks/nlm-auth.lock")
+_AUTH_LOCK_PATH = Path("P:/.data/yt-is/locks/nlm-auth.lock")
 
 _NLM_CONFIG = get_nlm_config()
 DEFAULT_NOTEBOOKLM_BATCH_SIZE = _NLM_CONFIG.notebook_batch_size
@@ -174,7 +174,7 @@ def _clear_reusable_notebook_state() -> None:
         for state_path in {
             _get_owner_notebook_state_path(),
             _DEFAULT_OWNER_NOTEBOOK_STATE_PATH,
-            Path("P:/__csf/.data/yt-is/reusable_nlm_notebook.json"),
+            Path("P:/.data/yt-is/reusable_nlm_notebook.json"),
         }:
             if state_path.exists():
                 state_path.unlink()
@@ -1184,8 +1184,36 @@ class NLMBatchIngestor:
             "ready_age_s_max": 0.0,
             "attempts_total": 0,
             "attempts_max": 0,
+            "youtube_ytdlp_elapsed_s_total": 0.0,
+            "youtube_ytdlp_elapsed_s_max": 0.0,
+            "youtube_ytdlp_elapsed_s_count": 0,
+            "youtube_page_elapsed_s_total": 0.0,
+            "youtube_page_elapsed_s_max": 0.0,
+            "youtube_page_elapsed_s_count": 0,
         }
         status_lock = threading.Lock()
+
+        def _record_youtube_probe_elapsed_metrics(
+            ytdlp_probe: dict[str, object],
+            youtube_page_probe: dict[str, object],
+        ) -> None:
+            ytdlp_elapsed_s = float(ytdlp_probe.get("elapsed_s", 0) or 0.0) if ytdlp_probe else 0.0
+            youtube_page_elapsed_s = float(youtube_page_probe.get("elapsed_s", 0) or 0.0) if youtube_page_probe else 0.0
+            with status_lock:
+                if ytdlp_probe:
+                    content_fetch_stats["youtube_ytdlp_elapsed_s_total"] += ytdlp_elapsed_s
+                    content_fetch_stats["youtube_ytdlp_elapsed_s_max"] = max(
+                        content_fetch_stats["youtube_ytdlp_elapsed_s_max"],
+                        ytdlp_elapsed_s,
+                    )
+                    content_fetch_stats["youtube_ytdlp_elapsed_s_count"] += 1
+                if youtube_page_probe:
+                    content_fetch_stats["youtube_page_elapsed_s_total"] += youtube_page_elapsed_s
+                    content_fetch_stats["youtube_page_elapsed_s_max"] = max(
+                        content_fetch_stats["youtube_page_elapsed_s_max"],
+                        youtube_page_elapsed_s,
+                    )
+                    content_fetch_stats["youtube_page_elapsed_s_count"] += 1
         log_action(
             "nlm_batch_extract_started",
             {
@@ -1468,6 +1496,7 @@ class NLMBatchIngestor:
                 youtube_ytdlp_probe = inspect_youtube_watch_page_via_ytdlp(vid_hint)
                 if str(youtube_ytdlp_probe.get("classification") or "").strip() in {"error", "unknown"}:
                     youtube_page_probe = inspect_youtube_watch_page(vid_hint)
+                _record_youtube_probe_elapsed_metrics(youtube_ytdlp_probe, youtube_page_probe)
             retry_queue_eligible = (
                 allow_retry_queue
                 and _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S > 0
@@ -1566,6 +1595,7 @@ class NLMBatchIngestor:
                     "youtube_ytdlp_title": youtube_ytdlp_probe.get("title"),
                     "youtube_ytdlp_returncode": youtube_ytdlp_probe.get("returncode"),
                     "youtube_ytdlp_error": youtube_ytdlp_probe.get("error"),
+                    "youtube_ytdlp_elapsed_s": youtube_ytdlp_probe.get("elapsed_s"),
                     "youtube_page_classification": youtube_page_probe.get("classification"),
                     "youtube_page_available": youtube_page_probe.get("available"),
                     "youtube_page_status": youtube_page_probe.get("status"),
@@ -1575,6 +1605,7 @@ class NLMBatchIngestor:
                     "youtube_page_title": youtube_page_probe.get("title"),
                     "youtube_page_http_status": youtube_page_probe.get("http_status"),
                     "youtube_page_error": youtube_page_probe.get("error"),
+                    "youtube_page_elapsed_s": youtube_page_probe.get("elapsed_s"),
                 },
             )
             return {
@@ -1597,6 +1628,7 @@ class NLMBatchIngestor:
                 "youtube_ytdlp_title": youtube_ytdlp_probe.get("title"),
                 "youtube_ytdlp_returncode": youtube_ytdlp_probe.get("returncode"),
                 "youtube_ytdlp_error": youtube_ytdlp_probe.get("error"),
+                "youtube_ytdlp_elapsed_s": youtube_ytdlp_probe.get("elapsed_s"),
                 "youtube_page_classification": youtube_page_probe.get("classification"),
                 "youtube_page_available": youtube_page_probe.get("available"),
                 "youtube_page_status": youtube_page_probe.get("status"),
@@ -1606,6 +1638,7 @@ class NLMBatchIngestor:
                 "youtube_page_title": youtube_page_probe.get("title"),
                 "youtube_page_http_status": youtube_page_probe.get("http_status"),
                 "youtube_page_error": youtube_page_probe.get("error"),
+                "youtube_page_elapsed_s": youtube_page_probe.get("elapsed_s"),
             }
 
         def _run_fetch_round(
@@ -1762,6 +1795,22 @@ class NLMBatchIngestor:
                     content_fetch_stats["attempts_total"] / max(sum(content_fetch_stats["status_counts"].values()), 1),
                     3,
                 ),
+                "youtube_ytdlp_elapsed_s_total": round(content_fetch_stats["youtube_ytdlp_elapsed_s_total"], 3),
+                "youtube_ytdlp_elapsed_s_max": round(content_fetch_stats["youtube_ytdlp_elapsed_s_max"], 3),
+                "youtube_ytdlp_elapsed_s_count": int(content_fetch_stats["youtube_ytdlp_elapsed_s_count"]),
+                "youtube_ytdlp_elapsed_s_avg": round(
+                    content_fetch_stats["youtube_ytdlp_elapsed_s_total"]
+                    / max(int(content_fetch_stats["youtube_ytdlp_elapsed_s_count"]), 1),
+                    3,
+                ),
+                "youtube_page_elapsed_s_total": round(content_fetch_stats["youtube_page_elapsed_s_total"], 3),
+                "youtube_page_elapsed_s_max": round(content_fetch_stats["youtube_page_elapsed_s_max"], 3),
+                "youtube_page_elapsed_s_count": int(content_fetch_stats["youtube_page_elapsed_s_count"]),
+                "youtube_page_elapsed_s_avg": round(
+                    content_fetch_stats["youtube_page_elapsed_s_total"]
+                    / max(int(content_fetch_stats["youtube_page_elapsed_s_count"]), 1),
+                    3,
+                ),
                 "content_fetch_status_counts": content_fetch_stats["status_counts"],
                 "materialization_ready_at_epoch": ready_reference_epoch,
             },
@@ -1778,6 +1827,22 @@ class NLMBatchIngestor:
             "content_fetch_attempts_max": int(content_fetch_stats["attempts_max"]),
             "content_fetch_attempts_avg": round(
                 content_fetch_stats["attempts_total"] / max(sum(content_fetch_stats["status_counts"].values()), 1),
+                3,
+            ),
+            "youtube_ytdlp_elapsed_s_total": round(content_fetch_stats["youtube_ytdlp_elapsed_s_total"], 3),
+            "youtube_ytdlp_elapsed_s_max": round(content_fetch_stats["youtube_ytdlp_elapsed_s_max"], 3),
+            "youtube_ytdlp_elapsed_s_count": int(content_fetch_stats["youtube_ytdlp_elapsed_s_count"]),
+            "youtube_ytdlp_elapsed_s_avg": round(
+                content_fetch_stats["youtube_ytdlp_elapsed_s_total"]
+                / max(int(content_fetch_stats["youtube_ytdlp_elapsed_s_count"]), 1),
+                3,
+            ),
+            "youtube_page_elapsed_s_total": round(content_fetch_stats["youtube_page_elapsed_s_total"], 3),
+            "youtube_page_elapsed_s_max": round(content_fetch_stats["youtube_page_elapsed_s_max"], 3),
+            "youtube_page_elapsed_s_count": int(content_fetch_stats["youtube_page_elapsed_s_count"]),
+            "youtube_page_elapsed_s_avg": round(
+                content_fetch_stats["youtube_page_elapsed_s_total"]
+                / max(int(content_fetch_stats["youtube_page_elapsed_s_count"]), 1),
                 3,
             ),
             "retry_queue_deferred_count": retry_queue_deferred_count,
@@ -2277,6 +2342,14 @@ class NLMReusableIngestor:
         failed = len(results) - succeeded
         total_elapsed_s = round(time.monotonic() - batch_started_at, 3)
         extract_metrics = self._ingestor.get_last_extract_metrics() or {}
+        youtube_ytdlp_elapsed_s_total = float(extract_metrics.get("youtube_ytdlp_elapsed_s_total", 0) or 0.0)
+        youtube_ytdlp_elapsed_s_max = float(extract_metrics.get("youtube_ytdlp_elapsed_s_max", 0) or 0.0)
+        youtube_ytdlp_elapsed_s_count = int(extract_metrics.get("youtube_ytdlp_elapsed_s_count", 0) or 0)
+        youtube_ytdlp_elapsed_s_avg = float(extract_metrics.get("youtube_ytdlp_elapsed_s_avg", 0) or 0.0)
+        youtube_page_elapsed_s_total = float(extract_metrics.get("youtube_page_elapsed_s_total", 0) or 0.0)
+        youtube_page_elapsed_s_max = float(extract_metrics.get("youtube_page_elapsed_s_max", 0) or 0.0)
+        youtube_page_elapsed_s_count = int(extract_metrics.get("youtube_page_elapsed_s_count", 0) or 0)
+        youtube_page_elapsed_s_avg = float(extract_metrics.get("youtube_page_elapsed_s_avg", 0) or 0.0)
         log_action(
             "nlm_batch_reusable_process_completed",
             {
@@ -2311,6 +2384,14 @@ class NLMReusableIngestor:
                 "content_fetch_attempts_total": int(extract_metrics.get("content_fetch_attempts_total", 0) or 0),
                 "content_fetch_attempts_max": int(extract_metrics.get("content_fetch_attempts_max", 0) or 0),
                 "content_fetch_attempts_avg": float(extract_metrics.get("content_fetch_attempts_avg", 0) or 0.0),
+                "youtube_ytdlp_elapsed_s_total": youtube_ytdlp_elapsed_s_total,
+                "youtube_ytdlp_elapsed_s_max": youtube_ytdlp_elapsed_s_max,
+                "youtube_ytdlp_elapsed_s_count": youtube_ytdlp_elapsed_s_count,
+                "youtube_ytdlp_elapsed_s_avg": youtube_ytdlp_elapsed_s_avg,
+                "youtube_page_elapsed_s_total": youtube_page_elapsed_s_total,
+                "youtube_page_elapsed_s_max": youtube_page_elapsed_s_max,
+                "youtube_page_elapsed_s_count": youtube_page_elapsed_s_count,
+                "youtube_page_elapsed_s_avg": youtube_page_elapsed_s_avg,
                 "retry_queue_deferred_count": int(extract_metrics.get("retry_queue_deferred_count", 0) or 0),
                 "retry_queue_recovered_count": int(extract_metrics.get("retry_queue_recovered_count", 0) or 0),
                 "retry_queue_final_failed_count": int(extract_metrics.get("retry_queue_final_failed_count", 0) or 0),
@@ -2356,6 +2437,14 @@ class NLMReusableIngestor:
             "content_fetch_attempts_total": int(extract_metrics.get("content_fetch_attempts_total", 0) or 0),
             "content_fetch_attempts_max": int(extract_metrics.get("content_fetch_attempts_max", 0) or 0),
             "content_fetch_attempts_avg": float(extract_metrics.get("content_fetch_attempts_avg", 0) or 0.0),
+            "youtube_ytdlp_elapsed_s_total": youtube_ytdlp_elapsed_s_total,
+            "youtube_ytdlp_elapsed_s_max": youtube_ytdlp_elapsed_s_max,
+            "youtube_ytdlp_elapsed_s_count": youtube_ytdlp_elapsed_s_count,
+            "youtube_ytdlp_elapsed_s_avg": youtube_ytdlp_elapsed_s_avg,
+            "youtube_page_elapsed_s_total": youtube_page_elapsed_s_total,
+            "youtube_page_elapsed_s_max": youtube_page_elapsed_s_max,
+            "youtube_page_elapsed_s_count": youtube_page_elapsed_s_count,
+            "youtube_page_elapsed_s_avg": youtube_page_elapsed_s_avg,
             "retry_queue_deferred_count": int(extract_metrics.get("retry_queue_deferred_count", 0) or 0),
             "retry_queue_recovered_count": int(extract_metrics.get("retry_queue_recovered_count", 0) or 0),
             "retry_queue_final_failed_count": int(extract_metrics.get("retry_queue_final_failed_count", 0) or 0),

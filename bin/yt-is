@@ -5,6 +5,8 @@ Usage:
     yt-is sync              # Check all tracked channels for new videos
     yt-is list              # List all tracked channels
     yt-is add <url>         # Add a new channel to track
+    yt-is history           # Import channels from watch history
+    yt-is watchlater        # Import channels from Watch Later
     yt-is fetch             # Download pending transcripts (yt-dlp → Selenium)
     yt-is fetch --dry-run   # Preview what would be fetched
 """
@@ -39,6 +41,32 @@ def main() -> None:
     add_parser = subparsers.add_parser("add", help="Add a new channel to track")
     add_parser.add_argument("url", help="Channel URL or playlist URL")
 
+    # history command: import tracked channels from watch history
+    history_parser = subparsers.add_parser(
+        "history",
+        help="Extract channels from YouTube watch history and add new ones",
+    )
+    history_parser.add_argument("--dry-run", action="store_true", help="Preview channels without adding them")
+    history_parser.add_argument(
+        "--min-history-videos",
+        type=int,
+        default=2,
+        help="Minimum videos watched from a channel to qualify (default: 2)",
+    )
+
+    # watchlater command: import tracked channels from Watch Later
+    watchlater_parser = subparsers.add_parser(
+        "watchlater",
+        help="Extract channels from YouTube Watch Later and add new ones",
+    )
+    watchlater_parser.add_argument("--dry-run", action="store_true", help="Preview channels without adding them")
+    watchlater_parser.add_argument(
+        "--min-watchlater-videos",
+        type=int,
+        default=2,
+        help="Minimum videos in Watch Later from a channel to qualify (default: 2)",
+    )
+
     # fetch command: download pending transcripts via escalation chain
     fetch_parser = subparsers.add_parser("fetch", help="Download pending transcripts via escalation chain (yt-dlp → Selenium)")
     fetch_parser.add_argument("--dry-run", action="store_true", help="Preview what would be fetched")
@@ -67,6 +95,58 @@ def main() -> None:
     elif args.command == "add":
         # Add a new channel
         result = subprocess.run([sys.executable, str(CSF_SOURCE), "add", args.url])
+        sys.exit(result.returncode)
+
+    elif args.command == "history":
+        fetch_cmd = [sys.executable, str(CSF_SOURCE), "history"]
+        if args.dry_run:
+            fetch_cmd.append("--dry-run")
+        if args.min_history_videos != 2:
+            fetch_cmd.extend(["--min-history-videos", str(args.min_history_videos)])
+        log_action(
+            "yt_is_dispatch_started",
+            {
+                "command": "history",
+                "cwd": str(Path.cwd()),
+                "backend": str(CSF_SOURCE),
+                "argv": fetch_cmd,
+            },
+        )
+        result = subprocess.run(fetch_cmd)
+        log_action(
+            "yt_is_dispatch_finished",
+            {
+                "command": "history",
+                "backend": str(CSF_SOURCE),
+                "returncode": result.returncode,
+            },
+        )
+        sys.exit(result.returncode)
+
+    elif args.command == "watchlater":
+        fetch_cmd = [sys.executable, str(CSF_SOURCE), "watchlater"]
+        if args.dry_run:
+            fetch_cmd.append("--dry-run")
+        if args.min_watchlater_videos != 2:
+            fetch_cmd.extend(["--min-watchlater-videos", str(args.min_watchlater_videos)])
+        log_action(
+            "yt_is_dispatch_started",
+            {
+                "command": "watchlater",
+                "cwd": str(Path.cwd()),
+                "backend": str(CSF_SOURCE),
+                "argv": fetch_cmd,
+            },
+        )
+        result = subprocess.run(fetch_cmd)
+        log_action(
+            "yt_is_dispatch_finished",
+            {
+                "command": "watchlater",
+                "backend": str(CSF_SOURCE),
+                "returncode": result.returncode,
+            },
+        )
         sys.exit(result.returncode)
 
     elif args.command == "fetch":

@@ -1,6 +1,6 @@
 # yt-is Handoff
 
-Last updated: 2026-04-20
+Last updated: 2026-04-25
 
 ## Current state
 
@@ -13,6 +13,15 @@ Last updated: 2026-04-20
   - captioned and `no_captions` items go back to `notebooklm`
 - We added a durable note at `P:/packages/yt-is/CODEX_MEMORY.md` and linked it from `README.md`.
 - Whisper empty-output messages now say when the model thinks the audio was likely music or silence.
+- The fallback tail now reaches Whisper for `yt-dlp = ok` videos with no captions:
+  - audio download now includes `--js-runtimes node` when `node` is available
+  - this solves the YouTube `n` challenge on the fallback path
+  - successful fallback transcripts are cached in `P:/.data/yt-is/transcripts.sqlite`
+- Verified live example:
+  - `zgf2d8gsy70`
+  - source: `whisper`
+  - transcript length: `15419`
+  - cached at `2026-04-24T23:06:39.164905`
 
 ## Why this matters
 
@@ -49,6 +58,7 @@ Last updated: 2026-04-20
 - The fallback lane is mostly Selenium and is much slower.
 - The backlog is large, so putting `no_captions` into fallback caused a big throughput collapse.
 - Whisper empty output is not proof of a bug; it usually means no speech, maybe music or silence, and is now labeled that way.
+- The remaining failure mode for the fallback tail was not Whisper itself; it was yt-dlp audio acquisition failing before Whisper ran. That is now fixed for the no-caption `yt-dlp = ok` class by enabling a real JS runtime.
 
 ## Validation status
 
@@ -56,6 +66,11 @@ Last updated: 2026-04-20
 - `P:/packages/yt-is/tests/test_csf_source_fetch_timing.py` passed.
 - `P:/packages/yt-is/tests/test_transcript.py` passed.
 - The latest focused split tests passed.
+- The fallback tail was validated live against `zgf2d8gsy70` and produced a saved Whisper transcript in `transcripts.sqlite`.
+- Before any risky sweep or cleanup, run `python P:/packages/yt-is/bin/csf-backup-transcripts` to snapshot `P:/.data/yt-is/transcripts.sqlite` into `P:/.data/yt-is/backups/`.
+- If you want to stage a long run before promoting it, point `YTIS_TRANSCRIPT_CACHE_DB_PATH` at `P:/.data/yt-is/transcripts-staging.sqlite`, run the backlog against that staging DB, then promote with `python P:/packages/yt-is/bin/csf-promote-transcripts`. The promote step is blocking and fail-closed: it refuses missing source DBs, empty staging DBs, and source/destination collisions.
+- Before any tracked-channel sync or blocklist change, run `python P:/packages/yt-is/bin/csf-backup-channel-state` to snapshot `P:/.data/yt-is/batch_status.sqlite` into `P:/.data/yt-is/backups/`.
+- If you want to stage channel inventory changes before promoting them, point `YTIS_BATCH_STATUS_DB_PATH` at `P:/.data/yt-is/batch-status-staging.sqlite`, run `yt-is sync` against that staging DB, then promote with `python P:/packages/yt-is/bin/csf-promote-channel-state`. The promote step is blocking and fail-closed: it refuses missing source DBs, empty staging DBs, and source/destination collisions.
 
 ## Next action for the new session
 
@@ -67,7 +82,8 @@ Last updated: 2026-04-20
    - NotebookLM successes
    - transcript-fallback successes
    - negative-cache growth
-   - cache row growth in `P:/__csf/.data/yt-is/transcripts.sqlite`
+   - cache row growth in `P:/.data/yt-is/transcripts.sqlite`
+5. Re-run the current failing cohort if you want to move more backlog through the now-fixed Whisper tail.
 
 ## Useful reminders
 

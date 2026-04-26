@@ -1,0 +1,60 @@
+[source] Preflight scan: checking 733 active channels (0 blocked skipped) for pending videos...
+[source] Scan status: 1/733 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.002s, trigger=first_channel
+[source] Scan status: 73/733 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.088s, trigger=channel_checkpoint
+[source] Scan status: 146/733 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.174s, trigger=channel_checkpoint
+[source] Scan status: 219/733 channels, pending=0, cached=0, neg_cache=472, terminal=0, notebooklm=0, fallback=0, elapsed=0.997s, trigger=channel_checkpoint
+[source] Pending item limit reached at 25; stopping scan early.
+[source] Preflight scan complete: 733 active channels, 25 pending, 0 cached, 472 neg-cache, 0 terminal, 25 notebooklm, 0 transcript-fallback
+[source] Negative-cache sample: AOnyxxADgxE, hotranqYmYI, Z53T_FcXQDA, okL5wquiTFg, tljhsKc-EKg, tmJZ7atqgbI, 5GKfzZPJCcQ, L9SwLFxZ8h0, gMJSLLa-O0s, m82TaD_eUFs
+[source] Escalation Batch Process
+[source] Channels: 733 active / 744 tracked
+[source] Already cached: 0
+[source] Negative-cache skips: 472
+[source] Negative-cache sample: AOnyxxADgxE, hotranqYmYI, Z53T_FcXQDA, okL5wquiTFg, tljhsKc-EKg, tmJZ7atqgbI, 5GKfzZPJCcQ, L9SwLFxZ8h0, gMJSLLa-O0s, m82TaD_eUFs
+[source] Pending extraction: 25
+[source] Run limit: 25 pending items
+[source] Mode: LIVE
+[source] Strategy: Surgical (Chain)
+[source] Method: captioned/no-captions items use NotebookLM chain; live items use transcript fallback
+[source] Workers: 2
+
+[source] Pre-flight worker notebook audit: 0 worker notebooks reported, 0 failed
+[source] Starting Surgical Ingest (Sequential Escalation)...
+[2/25] ✓ 5y4jQ7mOwDM (ytdlp)
+[1/25] ✓ oF2R2ShCXMI (ytdlp)
+[4/25] ✓ 1Rr0U8cC-mw (ytdlp)
+[3/25] ✓ yA876Ikdhz0 (ytdlp)
+[5/25] ✓ LdKuB6f2ImU (ytdlp)
+[6/25] ✓ BlCpWEgxgt4 (ytdlp)
+[8/25] ✓ 7yQBjC6K0ic (ytdlp)
+[7/25] ✓ 1fgFx6nSjaQ (ytdlp)
+[9/25] ✓ 3MgapyevNLQ (ytdlp)
+[10/25] ✓ WGMCfqRwlV8 (ytdlp)
+[11/25] ✓ a412EizV1yw (ytdlp)
+[12/25] ✓ SVboQv_WBMc (ytdlp)
+[13/25] ✓ idPSmIOVO-Q (ytdlp)
+[14/25] ✓ fixXZb8Pfb4 (ytdlp)
+[15/25] ✓ 7Nh8K0P4bCY (ytdlp)
+[16/25] ✓ aYjOYHCBIrU (ytdlp)
+[17/25] ✓ P67VZiz1-wk (ytdlp)
+[18/25] ✓ AFa6k9FvrdQ (ytdlp)
+[20/25] ✓ Z5Rdceu_4Zw (ytdlp)
+[19/25] ✓ FY1UnOhtmvA (ytdlp)
+[21/25] ✓ ZYL7fC_tUKw (ytdlp)
+[22/25] ✓ xWVCZaVBVsU (ytdlp)
+[23/25] ✓ p0JequF7Tks (ytdlp)
+[24/25] ✓ 6BdmrvWzYAI (ytdlp)
+[25/25] ✓ z5p2kDSf5dI (ytdlp)
+
+[source] === Escalation Batch Complete ===
+[source] Successfully extracted: 25
+[source] Failed: 0
+[source] Skipped (cached): 0
+[source] Skipped (negative cache): 472
+[source] Skipped (terminal): 0
+[source] NotebookLM-eligible: 25
+[source] Routed to transcript fallback: 0
+[source] Negative-cache reasons: unavailable=472
+[source] Worker notebook cleanup: 0 deleted, 0 failed
+[source] Total discovered: 25
+[source] Total processed outcomes: 25

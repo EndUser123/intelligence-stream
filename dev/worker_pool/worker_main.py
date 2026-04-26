@@ -196,6 +196,14 @@ def main(argv: list[str] | None = None) -> int:
         "source_ready_age_s_total": 0.0,
         "source_ready_age_s_max": 0.0,
         "source_ready_age_s_avg": 0.0,
+        "youtube_ytdlp_elapsed_s_total": 0.0,
+        "youtube_ytdlp_elapsed_s_max": 0.0,
+        "youtube_ytdlp_elapsed_s_count": 0,
+        "youtube_ytdlp_elapsed_s_avg": 0.0,
+        "youtube_page_elapsed_s_total": 0.0,
+        "youtube_page_elapsed_s_max": 0.0,
+        "youtube_page_elapsed_s_count": 0,
+        "youtube_page_elapsed_s_avg": 0.0,
         "shared_retry_deferred_count": 0,
         "shared_retry_recovered_count": 0,
         "shared_retry_final_failed_count": 0,
@@ -347,7 +355,21 @@ def main(argv: list[str] | None = None) -> int:
             while time.monotonic() - drain_started_at < drain_budget_s:
                 claimed = claim_shared_retry_ready(limit=8, claimant_id=args.worker_id)
                 if not claimed:
-                    if shared_retry_pending_count() <= 0:
+                    try:
+                        remaining_pending = shared_retry_pending_count()
+                    except Exception as exc:
+                        log_action(
+                            "worker_shared_retry_pending_count_error",
+                            {
+                                "worker_id": args.worker_id,
+                                "notebooklm_profile": notebooklm_profile,
+                                "state_path": args.state_path,
+                                "notebook_title": args.notebook_title,
+                                "error": str(exc),
+                            },
+                        )
+                        remaining_pending = 0
+                    if remaining_pending <= 0:
                         break
                     time.sleep(drain_poll_s)
                     continue
@@ -505,6 +527,14 @@ def main(argv: list[str] | None = None) -> int:
             source_ready_age_s_total = float(metrics.get("source_ready_age_s_total") or 0.0)
             source_ready_age_s_max = float(metrics.get("source_ready_age_s_max") or 0.0)
             source_ready_age_s_avg = float(metrics.get("source_ready_age_s_avg") or 0.0)
+            youtube_ytdlp_elapsed_s_total = float(metrics.get("youtube_ytdlp_elapsed_s_total") or 0.0)
+            youtube_ytdlp_elapsed_s_max = float(metrics.get("youtube_ytdlp_elapsed_s_max") or 0.0)
+            youtube_ytdlp_elapsed_s_count = int(metrics.get("youtube_ytdlp_elapsed_s_count") or 0)
+            youtube_ytdlp_elapsed_s_avg = float(metrics.get("youtube_ytdlp_elapsed_s_avg") or 0.0)
+            youtube_page_elapsed_s_total = float(metrics.get("youtube_page_elapsed_s_total") or 0.0)
+            youtube_page_elapsed_s_max = float(metrics.get("youtube_page_elapsed_s_max") or 0.0)
+            youtube_page_elapsed_s_count = int(metrics.get("youtube_page_elapsed_s_count") or 0)
+            youtube_page_elapsed_s_avg = float(metrics.get("youtube_page_elapsed_s_avg") or 0.0)
             shared_retry_deferred_count = int(metrics.get("shared_retry_deferred_count") or 0)
             shared_retry_recovered_count = int(metrics.get("shared_retry_recovered_count") or 0)
             shared_retry_final_failed_count = int(metrics.get("shared_retry_final_failed_count") or 0)
@@ -534,6 +564,26 @@ def main(argv: list[str] | None = None) -> int:
             worker_result["shared_retry_recovered_count"] = int(worker_result["shared_retry_recovered_count"]) + shared_retry_recovered_count
             worker_result["shared_retry_final_failed_count"] = int(worker_result["shared_retry_final_failed_count"]) + shared_retry_final_failed_count
             worker_result["shared_retry_processed_count"] = int(worker_result["shared_retry_processed_count"]) + shared_retry_processed_count
+            worker_result["youtube_ytdlp_elapsed_s_total"] = float(worker_result["youtube_ytdlp_elapsed_s_total"]) + youtube_ytdlp_elapsed_s_total
+            worker_result["youtube_ytdlp_elapsed_s_max"] = max(
+                float(worker_result["youtube_ytdlp_elapsed_s_max"]),
+                youtube_ytdlp_elapsed_s_max,
+            )
+            worker_result["youtube_ytdlp_elapsed_s_count"] = int(worker_result["youtube_ytdlp_elapsed_s_count"]) + youtube_ytdlp_elapsed_s_count
+            worker_result["youtube_ytdlp_elapsed_s_avg"] = round(
+                float(worker_result["youtube_ytdlp_elapsed_s_total"]) / max(int(worker_result["youtube_ytdlp_elapsed_s_count"]), 1),
+                3,
+            )
+            worker_result["youtube_page_elapsed_s_total"] = float(worker_result["youtube_page_elapsed_s_total"]) + youtube_page_elapsed_s_total
+            worker_result["youtube_page_elapsed_s_max"] = max(
+                float(worker_result["youtube_page_elapsed_s_max"]),
+                youtube_page_elapsed_s_max,
+            )
+            worker_result["youtube_page_elapsed_s_count"] = int(worker_result["youtube_page_elapsed_s_count"]) + youtube_page_elapsed_s_count
+            worker_result["youtube_page_elapsed_s_avg"] = round(
+                float(worker_result["youtube_page_elapsed_s_total"]) / max(int(worker_result["youtube_page_elapsed_s_count"]), 1),
+                3,
+            )
             counts_total = dict(worker_result.get("content_fetch_status_counts_total", {}) or {})
             count_sum = sum(int(v) for v in counts_total.values())
             worker_result["source_ready_age_s_avg"] = round(
@@ -565,6 +615,14 @@ def main(argv: list[str] | None = None) -> int:
                     "source_ready_age_s_total": source_ready_age_s_total,
                     "source_ready_age_s_max": source_ready_age_s_max,
                     "source_ready_age_s_avg": source_ready_age_s_avg,
+                    "youtube_ytdlp_elapsed_s_total": youtube_ytdlp_elapsed_s_total,
+                    "youtube_ytdlp_elapsed_s_max": youtube_ytdlp_elapsed_s_max,
+                    "youtube_ytdlp_elapsed_s_count": youtube_ytdlp_elapsed_s_count,
+                    "youtube_ytdlp_elapsed_s_avg": youtube_ytdlp_elapsed_s_avg,
+                    "youtube_page_elapsed_s_total": youtube_page_elapsed_s_total,
+                    "youtube_page_elapsed_s_max": youtube_page_elapsed_s_max,
+                    "youtube_page_elapsed_s_count": youtube_page_elapsed_s_count,
+                    "youtube_page_elapsed_s_avg": youtube_page_elapsed_s_avg,
                     "shared_retry_deferred_count": shared_retry_deferred_count,
                     "shared_retry_recovered_count": shared_retry_recovered_count,
                     "shared_retry_final_failed_count": shared_retry_final_failed_count,
@@ -608,6 +666,14 @@ def main(argv: list[str] | None = None) -> int:
                     "source_ready_age_s_total": worker_result["source_ready_age_s_total"],
                     "source_ready_age_s_max": worker_result["source_ready_age_s_max"],
                     "source_ready_age_s_avg": worker_result["source_ready_age_s_avg"],
+                    "youtube_ytdlp_elapsed_s_total": worker_result["youtube_ytdlp_elapsed_s_total"],
+                    "youtube_ytdlp_elapsed_s_max": worker_result["youtube_ytdlp_elapsed_s_max"],
+                    "youtube_ytdlp_elapsed_s_count": worker_result["youtube_ytdlp_elapsed_s_count"],
+                    "youtube_ytdlp_elapsed_s_avg": worker_result["youtube_ytdlp_elapsed_s_avg"],
+                    "youtube_page_elapsed_s_total": worker_result["youtube_page_elapsed_s_total"],
+                    "youtube_page_elapsed_s_max": worker_result["youtube_page_elapsed_s_max"],
+                    "youtube_page_elapsed_s_count": worker_result["youtube_page_elapsed_s_count"],
+                    "youtube_page_elapsed_s_avg": worker_result["youtube_page_elapsed_s_avg"],
                     "notebooklm_profile": notebooklm_profile,
                     "state_path": args.state_path,
                     "notebook_title": args.notebook_title,
@@ -641,6 +707,14 @@ def main(argv: list[str] | None = None) -> int:
                 "source_ready_age_s_total": worker_result["source_ready_age_s_total"],
                 "source_ready_age_s_max": worker_result["source_ready_age_s_max"],
                 "source_ready_age_s_avg": worker_result["source_ready_age_s_avg"],
+                "youtube_ytdlp_elapsed_s_total": worker_result["youtube_ytdlp_elapsed_s_total"],
+                "youtube_ytdlp_elapsed_s_max": worker_result["youtube_ytdlp_elapsed_s_max"],
+                "youtube_ytdlp_elapsed_s_count": worker_result["youtube_ytdlp_elapsed_s_count"],
+                "youtube_ytdlp_elapsed_s_avg": worker_result["youtube_ytdlp_elapsed_s_avg"],
+                "youtube_page_elapsed_s_total": worker_result["youtube_page_elapsed_s_total"],
+                "youtube_page_elapsed_s_max": worker_result["youtube_page_elapsed_s_max"],
+                "youtube_page_elapsed_s_count": worker_result["youtube_page_elapsed_s_count"],
+                "youtube_page_elapsed_s_avg": worker_result["youtube_page_elapsed_s_avg"],
                 "shared_retry_deferred_count": worker_result["shared_retry_deferred_count"],
                 "shared_retry_recovered_count": worker_result["shared_retry_recovered_count"],
                 "shared_retry_final_failed_count": worker_result["shared_retry_final_failed_count"],

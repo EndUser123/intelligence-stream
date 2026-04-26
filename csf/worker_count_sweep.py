@@ -144,6 +144,60 @@ class TrialArtifact:
         value = totals.get("shared_retry_processed_count_total")
         return float(value or 0.0)
 
+    @property
+    def youtube_ytdlp_elapsed_s_total(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("youtube_ytdlp_elapsed_s_total")
+        return float(value or 0.0)
+
+    @property
+    def youtube_ytdlp_elapsed_s_max(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("youtube_ytdlp_elapsed_s_max")
+        return float(value or 0.0)
+
+    @property
+    def youtube_ytdlp_elapsed_s_count(self) -> int:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("youtube_ytdlp_elapsed_s_count")
+        return int(value or 0)
+
+    @property
+    def youtube_ytdlp_elapsed_s_avg(self) -> float:
+        count = self.youtube_ytdlp_elapsed_s_count
+        if count <= 0:
+            totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+            value = totals.get("youtube_ytdlp_elapsed_s_avg")
+            return float(value or 0.0)
+        return round(self.youtube_ytdlp_elapsed_s_total / count, 3)
+
+    @property
+    def youtube_page_elapsed_s_total(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("youtube_page_elapsed_s_total")
+        return float(value or 0.0)
+
+    @property
+    def youtube_page_elapsed_s_max(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("youtube_page_elapsed_s_max")
+        return float(value or 0.0)
+
+    @property
+    def youtube_page_elapsed_s_count(self) -> int:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("youtube_page_elapsed_s_count")
+        return int(value or 0)
+
+    @property
+    def youtube_page_elapsed_s_avg(self) -> float:
+        count = self.youtube_page_elapsed_s_count
+        if count <= 0:
+            totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+            value = totals.get("youtube_page_elapsed_s_avg")
+            return float(value or 0.0)
+        return round(self.youtube_page_elapsed_s_total / count, 3)
+
     def to_row(self) -> dict[str, Any]:
         payload = asdict(self)
         elapsed_s = float(self.fetch_completed.get("elapsed_s", self.elapsed_s) or self.elapsed_s)
@@ -169,6 +223,14 @@ class TrialArtifact:
                 "shared_retry_recovered_count": round(self.shared_retry_recovered_count, 3),
                 "shared_retry_final_failed_count": round(self.shared_retry_final_failed_count, 3),
                 "shared_retry_processed_count": round(self.shared_retry_processed_count, 3),
+                "youtube_ytdlp_elapsed_s_total": round(self.youtube_ytdlp_elapsed_s_total, 3),
+                "youtube_ytdlp_elapsed_s_max": round(self.youtube_ytdlp_elapsed_s_max, 3),
+                "youtube_ytdlp_elapsed_s_count": self.youtube_ytdlp_elapsed_s_count,
+                "youtube_ytdlp_elapsed_s_avg": round(self.youtube_ytdlp_elapsed_s_avg, 3),
+                "youtube_page_elapsed_s_total": round(self.youtube_page_elapsed_s_total, 3),
+                "youtube_page_elapsed_s_max": round(self.youtube_page_elapsed_s_max, 3),
+                "youtube_page_elapsed_s_count": self.youtube_page_elapsed_s_count,
+                "youtube_page_elapsed_s_avg": round(self.youtube_page_elapsed_s_avg, 3),
                 "content_fetch_status_counts": self.content_fetch_status_counts,
             }
         )
@@ -335,6 +397,14 @@ def run_worker_count_sweep(
                 "source_ready_age_s_total",
                 "source_ready_age_s_max",
                 "source_ready_age_s_avg",
+                "youtube_ytdlp_elapsed_s_total",
+                "youtube_ytdlp_elapsed_s_max",
+                "youtube_ytdlp_elapsed_s_count",
+                "youtube_ytdlp_elapsed_s_avg",
+                "youtube_page_elapsed_s_total",
+                "youtube_page_elapsed_s_max",
+                "youtube_page_elapsed_s_count",
+                "youtube_page_elapsed_s_avg",
                 "shared_retry_deferred_count",
                 "shared_retry_recovered_count",
                 "shared_retry_final_failed_count",
@@ -369,6 +439,14 @@ def run_worker_count_sweep(
                     "source_ready_age_s_total": row["source_ready_age_s_total"],
                     "source_ready_age_s_max": row["source_ready_age_s_max"],
                     "source_ready_age_s_avg": row["source_ready_age_s_avg"],
+                    "youtube_ytdlp_elapsed_s_total": row["youtube_ytdlp_elapsed_s_total"],
+                    "youtube_ytdlp_elapsed_s_max": row["youtube_ytdlp_elapsed_s_max"],
+                    "youtube_ytdlp_elapsed_s_count": row["youtube_ytdlp_elapsed_s_count"],
+                    "youtube_ytdlp_elapsed_s_avg": row["youtube_ytdlp_elapsed_s_avg"],
+                    "youtube_page_elapsed_s_total": row["youtube_page_elapsed_s_total"],
+                    "youtube_page_elapsed_s_max": row["youtube_page_elapsed_s_max"],
+                    "youtube_page_elapsed_s_count": row["youtube_page_elapsed_s_count"],
+                    "youtube_page_elapsed_s_avg": row["youtube_page_elapsed_s_avg"],
                     "content_fetch_status_counts": json.dumps(row["content_fetch_status_counts"], sort_keys=True),
                     "stdout_path": row["stdout_path"],
                     "stderr_path": row["stderr_path"],

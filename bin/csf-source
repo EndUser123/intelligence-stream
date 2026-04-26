@@ -51,7 +51,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Multi-terminal lock directory for sync operations
-_LOCK_DIR = Path("P:/__csf/.data/yt-is/locks")
+_LOCK_DIR = Path("P:/.data/yt-is/locks")
 _LOCK_DIR.mkdir(parents=True, exist_ok=True)
 
 # Add csf to path
@@ -61,6 +61,13 @@ from csf import batch
 from csf.csf_logging import log_user_message, log_action
 from csf.nlm_batch import DEFAULT_NOTEBOOKLM_BATCH_SIZE
 from csf.cache import has_cached_transcript, set_cached_transcript
+from csf.playlist_imports import (
+    finish_playlist_import_run,
+    get_playlist_import_db_path,
+    record_playlist_import_item,
+    record_playlist_import_run,
+    replay_playlist_import_run_into_batch_status,
+)
 from csf.nlm_batch import (
     process_industrial_batch_reusable,
     close_reusable_ingestor,
@@ -1529,7 +1536,10 @@ def cmd_fetch(
     scan_status_interval_s = float(_env_float("YTIS_SCAN_STATUS_INTERVAL_S", "YTIS_FETCH_STATUS_INTERVAL_S", 30.0))
     scan_last_status_at = scan_started_at
     batch_size = DEFAULT_NOTEBOOKLM_BATCH_SIZE
-    backlog_threshold = 50
+    backlog_threshold = max(
+        1,
+        _env_int("YTIS_INDUSTRIAL_BACKLOG_THRESHOLD", "YTIS_FETCH_BACKLOG_THRESHOLD", 50),
+    )
     if max_items is not None and max_items < 0:
         raise ValueError("max_items must be >= 0")
     industrial_selected = False
@@ -1545,7 +1555,7 @@ def cmd_fetch(
     transcript_fallback_worker_futures: set = set()
     transcript_fallback_worker_seq = 0
     transcript_fallback_workers = max(
-        1,
+        0,
         min(
             workers,
             _env_int("YTIS_TRANSCRIPT_FALLBACK_WORKERS", "YTIS_AUDIO_FALLBACK_WORKERS", workers),
@@ -1590,6 +1600,14 @@ def cmd_fetch(
     source_ready_age_s_total = 0.0
     source_ready_age_s_max = 0.0
     source_ready_age_s_avg = 0.0
+    youtube_ytdlp_elapsed_s_total = 0.0
+    youtube_ytdlp_elapsed_s_max = 0.0
+    youtube_ytdlp_elapsed_s_count = 0
+    youtube_ytdlp_elapsed_s_avg = 0.0
+    youtube_page_elapsed_s_total = 0.0
+    youtube_page_elapsed_s_max = 0.0
+    youtube_page_elapsed_s_count = 0
+    youtube_page_elapsed_s_avg = 0.0
     extract_elapsed_s_total = 0.0
     cleanup_elapsed_s_total = 0.0
     batch_elapsed_s_total = 0.0
@@ -1746,6 +1764,14 @@ def cmd_fetch(
             "source_ready_age_s_total": float(summary.get("source_ready_age_s_total", 0) or 0.0),
             "source_ready_age_s_max": float(summary.get("source_ready_age_s_max", 0) or 0.0),
             "source_ready_age_s_avg": float(summary.get("source_ready_age_s_avg", 0) or 0.0),
+            "youtube_ytdlp_elapsed_s_total": float(summary.get("youtube_ytdlp_elapsed_s_total", 0) or 0.0),
+            "youtube_ytdlp_elapsed_s_max": float(summary.get("youtube_ytdlp_elapsed_s_max", 0) or 0.0),
+            "youtube_ytdlp_elapsed_s_count": int(summary.get("youtube_ytdlp_elapsed_s_count", 0) or 0),
+            "youtube_ytdlp_elapsed_s_avg": float(summary.get("youtube_ytdlp_elapsed_s_avg", 0) or 0.0),
+            "youtube_page_elapsed_s_total": float(summary.get("youtube_page_elapsed_s_total", 0) or 0.0),
+            "youtube_page_elapsed_s_max": float(summary.get("youtube_page_elapsed_s_max", 0) or 0.0),
+            "youtube_page_elapsed_s_count": int(summary.get("youtube_page_elapsed_s_count", 0) or 0),
+            "youtube_page_elapsed_s_avg": float(summary.get("youtube_page_elapsed_s_avg", 0) or 0.0),
             "shared_retry_deferred_count_total": float(summary.get("shared_retry_deferred_count", 0) or 0.0),
             "shared_retry_recovered_count_total": float(summary.get("shared_retry_recovered_count", 0) or 0.0),
             "shared_retry_final_failed_count_total": float(summary.get("shared_retry_final_failed_count", 0) or 0.0),
@@ -1767,6 +1793,14 @@ def cmd_fetch(
         nonlocal source_ready_age_s_total
         nonlocal source_ready_age_s_max
         nonlocal source_ready_age_s_avg
+        nonlocal youtube_ytdlp_elapsed_s_total
+        nonlocal youtube_ytdlp_elapsed_s_max
+        nonlocal youtube_ytdlp_elapsed_s_count
+        nonlocal youtube_ytdlp_elapsed_s_avg
+        nonlocal youtube_page_elapsed_s_total
+        nonlocal youtube_page_elapsed_s_max
+        nonlocal youtube_page_elapsed_s_count
+        nonlocal youtube_page_elapsed_s_avg
         nonlocal extract_elapsed_s_total
         nonlocal cleanup_elapsed_s_total
         nonlocal batch_elapsed_s_total
@@ -1791,6 +1825,14 @@ def cmd_fetch(
         source_ready_age_s_total += float(summary.get("source_ready_age_s_total", 0) or 0.0)
         source_ready_age_s_max = max(source_ready_age_s_max, float(summary.get("source_ready_age_s_max", 0) or 0.0))
         source_ready_age_s_avg = max(source_ready_age_s_avg, float(summary.get("source_ready_age_s_avg", 0) or 0.0))
+        youtube_ytdlp_elapsed_s_total += float(summary.get("youtube_ytdlp_elapsed_s_total", 0) or 0.0)
+        youtube_ytdlp_elapsed_s_max = max(youtube_ytdlp_elapsed_s_max, float(summary.get("youtube_ytdlp_elapsed_s_max", 0) or 0.0))
+        youtube_ytdlp_elapsed_s_count += int(summary.get("youtube_ytdlp_elapsed_s_count", 0) or 0)
+        youtube_ytdlp_elapsed_s_avg = max(youtube_ytdlp_elapsed_s_avg, float(summary.get("youtube_ytdlp_elapsed_s_avg", 0) or 0.0))
+        youtube_page_elapsed_s_total += float(summary.get("youtube_page_elapsed_s_total", 0) or 0.0)
+        youtube_page_elapsed_s_max = max(youtube_page_elapsed_s_max, float(summary.get("youtube_page_elapsed_s_max", 0) or 0.0))
+        youtube_page_elapsed_s_count += int(summary.get("youtube_page_elapsed_s_count", 0) or 0)
+        youtube_page_elapsed_s_avg = max(youtube_page_elapsed_s_avg, float(summary.get("youtube_page_elapsed_s_avg", 0) or 0.0))
         extract_elapsed_s_total += float(summary.get("extract_elapsed_s_total", 0) or 0.0)
         cleanup_elapsed_s_total += float(summary.get("cleanup_elapsed_s_total", 0) or 0.0)
         batch_elapsed_s_total += float(summary.get("batch_elapsed_s_total", 0) or 0.0)
@@ -1816,6 +1858,14 @@ def cmd_fetch(
             "source_ready_age_s_total": source_ready_age_s_total,
             "source_ready_age_s_max": source_ready_age_s_max,
             "source_ready_age_s_avg": source_ready_age_s_avg,
+            "youtube_ytdlp_elapsed_s_total": youtube_ytdlp_elapsed_s_total,
+            "youtube_ytdlp_elapsed_s_max": youtube_ytdlp_elapsed_s_max,
+            "youtube_ytdlp_elapsed_s_count": youtube_ytdlp_elapsed_s_count,
+            "youtube_ytdlp_elapsed_s_avg": youtube_ytdlp_elapsed_s_avg,
+            "youtube_page_elapsed_s_total": youtube_page_elapsed_s_total,
+            "youtube_page_elapsed_s_max": youtube_page_elapsed_s_max,
+            "youtube_page_elapsed_s_count": youtube_page_elapsed_s_count,
+            "youtube_page_elapsed_s_avg": youtube_page_elapsed_s_avg,
             "shared_retry_deferred_count_total": shared_retry_deferred_count_total,
             "shared_retry_recovered_count_total": shared_retry_recovered_count_total,
             "shared_retry_final_failed_count_total": shared_retry_final_failed_count_total,
@@ -1864,7 +1914,7 @@ def cmd_fetch(
         state_root = Path(
             os.getenv(
                 "YTIS_INDUSTRIAL_WORKER_STATE_ROOT",
-                "P:/__csf/.data/yt-is/industrial-worker-states",
+                "P:/.data/yt-is/industrial-worker-states",
             )
         )
         notebook_prefix = os.getenv(
@@ -2058,7 +2108,7 @@ def cmd_fetch(
                 "industrial_batches_per_worker": industrial_batches_per_worker,
                 "state_root": os.getenv(
                     "YTIS_INDUSTRIAL_WORKER_STATE_ROOT",
-                    "P:/__csf/.data/yt-is/industrial-worker-states",
+                    "P:/.data/yt-is/industrial-worker-states",
                 ),
                 "streaming": True,
             },
@@ -2113,7 +2163,7 @@ def cmd_fetch(
                     fail_count += 1
                     print(f"  ✗ {vid}: {error[:80]}")
                     source_url = source_map.get(vid, "")
-                    if source_url:
+                    if source_url and transcript_fallback_workers > 0:
                         log_action(
                             "transcript_fallback_queued",
                             {
@@ -2125,6 +2175,16 @@ def cmd_fetch(
                         )
                         transcript_fallback_processed_count += 1
                         transcript_fallback_queue.append((vid, source_url, True))
+                    elif source_url:
+                        log_action(
+                            "transcript_fallback_disabled",
+                            {
+                                "video_id": vid,
+                                "source_url": source_url,
+                                "reason": error[:120],
+                                "transcript_fallback_workers": transcript_fallback_workers,
+                            },
+                        )
 
     def _process_transcript_fallback(
         video_id: str,
@@ -2217,6 +2277,20 @@ def cmd_fetch(
     def _service_transcript_fallback_workers(wait_for_completion: bool = False) -> None:
         nonlocal transcript_fallback_queue, transcript_fallback_worker_executor, transcript_fallback_worker_futures
         nonlocal transcript_fallback_worker_seq, success_count, fail_count
+
+        if transcript_fallback_workers <= 0:
+            while transcript_fallback_queue:
+                video_id, source_url, _skip_notebooklm = transcript_fallback_queue.popleft()
+                fail_count += 1
+                log_action(
+                    "transcript_fallback_skipped_disabled",
+                    {
+                        "video_id": video_id,
+                        "source_url": source_url,
+                        "transcript_fallback_workers": transcript_fallback_workers,
+                    },
+                )
+            return
 
         if wait_for_completion and transcript_fallback_worker_futures:
             done, _ = wait(transcript_fallback_worker_futures, return_when=FIRST_COMPLETED)
@@ -2653,7 +2727,7 @@ def cmd_fetch(
                 "run_id": industrial_run_id,
                 "state_root": os.getenv(
                     "YTIS_INDUSTRIAL_WORKER_STATE_ROOT",
-                    "P:/__csf/.data/yt-is/industrial-worker-states",
+                    "P:/.data/yt-is/industrial-worker-states",
                 ),
                 "streaming": True,
                 "status": "planned",
@@ -2965,8 +3039,13 @@ def cmd_remove(url: str) -> None:
         print(f"[source] Not found in database: {canonical_url}")
 
 
-def cmd_history(min_history_videos: int = 2, dry_run: bool = False) -> None:
-    """Extract channels from YouTube watch history and add new ones.
+def _cmd_playlist_import(
+    playlist_kind: str,
+    playlist_url: str,
+    min_playlist_videos: int,
+    dry_run: bool = False,
+) -> None:
+    """Extract channels from a YouTube playlist and add new ones.
 
     Three filters applied:
     - subscriber_count > 100  (skip tiny/brand-new channels)
@@ -2980,7 +3059,9 @@ def cmd_history(min_history_videos: int = 2, dry_run: bool = False) -> None:
     from urllib.request import urlopen
     from xml.etree import ElementTree as ET
 
-    print(f"[source] Step 1: Fetching watch history video IDs (yt-dlp Python API, no API quota)...")
+    playlist_label = "watch later" if playlist_kind == "watchlater" else "history"
+
+    print(f"[source] Step 1: Fetching {playlist_label} video IDs (yt-dlp Python API, no API quota)...")
 
     # Find cookies file: prefer exported file, fall back to browser extraction
     cookie_file = os.path.expanduser("~/youtube_cookies.txt")
@@ -2998,28 +3079,61 @@ def cmd_history(min_history_videos: int = 2, dry_run: bool = False) -> None:
             "socket_timeout": 60,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            result = ydl.extract_info(
-                "https://www.youtube.com/feed/history",
-                download=False,
-            )
+            result = ydl.extract_info(playlist_url, download=False)
             entries = result.get("entries", []) or []
     except Exception as e:
-        print(f"[source] Error fetching history: {e}", file=sys.stderr)
+        print(f"[source] Error fetching {playlist_label}: {e}", file=sys.stderr)
         sys.exit(1)
 
-    video_ids = [e["id"] for e in entries if e and e.get("id")]
-    video_ids = [e["id"] for e in entries]
-    print(f"[source] Found {len(video_ids)} video IDs in history")
+    playlist_entries = [e for e in entries if e and e.get("id")]
+    video_ids = [str(e["id"]) for e in playlist_entries]
+    print(f"[source] Found {len(video_ids)} video IDs in {playlist_label}")
 
     if not video_ids:
-        print("[source] No videos found in history.", file=sys.stderr)
+        print(f"[source] No videos found in {playlist_label}.", file=sys.stderr)
         sys.exit(1)
+
+    run_id = record_playlist_import_run(
+        playlist_kind=playlist_kind,
+        playlist_url=playlist_url,
+        command=f"csf-source {playlist_kind}",
+        cookie_source=cookie_file or "browser",
+        total_items=len(video_ids),
+        notes={
+            "playlist_label": playlist_label,
+            "dry_run": dry_run,
+            "min_playlist_videos": min_playlist_videos,
+        },
+    )
+    for idx, entry in enumerate(playlist_entries, start=1):
+        video_id = str(entry.get("id") or "")
+        record_playlist_import_item(
+            run_id=run_id,
+            item_id=f"{playlist_kind}:{idx}:{video_id}",
+            playlist_kind=playlist_kind,
+            playlist_url=playlist_url,
+            playlist_position=idx,
+            video_id=video_id or None,
+            video_url=f"https://www.youtube.com/watch?v={video_id}" if video_id else None,
+            video_title=entry.get("title"),
+            channel_id=None,
+            channel_url=None,
+            channel_title=None,
+            published_at=entry.get("timestamp") or entry.get("upload_date"),
+            duration_seconds=entry.get("duration"),
+            availability=entry.get("availability"),
+            is_live=entry.get("is_live"),
+            raw_json=entry,
+            resolved_channel_json={},
+            classification="fetched",
+        )
 
     print(f"[source] Step 2: Resolving {len(video_ids)} video IDs → channel IDs (API, ~{len(video_ids)} units)...")
 
     from csf.source_enumerator import _api_request
 
     channel_video_map: dict[str, list[str]] = {}
+    video_to_channel: dict[str, str] = {}
     for i in range(0, len(video_ids), 50):
         batch = video_ids[i : i + 50]
         params = {"part": "snippet", "id": ",".join(batch)}
@@ -3033,16 +3147,17 @@ def cmd_history(min_history_videos: int = 2, dry_run: bool = False) -> None:
             ch_id = snippet.get("channelId", "")
             if vid and ch_id:
                 channel_video_map.setdefault(ch_id, []).append(vid)
+                video_to_channel[vid] = ch_id
 
         if (i + 50) % 500 == 0 or i + 50 >= len(video_ids):
             print(f"  ... resolved {min(i + 50, len(video_ids))}/{len(video_ids)}")
 
     channel_history_counts = {cid: len(vids) for cid, vids in channel_video_map.items()}
-    qualified = {cid: vids for cid, vids in channel_video_map.items() if len(vids) >= min_history_videos}
-    print(f"[source] Channels with ≥{min_history_videos} history videos: {len(qualified)}/{len(channel_video_map)}")
+    qualified = {cid: vids for cid, vids in channel_video_map.items() if len(vids) >= min_playlist_videos}
+    print(f"[source] Channels with ≥{min_playlist_videos} {playlist_label} videos: {len(qualified)}/{len(channel_video_map)}")
 
     if not qualified:
-        print("[source] No channels passed the history-video threshold.")
+        print(f"[source] No channels passed the {playlist_label}-video threshold.")
         sys.exit(1)
 
     # Get already-tracked UC IDs
@@ -3063,6 +3178,16 @@ def cmd_history(min_history_videos: int = 2, dry_run: bool = False) -> None:
     print(f"[source] New to add (before filters): {len(new_qualified)}")
 
     if dry_run:
+        finish_playlist_import_run(
+            run_id,
+            status="dry_run",
+            total_items=len(video_ids),
+            resolved_items=len(video_to_channel),
+            new_channels=len(new_qualified),
+            already_tracked_channels=len(qualified) - len(new_qualified),
+            blocked_channels=0,
+            failed_items=len(video_ids) - len(video_to_channel),
+        )
         print(f"\n[source] DRY RUN — would add {len(new_qualified)} channels (filters not yet applied):")
         for cid in sorted(new_qualified)[:50]:
             print(f"  [{channel_history_counts[cid]} videos] https://www.youtube.com/channel/{cid}")
@@ -3076,6 +3201,16 @@ def cmd_history(min_history_videos: int = 2, dry_run: bool = False) -> None:
         return
 
     if not new_qualified:
+        finish_playlist_import_run(
+            run_id,
+            status="completed",
+            total_items=len(video_ids),
+            resolved_items=len(video_to_channel),
+            new_channels=0,
+            already_tracked_channels=len(qualified),
+            blocked_channels=0,
+            failed_items=len(video_ids) - len(video_to_channel),
+        )
         print("[source] All qualified history channels already tracked.")
         return
 
@@ -3211,21 +3346,86 @@ def cmd_history(min_history_videos: int = 2, dry_run: bool = False) -> None:
 
     added = 0
     failed = 0
+    blocked = 0
 
     for uc_id in passed_filters:
         channel_url = f"https://www.youtube.com/channel/{uc_id}"
         if is_channel_blocked(channel_url):
             print(f"  [skip blocked] {channel_url}")
+            blocked += 1
+            for video_id in channel_video_map.get(uc_id, []):
+                record_playlist_import_item(
+                    run_id=run_id,
+                    item_id=f"{playlist_kind}:{video_id}:blocked",
+                    playlist_kind=playlist_kind,
+                    playlist_url=playlist_url,
+                    playlist_position=None,
+                    video_id=video_id,
+                    video_url=f"https://www.youtube.com/watch?v={video_id}",
+                    video_title=None,
+                    channel_id=uc_id,
+                    channel_url=channel_url,
+                    channel_title=None,
+                    published_at=None,
+                    duration_seconds=None,
+                    availability="blocked",
+                    is_live=None,
+                    raw_json={},
+                    resolved_channel_json={"status": "blocked"},
+                    classification="blocked",
+                )
             continue
 
         meta = channel_meta.get(uc_id)
         if not meta:
             failed += 1
+            for video_id in channel_video_map.get(uc_id, []):
+                record_playlist_import_item(
+                    run_id=run_id,
+                    item_id=f"{playlist_kind}:{video_id}:failed",
+                    playlist_kind=playlist_kind,
+                    playlist_url=playlist_url,
+                    playlist_position=None,
+                    video_id=video_id,
+                    video_url=f"https://www.youtube.com/watch?v={video_id}",
+                    video_title=None,
+                    channel_id=uc_id,
+                    channel_url=channel_url,
+                    channel_title=None,
+                    published_at=None,
+                    duration_seconds=None,
+                    availability="missing_meta",
+                    is_live=None,
+                    raw_json={},
+                    resolved_channel_json={"status": "missing_meta"},
+                    classification="failed",
+                )
             continue
 
         uploads_playlist_id = meta["playlist_id"]
         if not uploads_playlist_id or len(uploads_playlist_id) != 24:
             failed += 1
+            for video_id in channel_video_map.get(uc_id, []):
+                record_playlist_import_item(
+                    run_id=run_id,
+                    item_id=f"{playlist_kind}:{video_id}:failed",
+                    playlist_kind=playlist_kind,
+                    playlist_url=playlist_url,
+                    playlist_position=None,
+                    video_id=video_id,
+                    video_url=f"https://www.youtube.com/watch?v={video_id}",
+                    video_title=None,
+                    channel_id=uc_id,
+                    channel_url=channel_url,
+                    channel_title=meta["title"] or None,
+                    published_at=None,
+                    duration_seconds=None,
+                    availability="missing_uploads",
+                    is_live=None,
+                    raw_json={},
+                    resolved_channel_json={"status": "missing_uploads"},
+                    classification="failed",
+                )
             continue
 
         # Skip full enumerate_full() — let sync handle it lazily
@@ -3245,6 +3445,32 @@ def cmd_history(min_history_videos: int = 2, dry_run: bool = False) -> None:
         hist_count = channel_history_counts.get(uc_id, 0)
         print(f"  OK: {meta['title'] or uc_id} ({meta['videos']} videos total, {hist_count} from history)")
         added += 1
+        for video_id in channel_video_map.get(uc_id, []):
+            record_playlist_import_item(
+                run_id=run_id,
+                item_id=f"{playlist_kind}:{video_id}:accepted",
+                playlist_kind=playlist_kind,
+                playlist_url=playlist_url,
+                playlist_position=None,
+                video_id=video_id,
+                video_url=f"https://www.youtube.com/watch?v={video_id}",
+                video_title=None,
+                channel_id=uc_id,
+                channel_url=channel_url,
+                channel_title=meta["title"] or None,
+                published_at=None,
+                duration_seconds=None,
+                availability="accepted",
+                is_live=None,
+                raw_json={},
+                resolved_channel_json={
+                    "channel_id": uc_id,
+                    "channel_url": channel_url,
+                    "channel_title": meta["title"] or None,
+                    "status": "accepted",
+                },
+                classification="accepted",
+            )
 
     print()
     print(f"[source] Done: {added} added, {failed} failed out of {len(passed_filters)}")
@@ -3252,6 +3478,36 @@ def cmd_history(min_history_videos: int = 2, dry_run: bool = False) -> None:
     for reason, cids in skipped_filters.items():
         if cids:
             print(f"[source] Skipped ({reason}): {len(cids)}")
+    finish_playlist_import_run(
+        run_id,
+        status="completed",
+        total_items=len(video_ids),
+        resolved_items=len(video_to_channel),
+        new_channels=added,
+        already_tracked_channels=len(qualified) - len(new_qualified),
+        blocked_channels=blocked,
+        failed_items=failed + (len(video_ids) - len(video_to_channel)),
+    )
+
+
+def cmd_history(min_history_videos: int = 2, dry_run: bool = False) -> None:
+    """Import channels from watch history."""
+    _cmd_playlist_import(
+        playlist_kind="history",
+        playlist_url="https://www.youtube.com/feed/history",
+        min_playlist_videos=min_history_videos,
+        dry_run=dry_run,
+    )
+
+
+def cmd_watchlater(min_watchlater_videos: int = 2, dry_run: bool = False) -> None:
+    """Import channels from Watch Later."""
+    _cmd_playlist_import(
+        playlist_kind="watchlater",
+        playlist_url="https://www.youtube.com/playlist?list=WL",
+        min_playlist_videos=min_watchlater_videos,
+        dry_run=dry_run,
+    )
 
 
 def main() -> None:
@@ -3325,6 +3581,23 @@ def main() -> None:
         help="Minimum videos watched from a channel to qualify (default: 2)",
     )
 
+    # watchlater command
+    watchlater_parser = subparsers.add_parser(
+        "watchlater",
+        help="Extract channels from YouTube Watch Later and add new ones",
+    )
+    watchlater_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview channels without adding them",
+    )
+    watchlater_parser.add_argument(
+        "--min-watchlater-videos",
+        type=int,
+        default=2,
+        help="Minimum videos in Watch Later from a channel to qualify (default: 2)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "add":
@@ -3358,6 +3631,11 @@ def main() -> None:
         cmd_list_blocked()
     elif args.command == "history":
         cmd_history(min_history_videos=args.min_history_videos, dry_run=args.dry_run)
+    elif args.command == "watchlater":
+        cmd_watchlater(
+            min_watchlater_videos=args.min_watchlater_videos,
+            dry_run=args.dry_run,
+        )
     else:
         parser.print_help()
         sys.exit(1)

@@ -790,7 +790,7 @@ class TestSeleniumProfileIsolation:
             auth_cooldown=300.0,
             browser_profile_mode="persistent",
             browser_profile_name="notebooklm",
-            browser_profile_seed_root="P:/__csf/.data/yt-is/notebooklm-browser-session",
+            browser_profile_seed_root="P:/.data/yt-is/notebooklm-browser-session",
             nlm_browser_mode="clone",
             nlm_browser_profile_root=str(browser_root),
             nlm_browser_executable=r"C:\Program Files\Google\Chrome\Application\chrome.exe",

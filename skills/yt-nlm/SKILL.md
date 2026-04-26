@@ -102,7 +102,7 @@ yt-nlm --batch-size 20
 
 - Reads from `batch_status.sqlite` (pending videos marked by `/yt-is`)
 - Writes to `transcripts.sqlite` cache via `csf.cache.set_cached_transcript()`
-- Stores combined markdown files in `P:/__csf/.data/yt-is/transcripts/`
+- Stores combined markdown files in `P:/.data/yt-is/transcripts/`
 - Compatible with `/yt-is fetch` (both write to same cache database, different sources)
 - External provider hook: `register_external_transcript_provider()` for custom sources
 
@@ -123,7 +123,7 @@ Combined markdown files → Your knowledge system
 ## Storage
 
 - **Transcripts:** `transcripts.sqlite` (cache database, keyed by video_id)
-- **Combined batches:** `combined_batch_1.md`, etc. in `P:/__csf/.data/yt-is/`
+- **Combined batches:** `combined_batch_1.md`, etc. in `P:/.data/yt-is/`
 - **Database:** `batch_status.sqlite` (status updates: pending → complete/failed, last_stage, failure_reason)
 
 ## Configuration

@@ -42,3 +42,43 @@ def test_fetch_logs_dispatch_and_uses_repo_local_backend():
     assert argv[2] == "fetch"
     assert "--dry-run" in argv
     mock_exit.assert_called_once_with(0)
+
+
+def test_history_dispatches_to_csf_source_history():
+    """history should dispatch to the repo-local csf-source history command."""
+    mod = _load_yt_is_module()
+
+    with mock.patch.object(mod.subprocess, "run") as mock_run:
+        mock_run.return_value = mock.MagicMock(returncode=0)
+        with mock.patch.object(mod, "log_action") as mock_log:
+            with mock.patch.object(mod.sys, "argv", ["yt-is", "history", "--dry-run"]):
+                with mock.patch.object(mod.sys, "exit", side_effect=SystemExit) as mock_exit:
+                    try:
+                        mod.main()
+                    except SystemExit:
+                        pass
+
+    argv = mock_log.call_args_list[0].args[1]["argv"]
+    assert argv[2] == "history"
+    assert "--dry-run" in argv
+    mock_exit.assert_called_once_with(0)
+
+
+def test_watchlater_dispatches_to_csf_source_watchlater():
+    """watchlater should dispatch to the repo-local csf-source watchlater command."""
+    mod = _load_yt_is_module()
+
+    with mock.patch.object(mod.subprocess, "run") as mock_run:
+        mock_run.return_value = mock.MagicMock(returncode=0)
+        with mock.patch.object(mod, "log_action") as mock_log:
+            with mock.patch.object(mod.sys, "argv", ["yt-is", "watchlater", "--dry-run"]):
+                with mock.patch.object(mod.sys, "exit", side_effect=SystemExit) as mock_exit:
+                    try:
+                        mod.main()
+                    except SystemExit:
+                        pass
+
+    argv = mock_log.call_args_list[0].args[1]["argv"]
+    assert argv[2] == "watchlater"
+    assert "--dry-run" in argv
+    mock_exit.assert_called_once_with(0)

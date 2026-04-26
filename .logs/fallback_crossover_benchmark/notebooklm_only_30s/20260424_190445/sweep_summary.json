@@ -1,0 +1,199 @@
+{
+  "started_at": 1777079085.723937,
+  "output_root": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\notebooklm_only_30s",
+  "sweep_dir": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\notebooklm_only_30s\\20260424_190445",
+  "limit": 25,
+  "worker_counts": [
+    2
+  ],
+  "results": [
+    {
+      "workers": 2,
+      "limit": 25,
+      "returncode": 0,
+      "elapsed_s": 138.412,
+      "stdout_path": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\notebooklm_only_30s\\20260424_190445\\workers_02\\stdout.txt",
+      "stderr_path": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\notebooklm_only_30s\\20260424_190445\\workers_02\\stderr.txt",
+      "log_dir": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\notebooklm_only_30s\\20260424_190445\\workers_02\\logs",
+      "log_file": "P:\\packages\\yt-is\\.logs\\fallback_crossover_benchmark\\notebooklm_only_30s\\20260424_190445\\workers_02\\logs\\term_1fc5c0df.jsonl",
+      "fetch_completed": {
+        "source_filter": null,
+        "strategy": "surgical_chain",
+        "backend": "notebooklm_cli_batch",
+        "backlog_threshold": 50,
+        "batch_size": 50,
+        "max_items": 25,
+        "workers": 2,
+        "channels_tracked_total": 744,
+        "channels_blocked_total": 0,
+        "channels_active_total": 733,
+        "pending_total": 25,
+        "cached_total": 0,
+        "cached_hit_rate": 0.0,
+        "cached_sample": [],
+        "industrial_batches_processed": 0,
+        "notebooklm_pending_count": 25,
+        "transcript_fallback_processed_count": 0,
+        "transcript_fallback_queued_count": 0,
+        "terminal_count": 0,
+        "negative_cache_count": 472,
+        "terminal_reason_counts": {},
+        "negative_cache_reason_counts": {
+          "unavailable": 472
+        },
+        "negative_cache_sample": [
+          {
+            "video_id": "AOnyxxADgxE",
+            "source": "https://www.youtube.com/channel/UC057bZ2YLcUaWSp_joOQEtw",
+            "channel_index": 169,
+            "reason": "unavailable",
+            "last_stage": "direct_api"
+          },
+          {
+            "video_id": "hotranqYmYI",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          },
+          {
+            "video_id": "Z53T_FcXQDA",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          },
+          {
+            "video_id": "okL5wquiTFg",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          },
+          {
+            "video_id": "tljhsKc-EKg",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          },
+          {
+            "video_id": "tmJZ7atqgbI",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          },
+          {
+            "video_id": "5GKfzZPJCcQ",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          },
+          {
+            "video_id": "L9SwLFxZ8h0",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          },
+          {
+            "video_id": "gMJSLLa-O0s",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          },
+          {
+            "video_id": "m82TaD_eUFs",
+            "source": "https://www.youtube.com/channel/UC0vhuLUjfxeoKDexbtMOnTQ",
+            "channel_index": 191,
+            "reason": "unavailable",
+            "last_stage": "oembed"
+          }
+        ],
+        "worker_cleanup_deleted": 0,
+        "worker_cleanup_failed": 0,
+        "worker_stage_totals": {
+          "startup_retire_elapsed_s_total": 0.0,
+          "startup_notebook_check_elapsed_s_total": 0.0,
+          "startup_notebook_create_elapsed_s_total": 0.0,
+          "startup_prepare_cleanup_elapsed_s_total": 0.0,
+          "startup_prepare_total_elapsed_s_total": 0.0,
+          "setup_elapsed_s_total": 0.0,
+          "notebook_check_elapsed_s_total": 0.0,
+          "notebook_create_elapsed_s_total": 0.0,
+          "notebook_retire_elapsed_s_total": 0.0,
+          "add_sources_elapsed_s_total": 0.0,
+          "content_fetch_status_counts_total": {},
+          "source_ready_age_s_total": 0.0,
+          "source_ready_age_s_max": 0.0,
+          "source_ready_age_s_avg": 0.0,
+          "youtube_ytdlp_elapsed_s_total": 0.0,
+          "youtube_ytdlp_elapsed_s_max": 0.0,
+          "youtube_ytdlp_elapsed_s_count": 0,
+          "youtube_ytdlp_elapsed_s_avg": 0.0,
+          "youtube_page_elapsed_s_total": 0.0,
+          "youtube_page_elapsed_s_max": 0.0,
+          "youtube_page_elapsed_s_count": 0,
+          "youtube_page_elapsed_s_avg": 0.0,
+          "shared_retry_deferred_count_total": 0.0,
+          "shared_retry_recovered_count_total": 0.0,
+          "shared_retry_final_failed_count_total": 0.0,
+          "shared_retry_processed_count_total": 0.0,
+          "extract_elapsed_s_total": 0.0,
+          "cleanup_elapsed_s_total": 0.0,
+          "batch_elapsed_s_total": 0.0
+        },
+        "worker_source_profile_totals": {
+          "total": 0,
+          "matched": 0,
+          "missing": 0,
+          "source_class_counts": {},
+          "status_counts": {},
+          "privacy_status_counts": {},
+          "upload_status_counts": {},
+          "unavailable_reason_counts": {},
+          "failure_reason_counts": {}
+        },
+        "success_count": 24,
+        "fail_count": 1,
+        "skip_count": 0,
+        "processed_count": 25,
+        "elapsed_s": 138.412,
+        "success_per_min": 10.4,
+        "processed_per_min": 10.84,
+        "status": "completed"
+      },
+      "process_elapsed_s": 138.605,
+      "success_count": 24,
+      "fail_count": 1,
+      "skip_count": 0,
+      "processed_count": 25,
+      "videos_per_hour": 624.22,
+      "processed_per_hour": 650.23,
+      "add_elapsed_s": 0.0,
+      "readiness_elapsed_s": 0.0,
+      "cleanup_elapsed_s": 0.0,
+      "materialization_started": false,
+      "timeout_hit": false,
+      "source_ready_age_s_total": 0.0,
+      "source_ready_age_s_max": 0.0,
+      "source_ready_age_s_avg": 0.0,
+      "shared_retry_deferred_count": 0.0,
+      "shared_retry_recovered_count": 0.0,
+      "shared_retry_final_failed_count": 0.0,
+      "shared_retry_processed_count": 0.0,
+      "youtube_ytdlp_elapsed_s_total": 0.0,
+      "youtube_ytdlp_elapsed_s_max": 0.0,
+      "youtube_ytdlp_elapsed_s_count": 0,
+      "youtube_ytdlp_elapsed_s_avg": 0.0,
+      "youtube_page_elapsed_s_total": 0.0,
+      "youtube_page_elapsed_s_max": 0.0,
+      "youtube_page_elapsed_s_count": 0,
+      "youtube_page_elapsed_s_avg": 0.0,
+      "content_fetch_status_counts": {}
+    }
+  ]
+}

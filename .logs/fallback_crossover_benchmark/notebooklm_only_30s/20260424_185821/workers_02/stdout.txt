@@ -1,0 +1,60 @@
+[source] Preflight scan: checking 733 active channels (0 blocked skipped) for pending videos...
+[source] Scan status: 1/733 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.002s, trigger=first_channel
+[source] Scan status: 73/733 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.099s, trigger=channel_checkpoint
+[source] Scan status: 146/733 channels, pending=0, cached=0, neg_cache=0, terminal=0, notebooklm=0, fallback=0, elapsed=0.187s, trigger=channel_checkpoint
+[source] Scan status: 219/733 channels, pending=0, cached=0, neg_cache=472, terminal=0, notebooklm=0, fallback=0, elapsed=0.928s, trigger=channel_checkpoint
+[source] Pending item limit reached at 25; stopping scan early.
+[source] Preflight scan complete: 733 active channels, 25 pending, 0 cached, 472 neg-cache, 0 terminal, 25 notebooklm, 0 transcript-fallback
+[source] Negative-cache sample: AOnyxxADgxE, hotranqYmYI, Z53T_FcXQDA, okL5wquiTFg, tljhsKc-EKg, tmJZ7atqgbI, 5GKfzZPJCcQ, L9SwLFxZ8h0, gMJSLLa-O0s, m82TaD_eUFs
+[source] Escalation Batch Process
+[source] Channels: 733 active / 744 tracked
+[source] Already cached: 0
+[source] Negative-cache skips: 472
+[source] Negative-cache sample: AOnyxxADgxE, hotranqYmYI, Z53T_FcXQDA, okL5wquiTFg, tljhsKc-EKg, tmJZ7atqgbI, 5GKfzZPJCcQ, L9SwLFxZ8h0, gMJSLLa-O0s, m82TaD_eUFs
+[source] Pending extraction: 25
+[source] Run limit: 25 pending items
+[source] Mode: LIVE
+[source] Strategy: Surgical (Chain)
+[source] Method: captioned/no-captions items use NotebookLM chain; live items use transcript fallback
+[source] Workers: 2
+
+[source] Pre-flight worker notebook audit: 0 worker notebooks reported, 0 failed
+[source] Starting Surgical Ingest (Sequential Escalation)...
+[1/25] ✗ VdunqscAV5Q: oembed unavailable: HTTP 404
+[2/25] ✗ 0aJ23HTEuH0: direct_api unavailable: video unavailable
+[3/25] ✗ iiQM5VfIXEM: direct_api unavailable: video unavailable
+[4/25] ✗ PN7GLRWIYiw: direct_api unavailable: video unavailable
+[6/25] ✓ CN_yQvvxoVs (ytdlp)
+[7/25] ✓ MEKslMfr9W0 (ytdlp)
+[5/25] ✗ onMaTfNNeBw: direct_api unavailable: video unavailable
+[9/25] ✓ ELax81LjFhU (ytdlp)
+[10/25] ✓ -PWEYuYfGBE (ytdlp)
+[11/25] ✓ Nbyz3PRsQgo (ytdlp)
+[12/25] ✓ NocZi9hyrDg (ytdlp)
+[13/25] ✓ Ror2xOOA-VE (ytdlp)
+[14/25] ✓ a1JlzUzHL-I (ytdlp)
+[15/25] ✓ rjSWCMVbD_U (ytdlp)
+[16/25] ✓ mxzxIa5yuXc (ytdlp)
+[17/25] ✓ nDJMHFsBU7M (ytdlp)
+[18/25] ✓ yFcS020WSZY (ytdlp)
+[8/25] ✗ QVGgsYrMlaI: direct_api unavailable: video unavailable
+[19/25] ✓ 4C7mik7N2gA (ytdlp)
+[20/25] ✓ OQdp-OeG1as (ytdlp)
+[21/25] ✓ zdYtFCAnb3o (ytdlp)
+[22/25] ✓ B9UJJ5TlgPo (ytdlp)
+[23/25] ✓ bvneocOX1yU (ytdlp)
+[24/25] ✓ IllijoYSH80 (ytdlp)
+[25/25] ✓ 1L08UNns5LU (ytdlp)
+
+[source] === Escalation Batch Complete ===
+[source] Successfully extracted: 19
+[source] Failed: 6
+[source] Skipped (cached): 0
+[source] Skipped (negative cache): 472
+[source] Skipped (terminal): 0
+[source] NotebookLM-eligible: 25
+[source] Routed to transcript fallback: 0
+[source] Negative-cache reasons: unavailable=472
+[source] Worker notebook cleanup: 0 deleted, 0 failed
+[source] Total discovered: 25
+[source] Total processed outcomes: 25

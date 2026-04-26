@@ -1,0 +1,341 @@
+#!/usr/bin/env python3
+"""Run a frozen-cohort NotebookLM fallback crossover benchmark."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import shutil
+from collections import OrderedDict
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from csf.batch_status import BatchEntry, delete_channel, set_channel_metadata, set_status_batch
+from csf.cache import clear_all_storages, delete_cached_transcripts
+from csf.worker_count_sweep import run_worker_count_sweep
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_OUTPUT_ROOT = REPO_ROOT / ".logs" / "fallback_crossover_benchmark"
+DEFAULT_TRACE_ROOT = REPO_ROOT / ".logs" / "worker_count_trials"
+DEFAULT_SOURCE_URL = "https://www.youtube.com/channel/UCYTISFALLBACKBMK"
+DEFAULT_WORKERS = 2
+
+
+POLICY_ENV: dict[str, dict[str, str]] = {
+    "notebooklm_only_30s": {
+        "YTIS_INDUSTRIAL_BACKLOG_THRESHOLD": "1",
+        "YTIS_NLM_SOURCE_CONTENT_RETRY_BUDGET_S": "30",
+        "YTIS_NLM_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S": "30",
+        "YTIS_NLM_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S": "30",
+        "YTIS_NLM_SOURCE_CONTENT_SHARED_RETRY_POOL_ENABLED": "false",
+        "YTIS_TRANSCRIPT_FALLBACK_WORKERS": "0",
+        "YTIS_TRANSCRIPT_FALLBACK_MIN_START_INTERVAL_S": "2.5",
+    },
+    "notebooklm_plus_fallback_30s": {
+        "YTIS_INDUSTRIAL_BACKLOG_THRESHOLD": "1",
+        "YTIS_NLM_SOURCE_CONTENT_RETRY_BUDGET_S": "30",
+        "YTIS_NLM_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S": "30",
+        "YTIS_NLM_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S": "30",
+        "YTIS_NLM_SOURCE_CONTENT_SHARED_RETRY_POOL_ENABLED": "false",
+        "YTIS_TRANSCRIPT_FALLBACK_WORKERS": "2",
+        "YTIS_TRANSCRIPT_FALLBACK_MIN_START_INTERVAL_S": "0",
+    },
+    "notebooklm_only_45s": {
+        "YTIS_INDUSTRIAL_BACKLOG_THRESHOLD": "1",
+        "YTIS_NLM_SOURCE_CONTENT_RETRY_BUDGET_S": "45",
+        "YTIS_NLM_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S": "45",
+        "YTIS_NLM_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S": "45",
+        "YTIS_NLM_SOURCE_CONTENT_SHARED_RETRY_POOL_ENABLED": "false",
+        "YTIS_TRANSCRIPT_FALLBACK_WORKERS": "0",
+        "YTIS_TRANSCRIPT_FALLBACK_MIN_START_INTERVAL_S": "2.5",
+    },
+}
+
+
+def _parse_policy_list(value: str) -> list[str]:
+    policies = [item.strip() for item in value.split(",") if item.strip()]
+    if not policies:
+        raise ValueError("at least one policy is required")
+    unknown = [policy for policy in policies if policy not in POLICY_ENV]
+    if unknown:
+        raise ValueError(f"unknown policy name(s): {', '.join(sorted(unknown))}")
+    return policies
+
+
+def _iter_trace_files(trace_root: Path) -> list[Path]:
+    files: list[Path] = []
+    for path in sorted(trace_root.rglob("term_*.jsonl")):
+        if path.is_file():
+            files.append(path)
+    return files
+
+
+def _load_cohort_from_trace(trace_root: Path) -> list[dict[str, Any]]:
+    items: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
+    for path in _iter_trace_files(trace_root):
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except Exception:
+                    continue
+                if row.get("action") != "nlm_batch_source_content_fetch_completed":
+                    continue
+                data = row.get("data")
+                if not isinstance(data, dict):
+                    continue
+                if data.get("youtube_ytdlp_classification") != "ok":
+                    continue
+                if str(data.get("status") or "").strip().lower() == "ready":
+                    continue
+                video_id = str(data.get("video_id") or "").strip()
+                source_url = str(data.get("source_url") or "").strip()
+                if not video_id:
+                    continue
+                if video_id not in items:
+                    items[video_id] = {
+                        "video_id": video_id,
+                        "source_url": source_url,
+                        "final_status": data.get("final_status"),
+                        "youtube_ytdlp_elapsed_s": data.get("youtube_ytdlp_elapsed_s"),
+                        "youtube_page_elapsed_s": data.get("youtube_page_elapsed_s"),
+                        "trace_file": str(path),
+                    }
+    return list(items.values())
+
+
+def _load_or_build_cohort(cohort_path: Path, trace_root: Path) -> dict[str, Any]:
+    if cohort_path.exists():
+        existing = json.loads(cohort_path.read_text(encoding="utf-8"))
+        items = existing.get("items", []) if isinstance(existing, dict) else []
+        if items:
+            return existing
+    items = _load_cohort_from_trace(trace_root)
+    cohort = {
+        "trace_root": str(trace_root),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "items": items,
+    }
+    cohort_path.parent.mkdir(parents=True, exist_ok=True)
+    cohort_path.write_text(json.dumps(cohort, indent=2), encoding="utf-8")
+    return cohort
+
+
+def _seed_synthetic_source(source_url: str, items: list[dict[str, Any]]) -> None:
+    delete_channel(source_url)
+    set_channel_metadata(
+        source_url,
+        playlist_id="benchmark",
+        last_checked=datetime.now(timezone.utc).isoformat(),
+        video_count_estimate=len(items),
+        channel_title="Fallback Crossover Benchmark",
+    )
+    entries = [
+        BatchEntry(
+            video_id=str(item["video_id"]),
+            status="pending",
+            source=source_url,
+        )
+        for item in items
+    ]
+    set_status_batch(entries)
+
+
+def _reset_synthetic_source_state(source_url: str, items: list[dict[str, Any]]) -> None:
+    delete_cached_transcripts([str(item["video_id"]) for item in items])
+    clear_all_storages()
+    _seed_synthetic_source(source_url, items)
+
+
+def _run_policy(
+    *,
+    policy_name: str,
+    items: list[dict[str, Any]],
+    source_url: str,
+    output_root: Path,
+    workers: int,
+    limit: int,
+    python_executable: str | None,
+) -> dict[str, Any]:
+    previous_env: dict[str, str | None] = {}
+    policy_root = output_root / policy_name
+    worker_state_root = policy_root / "worker_states"
+    shutil.rmtree(worker_state_root, ignore_errors=True)
+    try:
+        for key, value in POLICY_ENV[policy_name].items():
+            previous_env[key] = os.environ.get(key)
+            os.environ[key] = value
+        for key, value in {
+            "YTIS_INDUSTRIAL_WORKER_STATE_ROOT": str(worker_state_root),
+            "YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX": f"benchmark-{policy_name}",
+        }.items():
+            previous_env[key] = os.environ.get(key)
+            os.environ[key] = value
+        sweep_summary = run_worker_count_sweep(
+            worker_counts=[workers],
+            limit=limit,
+            output_root=policy_root,
+            python_executable=python_executable,
+        )
+        return sweep_summary
+    finally:
+        for key, old_value in previous_env.items():
+            if old_value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old_value
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Run a frozen NotebookLM fallback crossover benchmark")
+    parser.add_argument(
+        "--trace-root",
+        type=Path,
+        default=DEFAULT_TRACE_ROOT,
+        help=f"Trace root to freeze the cohort from (default: {DEFAULT_TRACE_ROOT})",
+    )
+    parser.add_argument(
+        "--cohort-json",
+        type=Path,
+        default=DEFAULT_OUTPUT_ROOT / "cohort.json",
+        help="Path to the frozen cohort manifest",
+    )
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=DEFAULT_OUTPUT_ROOT,
+        help=f"Root directory for benchmark artifacts (default: {DEFAULT_OUTPUT_ROOT})",
+    )
+    parser.add_argument(
+        "--source-url",
+        default=DEFAULT_SOURCE_URL,
+        help=f"Synthetic source URL used to seed the frozen cohort (default: {DEFAULT_SOURCE_URL})",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=DEFAULT_WORKERS,
+        help=f"Worker count for each policy run (default: {DEFAULT_WORKERS})",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=0,
+        help="Max items to include from the frozen cohort; 0 uses the full cohort",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=50,
+        help="Batch size for each benchmark slice (default: 50)",
+    )
+    parser.add_argument(
+        "--policy",
+        default="notebooklm_only_30s,notebooklm_plus_fallback_30s,notebooklm_only_45s",
+        help="Comma-separated policies to run",
+    )
+    parser.add_argument(
+        "--python",
+        default=None,
+        help="Python executable to use for csf-source (default: current interpreter)",
+    )
+    args = parser.parse_args(argv)
+
+    cohort = _load_or_build_cohort(args.cohort_json, args.trace_root)
+    items = list(cohort.get("items", []) or [])
+    if not items:
+        print(f"[benchmark] No cohort items found in {args.cohort_json}", file=sys.stderr)
+        return 1
+    limit = args.limit if args.limit and args.limit > 0 else len(items)
+    items = items[:limit]
+    policies = _parse_policy_list(args.policy)
+
+    args.output_root.mkdir(parents=True, exist_ok=True)
+    batch_results: list[dict[str, Any]] = []
+    fallback_exercised = False
+    for batch_index, start in enumerate(range(0, len(items), args.batch_size), start=1):
+        batch_items = items[start : start + args.batch_size]
+        if not batch_items:
+            continue
+        print(f"[benchmark] Running batch {batch_index} size={len(batch_items)}")
+        _seed_synthetic_source(args.source_url, batch_items)
+        policy_results: list[dict[str, Any]] = []
+        for policy_name in policies:
+            _reset_synthetic_source_state(args.source_url, batch_items)
+            print(f"[benchmark] Running policy: {policy_name}")
+            sweep_summary = _run_policy(
+                policy_name=policy_name,
+                items=batch_items,
+                source_url=args.source_url,
+                output_root=args.output_root / f"batch_{batch_index:02d}",
+                workers=args.workers,
+                limit=len(batch_items),
+                python_executable=args.python,
+            )
+            row = (sweep_summary.get("results", []) or [{}])[0]
+            policy_results.append(
+                {
+                    "policy": policy_name,
+                    "sweep_dir": sweep_summary.get("sweep_dir"),
+                    "results": sweep_summary.get("results", []),
+                    "fallback_processed_count": int(row.get("fetch_completed", {}).get("transcript_fallback_processed_count", 0) or 0)
+                    if isinstance(row.get("fetch_completed"), dict)
+                    else 0,
+                }
+            )
+        batch_results.append(
+            {
+                "batch_index": batch_index,
+                "batch_size": len(batch_items),
+                "items": batch_items,
+                "policies": policy_results,
+            }
+        )
+        if any(result["fallback_processed_count"] > 0 for result in policy_results):
+            fallback_exercised = True
+            break
+
+    report = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "trace_root": str(args.trace_root),
+        "cohort_json": str(args.cohort_json),
+        "source_url": args.source_url,
+        "workers": args.workers,
+        "limit": len(items),
+        "batch_size": args.batch_size,
+        "items": items,
+        "batches": batch_results,
+        "fallback_exercised": fallback_exercised,
+    }
+    report_path = args.output_root / "benchmark_summary.json"
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+    print(f"[benchmark] Wrote cohort: {args.cohort_json}")
+    print(f"[benchmark] Wrote summary: {report_path}")
+    for batch in batch_results:
+        for result in batch.get("policies", []) or []:
+            rows = result.get("results", []) or []
+            if not rows:
+                continue
+            row = rows[0]
+            print(
+                f"[benchmark] batch={batch['batch_index']} {result['policy']}: "
+                f"success={row.get('success_count', 0)} "
+                f"fail={row.get('fail_count', 0)} "
+                f"vph={row.get('videos_per_hour', 0)} "
+                f"fallback={result.get('fallback_processed_count', 0)}"
+            )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

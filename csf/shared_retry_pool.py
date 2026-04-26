@@ -7,15 +7,24 @@ re-adds the source into its own reusable notebook when it claims work.
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
-_POOL_DB_PATH = Path("P:/__csf/.data/yt-is/nlm_shared_retry_pool.sqlite")
+_DEFAULT_POOL_DB_PATH = Path("P:/.data/yt-is/nlm_shared_retry_pool.sqlite")
+_POOL_DB_PATH = _DEFAULT_POOL_DB_PATH
 _POOL_LOCK = threading.Lock()
 _POOL_INITIALIZED = False
+
+
+def get_pool_db_path() -> Path:
+    override = os.environ.get("YTIS_NLM_SHARED_RETRY_POOL_DB_PATH")
+    if override:
+        return Path(override)
+    return _DEFAULT_POOL_DB_PATH
 
 
 @dataclass(frozen=True)
@@ -39,8 +48,9 @@ def _ensure_pool() -> None:
     with _POOL_LOCK:
         if _POOL_INITIALIZED:
             return
-        _POOL_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(_POOL_DB_PATH)
+        db_path = get_pool_db_path()
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(db_path)
         try:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA busy_timeout=30000")
@@ -93,7 +103,7 @@ def _ensure_pool_schema(conn: sqlite3.Connection) -> None:
 
 def _connect() -> sqlite3.Connection:
     _ensure_pool()
-    conn = sqlite3.connect(_POOL_DB_PATH, timeout=30.0)
+    conn = sqlite3.connect(get_pool_db_path(), timeout=30.0)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=30000")
     _ensure_pool_schema(conn)
@@ -316,9 +326,18 @@ def pending_count() -> int:
     """Return the number of pending retry items."""
     conn = _connect()
     try:
-        row = conn.execute(
-            "SELECT COUNT(*) FROM shared_retry_pool WHERE status='pending'"
-        ).fetchone()
+        try:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM shared_retry_pool WHERE status='pending'"
+            ).fetchone()
+        except sqlite3.OperationalError as exc:
+            if "no such table: shared_retry_pool" not in str(exc).lower():
+                raise
+            _ensure_pool_schema(conn)
+            conn.commit()
+            row = conn.execute(
+                "SELECT COUNT(*) FROM shared_retry_pool WHERE status='pending'"
+            ).fetchone()
         return int(row[0] or 0) if row else 0
     finally:
         conn.close()
@@ -327,7 +346,7 @@ def pending_count() -> int:
 def reset_pool() -> None:
     """Remove all shared retry pool entries (test helper)."""
     _ensure_pool()
-    conn = sqlite3.connect(_POOL_DB_PATH)
+    conn = sqlite3.connect(get_pool_db_path())
     try:
         _ensure_pool_schema(conn)
         conn.execute("DELETE FROM shared_retry_pool")

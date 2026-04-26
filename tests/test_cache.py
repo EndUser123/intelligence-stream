@@ -8,13 +8,19 @@ from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 # Ensure the package is importable
 sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
 
+import csf.cache as cache
 from csf.cache import (
     TranscriptCache,
+    backup_transcript_cache,
     clear_all_storages,
+    delete_cached_transcripts,
     get_cached_transcript,
+    promote_transcript_cache,
     set_cached_transcript,
 )
 
@@ -95,6 +101,26 @@ class TestCacheMiss:
             result = get_cached_transcript("nevercached123", "en", "cli")
         assert result is None
 
+
+class TestCacheBackup:
+    """Test transcript cache backup behavior."""
+
+    def test_backup_transcript_cache_creates_timestamped_copy(self, tmp_path):
+        """Backup helper creates a consistent SQLite copy in the requested directory."""
+        db_path = cache.get_shared_db_path()
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        clear_all_storages()
+
+        with mock.patch.dict(os.environ, {"TERMINAL_ID": "test_term_backup"}):
+            set_cached_transcript("dQw4w9WgXcQ", "en", "cli", "Backup me")
+
+        backup_root = tmp_path / "backups"
+        backup_path = backup_transcript_cache(backup_root=backup_root)
+        assert backup_path is not None
+        assert backup_path.exists()
+        assert backup_path.parent == backup_root
+        assert backup_path.name.startswith("transcripts-")
+
     def test_empty_database_initialization(self):
         """Empty database (no tables) initializes correctly on first query.
 
@@ -105,7 +131,7 @@ class TestCacheMiss:
         from pathlib import Path
 
         # Delete the database to simulate first run on empty DB
-        db_path = Path("P:/__csf/.data/yt-is/transcripts.sqlite")
+        db_path = cache.get_shared_db_path()
         if db_path.exists():
             db_path.unlink()
 
@@ -128,6 +154,92 @@ class TestCacheMiss:
             table_exists = cursor.fetchone() is not None
             conn.close()
             assert table_exists, "transcript_cache table should exist after query"
+
+    def test_shared_database_uses_live_data_root(self):
+        """Transcript cache should live under the shared P:/.data tree."""
+        with mock.patch.dict(os.environ, {"YTIS_TRANSCRIPT_CACHE_DB_PATH": ""}, clear=False):
+            db_path = cache.get_shared_db_path()
+        assert str(db_path).startswith("P:\\.data\\yt-is") or str(db_path).startswith("P:/.data/yt-is")
+
+
+class TestCachePromotion:
+    """Test promoting transcript rows from staging into live."""
+
+    def test_promote_transcript_cache_merges_new_rows_only(self, tmp_path):
+        """Promotion inserts new rows and preserves existing destination rows."""
+        staging_db = tmp_path / "staging.sqlite"
+        live_db = tmp_path / "live.sqlite"
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "YTIS_TRANSCRIPT_CACHE_DB_PATH": str(staging_db),
+                "TERMINAL_ID": "staging_term",
+            },
+            clear=False,
+        ):
+            clear_all_storages()
+            set_cached_transcript("dQw4w9WgXcQ", "en", "cli", "from staging")
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "YTIS_TRANSCRIPT_CACHE_DB_PATH": str(live_db),
+                "TERMINAL_ID": "live_term",
+            },
+            clear=False,
+        ):
+            clear_all_storages()
+            set_cached_transcript("dQw4w9WgXcQ", "en", "cli", "from live")
+            set_cached_transcript("ZyX98765432", "en", "cli", "live only")
+
+        promoted = promote_transcript_cache(staging_db, live_db)
+        assert promoted >= 0
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "YTIS_TRANSCRIPT_CACHE_DB_PATH": str(live_db),
+                "TERMINAL_ID": "live_term",
+            },
+            clear=False,
+        ):
+            clear_all_storages()
+            merged = get_cached_transcript("dQw4w9WgXcQ", "en", "cli")
+            extra = get_cached_transcript("ZyX98765432", "en", "cli")
+
+        assert merged is not None
+        assert merged.transcript == "from live"
+        assert extra is not None
+
+    def test_promote_transcript_cache_rejects_missing_source(self, tmp_path):
+        """Promotion must fail closed when the staging DB is missing."""
+        live_db = tmp_path / "live.sqlite"
+        staging_db = tmp_path / "missing_staging.sqlite"
+        with mock.patch.dict(
+            os.environ,
+            {"YTIS_TRANSCRIPT_CACHE_DB_PATH": str(live_db), "TERMINAL_ID": "live_term"},
+            clear=False,
+        ):
+            clear_all_storages()
+            set_cached_transcript("dQw4w9WgXcQ", "en", "cli", "live only")
+
+        with pytest.raises(FileNotFoundError):
+            promote_transcript_cache(staging_db, live_db)
+
+    def test_promote_transcript_cache_rejects_same_source_and_dest(self, tmp_path):
+        """Promotion must fail closed when source and destination are the same DB."""
+        db_path = tmp_path / "shared.sqlite"
+        with mock.patch.dict(
+            os.environ,
+            {"YTIS_TRANSCRIPT_CACHE_DB_PATH": str(db_path), "TERMINAL_ID": "live_term"},
+            clear=False,
+        ):
+            clear_all_storages()
+            set_cached_transcript("dQw4w9WgXcQ", "en", "cli", "live only")
+
+        with pytest.raises(ValueError):
+            promote_transcript_cache(db_path, db_path)
 
 
 class TestSourceEnumeration:
@@ -196,6 +308,27 @@ class TestTranscriptMetadataRoundTrip:
         assert cached is not None
         assert cached.transcript == "Complete transcript text"
         assert cached.metadata == metadata
+
+
+class TestCacheDeletion:
+    """Test explicit cache deletion by video ID."""
+
+    def test_delete_cached_transcripts_removes_all_rows_for_video(self):
+        """Deleting by video ID clears every cached row for that video."""
+        video_id = "ZyX98765432"
+        other_video_id = "AbC98765432"
+
+        with mock.patch.dict(os.environ, {"TERMINAL_ID": "test_term_delete"}):
+            set_cached_transcript(video_id, "en", "cli", "Transcript A")
+            set_cached_transcript(video_id, "en", "notebooklm", "Transcript B")
+            set_cached_transcript(other_video_id, "en", "cli", "Transcript C")
+
+            deleted = delete_cached_transcripts([video_id])
+
+            assert deleted >= 2
+            assert get_cached_transcript(video_id, "en", "cli") is None
+            assert get_cached_transcript(video_id, "en", "notebooklm") is None
+            assert get_cached_transcript(other_video_id, "en", "cli") is not None
 
 
 class TestCacheIntegrationWithTranscriptChain:

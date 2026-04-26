@@ -8,6 +8,7 @@ Multi-terminal safe: all terminals share the same DB with WAL mode.
 """
 
 import sqlite3
+import os
 import time
 import threading
 from contextlib import contextmanager
@@ -93,8 +94,9 @@ _NEGATIVE_CACHE_DEFAULT_TTL_SECONDS = 86400
 _NEGATIVE_CACHE_TERMINAL_TTL_SECONDS = 3650 * 24 * 3600
 
 # Default DB path — separate from transcript cache and quota DBs
-_DEFAULT_DB_DIR = Path("P:/__csf/.data/yt-is")
+_DEFAULT_DB_DIR = Path("P:/.data/yt-is")
 _DEFAULT_DB_PATH = _DEFAULT_DB_DIR / "batch_status.sqlite"
+_DEFAULT_BACKUP_DIR = _DEFAULT_DB_DIR / "backups"
 
 _storage_lock = threading.Lock()
 _batch_status_storage: "_BatchStatusStorage | None" = None
@@ -102,12 +104,18 @@ _batch_status_storage: "_BatchStatusStorage | None" = None
 
 def _get_default_db_path() -> Path:
     """Return the default batch status DB path."""
+    override = os.environ.get("YTIS_BATCH_STATUS_DB_PATH")
+    if override:
+        return Path(override)
     return _DEFAULT_DB_PATH
 
 
 def _get_batch_status_storage() -> "_BatchStatusStorage":
     """Get or create the batch status storage singleton."""
     global _batch_status_storage
+    current_path = _get_default_db_path()
+    if _batch_status_storage is not None and _batch_status_storage._db_path != current_path:
+        _batch_status_storage = None
     if _batch_status_storage is None:
         with _storage_lock:
             if _batch_status_storage is None:
@@ -1685,6 +1693,90 @@ def get_all_blocked_channels(db_path: Path | None = None) -> list[tuple[str, str
     if db_path is None:
         return _get_batch_status_storage().get_all_blocked_channels()
     return _BatchStatusStorage(db_path=db_path).get_all_blocked_channels()
+
+
+def backup_batch_status_db(backup_root: Path | None = None) -> Path | None:
+    """Snapshot the active batch_status DB into the backups directory."""
+    source = _get_default_db_path()
+    if not source.exists():
+        return None
+    backup_dir = backup_root or _DEFAULT_BACKUP_DIR
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    backup_path = backup_dir / f"batch-status-{stamp}.sqlite"
+    suffix = 1
+    while backup_path.exists():
+        backup_path = backup_dir / f"batch-status-{stamp}-{suffix}.sqlite"
+        suffix += 1
+    source_conn = sqlite3.connect(source)
+    try:
+        dest_conn = sqlite3.connect(backup_path)
+        try:
+            source_conn.backup(dest_conn)
+            dest_conn.commit()
+        finally:
+            dest_conn.close()
+    finally:
+        source_conn.close()
+    return backup_path
+
+
+def _table_columns(conn: sqlite3.Connection, table: str) -> list[str]:
+    return [str(row[1]) for row in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+
+
+def _copy_table_rows(
+    source_conn: sqlite3.Connection,
+    dest_conn: sqlite3.Connection,
+    table: str,
+) -> int:
+    source_tables = {
+        str(row[0])
+        for row in source_conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    }
+    if table not in source_tables:
+        return 0
+    columns = _table_columns(source_conn, table)
+    if not columns:
+        return 0
+    rows = source_conn.execute(
+        f"SELECT {', '.join(columns)} FROM {table}"
+    ).fetchall()
+    if not rows:
+        return 0
+    placeholders = ", ".join("?" for _ in columns)
+    column_list = ", ".join(columns)
+    dest_conn.executemany(
+        f"INSERT OR REPLACE INTO {table} ({column_list}) VALUES ({placeholders})",
+        rows,
+    )
+    return len(rows)
+
+
+def promote_batch_status_db(source_db: Path, dest_db: Path | None = None) -> int:
+    """Promote channel metadata and blocklist rows from staging into live state."""
+    if not source_db.exists():
+        raise FileNotFoundError(f"source batch_status DB missing: {source_db}")
+    destination = dest_db or _get_default_db_path()
+    if source_db.resolve() == destination.resolve():
+        raise ValueError("source and destination batch_status DB paths must differ")
+
+    source_storage = _BatchStatusStorage(db_path=source_db)
+    dest_storage = _BatchStatusStorage(db_path=destination)
+    source_conn = source_storage._get_conn()
+    dest_conn = dest_storage._get_conn()
+    promoted = 0
+    try:
+        promoted += _copy_table_rows(source_conn, dest_conn, "channel_metadata")
+        promoted += _copy_table_rows(source_conn, dest_conn, "channel_blocklist")
+        dest_conn.commit()
+    except Exception:
+        dest_conn.rollback()
+        raise
+    finally:
+        source_conn.close()
+        dest_conn.close()
+    return promoted
 
 
 def delete_channel(channel_url: str, db_path: Path | None = None) -> bool:

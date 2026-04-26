@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""Promote channel metadata and blocklist rows from a staging SQLite DB."""
+
+from __future__ import annotations
+
+import argparse
+import sqlite3
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from csf.batch_status import backup_batch_status_db, _get_default_db_path, promote_batch_status_db
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--source",
+        type=Path,
+        default=Path("P:/.data/yt-is/batch-status-staging.sqlite"),
+        help="Staging batch-status DB to promote from.",
+    )
+    parser.add_argument(
+        "--dest",
+        type=Path,
+        default=_get_default_db_path(),
+        help="Destination batch-status DB (default: live state).",
+    )
+    parser.add_argument(
+        "--no-backup",
+        action="store_true",
+        help="Skip the live-state backup step before promoting.",
+    )
+    return parser.parse_args()
+
+
+def _inspect_db(path: Path) -> tuple[bool, bool, int, int]:
+    """Return (exists, has_tables, channel_rows, blocked_rows)."""
+    if not path.exists():
+        return False, False, 0, 0
+    conn = sqlite3.connect(path)
+    try:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        has_tables = "channel_metadata" in tables or "channel_blocklist" in tables
+        channel_rows = int(
+            conn.execute("SELECT COUNT(*) FROM channel_metadata").fetchone()[0]
+        ) if "channel_metadata" in tables else 0
+        blocked_rows = int(
+            conn.execute("SELECT COUNT(*) FROM channel_blocklist").fetchone()[0]
+        ) if "channel_blocklist" in tables else 0
+        return True, has_tables, channel_rows, blocked_rows
+    finally:
+        conn.close()
+
+
+def main() -> int:
+    args = _parse_args()
+    source_exists, source_has_tables, channel_rows, blocked_rows = _inspect_db(args.source)
+    dest_exists, dest_has_tables, dest_channel_rows, dest_blocked_rows = _inspect_db(args.dest)
+    print(
+        f"[promote] source={args.source} exists={source_exists} tables={source_has_tables} "
+        f"channel_rows={channel_rows} blocked_rows={blocked_rows}"
+    )
+    print(
+        f"[promote] dest={args.dest} exists={dest_exists} tables={dest_has_tables} "
+        f"channel_rows={dest_channel_rows} blocked_rows={dest_blocked_rows}"
+    )
+    if not source_exists:
+        raise SystemExit(f"[promote] refusing to run: source DB missing: {args.source}")
+    if not source_has_tables:
+        raise SystemExit(f"[promote] refusing to run: source DB has no channel state tables: {args.source}")
+    if channel_rows <= 0 and blocked_rows <= 0:
+        raise SystemExit(f"[promote] refusing to run: source DB is empty: {args.source}")
+    if args.dest.exists() and args.source.resolve() == args.dest.resolve():
+        raise SystemExit("[promote] refusing to run: source and destination are the same path")
+    if not args.no_backup:
+        backup_path = backup_batch_status_db()
+        if backup_path is not None:
+            print(f"[promote] backed up live state to {backup_path}")
+    promoted = promote_batch_status_db(args.source, args.dest)
+    print(f"[promote] promoted {promoted} channel-state rows from {args.source} to {args.dest}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -103,6 +103,7 @@ class TestYouTubePageInspector(unittest.TestCase):
         assert result["status"] == "ERROR"
         assert result["subreason"] == "This video has been removed by the uploader"
         assert result["video_id"] == "abc123def45"
+        assert result["elapsed_s"] >= 0
         assert mock_urlopen.call_count == 1
 
     def test_classify_ytdlp_watch_info_marks_public_video_ok(self):
@@ -146,6 +147,7 @@ class TestYouTubePageInspector(unittest.TestCase):
 
         assert result["classification"] == "removed_by_owner"
         assert result["available"] is False
+        assert result["elapsed_s"] >= 0
         assert result["returncode"] == 1
         assert result["video_id"] == "VdunqscAV5Q"
         assert mock_which.call_count == 1

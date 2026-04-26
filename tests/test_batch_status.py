@@ -10,11 +10,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
 
 from csf.batch_status import (
+    backup_batch_status_db,
+    block_channel,
     get_analysis_status,
+    get_channel_metadata,
     get_entries_for_source_details,
     get_negative_cache,
     get_pending_by_source,
     get_source,
+    is_channel_blocked,
+    promote_batch_status_db,
     summarize_video_ids,
     is_complete,
     mark_complete,
@@ -22,6 +27,7 @@ from csf.batch_status import (
     reset_status,
     reset_all,
     set_negative_cache,
+    set_channel_metadata,
     set_status_batch,
     get_status_batch,
     BatchEntry,
@@ -344,3 +350,66 @@ class TestSummarizeVideoIds:
         assert summary["source_class_counts"]["captioned"] == 1
         assert summary["source_class_counts"]["terminal_deleted"] == 1
         assert summary["source_class_counts"]["live"] == 1
+
+
+def test_batch_status_env_override_uses_live_data_root(tmp_path, monkeypatch):
+    live_db = tmp_path / "batch_status.sqlite"
+    monkeypatch.setenv("YTIS_BATCH_STATUS_DB_PATH", str(live_db))
+
+    set_channel_metadata(
+        "https://www.youtube.com/@example",
+        playlist_id="PL123",
+        last_checked="2026-04-25T00:00:00Z",
+    )
+    block_channel("https://www.youtube.com/@blocked")
+
+    assert live_db.exists()
+    assert get_channel_metadata("https://www.youtube.com/@example", db_path=live_db) is not None
+    assert is_channel_blocked("https://www.youtube.com/@blocked", db_path=live_db) is True
+
+
+def test_backup_batch_status_db_snapshots_channel_state(tmp_path, monkeypatch):
+    live_db = tmp_path / "batch_status.sqlite"
+    backup_root = tmp_path / "backups"
+    monkeypatch.setenv("YTIS_BATCH_STATUS_DB_PATH", str(live_db))
+
+    set_channel_metadata(
+        "https://www.youtube.com/@example",
+        playlist_id="PL123",
+        last_checked="2026-04-25T00:00:00Z",
+    )
+    block_channel("https://www.youtube.com/@blocked")
+
+    backup_path = backup_batch_status_db(backup_root=backup_root)
+
+    assert backup_path is not None
+    assert backup_path.exists()
+    assert backup_path.parent == backup_root
+    assert get_channel_metadata("https://www.youtube.com/@example", db_path=backup_path) is not None
+    assert is_channel_blocked("https://www.youtube.com/@blocked", db_path=backup_path) is True
+
+
+def test_promote_batch_status_db_merges_channel_state(tmp_path):
+    live_db = tmp_path / "live.sqlite"
+    staging_db = tmp_path / "staging.sqlite"
+
+    set_channel_metadata(
+        "https://www.youtube.com/@live",
+        playlist_id="PLLIVE",
+        last_checked="2026-04-24T00:00:00Z",
+        db_path=live_db,
+    )
+    set_channel_metadata(
+        "https://www.youtube.com/@staging",
+        playlist_id="PLSTAGE",
+        last_checked="2026-04-25T00:00:00Z",
+        db_path=staging_db,
+    )
+    block_channel("https://www.youtube.com/@blocked", db_path=staging_db)
+
+    promoted = promote_batch_status_db(staging_db, live_db)
+
+    assert promoted >= 2
+    assert get_channel_metadata("https://www.youtube.com/@live", db_path=live_db) is not None
+    assert get_channel_metadata("https://www.youtube.com/@staging", db_path=live_db) is not None
+    assert is_channel_blocked("https://www.youtube.com/@blocked", db_path=live_db) is True

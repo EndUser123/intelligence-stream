@@ -1274,3 +1274,58 @@ class TestDirectApiFallback:
             assert error == "direct_api no_transcript: subtitles disabled"
         finally:
             sys.modules.pop("youtube_transcript_api", None)
+
+
+class TestWhisperFallback:
+    """Tests for _fetch_via_whisper fallback."""
+
+    def test_whisper_retries_broader_audio_formats_when_first_selector_fails(self):
+        """Whisper should retry with broader audio selectors and a JS runtime before giving up."""
+        from pathlib import Path
+        import sys
+        import tempfile as pytemp
+
+        from csf.transcript import _fetch_via_whisper
+
+        calls: list[list[str]] = []
+
+        def mock_run(cmd, **kwargs):
+            calls.append(list(cmd))
+            output_base = cmd[cmd.index("--output") + 1]
+            if len(calls) == 1:
+                return subprocess.CompletedProcess(
+                    cmd,
+                    1,
+                    "",
+                    "Requested format is not available",
+                )
+
+            Path(f"{output_base}.mp3").write_text("fake audio")
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+
+        with pytemp.TemporaryDirectory() as tmp_dir:
+            with (
+                mock.patch("tempfile.mkdtemp", return_value=tmp_dir),
+                mock.patch("csf.transcript.get_browser_cookies", return_value=[]),
+                mock.patch("subprocess.run", side_effect=mock_run),
+            ):
+                fake_segment = mock.Mock()
+                fake_segment.text = "hello from whisper"
+                fake_segment.no_speech_prob = 0.01
+                fake_model = mock.Mock()
+                fake_model.transcribe.return_value = ([fake_segment], None)
+
+                sys.modules["faster_whisper"] = mock.Mock(WhisperModel=mock.Mock(return_value=fake_model))
+                try:
+                    success, transcript, error = _fetch_via_whisper("dQw4w9WgXcQ", "en")
+                finally:
+                    sys.modules.pop("faster_whisper", None)
+
+        assert success is True
+        assert transcript == "hello from whisper"
+        assert error is None
+        assert len(calls) == 2
+        assert "--js-runtimes" in calls[0]
+        assert calls[0][calls[0].index("--js-runtimes") + 1] == "node"
+        assert calls[0][calls[0].index("-f") + 1] == "bestaudio/best"
+        assert calls[1][calls[1].index("-f") + 1] == "bestaudio"

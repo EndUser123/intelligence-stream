@@ -64,7 +64,7 @@ with open(hist_path, 'r', encoding='utf-8', errors='ignore') as f:
 
 # Remove already-tracked channels
 import sqlite3
-bconn = sqlite3.connect('P:/__csf/.data/yt-is/batch_status.sqlite')
+bconn = sqlite3.connect('P:/.data/yt-is/batch_status.sqlite')
 bc = bconn.cursor()
 bc.execute('SELECT channel_url FROM channel_metadata')
 existing = set(row[0] for row in bc.fetchall())

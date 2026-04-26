@@ -9,6 +9,7 @@ per terminal. This is the same pattern proven to work for transcript caching.
 """
 
 import queue
+import os
 import random
 import sqlite3
 import threading
@@ -21,9 +22,15 @@ from typing import Optional
 _VIDEO_ID_PATTERN = __import__("re").compile(r"^[a-zA-Z0-9_-]{11}$")
 
 # Separate DB from transcript cache — isolation blast radius (LOGIC-002)
-_SHARED_DB_PATH: Path = Path(
-    "P:/__csf/.data/yt-is/retry_queue.sqlite"
-)
+_DEFAULT_SHARED_DB_PATH: Path = Path("P:/.data/yt-is/retry_queue.sqlite")
+_SHARED_DB_PATH: Path = _DEFAULT_SHARED_DB_PATH
+
+
+def get_shared_db_path() -> Path:
+    override = os.environ.get("YTIS_RETRY_QUEUE_DB_PATH")
+    if override:
+        return Path(override)
+    return _DEFAULT_SHARED_DB_PATH
 
 # Exponential backoff parameters
 _BACKOFF_BASE_MINUTES = 5  # LOGIC-007: specify backoff algorithm
@@ -84,8 +91,9 @@ class _RetryStorage:
 
     def _ensure_table(self) -> None:
         """Create retry queue table if not exists in isolated DB."""
-        _SHARED_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(_SHARED_DB_PATH)
+        db_path = get_shared_db_path()
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(db_path)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute(
             """
@@ -114,7 +122,7 @@ class _RetryStorage:
 
     def _writer_loop(self) -> None:
         """Background thread that processes write requests."""
-        self._conn = sqlite3.connect(_SHARED_DB_PATH, timeout=30.0)
+        self._conn = sqlite3.connect(get_shared_db_path(), timeout=30.0)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA busy_timeout=30000")  # 30s blocking
         while True:
@@ -177,7 +185,7 @@ class _RetryStorage:
     def _read_entry(self, video_id: str) -> Optional[RetryEntry]:
         """Read a single entry from the isolated DB."""
         self._ensure_table()
-        conn = sqlite3.connect(_SHARED_DB_PATH)
+        conn = sqlite3.connect(get_shared_db_path())
         conn.execute("PRAGMA journal_mode=WAL")
         cursor = conn.execute(
             """
@@ -208,7 +216,7 @@ class _RetryStorage:
         """Get videos ready for retry (next_retry_at <= now), ordered by created_at."""
         self._ensure_table()
         now = datetime.now().isoformat()
-        conn = sqlite3.connect(_SHARED_DB_PATH)
+        conn = sqlite3.connect(get_shared_db_path())
         conn.execute("PRAGMA journal_mode=WAL")
         cursor = conn.execute(
             """

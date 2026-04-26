@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+"""Promote transcript rows from a staging SQLite DB into the live cache."""
+
+from __future__ import annotations
+
+import argparse
+import sqlite3
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from csf.cache import backup_transcript_cache, get_shared_db_path, promote_transcript_cache
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--source",
+        type=Path,
+        default=Path("P:/.data/yt-is/transcripts-staging.sqlite"),
+        help="Staging transcript DB to promote from.",
+    )
+    parser.add_argument(
+        "--dest",
+        type=Path,
+        default=get_shared_db_path(),
+        help="Destination transcript DB (default: live cache).",
+    )
+    parser.add_argument(
+        "--no-backup",
+        action="store_true",
+        help="Skip the live-cache backup step before promoting.",
+    )
+    return parser.parse_args()
+
+
+def _inspect_cache_db(path: Path) -> tuple[bool, bool, int]:
+    """Return (exists, has_table, row_count) for a transcript DB."""
+    if not path.exists():
+        return False, False, 0
+    conn = sqlite3.connect(path)
+    try:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        if "transcript_cache" not in tables:
+            return True, False, 0
+        row_count = int(
+            conn.execute("SELECT COUNT(*) FROM transcript_cache").fetchone()[0] or 0
+        )
+        return True, True, row_count
+    finally:
+        conn.close()
+
+
+def main() -> int:
+    args = _parse_args()
+    source_exists, source_has_table, source_rows = _inspect_cache_db(args.source)
+    dest_exists, dest_has_table, dest_rows = _inspect_cache_db(args.dest)
+    print(
+        f"[promote] source={args.source} exists={source_exists} table={source_has_table} rows={source_rows}"
+    )
+    print(
+        f"[promote] dest={args.dest} exists={dest_exists} table={dest_has_table} rows={dest_rows}"
+    )
+    if not source_exists:
+        raise SystemExit(f"[promote] refusing to run: source DB missing: {args.source}")
+    if not source_has_table:
+        raise SystemExit(f"[promote] refusing to run: source DB has no transcript_cache table: {args.source}")
+    if source_rows <= 0:
+        raise SystemExit(f"[promote] refusing to run: source DB is empty: {args.source}")
+    if args.dest.exists() and args.source.resolve() == args.dest.resolve():
+        raise SystemExit("[promote] refusing to run: source and destination are the same path")
+    if not args.no_backup:
+        backup_path = backup_transcript_cache()
+        if backup_path is not None:
+            print(f"[promote] backed up live cache to {backup_path}")
+    promoted = promote_transcript_cache(args.source, args.dest)
+    print(f"[promote] promoted {promoted} transcript rows from {args.source} to {args.dest}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

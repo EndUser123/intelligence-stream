@@ -1,6 +1,6 @@
 # Worker Count Trial Run Sheet
 
-Last updated: 2026-04-23
+Last updated: 2026-04-25
 
 ## Purpose
 
@@ -154,6 +154,112 @@ The following results were collected after the plan was written and should be tr
   - `770 succeeded / 30 failed`
   - `1421.5 successful videos/hour`
 - Phase 3 Pro rerun remains pending until a Pro NotebookLM profile/account is available.
+- The fallback tail now reaches Whisper for `yt-dlp = ok` videos with no captions:
+  - audio download includes `--js-runtimes node` when `node` is available
+  - Whisper now runs on the downloaded audio instead of stopping at the audio stage
+  - successful transcripts are saved to `P:/.data/yt-is/transcripts.sqlite`
+- Verified live example:
+  - `zgf2d8gsy70`
+  - source: `whisper`
+  - transcript length: `15419`
+  - cached at `2026-04-24T23:06:39.164905`
+
+## Robustness Matrix
+
+Use this after the fallback tail fix is in place and before any more large throughput sweeps.
+
+### A. Classification boundaries
+
+Goal:
+- Prove the routing buckets are cleanly separated before measuring throughput.
+
+Sample set:
+- `yt-dlp = ok`, no captions:
+  - `zgf2d8gsy70`
+  - `4qTixOM76EQ`
+  - `gL9fq9ybx_Q`
+- `removed_by_owner`:
+  - `VdunqscAV5Q`
+- `not_yet_live`:
+  - `jGKeNYIh3eI`
+  - `HUIoPtQ1e6Q`
+  - `0aJ23HTEuH0`
+
+Pass criteria:
+- The three `yt-dlp = ok` items reach Whisper and save transcripts.
+- The terminal items stay terminal and do not get cached as successes.
+- The failure labels stay stable across a rerun of the same IDs.
+
+### B. Fallback tail correctness
+
+Goal:
+- Prove the no-caption tail can actually produce saved transcripts.
+
+Sample set:
+- The same three `yt-dlp = ok` no-caption items above.
+- Add 2 to 4 more `yt-dlp = ok` no-caption items from the latest backlog run if available.
+
+Pass criteria:
+- The tail items return `source = whisper` or an equally successful fallback source.
+- The transcript text is written to `P:/.data/yt-is/transcripts.sqlite`.
+- The audio stage no longer fails first because of the YouTube challenge.
+
+### C. Cache idempotency
+
+Goal:
+- Prove a successful transcript is saved once and reused cleanly.
+
+Sample set:
+- `zgf2d8gsy70`
+- `4qTixOM76EQ`
+
+Pass criteria:
+- First run writes a cache row.
+- Second run hits cache or reuses the saved transcript.
+- The transcript text and source metadata remain consistent.
+
+### D. Small mixed batch
+
+Goal:
+- Confirm the fix only changes the recoverable tail and not the terminal buckets.
+
+Sample set:
+- `zgf2d8gsy70`
+- `4qTixOM76EQ`
+- `gL9fq9ybx_Q`
+- `VdunqscAV5Q`
+- `jGKeNYIh3eI`
+
+Pass criteria:
+- The three tail items save transcripts.
+- The two terminal items remain terminal.
+- The batch does not reclassify terminal items as recoverable.
+
+### E. Lightweight throughput sanity
+
+Goal:
+- Measure whether the fixed fallback tail changes the hot path enough to matter.
+
+Sample set:
+- A small mixed backlog batch after the above passes.
+
+Pass criteria:
+- Throughput remains in the same rough band as the current `2-worker` baseline.
+- Any throughput change is explainable by the percentage of fallback-tail items in the batch.
+- No new regression appears in NotebookLM add/readiness timing.
+
+### Order
+
+Run these in order:
+1. Classification boundaries
+2. Fallback tail correctness
+3. Cache idempotency
+4. Small mixed batch
+5. Lightweight throughput sanity
+
+Stop after step 3 if the tail is still not saving transcripts correctly.
+Stop after step 4 if terminal buckets are leaking into success.
+Only do step 5 after the earlier checks are clean.
 
 ## Fixed Controls
 
@@ -163,6 +269,7 @@ The following results were collected after the plan was written and should be tr
 - NotebookLM batch size: `50`
 - Materialization/readiness timeout: `600s`
 - Sample family: keep the same family for the whole comparison block
+- Fallback audio path: use yt-dlp with a real JS runtime (`node`) before Whisper when captions are absent.
 
 ## First Preflight
 
@@ -172,6 +279,7 @@ Before any DOM readiness work:
 2. Bootstrap the persistent browser profile with `python P:\packages\yt-is\bin\nlm-playwright --bootstrap-auth`.
 3. Confirm NotebookLM loads without `Request access`.
 4. Only then run the readiness matrix.
+5. If the immediate goal is backlog progress, also rerun the current failing cohort so the now-fixed Whisper tail can save transcripts.
 
 ## What To Measure
 
@@ -213,7 +321,7 @@ Run the worker-count sweep in this order:
 Run the sweep with the dedicated helper:
 
 ```powershell
-P:\packages\yt-is\bin\csf-worker-count-sweep --workers 1,2,3,4,5,6,7,8 --limit 1200
+P:\packages\yt-is\bin\csf-worker-count-sweep --workers 1,2,3,4,5,6,7,8 --limit 400
 ```
 
 Use `--output-root` if you want the artifacts somewhere other than `.logs/worker_count_trials`.
@@ -352,11 +460,22 @@ Use this order so the next passes build on the known-good baseline instead of ju
 2. Run a four-URL comparison pass using the two previously troublesome URLs plus two known-good URLs, so we can compare spinner/checkmark timing against CLI `source content` timing on the exact items that used to fail.
 3. After the browser path is stable on repeated runs, go back to the free-tier throughput comparison: one worker versus two workers, same sample, same readiness logging.
 
+## Backup Step
+
+- Before any sweep or cleanup that could touch transcript state, run:
+  - `python P:/packages/yt-is/bin/csf-backup-transcripts`
+- This snapshots `P:/.data/yt-is/transcripts.sqlite` into `P:/.data/yt-is/backups/`.
+- Treat this as normal preflight, not an optional extra.
+- For staged backlog runs, set `YTIS_TRANSCRIPT_CACHE_DB_PATH=P:/.data/yt-is/transcripts-staging.sqlite`, run the batch, then promote the results with `python P:/packages/yt-is/bin/csf-promote-transcripts`. The promote command is blocking and fail-closed, so it will stop on a missing source DB, an empty staging DB, or a source/destination path collision.
+- Before any tracked-channel sync or blocklist change, run `python P:/packages/yt-is/bin/csf-backup-channel-state`.
+- This snapshots `P:/.data/yt-is/batch_status.sqlite` into `P:/.data/yt-is/backups/`.
+- For staged channel-state changes, set `YTIS_BATCH_STATUS_DB_PATH=P:/.data/yt-is/batch-status-staging.sqlite`, run `yt-is sync` against that staging DB, then promote the results with `python P:/packages/yt-is/bin/csf-promote-channel-state`. The promote command is blocking and fail-closed, so it will stop on a missing source DB, an empty staging DB, or a source/destination path collision.
+
 ## Evidence Sources
 
 - `P:/packages/yt-is/.logs/term_*.jsonl`
 - worker result file for the run
-- `P:/__csf/.data/yt-is/transcripts.sqlite`
+- `P:/.data/yt-is/transcripts.sqlite`
 - `P:/packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md`
 
 ## Notes

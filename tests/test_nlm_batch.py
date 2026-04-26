@@ -260,6 +260,68 @@ class TestReusableBatchLogging:
         assert completed["succeeded"] == 1
         assert completed["failed"] == 0
 
+    def test_reusable_batch_summary_includes_classifier_timing_from_extract_metrics(self):
+        """Reusable batch summary should propagate yt-dlp and page timing from extract metrics."""
+        batch_ids = ["vid4"]
+
+        with mock.patch("csf.nlm_batch._load_reusable_notebook_id", return_value="nb-existing"):
+            with mock.patch("csf.nlm_batch._save_reusable_notebook_id"):
+                with mock.patch("csf.nlm_batch._clear_reusable_notebook_state"):
+                    ingestor = nlm_batch.NLMReusableIngestor()
+                    with mock.patch.object(ingestor, "_ensure_notebook", return_value=(False, "reuse")):
+                        with mock.patch.object(
+                            ingestor._ingestor,
+                            "extract_transcripts",
+                            return_value={"vid4": (False, None, "err")},
+                        ) as mock_extract:
+                            with mock.patch.object(ingestor._ingestor, "reset_sources") as mock_reset:
+                                with mock.patch.object(
+                                    ingestor._ingestor,
+                                    "get_last_extract_metrics",
+                                    return_value={
+                                        "content_fetch_status_counts": {"command_failed": 1},
+                                        "source_ready_age_s_total": 12.0,
+                                        "source_ready_age_s_max": 12.0,
+                                        "source_ready_age_s_avg": 12.0,
+                                        "content_fetch_attempts_total": 2,
+                                        "content_fetch_attempts_max": 2,
+                                        "content_fetch_attempts_avg": 2.0,
+                                        "retry_queue_deferred_count": 1,
+                                        "retry_queue_recovered_count": 0,
+                                        "retry_queue_final_failed_count": 1,
+                                        "shared_retry_deferred_count": 0,
+                                        "shared_retry_recovered_count": 0,
+                                        "shared_retry_final_failed_count": 0,
+                                        "materialization_ready_at_epoch": 123.0,
+                                        "youtube_ytdlp_elapsed_s_total": 3.5,
+                                        "youtube_ytdlp_elapsed_s_max": 2.0,
+                                        "youtube_ytdlp_elapsed_s_count": 2,
+                                        "youtube_ytdlp_elapsed_s_avg": 1.75,
+                                        "youtube_page_elapsed_s_total": 0.75,
+                                        "youtube_page_elapsed_s_max": 0.75,
+                                        "youtube_page_elapsed_s_count": 1,
+                                        "youtube_page_elapsed_s_avg": 0.75,
+                                    },
+                                ):
+                                    with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                        with mock.patch("csf.nlm_batch.time.monotonic", side_effect=[300.0 + i for i in range(20)]):
+                                            results = ingestor.process_batch(batch_ids)
+
+        assert results["vid4"][0] is False
+        mock_extract.assert_called_once_with(batch_ids)
+        mock_reset.assert_called_once()
+        completed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_reusable_process_completed")
+        assert completed["youtube_ytdlp_elapsed_s_total"] == 3.5
+        assert completed["youtube_ytdlp_elapsed_s_count"] == 2
+        assert completed["youtube_page_elapsed_s_total"] == 0.75
+        assert completed["youtube_page_elapsed_s_count"] == 1
+        summary = ingestor.get_last_process_metrics()
+        assert summary is not None
+        assert summary["youtube_ytdlp_elapsed_s_total"] == 3.5
+        assert summary["youtube_ytdlp_elapsed_s_count"] == 2
+        assert summary["youtube_page_elapsed_s_total"] == 0.75
+        assert summary["youtube_page_elapsed_s_count"] == 1
+
     def test_reusable_batch_uses_50_source_subbatches_by_default(self):
         """Reusable notebook processing should forward the 50-source subbatch size."""
         batch_ids = ["vid1", "vid2", "vid3"]
@@ -374,10 +436,10 @@ class TestReusableNotebookEnvironmentOverrides:
         """YTIS_NLM_OWNER_STATE_PATH should override the default state file."""
         monkeypatch.setenv(
             "YTIS_NLM_OWNER_STATE_PATH",
-            "P:/__csf/.data/yt-is/dev-workers/worker-01.json",
+            "P:/.data/yt-is/dev-workers/worker-01.json",
         )
         assert nlm_batch._get_reusable_notebook_state_path() == nlm_batch.Path(
-            "P:/__csf/.data/yt-is/dev-workers/worker-01.json"
+            "P:/.data/yt-is/dev-workers/worker-01.json"
         )
 
     def test_title_override_is_used(self, monkeypatch):
@@ -1094,7 +1156,7 @@ class TestNotebookCapRotation:
                         results = ingestor.extract_transcripts(["vid1"])
 
         assert results["vid1"][0] is False
-        assert mock_ytdlp.call_count == 1
+        assert mock_ytdlp.call_count == 2
         completed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_source_content_fetch_completed")
         assert completed["status"] == "too_short"
         assert completed["content_length"] == 50
@@ -1146,7 +1208,7 @@ class TestNotebookCapRotation:
                         results = ingestor.extract_transcripts(["vid1"])
 
         assert results["vid1"][0] is False
-        assert mock_ytdlp.call_count == 1
+        assert mock_ytdlp.call_count == 2
         completed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_source_content_fetch_completed")
         assert completed["status"] == "command_failed"
         assert completed["returncode"] == 1
@@ -1253,7 +1315,7 @@ class TestNotebookCapRotation:
 
         assert results["vid1"][0] is False
         assert content_attempts["count"] == 1
-        assert mock_ytdlp.call_count == 1
+        assert mock_ytdlp.call_count == 2
         mock_sleep.assert_not_called()
         completed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_source_content_fetch_completed")
         assert completed["attempts"] == 1
@@ -1410,6 +1472,7 @@ class TestNotebookCapRotation:
                     "is_live": False,
                     "title": None,
                     "error": None,
+                    "elapsed_s": 1.25,
                 },
             ) as mock_ytdlp:
                 with mock.patch(
@@ -1422,13 +1485,14 @@ class TestNotebookCapRotation:
                         "subreason": "This video has been removed by the uploader",
                         "is_live_content": False,
                         "title": None,
+                        "elapsed_s": 0.75,
                     },
                 ) as mock_inspect:
                     with mock.patch("csf.nlm_batch.log_action") as mock_log:
                         results = ingestor.extract_transcripts(["vid1"])
 
         assert results["vid1"][0] is False
-        assert mock_ytdlp.call_count == 1
+        assert mock_ytdlp.call_count == 2
         mock_inspect.assert_called_once_with("vid1")
         completed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_source_content_fetch_completed")
         assert completed["youtube_page_classification"] == "removed_by_owner"
@@ -1438,6 +1502,64 @@ class TestNotebookCapRotation:
         assert completed["youtube_ytdlp_classification"] == "unknown"
         assert completed["youtube_ytdlp_available"] is False
         assert completed["youtube_ytdlp_availability"] is None
+        assert completed["youtube_ytdlp_elapsed_s"] == 1.25
+        assert completed["youtube_page_elapsed_s"] == 0.75
+        summary = ingestor.get_last_extract_metrics()
+        assert summary is not None
+        assert summary["youtube_ytdlp_elapsed_s_total"] == 1.25
+        assert summary["youtube_ytdlp_elapsed_s_count"] == 1
+        assert summary["youtube_page_elapsed_s_total"] == 0.75
+        assert summary["youtube_page_elapsed_s_count"] == 1
+
+    def test_source_content_retry_queue_counts_youtube_probe_elapsed_on_deferred_failure(self):
+        """Deferred retry-queue failures must still accumulate yt-dlp timing in summary metrics."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=1)
+        ingestor._nb_id = "nb-retry-queue"
+
+        def fake_run_cmd(cmd, timeout=300):
+            if cmd[:2] == ["source", "list"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 0, "stdout": json.dumps({"sources": [{"id": "s1"}]}), "stderr": ""},
+                )()
+            if cmd[:2] == ["source", "content"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 1, "stdout": "", "stderr": "API error (code 5): NOT_FOUND"},
+                )()
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
+            with mock.patch(
+                "csf.nlm_batch.inspect_youtube_watch_page_via_ytdlp",
+                return_value={
+                    "classification": "ok",
+                    "available": True,
+                    "availability": "public",
+                    "live_status": "not_live",
+                    "was_live": False,
+                    "is_live": False,
+                    "title": "Queued sample",
+                    "error": None,
+                    "elapsed_s": 1.5,
+                },
+            ) as mock_ytdlp:
+                with mock.patch("csf.nlm_batch.time.sleep") as mock_sleep:
+                    with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                        results = ingestor.extract_transcripts(["vid1"])
+
+        assert results["vid1"][0] is False
+        assert mock_ytdlp.call_count == 2
+        completed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_extract_completed")
+        assert completed["retry_queue_deferred_count"] == 1
+        assert completed["youtube_ytdlp_elapsed_s_total"] == 3.0
+        assert completed["youtube_ytdlp_elapsed_s_count"] == 2
+        summary = ingestor.get_last_extract_metrics()
+        assert summary is not None
+        assert summary["youtube_ytdlp_elapsed_s_total"] == 3.0
+        assert summary["youtube_ytdlp_elapsed_s_count"] == 2
 
     def test_extract_transcripts_matches_sources_by_title_instead_of_order(self):
         """Source list order should not control which video ID gets which source ID."""

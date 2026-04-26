@@ -35,7 +35,7 @@ from typing import Literal
 # Config
 # ---------------------------------------------------------------------------
 
-DB = Path("P:/__csf/.data/yt-is/batch_status.sqlite")
+DB = Path("P:/.data/yt-is/batch_status.sqlite")
 EXPORT_DIR = Path("P:/packages/yt-is/csf/exports")
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 

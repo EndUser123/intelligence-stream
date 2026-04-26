@@ -31,6 +31,12 @@ def test_load_fetch_completed_event_from_jsonl(tmp_path):
                                 "content_fetch_status_counts_total": {"ready": 2, "too_short": 1},
                                 "source_ready_age_s_total": 6.0,
                                 "source_ready_age_s_max": 4.0,
+                                "youtube_ytdlp_elapsed_s_total": 2.5,
+                                "youtube_ytdlp_elapsed_s_max": 1.5,
+                                "youtube_ytdlp_elapsed_s_count": 2,
+                                "youtube_page_elapsed_s_total": 1.0,
+                                "youtube_page_elapsed_s_max": 1.0,
+                                "youtube_page_elapsed_s_count": 1,
                             },
                         },
                     }
@@ -49,6 +55,8 @@ def test_load_fetch_completed_event_from_jsonl(tmp_path):
     assert payload["processed_count"] == 13
     assert payload["worker_stage_totals"]["add_sources_elapsed_s_total"] == 3.0
     assert payload["worker_stage_totals"]["content_fetch_status_counts_total"]["ready"] == 2
+    assert payload["worker_stage_totals"]["youtube_ytdlp_elapsed_s_total"] == 2.5
+    assert payload["worker_stage_totals"]["youtube_page_elapsed_s_count"] == 1
 
 
 def test_run_fetch_trial_captures_fetch_completed_summary(tmp_path, monkeypatch):
@@ -77,6 +85,12 @@ def test_run_fetch_trial_captures_fetch_completed_summary(tmp_path, monkeypatch)
                             "content_fetch_status_counts_total": {"ready": 2, "too_short": 1},
                             "source_ready_age_s_total": 6.0,
                             "source_ready_age_s_max": 4.0,
+                            "youtube_ytdlp_elapsed_s_total": 2.5,
+                            "youtube_ytdlp_elapsed_s_max": 1.5,
+                            "youtube_ytdlp_elapsed_s_count": 2,
+                            "youtube_page_elapsed_s_total": 1.0,
+                            "youtube_page_elapsed_s_max": 1.0,
+                            "youtube_page_elapsed_s_count": 1,
                         },
                         "materialization_started": True,
                         "timeout_hit": False,
@@ -114,7 +128,12 @@ def test_run_fetch_trial_captures_fetch_completed_summary(tmp_path, monkeypatch)
     assert summary.source_ready_age_s_total == 6.0
     assert summary.source_ready_age_s_max == 4.0
     assert summary.source_ready_age_s_avg == 2.0
+    assert summary.youtube_ytdlp_elapsed_s_total == 2.5
+    assert summary.youtube_ytdlp_elapsed_s_count == 2
+    assert summary.youtube_ytdlp_elapsed_s_avg == 1.25
+    assert summary.youtube_page_elapsed_s_total == 1.0
+    assert summary.youtube_page_elapsed_s_count == 1
+    assert summary.youtube_page_elapsed_s_avg == 1.0
     assert Path(summary.stdout_path).read_text(encoding="utf-8") == "done\n"
     assert Path(summary.stderr_path).read_text(encoding="utf-8") == ""
     assert Path(summary.log_file).exists()
-

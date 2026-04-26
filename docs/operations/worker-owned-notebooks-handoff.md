@@ -1,6 +1,6 @@
 # Worker-Owned Notebooks Handoff
 
-Last updated: 2026-04-23
+Last updated: 2026-04-25
 
 ## Purpose
 
@@ -83,6 +83,23 @@ Observed conclusion:
   - `770 succeeded / 30 failed`
   - `1421.5 successful videos/hour`
 - The Pro NotebookLM rerun is still pending because we do not yet have a Pro profile/account wired into this workspace.
+- The fallback tail now works for `yt-dlp = ok` videos with no captions:
+  - audio download includes `--js-runtimes node` when `node` is available
+  - Whisper now runs on the downloaded audio instead of failing at the download stage
+  - successful transcripts are written to `P:/.data/yt-is/transcripts.sqlite`
+- Verified live example:
+  - `zgf2d8gsy70`
+  - source: `whisper`
+  - transcript length: `15419`
+  - cached at `2026-04-24T23:06:39.164905`
+
+Before any live sweep or NotebookLM cleanup, run `python P:/packages/yt-is/bin/csf-backup-transcripts` so the transcript cache is snapshotted under `P:/.data/yt-is/backups/`.
+
+For a staged run that should be merged later, point `YTIS_TRANSCRIPT_CACHE_DB_PATH` at `P:/.data/yt-is/transcripts-staging.sqlite`, let the run build transcripts there, then promote them into live with `python P:/packages/yt-is/bin/csf-promote-transcripts`. That promote step is blocking and fail-closed, so it refuses to merge an empty or missing staging DB or any source/destination collision.
+
+Before any tracked-channel sync or blocklist change, run `python P:/packages/yt-is/bin/csf-backup-channel-state` so `P:/.data/yt-is/batch_status.sqlite` is snapshotted under `P:/.data/yt-is/backups/`.
+
+For staged channel-state changes, point `YTIS_BATCH_STATUS_DB_PATH` at `P:/.data/yt-is/batch-status-staging.sqlite`, let `yt-is sync` update that staging DB, then promote it with `python P:/packages/yt-is/bin/csf-promote-channel-state`. That promote step is blocking and fail-closed, so it refuses to merge an empty or missing staging DB or any source/destination collision.
 
 ## Code state that matters
 
@@ -118,6 +135,7 @@ Observed conclusion:
 
 - The NotebookLM inventory cleanup pass was interrupted before I could finish removing every stale duplicate worker-title notebook.
 - Before rerunning benchmarks, verify the notebook inventory is clean and make sure each worker title resolves to exactly one notebook.
+- The fallback-tail fix is now documented here so the next backlog pass does not have to rediscover why the no-caption `yt-dlp = ok` items were dying before Whisper.
 
 ## Future phase
 
@@ -170,3 +188,4 @@ Before any browser/DOM readiness test:
   - the larger-sample confirmation
   - the Pro notebook rerun
   - the final default/retry policy lock-in
+- If the immediate objective is backlog progress, rerun the current failing cohort now that the Whisper tail is fixed and let the saved transcripts accumulate.

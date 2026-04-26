@@ -6,6 +6,7 @@ Transcripts are immutable - once cached, they don't expire.
 """
 
 import json
+import os
 import re
 import sqlite3
 import threading
@@ -18,14 +19,32 @@ from typing import Any, Mapping
 _VIDEO_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{11}$")
 
 # Shared transcript cache DB (all terminals share the same pool)
-# Stored in __csf/.data alongside other CSF runtime data
-_SHARED_DB_PATH = Path(
-    "P:/__csf/.data/yt-is/transcripts.sqlite"
-)
+# Stored in .data alongside other CSF runtime data
+_DEFAULT_SHARED_DB_PATH = Path("P:/.data/yt-is/transcripts.sqlite")
+# Backward-compatible alias for callers that import the constant directly.
+_SHARED_DB_PATH = _DEFAULT_SHARED_DB_PATH
 
 # Per-terminal in-memory index of what's cached locally (optional read cache)
 _cache_storages: dict[str, "_CacheStorage"] = {}
 _storage_lock = threading.Lock()
+_db_access_lock = threading.RLock()
+
+
+def _connect_shared_db() -> sqlite3.Connection:
+    """Open the shared transcript DB with a conservative lock timeout."""
+    return sqlite3.connect(get_shared_db_path(), timeout=30.0)
+
+
+def get_shared_db_path() -> Path:
+    """Return the active transcript cache path.
+
+    Tests may override this with YTIS_TRANSCRIPT_CACHE_DB_PATH so they do not
+    touch the live shared cache.
+    """
+    override = os.environ.get("YTIS_TRANSCRIPT_CACHE_DB_PATH")
+    if override:
+        return Path(override)
+    return _DEFAULT_SHARED_DB_PATH
 
 
 @dataclass
@@ -64,12 +83,14 @@ class _CacheStorage:
 
     def _ensure_table(self) -> None:
         """Create cache table if not exists in shared DB."""
-        _SHARED_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(_SHARED_DB_PATH)
-        conn.execute("PRAGMA journal_mode=WAL")
-        _ensure_transcript_cache_schema(conn)
-        conn.commit()
-        conn.close()
+        with _db_access_lock:
+            db_path = get_shared_db_path()
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            conn = _connect_shared_db()
+            conn.execute("PRAGMA journal_mode=WAL")
+            _ensure_transcript_cache_schema(conn)
+            conn.commit()
+            conn.close()
 
     def _write_entry(
         self,
@@ -82,33 +103,34 @@ class _CacheStorage:
         metadata_json: str,
     ) -> None:
         """Write a single entry to the database synchronously."""
-        self._ensure_table()
-        conn = sqlite3.connect(_SHARED_DB_PATH)
-        conn.execute("PRAGMA journal_mode=WAL")
-        try:
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO transcript_cache
-                (cache_key, video_id, lang, source, transcript, metadata_json, cached_at, terminal_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    cache_key,
-                    video_id,
-                    lang,
-                    source,
-                    transcript,
-                    metadata_json,
-                    cached_at.isoformat(),
-                    self._terminal_id,
-                ),
-            )
-            conn.commit()
-            # Checkpoint WAL to prevent unbounded WAL file growth (SEC-004)
-            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            conn.commit()  # Commit checkpoint operation
-        finally:
-            conn.close()
+        with _db_access_lock:
+            self._ensure_table()
+            conn = _connect_shared_db()
+            conn.execute("PRAGMA journal_mode=WAL")
+            try:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO transcript_cache
+                    (cache_key, video_id, lang, source, transcript, metadata_json, cached_at, terminal_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        cache_key,
+                        video_id,
+                        lang,
+                        source,
+                        transcript,
+                        metadata_json,
+                        cached_at.isoformat(),
+                        self._terminal_id,
+                    ),
+                )
+                conn.commit()
+                # Checkpoint WAL to prevent unbounded WAL file growth (SEC-004)
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                conn.commit()  # Commit checkpoint operation
+            finally:
+                conn.close()
 
     def enqueue_write(
         self,
@@ -134,7 +156,7 @@ class _CacheStorage:
     def _read_entry(self, cache_key: str) -> TranscriptCache | None:
         """Read a single entry from the shared database."""
         self._ensure_table()
-        conn = sqlite3.connect(_SHARED_DB_PATH)
+        conn = _connect_shared_db()
         conn.execute("PRAGMA journal_mode=WAL")
         cursor = conn.execute(
             """
@@ -307,13 +329,115 @@ def set_cached_transcript(
     )
 
 
+def delete_cached_transcripts(video_ids: list[str]) -> int:
+    """Delete all cached transcript rows for the given video IDs.
+
+    Returns the number of rows deleted. Invalid video IDs are ignored.
+    """
+    valid_video_ids = sorted({video_id for video_id in video_ids if _validate_video_id(video_id)})
+    if not valid_video_ids:
+        return 0
+    with _db_access_lock:
+        _ensure_db_initialized()
+        conn = _connect_shared_db()
+        conn.execute("PRAGMA journal_mode=WAL")
+        placeholders = ",".join("?" for _ in valid_video_ids)
+        cursor = conn.execute(
+            f"DELETE FROM transcript_cache WHERE video_id IN ({placeholders})",
+            valid_video_ids,
+        )
+        deleted = int(cursor.rowcount or 0)
+        conn.commit()
+        conn.close()
+    return deleted
+
+
+def promote_transcript_cache(source_db: Path, dest_db: Path | None = None) -> int:
+    """Promote transcript rows from a staging DB into the live DB.
+
+    The merge is append-only:
+    - existing rows in the destination are preserved
+    - source rows are inserted when their cache_key is new
+    """
+    dest_path = dest_db or get_shared_db_path()
+    source_path = Path(source_db)
+    if not source_path.exists():
+        raise FileNotFoundError(f"source transcript DB does not exist: {source_path}")
+    if dest_path.exists() and source_path.resolve() == dest_path.resolve():
+        raise ValueError("source and destination transcript DBs must differ")
+
+    with _db_access_lock:
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        source_conn = sqlite3.connect(source_path)
+        dest_conn = sqlite3.connect(dest_path)
+        try:
+            source_conn.execute("PRAGMA journal_mode=WAL")
+            dest_conn.execute("PRAGMA journal_mode=WAL")
+            _ensure_transcript_cache_schema(source_conn)
+            source_conn.commit()
+            _ensure_transcript_cache_schema(dest_conn)
+            dest_conn.commit()
+
+            dest_conn.execute("ATTACH DATABASE ? AS staging_db", (str(source_path),))
+            before = dest_conn.total_changes
+            dest_conn.execute(
+                """
+                INSERT OR IGNORE INTO main.transcript_cache
+                    (cache_key, video_id, lang, source, transcript, metadata_json, cached_at, terminal_id)
+                SELECT
+                    cache_key, video_id, lang, source, transcript, metadata_json, cached_at, terminal_id
+                FROM staging_db.transcript_cache
+                """
+            )
+            dest_conn.commit()
+            promoted = int(dest_conn.total_changes - before)
+            dest_conn.execute("DETACH DATABASE staging_db")
+            return promoted
+        finally:
+            dest_conn.close()
+            source_conn.close()
+
+
+def backup_transcript_cache(backup_root: Path | None = None) -> Path | None:
+    """Create a timestamped SQLite backup of the active transcript cache.
+
+    Returns the backup path, or None if the active cache does not exist yet.
+    The backup is a consistent SQLite copy, not a filesystem-level copy.
+    """
+    with _db_access_lock:
+        db_path = get_shared_db_path()
+        if not db_path.exists():
+            return None
+
+        backup_dir = backup_root or db_path.parent / "backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = backup_dir / f"transcripts-{stamp}.sqlite"
+        suffix = 1
+        while backup_path.exists():
+            backup_path = backup_dir / f"transcripts-{stamp}-{suffix}.sqlite"
+            suffix += 1
+
+        source_conn = sqlite3.connect(db_path)
+        dest_conn = sqlite3.connect(backup_path)
+        try:
+            source_conn.backup(dest_conn)
+            dest_conn.commit()
+        finally:
+            dest_conn.close()
+            source_conn.close()
+        return backup_path
+
+
 def _ensure_db_initialized() -> None:
     """Ensure database tables exist (shared initialization for read/write paths)."""
-    _SHARED_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(_SHARED_DB_PATH)
-    conn.execute("PRAGMA journal_mode=WAL")
-    _ensure_transcript_cache_schema(conn)
-    conn.close()
+    with _db_access_lock:
+        db_path = get_shared_db_path()
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = _connect_shared_db()
+        conn.execute("PRAGMA journal_mode=WAL")
+        _ensure_transcript_cache_schema(conn)
+        conn.close()
 
 
 def list_cached_transcripts(lang: str | None = None) -> list[TranscriptCache]:
@@ -328,7 +452,7 @@ def list_cached_transcripts(lang: str | None = None) -> list[TranscriptCache]:
     # FIX: Ensure tables exist before querying (prevents empty database bug)
     _ensure_db_initialized()
 
-    conn = sqlite3.connect(_SHARED_DB_PATH)
+    conn = _connect_shared_db()
     conn.execute("PRAGMA journal_mode=WAL")
     if lang:
         cursor = conn.execute(
@@ -378,8 +502,9 @@ def has_cached_transcript(video_id: str) -> bool:
     """
     if not _validate_video_id(video_id):
         return False
-    _SHARED_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(_SHARED_DB_PATH)
+    db_path = get_shared_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = _connect_shared_db()
     conn.execute("PRAGMA journal_mode=WAL")
     # Ensure table exists before querying (may not exist on first use)
     _ensure_transcript_cache_schema(conn)

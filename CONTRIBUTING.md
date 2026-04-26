@@ -1,15 +1,15 @@
-# Contributing to intelligence-stream
+# Contributing to yt-is
 
 ## Development Setup
 
 ```powershell
 # Clone the repository
 git clone <repo-url>
-cd intelligence-stream
+cd yt-is
 
 # Create skill junctions (Windows)
-New-Item -ItemType Junction -Path "P:\.claude\skills\intelligence-stream-analyze" -Target "P:\packages\intelligence-stream\skills\analyze"
-New-Item -ItemType Junction -Path "P:\.claude\skills\intelligence-stream-ingest" -Target "P:\packages\intelligence-stream\skills\ingest"
+New-Item -ItemType Junction -Path "P:\.claude\skills\yt-is-analyze" -Target "P:\\packages\\yt-is\skills\analyze"
+New-Item -ItemType Junction -Path "P:\.claude\skills\yt-is-ingest" -Target "P:\\packages\\yt-is\skills\ingest"
 ```
 
 ## Running Tests
@@ -44,3 +44,4 @@ mypy csf/
 2. Run ruff check and format
 3. Update CHANGELOG.md if applicable
 4. PR description should reference any related issues
+

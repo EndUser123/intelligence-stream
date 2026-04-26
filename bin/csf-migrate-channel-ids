@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""Backfill channel_id into live yt-is channel-state tables."""
+
+from __future__ import annotations
+
+import sqlite3
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from csf.batch_status import (
+    _get_default_db_path,
+    backup_batch_status_db,
+    migrate_channel_state_to_channel_id,
+)
+
+
+def _inspect_db(path: Path) -> tuple[bool, int, int, int, int]:
+    if not path.exists():
+        return False, 0, 0, 0, 0
+    conn = sqlite3.connect(path)
+    try:
+        def count(table: str) -> int:
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            if table not in tables:
+                return 0
+            return int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+
+        return (
+            True,
+            count("channel_metadata"),
+            count("channel_blocklist"),
+            count("provider_score"),
+            count("analysis_status"),
+        )
+    finally:
+        conn.close()
+
+
+def main() -> int:
+    live_db = _get_default_db_path()
+    exists, meta_rows, block_rows, provider_rows, analysis_rows = _inspect_db(live_db)
+    print(
+        f"[migrate] live={live_db} exists={exists} "
+        f"channel_metadata={meta_rows} channel_blocklist={block_rows} "
+        f"provider_score={provider_rows} analysis_status={analysis_rows}"
+    )
+    if not exists:
+        raise SystemExit(f"[migrate] refusing to run: live DB missing: {live_db}")
+    backup_path = backup_batch_status_db()
+    if backup_path is not None:
+        print(f"[migrate] backed up live state to {backup_path}")
+    counts = migrate_channel_state_to_channel_id()
+    print(
+        "[migrate] updated "
+        f"channel_metadata={counts['channel_metadata']} "
+        f"channel_blocklist={counts['channel_blocklist']} "
+        f"provider_score={counts['provider_score']} "
+        f"analysis_status={counts['analysis_status']}"
+    )
+    _, meta_rows_after, block_rows_after, provider_rows_after, analysis_rows_after = _inspect_db(live_db)
+    print(
+        f"[migrate] post-live channel_metadata={meta_rows_after} channel_blocklist={block_rows_after} "
+        f"provider_score={provider_rows_after} analysis_status={analysis_rows_after}"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

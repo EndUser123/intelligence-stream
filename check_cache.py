@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import sqlite3
 
-db_path = 'P:/__csf/.data/intelligence-stream/transcripts/transcripts.sqlite'
+db_path = 'P:/.data/yt-is/transcripts/transcripts.sqlite'
 conn = sqlite3.connect(db_path)
 
 # FIX: Ensure tables exist before querying (prevents empty database bug)
@@ -26,3 +26,4 @@ print('Transcript entries:')
 for row in cursor.fetchall():
     print(f'  {row[0]}: lang={row[1]}, source={row[2]}, cached_at={row[3]}')
 conn.close()
+

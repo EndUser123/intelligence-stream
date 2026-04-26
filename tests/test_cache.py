@@ -11,7 +11,7 @@ from unittest import mock
 import pytest
 
 # Ensure the package is importable
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 import csf.cache as cache
 from csf.cache import (
@@ -506,3 +506,4 @@ class TestConcurrentCacheWrites:
             assert cached is not None
             # The winner must be one of the 4 transcripts (INSERT OR IGNORE keeps first)
             assert cached.transcript in transcripts
+

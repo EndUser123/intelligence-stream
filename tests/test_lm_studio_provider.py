@@ -6,7 +6,7 @@ from unittest import mock
 
 import pytest
 
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 
 @pytest.fixture(autouse=True)
@@ -129,3 +129,4 @@ class TestOllamaVisionProvider:
                 provider.analyze(
                     "dQw4w9WgXcQ", "https://youtube.com/watch?v=dQw4w9WgXcQ"
                 )
+

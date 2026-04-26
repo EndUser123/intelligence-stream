@@ -20,7 +20,7 @@ from csf.batch_scheduler import (
 
 # ─── Shared test DB path ───────────────────────────────────────────────────────
 
-_TEST_DB_DIR = Path("P:/__csf/.data/intelligence-stream/batch_status")
+_TEST_DB_DIR = Path("P:/.data/yt-is/batch_status")
 _TEST_DB_DIR.mkdir(parents=True, exist_ok=True)
 _TEST_DB = _TEST_DB_DIR / "test_scheduler.sqlite"
 
@@ -770,3 +770,4 @@ def test_schema_migration_removes_consecutive_429s() -> None:
         assert "consecutive_429s" not in content.lower(), (
             "consecutive_429s should not be referenced in batch_status source"
         )
+

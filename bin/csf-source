@@ -114,6 +114,7 @@ from csf.source_enumerator import (
     _get_api_keys,
 )
 from csf.display import format_sync_results
+from csf.channel_filtering import analyze_channel_filter_signals
 
 
 def _take_industrial_dispatch_groups(
@@ -395,54 +396,60 @@ def _print_block_signals(info, channel_id: str, canonical_url: str) -> bool:
         True if the user chose to block the channel (caller should exit),
         False otherwise.
     """
-    desc_lower = (info.description or "").lower()
-    kw_lower = (info.keywords or "").lower()
-    custom = info.custom_url or ""
-
-    high: list[str] = []
-    med: list[str] = []
-
-    # High-confidence signals
-    if info.video_count and info.video_count >= 30_000:
-        high.append(f"video_count={info.video_count:,} (≥30K → 100%)")
-    elif info.video_count and info.video_count >= 5_000:
-        high.append(f"video_count={info.video_count:,} (≥5K → 91%)")
-
-    if "sports" in kw_lower:
-        high.append("keywords contains 'sports' (19.4x)")
-    if "breaking" in kw_lower:
-        high.append("keywords contains 'breaking' (17.8x)")
-    if "official" in kw_lower:
-        high.append("keywords contains 'official' (9.7x)")
-    if "breaking" in desc_lower:
-        high.append("description contains 'breaking' (6.1x)")
-    if "news" in desc_lower:
-        high.append("description contains 'news' (5.8x)")
-    if "network" in desc_lower:
-        high.append("description contains 'network' (9.2x)")
-
-    # Medium-confidence signals
-    if info.video_count and info.video_count >= 2_000:
-        med.append(f"video_count={info.video_count:,} (≥2K → 64%)")
-    if "sports" in desc_lower:
-        med.append("description contains 'sports' (8.2x)")
-    if custom and custom.startswith("/@"):
-        med.append(f"custom_url={custom} (personal/creator style)")
-    elif not custom:
-        med.append("no custom_url (may be older institutional channel)")
+    signals = analyze_channel_filter_signals(
+        channel_title=info.title,
+        description=info.description,
+        keywords=info.keywords,
+        custom_url=info.custom_url,
+        video_count=info.video_count,
+    )
 
     print()
-    if not high and not med:
-        print("[signals] No blocklist signals detected.")
+    if (
+        not signals.learnable
+        and not signals.story
+        and not signals.performance
+        and not signals.entertainment
+        and not signals.podcast
+        and not signals.institutional_core
+        and not signals.institutional_light
+        and not signals.caution
+    ):
+        print("[signals] No channel filtering signals detected.")
         return False
 
-    if high:
-        print("[signals] HIGH confidence (institutional broadcaster indicators):")
-        for s in high:
+    print(f"[signals] POLICY READ: {signals.recommendation.upper()}")
+    if signals.learnable:
+        print("[signals] Learnable cues:")
+        for s in signals.learnable:
             print(f"  • {s}")
-    if med:
-        print("[signals] MED confidence (secondary indicators):")
-        for s in med:
+    if signals.story:
+        print("[signals] Story / lore cues:")
+        for s in signals.story:
+            print(f"  • {s}")
+    if signals.performance:
+        print("[signals] Music / dance / performance cues:")
+        for s in signals.performance:
+            print(f"  • {s}")
+    if signals.entertainment:
+        print("[signals] Entertainment cues:")
+        for s in signals.entertainment:
+            print(f"  • {s}")
+    if signals.podcast:
+        print("[signals] Podcast / discussion cues:")
+        for s in signals.podcast:
+            print(f"  • {s}")
+    if signals.institutional_core:
+        print("[signals] Institutional / broadcaster cues:")
+        for s in signals.institutional_core:
+            print(f"  • {s}")
+    if signals.institutional_light:
+        print("[signals] Light institutional cues:")
+        for s in signals.institutional_light:
+            print(f"  • {s}")
+    if signals.caution:
+        print("[signals] Caution cues:")
+        for s in signals.caution:
             print(f"  • {s}")
 
     print()
@@ -641,10 +648,10 @@ def cmd_list() -> None:
     storage._ensure_channel_metadata()
     conn = storage._get_conn()
     cursor = conn.execute(
-        """SELECT channel_url, playlist_id, video_count_estimate, last_checked, last_full_enumeration, category, subcategory
+        """SELECT channel_url, playlist_id, video_count_estimate, last_checked, last_full_enumeration, category
            FROM channel_metadata
            WHERE channel_url NOT IN (SELECT channel_url FROM channel_blocklist)
-           ORDER BY CASE WHEN category IS NULL THEN 1 ELSE 0 END, category, subcategory, last_checked DESC"""
+           ORDER BY CASE WHEN category IS NULL THEN 1 ELSE 0 END, category, last_checked DESC"""
     )
     rows = cursor.fetchall()
     conn.close()
@@ -815,7 +822,7 @@ def cmd_list() -> None:
                 languages=languages,
                 storage_size_mb=size_mb,
                 category=row[5],
-                subcategory=row[6],
+                subcategory=None,
             )
         )
 
@@ -1221,26 +1228,23 @@ def cmd_check_all(verbose: bool = False) -> None:
     # Re-query to get updated statistics
     conn = storage._get_conn()
     cursor = conn.execute(
-        "SELECT channel_url, video_count_estimate, category, subcategory FROM channel_metadata ORDER BY CASE WHEN category IS NULL THEN 1 ELSE 0 END, category, subcategory, last_checked ASC"
+        "SELECT channel_url, video_count_estimate, category FROM channel_metadata ORDER BY CASE WHEN category IS NULL THEN 1 ELSE 0 END, category, last_checked ASC"
     )
     channels_meta = cursor.fetchall()
     conn.close()
 
     total_videos_all = 0
-    current_cat_sub = (None, None)
+    current_category = None
 
     # Query transcript cache
     try:
         from csf.cache import has_cached_transcript
 
-        for channel_url, video_count, category, subcategory in channels_meta:
+        for channel_url, video_count, category in channels_meta:
             # Print category header when group changes
-            if (category, subcategory) != current_cat_sub:
-                current_cat_sub = (category, subcategory)
-                if subcategory:
-                    cat_display = f"{category} > {subcategory}"
-                else:
-                    cat_display = category or "(uncategorized)"
+            if category != current_category:
+                current_category = category
+                cat_display = category or "(uncategorized)"
                 print(f"\n### {cat_display}")
                 print("")
             batch_conn = storage._get_conn()

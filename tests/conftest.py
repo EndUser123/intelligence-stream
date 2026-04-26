@@ -1,4 +1,4 @@
-"""Pytest configuration for intelligence-stream tests."""
+"""Pytest configuration for yt-is tests."""
 
 import os
 from pathlib import Path
@@ -119,3 +119,4 @@ def clean_shared_cache(tmp_path_factory):
             os.environ.pop("YTIS_NLM_SHARED_RETRY_POOL_DB_PATH", None)
         else:
             os.environ["YTIS_NLM_SHARED_RETRY_POOL_DB_PATH"] = previous_shared_retry_db_path
+

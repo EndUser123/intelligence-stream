@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 from csf.transcript import LanguageConfig, TranscriptResult
 
@@ -62,3 +62,4 @@ def test_transcript_result_detected_lang_none():
     )
     assert result.detected_lang is None
     assert result.error == "invalid video_id format"
+

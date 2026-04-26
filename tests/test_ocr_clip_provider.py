@@ -7,7 +7,7 @@ from unittest import mock
 import pytest
 
 # Ensure the package is importable
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 from csf.providers import VideoAnalysisResult, NonFatalAnalysisError
 from csf.providers.ocr_clip_provider import OcrClipProvider
@@ -142,3 +142,4 @@ class TestOcrClipProvider:
             assert isinstance(result, VideoAnalysisResult)
             assert result.code_snippets == ["def hello():", "x = 1"]
             assert result.visual_tags == []
+

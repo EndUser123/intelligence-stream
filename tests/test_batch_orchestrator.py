@@ -8,7 +8,7 @@ from unittest import mock
 import pytest
 
 # Ensure the package is importable
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 from csf.batch import analyze_videos_parallel
 from csf.providers import (
@@ -165,3 +165,4 @@ class TestConcurrentWorkers:
             assert (
                 last - first
             ) < 0.3, "Workers should start concurrently, not sequentially"
+

@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 from unittest import mock
 
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 from csf.nlm_exporter import (
     build_composites,
@@ -509,3 +509,4 @@ def test_video_without_video_id_skipped():
 
 
 import pytest  # noqa: E402 (needed for pytest.raises)
+

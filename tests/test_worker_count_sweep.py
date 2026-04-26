@@ -106,6 +106,7 @@ def test_run_fetch_trial_captures_fetch_completed_summary(tmp_path, monkeypatch)
     summary = worker_count_sweep._run_fetch_trial(
         workers=2,
         limit=37,
+        sample_label="mixed_lane",
         output_dir=tmp_path,
         python_executable="python.exe",
     )
@@ -122,6 +123,8 @@ def test_run_fetch_trial_captures_fetch_completed_summary(tmp_path, monkeypatch)
     assert summary.add_elapsed_s == 4.5
     assert summary.readiness_elapsed_s == 2.0
     assert summary.cleanup_elapsed_s == 0.5
+    assert summary.worker_idle_wait_s == 3.0
+    assert summary.sample_label == "mixed_lane"
     assert summary.materialization_started is True
     assert summary.timeout_hit is False
     assert summary.content_fetch_status_counts == {"ready": 2, "too_short": 1}

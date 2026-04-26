@@ -82,6 +82,17 @@ Observed conclusion:
   - `--workers 2 --limit 800`
   - `770 succeeded / 30 failed`
   - `1421.5 successful videos/hour`
+
+### Next optimization pass
+
+- Do not treat worker count alone as the remaining question.
+- Add a load-shaping matrix that labels runs as:
+  - `fast_lane`
+  - `slow_lane`
+  - `mixed_lane`
+  - `terminal_lane`
+- Track notebook fullness, materialization wait, readiness wait, and worker idle time separately.
+- If slow-lane items are leaving workers idle while fast-lane items stay busy, split the queues instead of adding more worker count.
 - The Pro NotebookLM rerun is still pending because we do not yet have a Pro profile/account wired into this workspace.
 - The fallback tail now works for `yt-dlp = ok` videos with no captions:
   - audio download includes `--js-runtimes node` when `node` is available

@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 from unittest import mock
 
@@ -137,3 +137,4 @@ def test_all_methods_fail_returns_empty_transcript():
         assert isinstance(result, TranscriptResult)
         assert result.transcript == ""
         assert result.source == "none"
+

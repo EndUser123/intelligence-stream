@@ -9,7 +9,7 @@ from unittest import mock
 import pytest
 
 # Ensure the package is importable
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 from csf.video_utils import extract_frames
 from csf.providers import NonFatalAnalysisError
@@ -176,3 +176,4 @@ class TestExtractFrames:
                 # SIGTERM handler should have been registered
                 sig_handlers = [s for s, h in handler_registered if s == signal.SIGTERM]
                 assert len(sig_handlers) == 1
+

@@ -379,6 +379,83 @@ After the main worker-count sweep, use these narrower passes to explain the resu
 - Compare it with later batches on the same notebook.
 - Measure startup penalty versus steady-state reuse.
 
+## Load-Shaping Matrix
+
+Use this matrix when the question is not just "which worker count wins?" but
+"what kind of load is keeping workers idle?" The goal is to separate notebook
+contention from queue composition.
+
+### Batch labels
+
+Tag each 400-item sample before the run as one of:
+
+- `fast_lane`
+  - caption-rich, ready-to-process, low-fallback items
+- `slow_lane`
+  - no-caption, fallback-heavy, or readiness-sensitive items
+- `mixed_lane`
+  - a representative mix of both shapes
+- `terminal_lane`
+  - mostly unavailable / terminal items, used only as a control
+
+If you want the simplest split, use:
+
+- `200` fast-lane items
+- `100` mixed items
+- `100` slow-lane items
+
+### Worker-count matrix
+
+Run the same sample family at:
+
+- `2` workers
+- `4` workers
+- `8` workers
+
+Keep the notebook/profile setup fixed so the only changing variables are worker count and load mix.
+
+### Per-run metrics to log
+
+Add these to the normal sweep output or the run notes:
+
+- `worker_idle_wait_s`
+- `source_count_before_add`
+- `add_elapsed_s`
+- `source_list_wait_elapsed_s`
+- `dom_wait_elapsed_s`
+- `content_readiness_probe_elapsed_s`
+- `materialization_started`
+- `retry_queue_depth`
+- `fallback_queue_depth`
+- `caption_rich_count`
+- `caption_poor_count`
+- `no_caption_count`
+- `short_form_count`
+- `long_form_count`
+- `terminal_count`
+
+### What the matrix should tell you
+
+- If `worker_idle_wait_s` grows with worker count, NotebookLM is the bottleneck.
+- If `source_list_wait_elapsed_s` dominates, notebook materialization is the bottleneck.
+- If `content_readiness_probe_elapsed_s` dominates on slow-lane items, the tail needs a separate queue.
+- If fast-lane items keep workers busy but slow-lane items leave workers idle, split the queues instead of adding more workers.
+- If `8` workers only helps when the sample is fast-lane heavy, the current winner is sample-dependent rather than load-independent.
+
+### Run order
+
+1. `2` workers on `fast_lane`
+2. `2` workers on `slow_lane`
+3. `4` workers on the same two lanes
+4. `8` workers on the same two lanes
+5. `mixed_lane` as the sanity check
+
+### Stop rules
+
+- Stop if NotebookLM readiness becomes unstable again.
+- Stop if the split-lane runs materially change the routing balance.
+- Stop if worker idle time cannot be explained by notebook fullness or queue composition.
+
 ## Readiness Calibration Matrix
 
 Use this when you want to compare the DOM spinner/checkmark signal against the CLI `source content` readiness probe on the exact same URLs.

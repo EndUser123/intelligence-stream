@@ -7,7 +7,7 @@ from unittest import mock
 
 
 # Ensure the package is importable
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 from csf.clip_client import tag_frames, DEFAULT_CANDIDATE_LABELS
 
@@ -98,3 +98,4 @@ class TestTagFrames:
         assert "code screenshot" in DEFAULT_CANDIDATE_LABELS
         assert "diagram" in DEFAULT_CANDIDATE_LABELS
         assert "person speaking" in DEFAULT_CANDIDATE_LABELS
+

@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest import mock
 
 # Ensure the package is importable
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 from csf.transcript import LanguageConfig, TranscriptResult
 from csf.terminal_context import resolve_tid
@@ -466,3 +466,4 @@ class TestOverflowIntegrationInCircuitBreaker:
             # Should not have transcript
             assert result.transcript == ""
             assert "not found" in result.error
+

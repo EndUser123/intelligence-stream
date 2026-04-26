@@ -16,7 +16,7 @@ from unittest import mock
 import pytest
 
 # Ensure the package is importable
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 from csf.batch import analyze_videos_parallel
 
@@ -380,3 +380,4 @@ class TestCPUCountAwareness:
         # Should complete - workers capped appropriately
         total = len(video_ids)
         assert mock_fn.call_count == total
+

@@ -124,7 +124,7 @@ Combined markdown files → Your knowledge system
 
 - **Transcripts:** `transcripts.sqlite` (cache database, keyed by video_id)
 - **Combined batches:** `combined_batch_1.md`, etc. in `P:/.data/yt-is/`
-- **Database:** `batch_status.sqlite` (status updates: pending → complete/failed, last_stage, failure_reason)
+- **Database:** `batch_status.sqlite` (status updates: pending → complete/failed, last_stage, failure_reason, and canonical `channel_id` identity for tracked channel state)
 
 ## Configuration
 

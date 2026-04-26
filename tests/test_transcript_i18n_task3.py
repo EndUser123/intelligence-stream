@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 from unittest import mock
 
@@ -42,3 +42,4 @@ def test_translate_text_non_fatal_on_failure():
         with mock.patch("google.genai.Client", return_value=mock_client):
             result = _translate_text("texto original", "es", "en", "gemini")
             assert result == "texto original"
+

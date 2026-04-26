@@ -6,7 +6,7 @@ Verifies: channel_metadata table creation, set_channel_metadata, get_channel_met
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 from csf.batch_status import (
     set_channel_metadata,
@@ -18,7 +18,7 @@ from csf.batch_status import (
 
 # Shared DB path for testing
 _TEST_DB_PATH = Path(
-    "P:/__csf/.data/intelligence-stream/batch_status/test_channel_metadata.sqlite"
+    "P:/.data/yt-is/batch_status/test_channel_metadata.sqlite"
 )
 
 
@@ -42,7 +42,8 @@ class TestChannelMetadataTable:
         )
         result = get_channel_metadata(channel_url, db_path=_TEST_DB_PATH)
         assert result is not None
-        assert result["channel_url"] == channel_url
+        assert result["channel_url"] == "https://www.youtube.com/channel/UC_TEST1"
+        assert result["channel_id"] == "UC_TEST1"
         assert result["playlist_id"] == "PL123456"
         assert result["last_checked"] == "2026-03-28T10:00:00Z"
         assert result["last_full_enumeration"] == "2026-03-27T10:00:00Z"
@@ -97,7 +98,7 @@ class TestChannelMetadataTable:
         """Table is created automatically on first set_channel_metadata call."""
         # Use a fresh DB path that doesn't exist yet
         fresh_db_path = Path(
-            "P:/__csf/.data/intelligence-stream/batch_status/test_fresh_channel_metadata.sqlite"
+            "P:/.data/yt-is/batch_status/test_fresh_channel_metadata.sqlite"
         )
         # Clean up if exists
         if fresh_db_path.exists():
@@ -113,7 +114,8 @@ class TestChannelMetadataTable:
         # Should have created the table and stored data
         result = get_channel_metadata(channel_url, db_path=fresh_db_path)
         assert result is not None
-        assert result["channel_url"] == channel_url
+        assert result["channel_url"] == "https://www.youtube.com/channel/UC_FRESH"
+        assert result["channel_id"] == "UC_FRESH"
 
         # Clean up
         if fresh_db_path.exists():
@@ -146,7 +148,7 @@ class TestChannelMetadataTable:
             _BatchStatusStorage(db_path=_TEST_DB_PATH)
             ._get_conn()
             .execute(
-                "SELECT * FROM channel_metadata WHERE channel_url = ?", (channel_url,)
+                "SELECT * FROM channel_metadata WHERE channel_id = ?", ("UC_TEST6",)
             )
         )
         assert len(all_rows) == 1
@@ -186,7 +188,8 @@ class TestChannelMetadataTable:
         # Should work without error and have schema_version
         result = get_channel_metadata(channel_url, db_path=_TEST_DB_PATH)
         assert result is not None
-        assert result["channel_url"] == channel_url
+        assert result["channel_url"] == "https://www.youtube.com/channel/UC_TEST7"
+        assert result["channel_id"] == "UC_TEST7"
 
         # Verify schema_version column exists
         conn2 = storage._get_conn()
@@ -194,3 +197,4 @@ class TestChannelMetadataTable:
         columns = {row[1] for row in cursor.fetchall()}
         conn2.close()
         assert "schema_version" in columns
+

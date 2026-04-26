@@ -237,42 +237,51 @@ self, video_id: str, status: str, source: str | None = None, error: str | None =
                         break  # All channels in cooldown
                     continue
 
-                # Get one pending video from this channel
-                # RETRY LOGIC: Allow videos that failed more than 24 hours ago to be retried
-                # by excluding only success/attempting/recent-failed from the pending pool.
+                # Get one pending video from this channel under a write lock so
+                # concurrent schedulers cannot select the same candidate.
                 retry_cutoff = time.time() - _RETRY_FAILED_SECONDS
                 conn = sqlite3.connect(self._db_path)
-                cursor = conn.execute(
-                    """SELECT video_id FROM analysis_status
-                       WHERE source=? AND status='pending'
-                       AND video_id NOT IN (
-                           SELECT video_id FROM download_archive 
-                           WHERE status IN ('success', 'attempting', 'skipped')
-                           OR (status='failed' AND attempted_at > ?)
-                       )
-                       AND video_id NOT IN (
-                           SELECT video_id FROM negative_video_cache
-                           WHERE expires_at > ?
-                       )
-                       ORDER BY published_at ASC LIMIT 1""",
-                    (channel, retry_cutoff, time.time()),
-                )
-                row = cursor.fetchone()
-                conn.close()
+                conn.execute("BEGIN IMMEDIATE")
+                try:
+                    cursor = conn.execute(
+                        """SELECT video_id FROM analysis_status
+                           WHERE source=? AND status='pending'
+                           AND video_id NOT IN (
+                               SELECT video_id FROM download_archive
+                               WHERE status IN ('success', 'attempting', 'skipped')
+                               OR (status='failed' AND attempted_at > ?)
+                           )
+                           AND video_id NOT IN (
+                               SELECT video_id FROM negative_video_cache
+                               WHERE expires_at > ?
+                           )
+                           ORDER BY published_at ASC LIMIT 1""",
+                        (channel, retry_cutoff, time.time()),
+                    )
+                    row = cursor.fetchone()
+                    if not row:
+                        conn.rollback()
+                        if channel_idx == start_idx:
+                            break  # Checked all channels, none have pending videos
+                        continue
 
-                if not row:
-                    if channel_idx == start_idx:
-                        break  # Checked all channels, none have pending videos
-                    continue  # No pending videos for this channel
+                    video_id = row[0]
 
-                video_id = row[0]
+                    # Blocklist guard: skip videos from blocked channels
+                    if is_channel_blocked(channel):
+                        conn.rollback()
+                        continue  # Channel blocked — try next channel
 
-                # Blocklist guard: skip videos from blocked channels
-                if is_channel_blocked(channel):
-                    continue  # Channel blocked — try next channel
-
-                # Mark as attempting before yielding
-                self._record_attempting(video_id, channel)
+                    conn.execute(
+                        "INSERT OR REPLACE INTO download_archive (video_id, status, source, attempted_at) VALUES (?, 'attempting', ?, ?)",
+                        (video_id, channel, time.time()),
+                    )
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
+                finally:
+                    conn.close()
 
                 yielded_any = True
                 yield video_id, channel

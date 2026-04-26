@@ -1,4 +1,4 @@
-# Plan: intelligence-stream CLI restructuring
+# Plan: yt-is CLI restructuring
 
 ## Tasks
 
@@ -7,3 +7,4 @@
 - [x] TASK-3: Add `set_status_batch` bulk operation to batch_status.py
 - [x] TASK-4: Fix bin/csf-source imports + replace N+1 loops with batch calls
 - [x] TASK-5: Add InterProcessLock to cmd_sync for multi-terminal coordination
+

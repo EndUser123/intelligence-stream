@@ -26,6 +26,7 @@ class TrialArtifact:
 
     workers: int
     limit: int
+    sample_label: str
     returncode: int
     elapsed_s: float
     stdout_path: str
@@ -78,6 +79,12 @@ class TrialArtifact:
     def cleanup_elapsed_s(self) -> float:
         totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
         return float(totals.get("cleanup_elapsed_s_total", 0) or 0.0)
+
+    @property
+    def worker_idle_wait_s(self) -> float:
+        active = self.add_elapsed_s + self.readiness_elapsed_s + self.cleanup_elapsed_s
+        trial_elapsed = float(self.fetch_completed.get("elapsed_s", self.elapsed_s) or self.elapsed_s)
+        return round(max(trial_elapsed - active, 0.0), 3)
 
     @property
     def materialization_started(self) -> bool:
@@ -214,6 +221,7 @@ class TrialArtifact:
                 "add_elapsed_s": round(self.add_elapsed_s, 3),
                 "readiness_elapsed_s": round(self.readiness_elapsed_s, 3),
                 "cleanup_elapsed_s": round(self.cleanup_elapsed_s, 3),
+                "worker_idle_wait_s": round(self.worker_idle_wait_s, 3),
                 "materialization_started": self.materialization_started,
                 "timeout_hit": self.timeout_hit,
                 "source_ready_age_s_total": round(self.source_ready_age_s_total, 3),
@@ -278,6 +286,7 @@ def _run_fetch_trial(
     *,
     workers: int,
     limit: int,
+    sample_label: str,
     output_dir: Path,
     python_executable: str | None = None,
 ) -> TrialArtifact:
@@ -324,6 +333,7 @@ def _run_fetch_trial(
     return TrialArtifact(
         workers=workers,
         limit=limit,
+        sample_label=sample_label,
         returncode=returncode,
         elapsed_s=elapsed_s,
         stdout_path=str(stdout_path),
@@ -338,6 +348,7 @@ def run_worker_count_sweep(
     *,
     worker_counts: list[int] | tuple[int, ...] = DEFAULT_WORKER_COUNTS,
     limit: int = DEFAULT_LIMIT,
+    sample_label: str = "",
     output_root: Path = DEFAULT_OUTPUT_ROOT,
     python_executable: str | None = None,
 ) -> dict[str, Any]:
@@ -351,6 +362,7 @@ def run_worker_count_sweep(
         trial = _run_fetch_trial(
             workers=workers,
             limit=limit,
+            sample_label=sample_label,
             output_dir=sweep_dir,
             python_executable=python_executable,
         )
@@ -366,6 +378,7 @@ def run_worker_count_sweep(
         "output_root": str(output_root),
         "sweep_dir": str(sweep_dir),
         "limit": limit,
+        "sample_label": sample_label,
         "worker_counts": list(worker_counts),
         "results": results,
     }
@@ -380,6 +393,7 @@ def run_worker_count_sweep(
             fieldnames=[
                 "workers",
                 "limit",
+                "sample_label",
                 "returncode",
                 "elapsed_s",
                 "process_elapsed_s",
@@ -392,6 +406,7 @@ def run_worker_count_sweep(
                 "add_elapsed_s",
                 "readiness_elapsed_s",
                 "cleanup_elapsed_s",
+                "worker_idle_wait_s",
                 "materialization_started",
                 "timeout_hit",
                 "source_ready_age_s_total",
@@ -422,6 +437,7 @@ def run_worker_count_sweep(
                 {
                     "workers": row["workers"],
                     "limit": row["limit"],
+                    "sample_label": row["sample_label"],
                     "returncode": row["returncode"],
                     "elapsed_s": row["elapsed_s"],
                     "process_elapsed_s": row["process_elapsed_s"],
@@ -434,6 +450,7 @@ def run_worker_count_sweep(
                     "add_elapsed_s": row["add_elapsed_s"],
                     "readiness_elapsed_s": row["readiness_elapsed_s"],
                     "cleanup_elapsed_s": row["cleanup_elapsed_s"],
+                    "worker_idle_wait_s": row["worker_idle_wait_s"],
                     "materialization_started": row["materialization_started"],
                     "timeout_hit": row["timeout_hit"],
                     "source_ready_age_s_total": row["source_ready_age_s_total"],
@@ -465,13 +482,16 @@ def _print_summary(summary: dict[str, Any]) -> None:
         return
 
     print()
-    print(f"{'workers':>7} {'succ':>6} {'fail':>6} {'elapsed_s':>10} {'v/hr':>10} {'add_s':>8} {'ready_s':>9} {'timeout':>8}")
-    print("-" * 74)
+    sample_label = str(summary.get("sample_label", "") or "")
+    if sample_label:
+        print(f"[trial] sample_label={sample_label}")
+    print(f"{'workers':>7} {'succ':>6} {'fail':>6} {'elapsed_s':>10} {'v/hr':>10} {'idle_s':>8} {'add_s':>8} {'ready_s':>9} {'timeout':>8}")
+    print("-" * 84)
     for row in results:
         print(
             f"{int(row['workers']):>7} {int(row['success_count']):>6} {int(row['fail_count']):>6} "
             f"{float(row['elapsed_s']):>10.1f} {float(row['videos_per_hour']):>10.1f} "
-            f"{float(row['add_elapsed_s']):>8.1f} {float(row['readiness_elapsed_s']):>9.1f} "
+            f"{float(row['worker_idle_wait_s']):>8.1f} {float(row['add_elapsed_s']):>8.1f} {float(row['readiness_elapsed_s']):>9.1f} "
             f"{str(bool(row['timeout_hit'])):>8}"
         )
 
@@ -497,6 +517,11 @@ def main(argv: list[str] | None = None) -> int:
         help=f"Pending-item limit for each trial (default: {DEFAULT_LIMIT})",
     )
     parser.add_argument(
+        "--sample-label",
+        default="",
+        help="Optional label for the sample family or load shape (for example fast_lane, slow_lane, mixed_lane)",
+    )
+    parser.add_argument(
         "--output-root",
         default=str(DEFAULT_OUTPUT_ROOT),
         help=f"Root directory for sweep artifacts (default: {DEFAULT_OUTPUT_ROOT})",
@@ -512,6 +537,7 @@ def main(argv: list[str] | None = None) -> int:
     summary = run_worker_count_sweep(
         worker_counts=worker_counts,
         limit=args.limit,
+        sample_label=args.sample_label,
         output_root=Path(args.output_root),
         python_executable=args.python,
     )

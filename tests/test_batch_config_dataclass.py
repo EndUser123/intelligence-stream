@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from unittest import mock
 
-_ROOT = Path(r"P:\packages\intelligence-stream")
+_ROOT = Path(r"P:\\packages\\yt-is")
 sys.path.insert(0, str(_ROOT))
 
 from csf.batch import BatchConfig, analyze_videos_parallel  # noqa: E402
@@ -84,3 +84,4 @@ class TestBatchConfigDataclass:
             result = analyze_videos_parallel(["dQw4w9WgXcQ"], max_workers=2, force=True)
         assert isinstance(result, tuple)
         assert len(result) == 2
+

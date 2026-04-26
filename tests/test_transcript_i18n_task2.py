@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 import pytest
 from csf.transcript import (
@@ -108,3 +108,4 @@ class TestSDKThreadsLang:
                 assert "es" in prompt_text, (
                     f"Expected 'es' in prompt, got: {prompt_text}"
                 )
+

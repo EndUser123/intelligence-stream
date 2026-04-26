@@ -7,7 +7,7 @@ from unittest import mock
 import pytest
 
 # Ensure the package is importable
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 from csf.providers import (
     VideoAnalysisResult,
@@ -204,3 +204,4 @@ class TestTierIntegration:
         finally:
             with oc._gemini_lock:
                 oc._gemini_available = True
+

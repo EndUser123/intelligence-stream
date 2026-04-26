@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sqlite3
 import subprocess
 import sys
@@ -30,6 +31,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
+
+from csf.channel_filtering import (
+    ENTERTAINMENT_TERMS,
+    LEARNABLE_TERMS,
+    PERFORMANCE_TERMS,
+    PODCAST_TERMS,
+    STORY_TERMS,
+)
 
 # ---------------------------------------------------------------------------
 # Config
@@ -82,6 +91,18 @@ CATEGORIES = [
 
 # All valid tags
 ALL_TAGS = SUBCATS + CATEGORIES
+
+LEARNABLE_KEYWORDS = list(dict.fromkeys(LEARNABLE_TERMS))
+CONSUMPTIVE_KEYWORDS = list(
+    dict.fromkeys(
+        (
+            *STORY_TERMS,
+            *PERFORMANCE_TERMS,
+            *PODCAST_TERMS,
+            *ENTERTAINMENT_TERMS,
+        )
+    )
+)
 
 # ---------------------------------------------------------------------------
 # Keyword sets
@@ -215,11 +236,11 @@ KEYWORD_SETS: dict[str, dict[str, list[str]]] = {
             "learn", "school", "university", "college", "lesson", "class",
             "study tips", "learning", "academic", "exam", "revision",
             "math", "maths", "statistics", "probability", "algebra", "calculus",
-        ],
+        ] + LEARNABLE_KEYWORDS,
         "description": [
             "education", "teaching", "learning", "course", "tutorial",
             "student", "teacher", "school", "university",
-        ],
+        ] + LEARNABLE_KEYWORDS,
     },
     "Entertainment": {
         "title": [
@@ -227,11 +248,11 @@ KEYWORD_SETS: dict[str, dict[str, list[str]]] = {
             "gaming", "game", "twitch", "meme", "laugh", "prank",
             "reaction", "watch", "review", "movie", "film", "series",
             "anime", "cartoon", "animation", "funny moments",
-        ],
+        ] + CONSUMPTIVE_KEYWORDS,
         "description": [
             "entertainment", "comedy", "funny", "vlog", "gaming",
             "podcast", "reaction", "meme",
-        ],
+        ] + CONSUMPTIVE_KEYWORDS,
     },
     "Health": {
         "title": [
@@ -343,11 +364,18 @@ def score_text(texts: Sequence[str], tag: str) -> float:
         return 0.0
     score = 0.0
     for kw in kw_set.get("title", []):
-        # Use word-boundary-ish matching: count occurrences
-        score += joined.count(kw.lower()) * TITLE_WEIGHT
+        score += _count_term_occurrences(joined, kw) * TITLE_WEIGHT
     for kw in kw_set.get("description", []):
-        score += joined.count(kw.lower()) * DESC_WEIGHT
+        score += _count_term_occurrences(joined, kw) * DESC_WEIGHT
     return score
+
+
+def _count_term_occurrences(text: str, term: str) -> int:
+    """Count whole-term occurrences, avoiding substring overmatches."""
+    if not text or not term:
+        return 0
+    pattern = re.compile(rf"\b{re.escape(term.lower())}\b")
+    return len(pattern.findall(text))
 
 
 def score_channel(

@@ -71,6 +71,8 @@ Last updated: 2026-04-25
 - If you want to stage a long run before promoting it, point `YTIS_TRANSCRIPT_CACHE_DB_PATH` at `P:/.data/yt-is/transcripts-staging.sqlite`, run the backlog against that staging DB, then promote with `python P:/packages/yt-is/bin/csf-promote-transcripts`. The promote step is blocking and fail-closed: it refuses missing source DBs, empty staging DBs, and source/destination collisions.
 - Before any tracked-channel sync or blocklist change, run `python P:/packages/yt-is/bin/csf-backup-channel-state` to snapshot `P:/.data/yt-is/batch_status.sqlite` into `P:/.data/yt-is/backups/`.
 - If you want to stage channel inventory changes before promoting them, point `YTIS_BATCH_STATUS_DB_PATH` at `P:/.data/yt-is/batch-status-staging.sqlite`, run `yt-is sync` against that staging DB, then promote with `python P:/packages/yt-is/bin/csf-promote-channel-state`. The promote step is blocking and fail-closed: it refuses missing source DBs, empty staging DBs, and source/destination collisions.
+- If you need to backfill legacy URL-keyed rows to the new canonical identity contract, run `python P:/packages/yt-is/bin/csf-migrate-channel-ids`. That command snapshots live state first and then fills `channel_id` plus canonical display URLs in `batch_status.sqlite`.
+- The current indicative channel filtering rubric is documented in `P:/packages/yt-is/docs/operations/channel-filtering-rubric.md`. Treat it as a review guide, not a frozen policy.
 
 ## Next action for the new session
 

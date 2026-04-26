@@ -5,9 +5,10 @@ Verifies: analysis_status table skip-on-restart, --force override.
 """
 
 import sys
+import tempfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\packages\yt-is").absolute()))
 
 from csf.batch_status import (
     backup_batch_status_db,
@@ -24,6 +25,7 @@ from csf.batch_status import (
     is_complete,
     mark_complete,
     mark_failed,
+    migrate_channel_state_to_channel_id,
     reset_status,
     reset_all,
     set_negative_cache,
@@ -32,12 +34,11 @@ from csf.batch_status import (
     get_status_batch,
     BatchEntry,
 )
+from csf.channel_identity import ChannelIdentity
 
 
 # Shared DB path for testing
-_TEST_DB_PATH = Path(
-    "P:/__csf/.data/intelligence-stream/batch_status/test_status.sqlite"
-)
+_TEST_DB_PATH = Path(tempfile.gettempdir()) / "yt-is" / "batch_status" / "test_status.sqlite"
 
 
 class TestAnalysisStatusTable:
@@ -368,6 +369,25 @@ def test_batch_status_env_override_uses_live_data_root(tmp_path, monkeypatch):
     assert is_channel_blocked("https://www.youtube.com/@blocked", db_path=live_db) is True
 
 
+def test_batch_status_normalizes_malformed_handle_urls(tmp_path, monkeypatch):
+    live_db = tmp_path / "batch_status.sqlite"
+    monkeypatch.setenv("YTIS_BATCH_STATUS_DB_PATH", str(live_db))
+
+    set_channel_metadata(
+        "https://www.youtube.com@example",
+        playlist_id="PL123",
+        last_checked="2026-04-25T00:00:00Z",
+    )
+    block_channel("https://www.youtube.com@blocked")
+
+    row = get_channel_metadata("https://www.youtube.com/@example", db_path=live_db)
+    assert row is not None
+    assert row["channel_url"] == "https://www.youtube.com/@example"
+    assert get_channel_metadata("https://www.youtube.com@example", db_path=live_db) is not None
+    assert is_channel_blocked("https://www.youtube.com/@blocked", db_path=live_db) is True
+    assert is_channel_blocked("https://www.youtube.com@blocked", db_path=live_db) is True
+
+
 def test_backup_batch_status_db_snapshots_channel_state(tmp_path, monkeypatch):
     live_db = tmp_path / "batch_status.sqlite"
     backup_root = tmp_path / "backups"
@@ -394,22 +414,163 @@ def test_promote_batch_status_db_merges_channel_state(tmp_path):
     staging_db = tmp_path / "staging.sqlite"
 
     set_channel_metadata(
-        "https://www.youtube.com/@live",
+        "https://www.youtube.com/channel/UCLIVE000000000000000000",
         playlist_id="PLLIVE",
         last_checked="2026-04-24T00:00:00Z",
         db_path=live_db,
     )
     set_channel_metadata(
-        "https://www.youtube.com/@staging",
+        "https://www.youtube.com/channel/UCSTAGE0000000000000000",
         playlist_id="PLSTAGE",
         last_checked="2026-04-25T00:00:00Z",
         db_path=staging_db,
     )
-    block_channel("https://www.youtube.com/@blocked", db_path=staging_db)
+    block_channel("https://www.youtube.com/channel/UCBLOCK0000000000000000", db_path=staging_db)
 
     promoted = promote_batch_status_db(staging_db, live_db)
 
     assert promoted >= 2
-    assert get_channel_metadata("https://www.youtube.com/@live", db_path=live_db) is not None
-    assert get_channel_metadata("https://www.youtube.com/@staging", db_path=live_db) is not None
-    assert is_channel_blocked("https://www.youtube.com/@blocked", db_path=live_db) is True
+    assert get_channel_metadata("https://www.youtube.com/channel/UCLIVE000000000000000000", db_path=live_db) is not None
+    assert get_channel_metadata("https://www.youtube.com/channel/UCSTAGE0000000000000000", db_path=live_db) is not None
+    assert is_channel_blocked("https://www.youtube.com/channel/UCBLOCK0000000000000000", db_path=live_db) is True
+
+
+def test_migrate_channel_state_to_channel_id_backfills_live_rows(tmp_path, monkeypatch):
+    live_db = tmp_path / "live.sqlite"
+    monkeypatch.setenv("YTIS_BATCH_STATUS_DB_PATH", str(live_db))
+
+    def fake_resolve(channel_ref: str):
+        mapping = {
+            "https://www.youtube.com@legacy": ChannelIdentity(
+                channel_id="UCLEGACY000000000000000",
+                canonical_url="https://www.youtube.com/@legacy",
+                source_ref=channel_ref,
+            ),
+            "https://www.youtube.com@blocked": ChannelIdentity(
+                channel_id="UCBLOCKED00000000000000",
+                canonical_url="https://www.youtube.com/@blocked",
+                source_ref=channel_ref,
+            ),
+            "https://www.youtube.com@provider": ChannelIdentity(
+                channel_id="UCPROVIDER0000000000000",
+                canonical_url="https://www.youtube.com/@provider",
+                source_ref=channel_ref,
+            ),
+            "https://www.youtube.com@analysis": ChannelIdentity(
+                channel_id="UCANALYSIS0000000000000",
+                canonical_url="https://www.youtube.com/@analysis",
+                source_ref=channel_ref,
+            ),
+        }
+        return mapping.get(channel_ref)
+
+    monkeypatch.setattr("csf.batch_status.resolve_channel_identity", fake_resolve)
+
+    # Create a legacy URL-keyed schema directly, without channel_id columns.
+    import sqlite3
+
+    conn = sqlite3.connect(live_db)
+    conn.executescript(
+        """
+        CREATE TABLE channel_metadata (
+            channel_url TEXT PRIMARY KEY,
+            playlist_id TEXT,
+            last_checked TEXT NOT NULL,
+            last_full_enumeration TEXT,
+            video_count_estimate INTEGER DEFAULT 0,
+            next_page_token TEXT,
+            quota_exhausted_at TEXT,
+            schema_version INTEGER DEFAULT 1,
+            channel_title TEXT,
+            thumbnail_url TEXT,
+            subscriber_count INTEGER,
+            view_count INTEGER,
+            description TEXT,
+            published_at TEXT,
+            country TEXT,
+            topic_categories TEXT,
+            keywords TEXT,
+            custom_url TEXT,
+            category TEXT
+        );
+        CREATE TABLE channel_blocklist (
+            channel_url TEXT PRIMARY KEY,
+            blocked_at TEXT NOT NULL
+        );
+        CREATE TABLE provider_score (
+            channel_url TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            successes INTEGER DEFAULT 0,
+            failures INTEGER DEFAULT 0,
+            last_result TEXT,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (channel_url, provider)
+        );
+        CREATE TABLE analysis_status (
+            video_id TEXT PRIMARY KEY,
+            status TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            source TEXT,
+            published_at TEXT,
+            has_captions BOOLEAN,
+            title TEXT,
+            description TEXT,
+            thumbnail TEXT,
+            duration TEXT,
+            privacy_status TEXT,
+            upload_status TEXT,
+            is_live_content BOOLEAN,
+            unavailable_reason TEXT,
+            last_stage TEXT,
+            failure_reason TEXT,
+            quality_metrics TEXT
+        );
+        """
+    )
+    conn.execute(
+        "INSERT INTO channel_metadata (channel_url, playlist_id, last_checked, video_count_estimate) VALUES (?, ?, ?, ?)",
+        ("https://www.youtube.com@legacy", "PL123", "2026-04-25T00:00:00Z", 11),
+    )
+    conn.execute(
+        "INSERT INTO channel_blocklist (channel_url, blocked_at) VALUES (?, ?)",
+        ("https://www.youtube.com@blocked", "2026-04-25T00:00:00Z"),
+    )
+    conn.execute(
+        "INSERT INTO provider_score (channel_url, provider, successes, failures, last_result, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        ("https://www.youtube.com@provider", "nlm", 2, 1, "success", "2026-04-25T00:00:00Z"),
+    )
+    conn.execute(
+        "INSERT INTO analysis_status (video_id, status, updated_at, source, published_at, has_captions, title) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ("vid1", "pending", "2026-04-25T00:00:00Z", "https://www.youtube.com@analysis", "2026-04-24T00:00:00Z", 0, "Example"),
+    )
+    conn.commit()
+    conn.close()
+
+    counts = migrate_channel_state_to_channel_id(db_path=live_db)
+
+    assert counts["channel_metadata"] == 1
+    assert counts["channel_blocklist"] == 1
+    assert counts["provider_score"] == 1
+    assert counts["analysis_status"] == 1
+
+    conn = sqlite3.connect(live_db)
+    try:
+        meta = conn.execute(
+            "SELECT channel_id, channel_url FROM channel_metadata"
+        ).fetchone()
+        blocked = conn.execute(
+            "SELECT channel_id, channel_url FROM channel_blocklist"
+        ).fetchone()
+        provider = conn.execute(
+            "SELECT channel_id, channel_url FROM provider_score"
+        ).fetchone()
+        analysis = conn.execute(
+            "SELECT channel_id, source FROM analysis_status"
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert meta == ("UCLEGACY000000000000000", "https://www.youtube.com/@legacy")
+    assert blocked == ("UCBLOCKED00000000000000", "https://www.youtube.com/@blocked")
+    assert provider == ("UCPROVIDER0000000000000", "https://www.youtube.com/@provider")
+    assert analysis == ("UCANALYSIS0000000000000", "https://www.youtube.com/@analysis")

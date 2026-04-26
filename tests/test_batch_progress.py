@@ -9,7 +9,7 @@ from unittest import mock
 
 import pytest
 
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 from csf.batch import analyze_videos_parallel
 
@@ -196,3 +196,4 @@ class TestBatchProgressVisibility:
 
         # Done count should never exceed 1
         assert all(d <= 1 for d in done_values)
+

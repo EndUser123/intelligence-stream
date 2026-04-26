@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 from csf.retry_queue import (
     _MAX_RETRIES,
@@ -151,7 +151,12 @@ class TestEnqueueReturnValue:
     def test_entry_stored_after_enqueue(self):
         clear_all_storages()
         enqueue_retry("dQw4w9WgXcQ", "test error", retry_count=0)
-        entry = get_retry_entry("dQw4w9WgXcQ")
+        entry = None
+        for _ in range(50):
+            entry = get_retry_entry("dQw4w9WgXcQ")
+            if entry is not None:
+                break
+            time.sleep(0.02)
         assert entry is not None
         assert entry.video_id == "dQw4w9WgXcQ"
         assert entry.retry_count == 1  # incremented from 0
@@ -170,3 +175,4 @@ class TestGetPendingRetries:
         assert (
             all(e.next_retry_at <= datetime.now() for e in pending) or len(pending) == 0
         )
+

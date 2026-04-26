@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 # Ensure the package is importable
-sys.path.insert(0, str(Path(r"P:\packages\intelligence-stream").absolute()))
+sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
 
 from csf.transcript import LanguageConfig, TranscriptResult, fetch_transcript_chain
 
@@ -1329,3 +1329,4 @@ class TestWhisperFallback:
         assert calls[0][calls[0].index("--js-runtimes") + 1] == "node"
         assert calls[0][calls[0].index("-f") + 1] == "bestaudio/best"
         assert calls[1][calls[1].index("-f") + 1] == "bestaudio"
+

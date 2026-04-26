@@ -7,8 +7,9 @@ Separate DB from transcript cache and quota tracker (isolation blast radius).
 Multi-terminal safe: all terminals share the same DB with WAL mode.
 """
 
-import sqlite3
 import os
+import re
+import sqlite3
 import time
 import threading
 from contextlib import contextmanager
@@ -18,6 +19,12 @@ from pathlib import Path
 from typing import Literal
 from collections.abc import Sequence
 from dataclasses import dataclass
+
+from csf.channel_identity import (
+    channel_lookup_candidates,
+    normalize_channel_url,
+    resolve_channel_identity,
+)
 
 # Type alias for batch entries - use dataclass for extensibility
 @dataclass
@@ -242,6 +249,9 @@ class _BatchStatusStorage:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_analysis_status_source_status ON analysis_status(source, status)"
         )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_analysis_status_channel_id_status ON analysis_status(channel_id, status)"
+        )
         # Checkpoint WAL to prevent unbounded WAL file growth (matches cache.py pattern)
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         # Migrate existing DBs that predate download_archive and channel_cooldown tables.
@@ -281,6 +291,7 @@ class _BatchStatusStorage:
                 """
                 CREATE TABLE IF NOT EXISTS provider_score (
                     channel_url TEXT NOT NULL,
+                    channel_id TEXT,
                     provider TEXT NOT NULL,
                     successes INTEGER DEFAULT 0,
                     failures INTEGER DEFAULT 0,
@@ -289,6 +300,13 @@ class _BatchStatusStorage:
                     PRIMARY KEY (channel_url, provider)
                 )
                 """
+            )
+            try:
+                conn.execute("SELECT channel_id FROM provider_score LIMIT 1")
+            except sqlite3.OperationalError:
+                conn.execute("ALTER TABLE provider_score ADD COLUMN channel_id TEXT")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_score_channel_id_provider ON provider_score(channel_id, provider)"
             )
 
     def _ensure_channel_metadata(self) -> None:
@@ -303,6 +321,7 @@ class _BatchStatusStorage:
                 """
                 CREATE TABLE IF NOT EXISTS channel_metadata (
                     channel_url TEXT PRIMARY KEY,
+                    channel_id TEXT,
                     playlist_id TEXT,
                     last_checked TEXT NOT NULL,
                     last_full_enumeration TEXT,
@@ -374,6 +393,13 @@ class _BatchStatusStorage:
                 conn.execute("SELECT category FROM channel_metadata LIMIT 1")
             except sqlite3.OperationalError:
                 conn.execute("ALTER TABLE channel_metadata ADD COLUMN category TEXT")
+            try:
+                conn.execute("SELECT channel_id FROM channel_metadata LIMIT 1")
+            except sqlite3.OperationalError:
+                conn.execute("ALTER TABLE channel_metadata ADD COLUMN channel_id TEXT")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_metadata_channel_id ON channel_metadata(channel_id)"
+            )
 
     def _ensure_nlm_export_state(self) -> None:
         """Create or migrate nlm_export_state table to current schema.
@@ -532,6 +558,13 @@ class _BatchStatusStorage:
         Uses BEGIN IMMEDIATE to prevent TOCTOU races with concurrent writers.
         """
         self._ensure_provider_score()
+        channel_id = None
+        resolved = resolve_channel_identity(channel_url)
+        if resolved is not None:
+            channel_id = resolved.channel_id
+            channel_url = resolved.canonical_url
+        else:
+            channel_url = _normalize_channel_url(channel_url)
         conn = self._get_conn()
         conn.execute("BEGIN IMMEDIATE")
         try:
@@ -539,26 +572,28 @@ class _BatchStatusStorage:
             if success:
                 conn.execute(
                     """
-                    INSERT INTO provider_score (channel_url, provider, successes, failures, last_result, updated_at)
-                    VALUES (?, ?, 1, 0, 'success', ?)
-                    ON CONFLICT(channel_url, provider) DO UPDATE SET
+                    INSERT INTO provider_score (channel_url, channel_id, provider, successes, failures, last_result, updated_at)
+                    VALUES (?, ?, ?, 1, 0, 'success', ?)
+                    ON CONFLICT(channel_id, provider) DO UPDATE SET
+                        channel_url = excluded.channel_url,
                         successes = successes + 1,
                         last_result = 'success',
                         updated_at = excluded.updated_at
                     """,
-                    (channel_url, provider, now),
+                    (channel_url, channel_id, provider, now),
                 )
             else:
                 conn.execute(
                     """
-                    INSERT INTO provider_score (channel_url, provider, successes, failures, last_result, updated_at)
-                    VALUES (?, ?, 0, 1, 'failure', ?)
-                    ON CONFLICT(channel_url, provider) DO UPDATE SET
+                    INSERT INTO provider_score (channel_url, channel_id, provider, successes, failures, last_result, updated_at)
+                    VALUES (?, ?, ?, 0, 1, 'failure', ?)
+                    ON CONFLICT(channel_id, provider) DO UPDATE SET
+                        channel_url = excluded.channel_url,
                         failures = failures + 1,
                         last_result = 'failure',
                         updated_at = excluded.updated_at
                     """,
-                    (channel_url, provider, now),
+                    (channel_url, channel_id, provider, now),
                 )
             conn.commit()
         except Exception:
@@ -575,12 +610,21 @@ class _BatchStatusStorage:
         Returns {provider: (successes, failures)}. Unknown providers omitted.
         """
         self._ensure_provider_score()
+        candidates = _channel_lookup_candidates(channel_url)
         with self._conn() as conn:
-            cursor = conn.execute(
-                "SELECT provider, successes, failures FROM provider_score WHERE channel_url = ?",
-                (channel_url,),
-            )
-            rows = cursor.fetchall()
+            rows = []
+            for candidate in candidates:
+                cursor = conn.execute(
+                    """
+                    SELECT provider, successes, failures
+                    FROM provider_score
+                    WHERE channel_id = ? OR channel_url = ?
+                    """,
+                    (candidate, candidate),
+                )
+                rows = cursor.fetchall()
+                if rows:
+                    break
         return {row[0]: (row[1], row[2]) for row in rows}
 
     def _get_conn(self) -> sqlite3.Connection:
@@ -844,28 +888,41 @@ class _BatchStatusStorage:
     def get_channel_metadata(self, channel_url: str) -> dict | None:
         """Get channel metadata by channel_url. Returns dict or None."""
         self._ensure_channel_metadata()
+        candidates = _channel_lookup_candidates(channel_url)
         with self._conn() as conn:
-            cursor = conn.execute(
-                "SELECT channel_url, playlist_id, video_count_estimate, last_checked, last_full_enumeration, next_page_token, quota_exhausted_at, schema_version FROM channel_metadata WHERE channel_url = ?",
-                (channel_url,),
-            )
-            row = cursor.fetchone()
+            row = None
+            for candidate in candidates:
+                cursor = conn.execute(
+                    """
+                    SELECT channel_url, channel_id, playlist_id, video_count_estimate,
+                           last_checked, last_full_enumeration, next_page_token,
+                           quota_exhausted_at, schema_version
+                    FROM channel_metadata
+                    WHERE channel_id = ? OR channel_url = ?
+                    """,
+                    (candidate, candidate),
+                )
+                row = cursor.fetchone()
+                if row is not None:
+                    break
         if row is None:
             return None
         return {
             "channel_url": row[0],
-            "playlist_id": row[1],
-            "video_count_estimate": row[2],
-            "last_checked": row[3],
-            "last_full_enumeration": row[4],
-            "next_page_token": row[5],
-            "quota_exhausted_at": row[6],
-            "schema_version": row[7],
+            "channel_id": row[1],
+            "playlist_id": row[2],
+            "video_count_estimate": row[3],
+            "last_checked": row[4],
+            "last_full_enumeration": row[5],
+            "next_page_token": row[6],
+            "quota_exhausted_at": row[7],
+            "schema_version": row[8],
         }
 
     def set_channel_metadata(
         self,
         channel_url: str,
+        channel_id: str | None = None,
         playlist_id: str | None = None,
         last_checked: str | None = None,
         last_full_enumeration: str | None = None,
@@ -889,6 +946,7 @@ class _BatchStatusStorage:
         """
         now = datetime.now(timezone.utc).isoformat()
         kwargs: dict[str, str | int | None] = {
+            "channel_id": channel_id,
             "playlist_id": playlist_id,
             "last_checked": last_checked or now,
             "last_full_enumeration": last_full_enumeration,
@@ -917,25 +975,28 @@ class _BatchStatusStorage:
         Only updates the fields passed in kwargs; all others are preserved.
         """
         self._ensure_channel_metadata()
+        channel_id = kwargs.pop("channel_id", None)
+        resolved_channel_id, canonical_url = _require_channel_identity(
+            channel_url, channel_id=channel_id if isinstance(channel_id, str) else None
+        )
         conn = self._get_conn()
         conn.execute("BEGIN IMMEDIATE")
         try:
-            # Read existing within the same transaction — all columns including extended metadata
             cursor = conn.execute(
-                "SELECT channel_url, playlist_id, video_count_estimate, last_checked, "
+                "SELECT channel_url, channel_id, playlist_id, video_count_estimate, last_checked, "
                 "last_full_enumeration, next_page_token, quota_exhausted_at, "
                 "channel_title, thumbnail_url, subscriber_count, view_count, "
                 "description, published_at, country, topic_categories, category "
-                "FROM channel_metadata WHERE channel_url = ?",
-                (channel_url,),
+                "FROM channel_metadata WHERE channel_id = ? OR channel_url = ?",
+                (resolved_channel_id, canonical_url),
             )
             row = cursor.fetchone()
 
             now = datetime.now(timezone.utc).isoformat()
             if row is None:
-                # Insert with defaults for non-provided fields
                 vals = {
-                    "channel_url": channel_url,
+                    "channel_url": canonical_url,
+                    "channel_id": resolved_channel_id,
                     "playlist_id": None,
                     "video_count_estimate": None,
                     "last_checked": now,
@@ -955,16 +1016,19 @@ class _BatchStatusStorage:
                     "category": None,
                 }
                 vals.update(kwargs)
+                vals["channel_id"] = resolved_channel_id
+                vals["channel_url"] = canonical_url
                 conn.execute(
                     "INSERT INTO channel_metadata "
-                    "(channel_url, playlist_id, video_count_estimate, last_checked, "
+                    "(channel_url, channel_id, playlist_id, video_count_estimate, last_checked, "
                     "last_full_enumeration, next_page_token, quota_exhausted_at, "
                     "channel_title, thumbnail_url, subscriber_count, view_count, "
                     "description, published_at, country, keywords, custom_url, "
                     "topic_categories, category, schema_version) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
                     (
                         vals["channel_url"],
+                        vals["channel_id"],
                         vals["playlist_id"],
                         vals["video_count_estimate"],
                         vals["last_checked"],
@@ -985,24 +1049,24 @@ class _BatchStatusStorage:
                     ),
                 )
             else:
-                # Update only the fields provided in kwargs; preserve rest
                 existing = {
                     "channel_url": row[0],
-                    "playlist_id": row[1],
-                    "video_count_estimate": row[2],
-                    "last_checked": row[3],
-                    "last_full_enumeration": row[4],
-                    "next_page_token": row[5],
-                    "quota_exhausted_at": row[6],
-                    "channel_title": row[7],
-                    "thumbnail_url": row[8],
-                    "subscriber_count": row[9],
-                    "view_count": row[10],
-                    "description": row[11],
-                    "published_at": row[12],
-                    "country": row[13],
-                    "topic_categories": row[14],
-                    "category": row[15],
+                    "channel_id": row[1],
+                    "playlist_id": row[2],
+                    "video_count_estimate": row[3],
+                    "last_checked": row[4],
+                    "last_full_enumeration": row[5],
+                    "next_page_token": row[6],
+                    "quota_exhausted_at": row[7],
+                    "channel_title": row[8],
+                    "thumbnail_url": row[9],
+                    "subscriber_count": row[10],
+                    "view_count": row[11],
+                    "description": row[12],
+                    "published_at": row[13],
+                    "country": row[14],
+                    "topic_categories": row[15],
+                    "category": row[16],
                 }
                 for key in (
                     "playlist_id",
@@ -1025,17 +1089,20 @@ class _BatchStatusStorage:
                 ):
                     if key in kwargs:
                         existing[key] = kwargs[key]
-                # last_checked always updated to now when upsert is called
+                existing["channel_id"] = resolved_channel_id
+                existing["channel_url"] = canonical_url
                 existing["last_checked"] = now
                 conn.execute(
                     "UPDATE channel_metadata SET "
-                    "playlist_id=?, video_count_estimate=?, last_checked=?, "
+                    "channel_url=?, channel_id=?, playlist_id=?, video_count_estimate=?, last_checked=?, "
                     "last_full_enumeration=?, next_page_token=?, quota_exhausted_at=?, "
                     "channel_title=?, thumbnail_url=?, subscriber_count=?, view_count=?, "
                     "description=?, published_at=?, country=?, keywords=?, custom_url=?, "
                     "topic_categories=?, category=? "
-                    "WHERE channel_url=?",
+                    "WHERE channel_id=? OR channel_url=?",
                     (
+                        existing["channel_url"],
+                        existing["channel_id"],
                         existing["playlist_id"],
                         existing["video_count_estimate"],
                         existing["last_checked"],
@@ -1053,7 +1120,8 @@ class _BatchStatusStorage:
                         existing.get("custom_url"),
                         existing.get("topic_categories"),
                         existing.get("category"),
-                        channel_url,
+                        resolved_channel_id,
+                        canonical_url,
                     ),
                 )
             conn.commit()
@@ -1065,22 +1133,27 @@ class _BatchStatusStorage:
 
     def get_pending_by_source(self, channel_url: str) -> list[str]:
         """Get all pending video_ids for a given channel/source."""
+        candidates = _channel_lookup_candidates(channel_url)
         with self._conn() as conn:
-            cursor = conn.execute(
-                """
-                SELECT video_id
-                FROM analysis_status
-                WHERE source = ?
-                  AND status = ?
-                  AND video_id NOT IN (
-                      SELECT video_id
-                      FROM negative_video_cache
-                      WHERE expires_at > ?
-                  )
-                """,
-                (channel_url, _STATUS_PENDING, time.time()),
-            )
-            rows = cursor.fetchall()
+            rows = []
+            for candidate in candidates:
+                cursor = conn.execute(
+                    """
+                    SELECT video_id
+                    FROM analysis_status
+                    WHERE (source = ? OR channel_id = ?)
+                      AND status = ?
+                      AND video_id NOT IN (
+                          SELECT video_id
+                          FROM negative_video_cache
+                          WHERE expires_at > ?
+                      )
+                    """,
+                    (candidate, candidate, _STATUS_PENDING, time.time()),
+                )
+                rows = cursor.fetchall()
+                if rows:
+                    break
         return [row[0] for row in rows]
 
     def get_newest_published_for_source(self, channel_url: str) -> str | None:
@@ -1089,12 +1162,17 @@ class _BatchStatusStorage:
         Used for gap detection. Returns the MAX(published_at) across all
         videos from this source, or None if no videos have published_at set.
         """
+        candidates = _channel_lookup_candidates(channel_url)
         with self._conn() as conn:
-            cursor = conn.execute(
-                "SELECT MAX(published_at) FROM analysis_status WHERE source = ?",
-                (channel_url,),
-            )
-            row = cursor.fetchone()
+            row = None
+            for candidate in candidates:
+                cursor = conn.execute(
+                    "SELECT MAX(published_at) FROM analysis_status WHERE source = ? OR channel_id = ?",
+                    (candidate, candidate),
+                )
+                row = cursor.fetchone()
+                if row and row[0]:
+                    break
         return row[0] if row and row[0] else None
 
     # ---------------------------------------------------------------------------
@@ -1108,25 +1186,40 @@ class _BatchStatusStorage:
                 """
                 CREATE TABLE IF NOT EXISTS channel_blocklist (
                     channel_url TEXT PRIMARY KEY,
+                    channel_id TEXT,
                     blocked_at TEXT NOT NULL
                 )
                 """
+            )
+            try:
+                conn.execute("SELECT channel_id FROM channel_blocklist LIMIT 1")
+            except sqlite3.OperationalError:
+                conn.execute("ALTER TABLE channel_blocklist ADD COLUMN channel_id TEXT")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_blocklist_channel_id ON channel_blocklist(channel_id)"
             )
 
     def block_channel(self, channel_url: str) -> None:
         """Add a channel to the blocklist and remove from active metadata."""
         self._ensure_channel_blocklist()
         self._ensure_channel_metadata()
+        channel_id, channel_url = _require_channel_identity(channel_url)
         conn = self._get_conn()
         conn.execute("BEGIN IMMEDIATE")
         try:
             now = datetime.now(timezone.utc).isoformat()
             conn.execute(
-                "INSERT OR REPLACE INTO channel_blocklist (channel_url, blocked_at) VALUES (?, ?)",
-                (channel_url, now),
+                "INSERT OR REPLACE INTO channel_blocklist (channel_url, channel_id, blocked_at) VALUES (?, ?, ?)",
+                (channel_url, channel_id, now),
             )
-            conn.execute("DELETE FROM channel_metadata WHERE channel_url = ?", (channel_url,))
-            conn.execute("DELETE FROM analysis_status WHERE source = ?", (channel_url,))
+            conn.execute(
+                "DELETE FROM channel_metadata WHERE channel_url = ? OR channel_id = ?",
+                (channel_url, channel_id),
+            )
+            conn.execute(
+                "DELETE FROM analysis_status WHERE source = ? OR channel_id = ?",
+                (channel_url, channel_id),
+            )
             conn.commit()
         except Exception:
             conn.rollback()
@@ -1137,24 +1230,34 @@ class _BatchStatusStorage:
     def unblock_channel(self, channel_url: str) -> bool:
         """Remove a channel from the blocklist. Returns True if it was blocked."""
         self._ensure_channel_blocklist()
+        candidates = _channel_lookup_candidates(channel_url)
         with self._conn() as conn:
-            cursor = conn.execute(
-                "DELETE FROM channel_blocklist WHERE channel_url = ? RETURNING channel_url",
-                (channel_url,),
-            )
-            deleted = cursor.fetchone() is not None
+            deleted = False
+            for candidate in candidates:
+                cursor = conn.execute(
+                    "DELETE FROM channel_blocklist WHERE channel_id = ? OR channel_url = ? RETURNING channel_url",
+                    (candidate, candidate),
+                )
+                deleted = cursor.fetchone() is not None
+                if deleted:
+                    break
             conn.commit()
         return deleted
 
     def is_channel_blocked(self, channel_url: str) -> bool:
         """Check if a channel is on the blocklist."""
         self._ensure_channel_blocklist()
+        candidates = _channel_lookup_candidates(channel_url)
         with self._conn() as conn:
-            cursor = conn.execute(
-                "SELECT 1 FROM channel_blocklist WHERE channel_url = ?",
-                (channel_url,),
-            )
-            exists = cursor.fetchone() is not None
+            exists = False
+            for candidate in candidates:
+                cursor = conn.execute(
+                    "SELECT 1 FROM channel_blocklist WHERE channel_id = ? OR channel_url = ?",
+                    (candidate, candidate),
+                )
+                exists = cursor.fetchone() is not None
+                if exists:
+                    break
         return exists
 
     def get_all_blocked_channels(self) -> list[tuple[str, str]]:
@@ -1170,6 +1273,9 @@ class _BatchStatusStorage:
     def delete_channel(self, channel_url: str) -> bool:
         """Delete a channel and all its video entries. Returns True if deleted."""
         self._ensure_channel_metadata()
+        resolved = resolve_channel_identity(channel_url)
+        channel_id = resolved.channel_id if resolved else None
+        channel_url = resolved.canonical_url if resolved else _normalize_channel_url(channel_url)
         conn = self._get_conn()
         conn.execute("BEGIN IMMEDIATE")
         try:
@@ -1177,8 +1283,14 @@ class _BatchStatusStorage:
                 "DELETE FROM negative_video_cache WHERE source = ?",
                 (channel_url,),
             )
-            conn.execute("DELETE FROM analysis_status WHERE source = ?", (channel_url,))
-            conn.execute("DELETE FROM channel_metadata WHERE channel_url = ?", (channel_url,))
+            conn.execute(
+                "DELETE FROM analysis_status WHERE source = ? OR channel_id = ?",
+                (channel_url, channel_id),
+            )
+            conn.execute(
+                "DELETE FROM channel_metadata WHERE channel_url = ? OR channel_id = ?",
+                (channel_url, channel_id),
+            )
             conn.commit()
             deleted = True
         except Exception:
@@ -1196,30 +1308,41 @@ class _BatchStatusStorage:
         Returns list of (video_id, status, has_captions) tuples.
         Used by csf-transcript-fetch to avoid re-enumerating via yt-dlp.
         """
-        # Normalize URL for query consistency
-        channel_url = _normalize_channel_url(channel_url)
+        candidates = _channel_lookup_candidates(channel_url)
         with self._conn() as conn:
-            cursor = conn.execute(
-                "SELECT video_id, status, has_captions FROM analysis_status WHERE source = ?",
-                (channel_url,),
-            )
-            rows = cursor.fetchall()
+            rows = []
+            for candidate in candidates:
+                cursor = conn.execute(
+                    """
+                    SELECT video_id, status, has_captions
+                    FROM analysis_status
+                    WHERE source = ? OR channel_id = ?
+                    """,
+                    (candidate, candidate),
+                )
+                rows = cursor.fetchall()
+                if rows:
+                    break
         return [(r[0], r[1], r[2]) for r in rows]
 
     def get_entries_for_source_details(self, channel_url: str) -> list[dict[str, object | None]]:
         """Get all entries for a channel/source with classification metadata."""
-        channel_url = _normalize_channel_url(channel_url)
+        candidates = _channel_lookup_candidates(channel_url)
         with self._conn() as conn:
-            cursor = conn.execute(
-                """
-                SELECT video_id, status, has_captions, duration, privacy_status,
-                       upload_status, is_live_content, unavailable_reason, source
-                FROM analysis_status
-                WHERE source = ?
-                """,
-                (channel_url,),
-            )
-            rows = cursor.fetchall()
+            rows = []
+            for candidate in candidates:
+                cursor = conn.execute(
+                    """
+                    SELECT video_id, status, has_captions, duration, privacy_status,
+                           upload_status, is_live_content, unavailable_reason, source, channel_id
+                    FROM analysis_status
+                    WHERE source = ? OR channel_id = ?
+                    """,
+                    (candidate, candidate),
+                )
+                rows = cursor.fetchall()
+                if rows:
+                    break
         return [
             {
                 "video_id": row[0],
@@ -1231,6 +1354,7 @@ class _BatchStatusStorage:
                 "is_live_content": row[6],
                 "unavailable_reason": row[7],
                 "source": row[8],
+                "channel_id": row[9],
             }
             for row in rows
         ]
@@ -1291,6 +1415,11 @@ class _BatchStatusStorage:
                         unavailable_reason = entry.unavailable_reason
                         last_stage = entry.last_stage
                         failure_reason = entry.failure_reason
+
+                    if channel_id is None and source:
+                        resolved = resolve_channel_identity(source)
+                        if resolved is not None:
+                            channel_id = resolved.channel_id
 
                     # Preserve existing values if not provided
                     if (source is None or published_at is None or has_captions is None
@@ -1561,6 +1690,7 @@ def get_channel_metadata(channel_url: str, db_path: Path | None = None) -> dict 
 
 def set_channel_metadata(
     channel_url: str,
+    channel_id: str | None = None,
     playlist_id: str | None = None,
     last_checked: str | None = None,
     last_full_enumeration: str | None = None,
@@ -1581,6 +1711,7 @@ def set_channel_metadata(
     if db_path is None:
         _get_batch_status_storage().set_channel_metadata(
             channel_url,
+            channel_id=channel_id,
             playlist_id=playlist_id,
             last_checked=last_checked,
             last_full_enumeration=last_full_enumeration,
@@ -1599,6 +1730,7 @@ def set_channel_metadata(
     else:
         _BatchStatusStorage(db_path=db_path).set_channel_metadata(
             channel_url,
+            channel_id=channel_id,
             playlist_id=playlist_id,
             last_checked=last_checked,
             last_full_enumeration=last_full_enumeration,
@@ -1617,14 +1749,29 @@ def set_channel_metadata(
 
 
 def _normalize_channel_url(url: str) -> str:
-    """Normalize channel URL to remove /channel/ prefix for consistency.
+    """Backward-compatible wrapper for channel URL normalization."""
+    return normalize_channel_url(url)
 
-    Ensures @handle URLs are stored as https://www.youtube.com/@handle
-    without the /channel/ prefix.
+
+def _channel_lookup_candidates(channel_ref: str) -> list[str]:
+    return channel_lookup_candidates(channel_ref)
+
+
+def _require_channel_identity(
+    channel_ref: str, channel_id: str | None = None
+) -> tuple[str, str]:
+    """Resolve a channel reference for storage.
+
+    Returns (channel_id, canonical_url). Raises ValueError if the reference
+    cannot be resolved to a stable channel identity.
     """
-    if "/channel/@" in url:
-        return url.replace("/channel/@", "/@")
-    return url
+    if channel_id:
+        normalized = normalize_channel_url(channel_ref)
+        return channel_id, normalized
+    identity = resolve_channel_identity(channel_ref)
+    if identity is None:
+        raise ValueError(f"Could not resolve channel identity for {channel_ref}")
+    return identity.channel_id, identity.canonical_url
 
 
 def upsert_channel(
@@ -1777,6 +1924,100 @@ def promote_batch_status_db(source_db: Path, dest_db: Path | None = None) -> int
         source_conn.close()
         dest_conn.close()
     return promoted
+
+
+def _resolve_migration_identity(
+    channel_url: str | None, channel_id: str | None = None
+) -> tuple[str, str]:
+    """Resolve a stored channel row to canonical id/url values for migration."""
+    candidate = channel_url or channel_id or ""
+    identity = resolve_channel_identity(candidate)
+    if identity is not None:
+        return identity.channel_id, identity.canonical_url
+    if channel_id and str(channel_id).startswith("UC"):
+        return channel_id, f"https://www.youtube.com/channel/{channel_id}"
+    if channel_url:
+        normalized = normalize_channel_url(channel_url)
+        if normalized:
+            return channel_id or normalized, normalized
+    raise ValueError(f"Could not resolve channel identity for {candidate}")
+
+
+def migrate_channel_state_to_channel_id(db_path: Path | None = None) -> dict[str, int]:
+    """Backfill channel_id into channel state tables and canonicalize URLs in-place."""
+    storage = _get_batch_status_storage() if db_path is None else _BatchStatusStorage(db_path=db_path)
+    storage._ensure_channel_metadata()
+    storage._ensure_channel_blocklist()
+    storage._ensure_provider_score()
+    counts = {
+        "channel_metadata": 0,
+        "channel_blocklist": 0,
+        "provider_score": 0,
+        "analysis_status": 0,
+    }
+    conn = storage._get_conn()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        metadata_rows = conn.execute(
+            "SELECT rowid, channel_url, channel_id FROM channel_metadata"
+        ).fetchall()
+        for rowid, channel_url, channel_id in metadata_rows:
+            resolved_id, canonical_url = _resolve_migration_identity(channel_url, channel_id)
+            if channel_url != canonical_url or channel_id != resolved_id:
+                conn.execute(
+                    "UPDATE channel_metadata SET channel_url = ?, channel_id = ? WHERE rowid = ?",
+                    (canonical_url, resolved_id, rowid),
+                )
+                counts["channel_metadata"] += 1
+
+        blocklist_rows = conn.execute(
+            "SELECT rowid, channel_url, channel_id FROM channel_blocklist"
+        ).fetchall()
+        for rowid, channel_url, channel_id in blocklist_rows:
+            resolved_id, canonical_url = _resolve_migration_identity(channel_url, channel_id)
+            if channel_url != canonical_url or channel_id != resolved_id:
+                conn.execute(
+                    "UPDATE channel_blocklist SET channel_url = ?, channel_id = ? WHERE rowid = ?",
+                    (canonical_url, resolved_id, rowid),
+                )
+                counts["channel_blocklist"] += 1
+
+        provider_rows = conn.execute(
+            "SELECT rowid, channel_url, channel_id FROM provider_score"
+        ).fetchall()
+        for rowid, channel_url, channel_id in provider_rows:
+            resolved_id, canonical_url = _resolve_migration_identity(channel_url, channel_id)
+            if channel_url != canonical_url or channel_id != resolved_id:
+                conn.execute(
+                    "UPDATE provider_score SET channel_url = ?, channel_id = ? WHERE rowid = ?",
+                    (canonical_url, resolved_id, rowid),
+                )
+                counts["provider_score"] += 1
+
+        analysis_rows = conn.execute(
+            "SELECT rowid, source, channel_id FROM analysis_status WHERE source IS NOT NULL"
+        ).fetchall()
+        for rowid, source, channel_id in analysis_rows:
+            try:
+                resolved_id, canonical_url = _resolve_migration_identity(source, channel_id)
+            except ValueError:
+                if channel_id:
+                    continue
+                raise
+            if source != canonical_url or channel_id != resolved_id:
+                conn.execute(
+                    "UPDATE analysis_status SET source = ?, channel_id = ? WHERE rowid = ?",
+                    (canonical_url, resolved_id, rowid),
+                )
+                counts["analysis_status"] += 1
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    return counts
 
 
 def delete_channel(channel_url: str, db_path: Path | None = None) -> bool:

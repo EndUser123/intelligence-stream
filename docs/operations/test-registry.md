@@ -34,6 +34,7 @@ Treat the following as still needing live proof:
 | Routing | Mixed real cohort A/B | proven | [.logs/whisper_gate_validation_mixed/benchmark_summary.json](../../.logs/whisper_gate_validation_mixed/benchmark_summary.json) | route split remained materially faster on the mixed backlog | source-shape routing or mixed-cohort selection changes |
 | Fallback | One-worker no-caption soak | negative | [.logs/load_ladder_benchmark_nocap_soak_20/benchmark_summary.json](../../.logs/load_ladder_benchmark_nocap_soak_20/benchmark_summary.json) | route split short-circuited quickly, but did not recover items by itself | fallback recovery logic or admission policy changes |
 | Fallback | Route-plus-fallback recovery cohort | proven | [.logs/fallback_recovery_trial_5/benchmark_summary.json](../../.logs/fallback_recovery_trial_5/benchmark_summary.json) | `3/3` recovered, but the recovery path was expensive | Whisper admission, fallback transport, or cache behavior changes |
+| Whisper admission | Mixed proof cohort with skip candidates and Whisper-recovery controls | proven | [.logs/whisper_admission_proof_mix_run/benchmark_summary.json](../../.logs/whisper_admission_proof_mix_run/benchmark_summary.json) | `2` items skipped before Whisper and `3` recovered via Whisper | title cue list, admission gate, or fallback transport changes |
 | Load | 2 vs 4 vs 8 workers on mixed lane | proven | [.logs/worker_count_trials/20260425_234812/sweep_summary.json](../../.logs/worker_count_trials/20260425_234812/sweep_summary.json) | `2` workers won; higher counts increased idle time and failures | worker scheduling, queue shaping, or NotebookLM concurrency changes |
 | Load | Fullness / reuse / stagger / rotation ladder | negative | [.logs/load_ladder_benchmark/benchmark_summary.json](../../.logs/load_ladder_benchmark/benchmark_summary.json) | those knobs did not materially change the no-caption cohort | notebook state management or access staggering changes |
 | Whispers | Unit tests for obvious non-speech, live/terminal, and short speech-like clips | proven | [tests/test_transcript.py](../../tests/test_transcript.py) | the admission gate logic is covered by tests | title cue list, metadata fields, or admission gate code changes |
@@ -42,8 +43,6 @@ Treat the following as still needing live proof:
 
 | Family | Case | Status | Current Gap | Next Time To Run |
 |---|---|---|---|---|
-| Whisper admission | Live benchmark branch that actually emits `transcript_whisper_admission_skipped` | pending | the unit tests prove the logic, but the live cohorts so far did not drive that branch | when we have a cohort that reaches Whisper and includes skip candidates |
-| Fallback recovery | Curated no-caption cohort that exercises Whisper recovery in a live benchmark with skip candidates mixed in | pending | we know recovery works, but we still need a cleaner mixed live proof of the admission gate | when the manifest includes a proper mixed no-caption sample |
 | Manifest-driven coverage | Shared benchmark manifest replacing ad hoc cohort lists | pending | the registry exists conceptually, but the manifest loader and consumers are not yet implemented | before any new large benchmark series |
 
 ## How To Extend

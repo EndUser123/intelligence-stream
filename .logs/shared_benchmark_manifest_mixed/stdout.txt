@@ -1,0 +1,9 @@
+[benchmark] Running batch 1 size=4
+[benchmark] Running policy: notebooklm_only_30s
+[trial] workers=1 success=0 fail=4 elapsed=282.6s hot_vph=0.0 fallback_recovered=0
+[benchmark] Running policy: notebooklm_route_plus_fallback_30s
+[trial] workers=1 success=3 fail=1 elapsed=1881.7s hot_vph=5.7 fallback_recovered=0
+[benchmark] Wrote cohort: P:\packages\yt-is\.logs\fallback_crossover_benchmark\cohort.json
+[benchmark] Wrote summary: P:\packages\yt-is\.logs\shared_benchmark_manifest_mixed\benchmark_summary.json
+[benchmark] batch=1 notebooklm_only_30s: success=0 fail=4 hot_vph=0.0 fallback_recovered=0
+[benchmark] batch=1 notebooklm_route_plus_fallback_30s: success=3 fail=1 hot_vph=5.74 fallback_recovered=0

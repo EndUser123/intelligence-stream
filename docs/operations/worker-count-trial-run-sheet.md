@@ -4,10 +4,12 @@ Last updated: 2026-04-26
 
 ## Purpose
 
-Measure NotebookLM throughput under controlled load while holding batch size and notebook ownership constant.
+Measure NotebookLM throughput under controlled load while holding benchmark batch size and notebook ownership constant.
 
 Canonical test registry:
 - [Test Registry](test-registry.md)
+- Shared benchmark manifest: [tests/fixtures/shared_benchmark_manifest.json](../../tests/fixtures/shared_benchmark_manifest.json)
+  - Use this instead of hand-curated proof cohorts for new benchmark series.
 
 ## Three-Phase Plan
 
@@ -156,11 +158,80 @@ The following results were collected after the plan was written and should be tr
   - `--workers 2 --limit 800`
   - `770 succeeded / 30 failed`
   - `1421.5 successful videos/hour`
+- Pro NotebookLM benchmark `--batch-size 200` run:
+  - benchmark batch size, not notebook source capacity
+  - `--workers 2,4,6,8,10 --limit 400 --batch-size 200`
+  - `2 workers`: `392 succeeded / 8 failed`, `327.7 successful videos/hour`
+  - `4 workers`: `399 succeeded / 1 failed`, `277.7 successful videos/hour`
+  - `6 workers`: `399 succeeded / 1 failed`, `276.2 successful videos/hour`
+  - `8 workers`: `399 succeeded / 1 failed`, `281.2 successful videos/hour`
+  - `10 workers`: `399 succeeded / 1 failed`, `281.8 successful videos/hour`
+  - conclusion: this benchmark shape still favors `2` workers on sustained hot-path throughput
+- Batch-size sensitivity sweep on the narrow/captioned cohort:
+  - fixed `4` workers, `--limit 400`
+  - `100`: `2224.00 hot-path videos/hour`
+  - `200`: `3752.66 hot-path videos/hour`
+  - `300`: `2628.74 hot-path videos/hour`
+  - `400`: `2289.68 hot-path videos/hour`
+  - conclusion: `200` is the best supported benchmark batch size among the tested values
+- Nearby worker-count check on the same narrow/captioned cohort:
+  - `3` workers: `3061.45 hot-path videos/hour`
+  - `5` workers: `2959.19 hot-path videos/hour`
+  - conclusion: the local peak still sits at `4` workers
+- Batch-size follow-up on the same narrow/captioned cohort:
+  - `175`: `1945.50 hot-path videos/hour`
+  - `200`: `3803.50 hot-path videos/hour`
+  - `225`: `3226.04 hot-path videos/hour`
+  - `250`: `2931.88 hot-path videos/hour`
+  - conclusion: `200` remains the best supported batch size in the tighter local sweep
 - Phase 3 Pro rerun remains pending until a Pro NotebookLM profile/account is available.
+- Breadth/scaling series on the live Pro profile:
+  - `--workers 2 --limit 400 --batch-size 200`
+  - breadth phase:
+    - broad/trace: `137.38 hot-path videos/hour`
+    - mid/mixed: `294.41 hot-path videos/hour`
+    - narrow/captioned: `1810.21 hot-path videos/hour`
+  - scaling phase on the winning narrow/captioned cohort:
+    - `2 workers`: `137.38 hot-path videos/hour`
+    - `4 workers`: `3928.18 hot-path videos/hour`
+    - `6 workers`: `3093.38 hot-path videos/hour`
+    - `8 workers`: `3818.11 hot-path videos/hour`
+    - `10 workers`: `3765.14 hot-path videos/hour`
+  - conclusion: the best sustained hot-path result in the current Pro series is `4 workers` on the narrow/captioned cohort, at `3928.18 videos/hour`
+  - Whisper recovery stayed separate from sustained hot-path throughput
+- Next optimization series:
+  - design: [Hot-Path Throughput Optimization Series Design](../superpowers/specs/2026-04-28-hot-path-throughput-optimization-series-design.md)
+  - implementation plan: [Hot-Path Throughput Optimization Series Implementation Plan](../superpowers/plans/2026-04-28-hot-path-throughput-optimization-series-implementation.md)
+  - live comparison result: serial vs `YTIS_REUSABLE_PIPELINE_MODE=double_buffered`, fixed `4` workers, `--batch-size 200`, `limit 200`, narrow/captioned cohort, hot-path vph excluding Whisper
+  - serial hot-path vph: `1539.48`
+  - double-buffered hot-path vph: `1492.99`
+  - decision: keep serial as the control on this shape; double-buffered is negative here
+- Same comparison on the larger `limit 400` shape:
+  - serial hot-path vph: `1400.36`
+  - double-buffered hot-path vph: `2349.01`
+  - serial success/fail: `361/39`
+  - double-buffered success/fail: `398/2`
+  - decision: first run favored double-buffered, but the repeat flipped to serial; treat this shape as unstable
+- Same comparison on the intermediate `limit 300` shape:
+  - serial hot-path vph: `2199.17`
+  - double-buffered hot-path vph: `1871.61`
+  - serial success/fail: `249/51`
+  - double-buffered success/fail: `299/1`
+  - decision: serial wins on this shape
+- Same comparison on the `limit 250` shape:
+  - serial hot-path vph: `2270.78`
+  - double-buffered hot-path vph: `2160.38`
+  - serial success/fail: `249/1`
+  - double-buffered success/fail: `249/1`
+  - decision: serial wins on this shape as well
 - The fallback tail now reaches Whisper for `yt-dlp = ok` videos with no captions:
   - audio download includes `--js-runtimes node` when `node` is available
   - Whisper now runs on the downloaded audio instead of stopping at the audio stage
   - successful transcripts are saved to `P:/.data/yt-is/transcripts.sqlite`
+- Multi-worker preflight now deletes stale worker notebooks by id before dispatch:
+  - active notebook ids from the current worker state root are preserved
+  - the cleanup call is no longer audit-only
+  - this keeps old test notebooks from accumulating between benchmark runs
 - Verified live example:
   - `zgf2d8gsy70`
   - source: `whisper`
@@ -585,6 +656,25 @@ Use this order so the next passes build on the known-good baseline instead of ju
 ## Future Phase: Pro NotebookLM
 
 After the free-tier `50`-source baseline is understood, repeat the same readiness and throughput matrix on a Pro NotebookLM subscription with the `300`-source notebook limit.
+
+Note:
+- `--batch-size 200` in the benchmark harness means 200 benchmark items per batch.
+- It does not mean 200 NotebookLM sources total.
+
+Batch-size sweep note:
+- The tested benchmark batch sizes were `100`, `200`, `300`, and `400`.
+- The `200` batch size won on hot-path throughput at fixed `4` workers.
+- The `300` follow-up did not beat `200`.
+- The tighter `175` / `200` / `225` / `250` follow-up also kept `200` in front.
+
+Subbatch sweep note:
+- A direct `50` / `75` / `100` NotebookLM subbatch sweep was attempted twice.
+- Both attempts halted on subbatch 2 with `NotebookSourceMaterializationTimeout` after the first `50`-source add.
+- There is still no fresh result artifact from that leg, so there is no new conclusion yet.
+
+Cleanup cadence note:
+- A reusable-path cleanup cadence trial at `cleanup_every_n_batches=2` finished with a combined hot-path rate below the current every-batch control.
+- The first batch looked strong, but the second batch pulled the combined run down to about `3039.57` hot-path videos/hour, so cleanup deferral did not improve sustained throughput.
 
 - Keep the same logging fields and run order.
 - Keep the same worker-owned notebook model.

@@ -1,0 +1,32 @@
+{
+  "trace_root": "P:\\packages\\yt-is\\.logs\\worker_count_trials",
+  "cohort_shape": "manifest",
+  "generated_at": "2026-04-27T17:02:25.953925+00:00",
+  "items": [
+    {
+      "case_id": "whisper-skip-music-001",
+      "family": "whisper_admission",
+      "source_type": "live_trace",
+      "video_id": "dKmPEhJ4wjY",
+      "source_url": "https://www.youtube.com/channel/UCHXy48aYSYeRaBuMOedwxAQ",
+      "title": "Anyma, LISA - Bad Angel (Official Music Video)",
+      "description": "Official Music Video",
+      "duration": 0,
+      "privacy_status": "public",
+      "upload_status": null,
+      "is_live_content": false,
+      "unavailable_reason": null,
+      "has_captions": false,
+      "expected": {
+        "hot_path": false,
+        "route_to_fallback": true,
+        "attempt_whisper": false,
+        "skip_whisper": true,
+        "recover_success": false,
+        "terminal_skip": false
+      }
+    }
+  ],
+  "manifest_json": "P:\\packages\\yt-is\\tests\\fixtures\\shared_benchmark_manifest.json",
+  "manifest_families": "routing,whisper_admission,hot_path_control"
+}

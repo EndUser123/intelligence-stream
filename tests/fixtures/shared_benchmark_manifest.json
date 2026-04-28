@@ -1,0 +1,213 @@
+{
+  "manifest_version": 1,
+  "generated_at": "2026-04-26T00:00:00Z",
+  "cases": [
+    {
+      "case_id": "routing-caption-rich-001",
+      "family": "routing",
+      "source_type": "synthetic",
+      "video_id": "cap00000001",
+      "source_url": "https://www.youtube.com/watch?v=cap00000001",
+      "title": "Caption Rich Control",
+      "description": "Control item for the hot NotebookLM path",
+      "duration": 42,
+      "privacy_status": "public",
+      "upload_status": "uploaded",
+      "is_live_content": false,
+      "unavailable_reason": null,
+      "has_captions": true,
+      "expected": {
+        "hot_path": true,
+        "route_to_fallback": false,
+        "attempt_whisper": false,
+        "skip_whisper": false,
+        "recover_success": false,
+        "terminal_skip": false
+      }
+    },
+    {
+      "case_id": "routing-no-caption-001",
+      "family": "routing",
+      "source_type": "synthetic",
+      "video_id": "cap00000002",
+      "source_url": "https://www.youtube.com/watch?v=cap00000002",
+      "title": "No Caption Routing Control",
+      "description": "Control item for the route-to-fallback branch",
+      "duration": 83,
+      "privacy_status": "public",
+      "upload_status": "uploaded",
+      "is_live_content": false,
+      "unavailable_reason": null,
+      "has_captions": false,
+      "expected": {
+        "hot_path": false,
+        "route_to_fallback": true,
+        "attempt_whisper": true,
+        "skip_whisper": false,
+        "recover_success": false,
+        "terminal_skip": false
+      }
+    },
+    {
+      "case_id": "hot-path-control-001",
+      "family": "hot_path_control",
+      "source_type": "synthetic",
+      "video_id": "cap00000003",
+      "source_url": "https://www.youtube.com/watch?v=cap00000003",
+      "title": "Hot Path Control",
+      "description": "Synthetic control for hot-path accounting",
+      "duration": 27,
+      "privacy_status": "public",
+      "upload_status": "uploaded",
+      "is_live_content": false,
+      "unavailable_reason": null,
+      "has_captions": true,
+      "expected": {
+        "hot_path": true,
+        "route_to_fallback": false,
+        "attempt_whisper": false,
+        "skip_whisper": false,
+        "recover_success": false,
+        "terminal_skip": false
+      }
+    },
+    {
+      "case_id": "whisper-admit-live-001",
+      "family": "whisper_admission",
+      "source_type": "synthetic",
+      "video_id": "liveadmit01",
+      "source_url": "https://www.youtube.com/watch?v=liveadmit01",
+      "title": "Live Panel Discussion",
+      "description": "Synthetic live content that should not reach Whisper",
+      "duration": 102,
+      "privacy_status": "public",
+      "upload_status": "live",
+      "is_live_content": true,
+      "unavailable_reason": null,
+      "has_captions": false,
+      "expected": {
+        "hot_path": false,
+        "route_to_fallback": false,
+        "attempt_whisper": false,
+        "skip_whisper": false,
+        "recover_success": false,
+        "terminal_skip": true
+      }
+    },
+    {
+      "case_id": "whisper-skip-live-001",
+      "family": "whisper_admission",
+      "source_type": "synthetic",
+      "video_id": "liveskip001",
+      "source_url": "https://www.youtube.com/watch?v=liveskip001",
+      "title": "Official Audio",
+      "description": "Synthetic non-speech title case",
+      "duration": 180,
+      "privacy_status": "public",
+      "upload_status": "uploaded",
+      "is_live_content": false,
+      "unavailable_reason": null,
+      "has_captions": false,
+      "expected": {
+        "hot_path": false,
+        "route_to_fallback": true,
+        "attempt_whisper": false,
+        "skip_whisper": true,
+        "recover_success": false,
+        "terminal_skip": false
+      }
+    },
+    {
+      "case_id": "whisper-skip-music-001",
+      "family": "whisper_admission",
+      "source_type": "live_trace",
+      "video_id": "dKmPEhJ4wjY",
+      "source_url": "https://www.youtube.com/channel/UCHXy48aYSYeRaBuMOedwxAQ",
+      "title": "Anyma, LISA - Bad Angel (Official Music Video)",
+      "description": "Official Music Video",
+      "duration": 0,
+      "privacy_status": "public",
+      "upload_status": "",
+      "is_live_content": false,
+      "unavailable_reason": null,
+      "has_captions": false,
+      "expected": {
+        "hot_path": false,
+        "route_to_fallback": true,
+        "attempt_whisper": false,
+        "skip_whisper": true,
+        "recover_success": false,
+        "terminal_skip": false
+      }
+    },
+    {
+      "case_id": "whisper-recover-001",
+      "family": "fallback_recovery",
+      "source_type": "live_trace",
+      "video_id": "zgf2d8gsy70",
+      "source_url": "",
+      "title": "",
+      "description": "",
+      "duration": 0,
+      "privacy_status": "public",
+      "upload_status": "",
+      "is_live_content": false,
+      "unavailable_reason": null,
+      "has_captions": false,
+      "expected": {
+        "hot_path": false,
+        "route_to_fallback": true,
+        "attempt_whisper": true,
+        "skip_whisper": false,
+        "recover_success": true,
+        "terminal_skip": false
+      }
+    },
+    {
+      "case_id": "whisper-recover-002",
+      "family": "fallback_recovery",
+      "source_type": "live_trace",
+      "video_id": "gL9fq9ybx_Q",
+      "source_url": "",
+      "title": "",
+      "description": "",
+      "duration": 0,
+      "privacy_status": "public",
+      "upload_status": "",
+      "is_live_content": false,
+      "unavailable_reason": null,
+      "has_captions": false,
+      "expected": {
+        "hot_path": false,
+        "route_to_fallback": true,
+        "attempt_whisper": true,
+        "skip_whisper": false,
+        "recover_success": true,
+        "terminal_skip": false
+      }
+    },
+    {
+      "case_id": "whisper-recover-003",
+      "family": "fallback_recovery",
+      "source_type": "live_trace",
+      "video_id": "4qTixOM76EQ",
+      "source_url": "",
+      "title": "",
+      "description": "",
+      "duration": 0,
+      "privacy_status": "public",
+      "upload_status": "",
+      "is_live_content": false,
+      "unavailable_reason": null,
+      "has_captions": false,
+      "expected": {
+        "hot_path": false,
+        "route_to_fallback": true,
+        "attempt_whisper": true,
+        "skip_whisper": false,
+        "recover_success": true,
+        "terminal_skip": false
+      }
+    }
+  ]
+}

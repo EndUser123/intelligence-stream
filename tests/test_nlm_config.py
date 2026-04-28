@@ -36,6 +36,7 @@ class TestSharedNlmConfig:
         assert cfg.source_content_retry_queue_delay_s == 30.0
         assert cfg.source_content_retry_queue_budget_s == 30.0
         assert cfg.source_content_shared_retry_pool_enabled is False
+        assert cfg.reusable_cleanup_every_n_batches == 1
         assert transcript.get_nlm_config() is cfg
 
     def test_jitter_bounds_follow_env_and_stay_shared(self, monkeypatch):
@@ -84,6 +85,7 @@ class TestSharedNlmConfig:
             source_content_retry_queue_delay_s=30.0,
             source_content_retry_queue_budget_s=30.0,
             source_content_shared_retry_pool_enabled=False,
+            reusable_cleanup_every_n_batches=2,
         )
         try:
             nlm_config.set_nlm_config(replacement)

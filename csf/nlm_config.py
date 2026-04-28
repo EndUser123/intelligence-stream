@@ -47,6 +47,7 @@ class NLMConfig:
     source_content_retry_queue_delay_s: float = 30.0
     source_content_retry_queue_budget_s: float = 30.0
     source_content_shared_retry_pool_enabled: bool = False
+    reusable_cleanup_every_n_batches: int = 1
 
 
 def get_nlm_config() -> NLMConfig:
@@ -133,6 +134,10 @@ def get_nlm_config() -> NLMConfig:
                     .strip()
                     .lower()
                     in {"1", "true", "yes", "on"}
+                ),
+                reusable_cleanup_every_n_batches=max(
+                    1,
+                    int(os.environ.get("YTIS_NLM_REUSABLE_CLEANUP_EVERY_N_BATCHES", "1")),
                 ),
             )
         return _nlm_config

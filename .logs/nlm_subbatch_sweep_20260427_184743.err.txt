@@ -1,0 +1,25 @@
+Traceback (most recent call last):
+  File "P:\packages\yt-is\bin\nlm-subbatch-sweep", line 126, in <module>
+    main()
+    ~~~~^^
+  File "P:\packages\yt-is\bin\nlm-subbatch-sweep", line 81, in main
+    results = run_sweep(video_ids, sizes)
+  File "P:\packages\yt-is\bin\nlm-subbatch-sweep", line 45, in run_sweep
+    results = ingestor.experiment_add_acceptance(
+        video_ids,
+        sizes,
+        notebook_title=f"yt-is-sweep-{int(time.time())}",
+    )
+  File "P:\packages\yt-is\csf\nlm_batch.py", line 1999, in experiment_add_acceptance
+    added_ids = self._add_sources_in_subbatches(batch_ids, subbatch_size=size)
+  File "P:\packages\yt-is\csf\nlm_batch.py", line 1011, in _add_sources_in_subbatches
+    added_chunk_ids = self._add_sources_chunk(
+        subbatch,
+    ...<2 lines>...
+        source_profile=source_profile,
+    )
+  File "P:\packages\yt-is\csf\nlm_batch.py", line 884, in _add_sources_chunk
+    raise NotebookSourceMaterializationTimeout(
+    ...<3 lines>...
+    )
+csf.nlm_batch.NotebookSourceMaterializationTimeout: NotebookLM sources were not ready after 600s (nb_id=fbc7cc67-25a5-40c0-9c97-9403db93bd18, subbatch_index=2, expected_total=100, source_count_before_wait=50)

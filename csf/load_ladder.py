@@ -98,6 +98,8 @@ def build_fallback_benchmark_command(
     policy: str,
     cohort_shape: str = "trace",
     sample_label: str | None = None,
+    manifest_json: Path | None = None,
+    manifest_families: str | None = None,
     worker_state_root: Path,
     preserve_worker_state_root: bool,
 ) -> list[str]:
@@ -128,6 +130,10 @@ def build_fallback_benchmark_command(
     ]
     if sample_label is not None:
         command.extend(["--sample-label", sample_label])
+    if manifest_json is not None:
+        command.extend(["--manifest-json", str(manifest_json)])
+    if manifest_families is not None:
+        command.extend(["--manifest-families", manifest_families])
     if preserve_worker_state_root:
         command.append("--preserve-worker-state-root")
     return command

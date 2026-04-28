@@ -1,0 +1,23 @@
+[benchmark] Running batch 1 size=200
+[benchmark] Running policy: notebooklm_route_plus_fallback_30s_1w
+[trial] workers=4 success=188 fail=12 elapsed=412.2s hot_vph=1642.4 fallback_recovered=0
+[benchmark] Running batch 2 size=200
+[benchmark] Running policy: notebooklm_route_plus_fallback_30s_1w
+[trial] workers=4 success=173 fail=27 elapsed=516.1s hot_vph=1207.0 fallback_recovered=0
+[benchmark] Wrote cohort: P:\packages\yt-is\.logs\breadth_scaling_series\cohort.serial.narrow.json
+[benchmark] Wrote summary: P:\packages\yt-is\.logs\pipeline_mode_comparison_400_v1\serial\phase_a\narrow\benchmark_summary.json
+[benchmark] batch=1 notebooklm_route_plus_fallback_30s_1w: success=188 fail=12 hot_vph=1642.43 fallback_recovered=0
+[benchmark] batch=2 notebooklm_route_plus_fallback_30s_1w: success=173 fail=27 hot_vph=1207.04 fallback_recovered=0
+[benchmark] Running batch 1 size=200
+[benchmark] Running policy: notebooklm_route_plus_fallback_30s_1w
+[trial] workers=4 success=199 fail=1 elapsed=305.4s hot_vph=2346.7 fallback_recovered=0
+[benchmark] Running batch 2 size=200
+[benchmark] Running policy: notebooklm_route_plus_fallback_30s_1w
+[trial] workers=4 success=199 fail=1 elapsed=304.8s hot_vph=2351.3 fallback_recovered=0
+[benchmark] Wrote cohort: P:\packages\yt-is\.logs\breadth_scaling_series\cohort.double_buffered.narrow.json
+[benchmark] Wrote summary: P:\packages\yt-is\.logs\pipeline_mode_comparison_400_v1\double_buffered\phase_a\narrow\benchmark_summary.json
+[benchmark] batch=1 notebooklm_route_plus_fallback_30s_1w: success=199 fail=1 hot_vph=2346.72 fallback_recovered=0
+[benchmark] batch=2 notebooklm_route_plus_fallback_30s_1w: success=199 fail=1 hot_vph=2351.3 fallback_recovered=0
+P:\packages\yt-is\.logs\pipeline_mode_comparison_400_v1\pipeline_mode_comparison_summary.json
+double_buffered
+2349.01

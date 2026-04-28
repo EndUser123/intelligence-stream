@@ -1,0 +1,251 @@
+[source] Preflight scan: checking 1 active channels (0 blocked skipped) for pending videos...
+[source] Parallel industrial dispatch: 1 batches across 1 workers...
+[source] Parallel industrial dispatch: 1 batches across 1 workers...
+[source] Pending item limit reached at 200; stopping scan early.
+[source] Preflight scan complete: 1 active channels, 200 pending, 0 cached, 0 neg-cache, 0 terminal, 100 notebooklm, 100 transcript-fallback
+[source] Escalation Batch Process
+[source] Channels: 1 active / 1 tracked
+[source] Already cached: 0
+[source] Negative-cache skips: 0
+[source] Pending extraction: 200
+[source] Run limit: 200 pending items
+[source] Mode: LIVE
+[source] Strategy: Industrial (Batch NLM)
+[source] Method: NotebookLM CLI batch for captioned/no-captions items; live items use transcript fallback
+[source] Workers: 2
+
+[source] Pre-flight worker notebook audit: 0 worker notebooks reported, 0 failed
+{"worker_id":"worker-01","event":"worker_notebook_reset_started","notebooklm_profile":"ytis-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\breadth_scaling_series_v2\\phase_a\\mid\\worker_states\\worker-01.json","notebook_title":"benchmark-notebooklm_route_plus_fallback_30s_1w-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"benchmark-notebooklm_route_plus_fallback_30s_1w-01","state_path":"P:\\packages\\yt-is\\.logs\\breadth_scaling_series_v2\\phase_a\\mid\\worker_states\\worker-01.json"}}
+{"worker_id":"worker-01","event":"worker_notebook_reset_completed","notebooklm_profile":"ytis-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\breadth_scaling_series_v2\\phase_a\\mid\\worker_states\\worker-01.json","notebook_title":"benchmark-notebooklm_route_plus_fallback_30s_1w-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"benchmark-notebooklm_route_plus_fallback_30s_1w-01","state_path":"P:\\packages\\yt-is\\.logs\\breadth_scaling_series_v2\\phase_a\\mid\\worker_states\\worker-01.json"}}
+[NLM-Batch] Creating notebook...
+[NLM-Batch] Adding 0 sources in sub-batches...
+{"worker_id":"worker-01","event":"notebook_prewarm","prepared":true,"setup_mode":"create","notebooklm_profile":"ytis-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\breadth_scaling_series_v2\\phase_a\\mid\\worker_states\\worker-01.json","notebook_title":"benchmark-notebooklm_route_plus_fallback_30s_1w-01","elapsed_s":7.514}
+[NLM-Batch] Adding 50 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-50/50...
+[NLM-Batch]   Adding sub-batch 1 (50 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 50 sources in parallel (primary)...
+  ✓ WYwmp8VK1kc | 871 chars
+  ✓ LDp3vbdmVLE | 7170 chars
+  ✓ jD3kQp0DlLk | 730 chars
+  ✓ jW35PssNZ74 | 861 chars
+  ✓ v0j2nV5Y6Lo | 782 chars
+  ✓ CDOqV89_mUw | 929 chars
+  ✓ dFP1ywyPspo | 6731 chars
+  ✓ AhQXGEA2bsg | 794 chars
+  ✓ 0Xgb3i-sIJE | 861 chars
+  ✓ 2VnMAjG802M | 26865 chars
+  ✓ 7zR5yNvnelo | 6928 chars
+  ✓ 79hrArnapP4 | 8206 chars
+  ✓ JOuDVfpxZbA | 623 chars
+  ✓ lLtuDKpMS8M | 22890 chars
+  ✓ iUDwsjjwFLU | 805 chars
+  ✓ JDGGvyvaz_o | 554 chars
+  ✓ WV7BWIC1NnM | 623 chars
+  ✓ UwPMvya_QPA | 50359 chars
+  ✓ ORxtEvebZ04 | 1029 chars
+  ✓ hH5jo2umLwY | 717 chars
+  ✓ BJxTHVMwVwk | 515 chars
+  ✓ syJ7LuXIs38 | 512 chars
+  ✓ -ogj_6X_Lno | 910 chars
+  ✓ 4Nh0NaGOeNA | 846 chars
+  ✓ 7oSFPkTmkzc | 819 chars
+  ✓ 5G1GG1Ld-P8 | 976 chars
+  ✓ TQttr5t5FDA | 918 chars
+  ✓ Bp960s3DJE4 | 878 chars
+  ✓ DYOJExc-42c | 509 chars
+  ✓ R3Qn9CxdCUA | 621 chars
+  ✓ wn3-9eDZLrc | 928 chars
+  ✓ Bz0jtIk75G4 | 893 chars
+  ✓ k8f4BjQIX6s | 513 chars
+  ✓ q4E06YF3XhI | 861 chars
+  ✓ 2IwJIPpzc9g | 6385 chars
+  ✓ rX4_UEBL12o | 808 chars
+  ✓ 78tr5jAL2QQ | 7645 chars
+  ✓ _SYyosQ6jBQ | 718 chars
+  ✓ SY8KjMV498k | 642 chars
+  ✓ UuqavY-Vc6g | 1011 chars
+  ✓ ASwoXgqr59E | 694 chars
+  ✓ V-jGF7-f2P0 | 787 chars
+  ✓ W3ShmTWiVfo | 431 chars
+  ✓ L-Ztvsb3M0E | 625 chars
+  ✓ 0pNMqakwz7w | 650 chars
+  ✓ _Mt0oRrSm3U | 948 chars
+  ✓ okfcF8gBpfA | 660 chars
+  ✓ 6QfIzJfzXvY | 822 chars
+  ✓ Dm72estvrnA | 20593 chars
+  ✓ Jg6P56v5HoE | 696 chars
+{"worker_id":"worker-01","input":"C:\\Users\\brsth\\AppData\\Local\\Temp\\tmp32wwwqk8.json","batch_count":1,"video_count":50,"succeeded":50,"failed":0,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"captioned":50},"status_counts":{"pending":50},"privacy_status_counts":{"unknown":50},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"subbatch_metrics":[{"subbatch_index":1,"subbatch_size":50,"target_subbatch_size":50,"attempted_count":50,"added_count":50,"add_cmd_elapsed_s":49.747,"materialization_wait_elapsed_s":1.86,"elapsed_s":51.607,"returncode":0,"failure_reason":null,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"captioned":50},"status_counts":{"pending":50},"privacy_status_counts":{"unknown":50},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"current_source_count":50,"source_materialization_ready_at_epoch":1777316448.4946465,"status":"ok"}],"startup_retire_elapsed_s":0.0,"startup_notebook_check_elapsed_s":0.0,"startup_notebook_create_elapsed_s":3.264,"startup_prepare_cleanup_elapsed_s":1.851,"startup_prepare_total_elapsed_s":7.512,"setup_elapsed_s_total":63.154,"notebook_check_elapsed_s_total":3.878,"notebook_create_elapsed_s_total":0.0,"notebook_retire_elapsed_s_total":0.0,"add_sources_elapsed_s_total":59.275,"add_cmd_elapsed_s_total":49.747,"materialization_wait_elapsed_s_total":1.86,"extract_elapsed_s_total":14.496,"cleanup_elapsed_s_total":10.636,"batch_elapsed_s_total":88.286,"content_fetch_status_counts_total":{"ready":50},"source_ready_age_s_total":519.404,"source_ready_age_s_max":16.249,"source_ready_age_s_avg":10.388,"youtube_ytdlp_elapsed_s_total":0.0,"youtube_ytdlp_elapsed_s_max":0.0,"youtube_ytdlp_elapsed_s_count":0,"youtube_ytdlp_elapsed_s_avg":0.0,"youtube_page_elapsed_s_total":0.0,"youtube_page_elapsed_s_max":0.0,"youtube_page_elapsed_s_count":0,"youtube_page_elapsed_s_avg":0.0,"shared_retry_deferred_count":0,"shared_retry_recovered_count":0,"shared_retry_final_failed_count":0,"shared_retry_processed_count":0,"notebooklm_profile":"ytis-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\breadth_scaling_series_v2\\phase_a\\mid\\worker_states\\worker-01.json","notebook_title":"benchmark-notebooklm_route_plus_fallback_30s_1w-01","status":"ok","returncode":0}
+  ✓ -35BJVOA1n4 (ytdlp)
+{"worker_id":"worker-02","event":"worker_notebook_reset_started","notebooklm_profile":"ytis-worker-02","state_path":"P:\\packages\\yt-is\\.logs\\breadth_scaling_series_v2\\phase_a\\mid\\worker_states\\worker-02.json","notebook_title":"benchmark-notebooklm_route_plus_fallback_30s_1w-02","cleanup_info":{"status":"owner_title_reuse","notebook_title":"benchmark-notebooklm_route_plus_fallback_30s_1w-02","state_path":"P:\\packages\\yt-is\\.logs\\breadth_scaling_series_v2\\phase_a\\mid\\worker_states\\worker-02.json"}}
+{"worker_id":"worker-02","event":"worker_notebook_reset_completed","notebooklm_profile":"ytis-worker-02","state_path":"P:\\packages\\yt-is\\.logs\\breadth_scaling_series_v2\\phase_a\\mid\\worker_states\\worker-02.json","notebook_title":"benchmark-notebooklm_route_plus_fallback_30s_1w-02","cleanup_info":{"status":"owner_title_reuse","notebook_title":"benchmark-notebooklm_route_plus_fallback_30s_1w-02","state_path":"P:\\packages\\yt-is\\.logs\\breadth_scaling_series_v2\\phase_a\\mid\\worker_states\\worker-02.json"}}
+[NLM-Batch] Creating notebook...
+[NLM-Batch] Adding 0 sources in sub-batches...
+{"worker_id":"worker-02","event":"notebook_prewarm","prepared":true,"setup_mode":"create","notebooklm_profile":"ytis-worker-02","state_path":"P:\\packages\\yt-is\\.logs\\breadth_scaling_series_v2\\phase_a\\mid\\worker_states\\worker-02.json","notebook_title":"benchmark-notebooklm_route_plus_fallback_30s_1w-02","elapsed_s":6.873}
+[NLM-Batch] Adding 50 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-50/50...
+[NLM-Batch]   Adding sub-batch 1 (50 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 50 sources in parallel (primary)...
+  ✓ V81UM6KQWVg | 762 chars
+  ✓ ERdND0zRblw | 1124 chars
+  ✓ Tzd_1YzjqXc | 570 chars
+  ✓ QGnNIRk0wsQ | 953 chars
+  ✓ XMXAbV78kJU | 743 chars
+  ✓ pHUwzI_P5hw | 753 chars
+  ✓ swKuVPm-eI8 | 902 chars
+  ✓ Vf9i1bbJcpk | 704 chars
+  ✓ ynMJa7oWcwU | 636 chars
+  ✓ B6hlFGJ9LNw | 50721 chars
+  ✓ ixRzm3smQko | 1011 chars
+  ✓ VerEoET9Mkw | 695 chars
+  ✓ eJIeBi3R8Gw | 58256 chars
+  ✓ F0YvJkG-Ack | 1033 chars
+  ✓ KNGY1m1XT7k | 966 chars
+  ✓ rFVfhx9pMLA | 1048 chars
+  ✓ 0qSJcIgMWGo | 815 chars
+  ✓ zL156w0KJhE | 519 chars
+  ✓ v4GQn_lkiNc | 29241 chars
+  ✓ NReOzXjIpm0 | 8405 chars
+  ✓ ojc9WG_vfes | 989 chars
+  ✓ KcBdPlA1OW0 | 1019 chars
+  ✓ DtK2o9yeLD4 | 943 chars
+  ✓ KYD1fZHg9ec | 860 chars
+  ✓ rVGfIatKzD0 | 497 chars
+  ✓ IaschiAlSFc | 847 chars
+  ✓ FI9KD6r3jQo | 1009 chars
+  ✓ vC0GdC418og | 920 chars
+  ✓ ChFTOpEF4vY | 850 chars
+  ✓ gu7GKNnsSYE | 930 chars
+  ✓ XpHzB1kJFYg | 800 chars
+  ✓ XHgdNa1bjQs | 753 chars
+  ✓ K7nX_f44hj0 | 931 chars
+  ✓ EyjhXr4QBtI | 32326 chars
+  ✓ PnPc44RfPZo | 893 chars
+  ✓ 7Dftzn1NXsU | 988 chars
+  ✓ MXAvtEHyl0A | 942 chars
+  ✓ SI2jUgex7dE | 901 chars
+  ✓ KzObz6D6ymc | 744 chars
+  ✓ j6lOJPRvuzc | 896 chars
+  ✓ 4THbvI6XZ5g | 904 chars
+  ✓ o4ngV2EGfJg | 695 chars
+  ✓ QDM4NjX4cnw | 541 chars
+  ✓ pfK-Q3L0Lt4 | 51528 chars
+  ✓ NxyZtyWIeJ8 | 838 chars
+  ✓ 93-U7mJYpss | 564 chars
+  ✓ Jn2zxehMkk8 | 656 chars
+  ✓ _LH6nPgEqNg | 301 chars
+  ✓ 6VO3K_EaTso | 829 chars
+  ✓ y_5jZk3DQ9I | 14289 chars
+{"worker_id":"worker-02","input":"C:\\Users\\brsth\\AppData\\Local\\Temp\\tmpy4z4gupe.json","batch_count":1,"video_count":50,"succeeded":50,"failed":0,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"captioned":50},"status_counts":{"pending":50},"privacy_status_counts":{"unknown":50},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"subbatch_metrics":[{"subbatch_index":1,"subbatch_size":50,"target_subbatch_size":50,"attempted_count":50,"added_count":50,"add_cmd_elapsed_s":52.489,"materialization_wait_elapsed_s":1.891,"elapsed_s":54.379999999999995,"returncode":0,"failure_reason":null,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"captioned":50},"status_counts":{"pending":50},"privacy_status_counts":{"unknown":50},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"current_source_count":50,"source_materialization_ready_at_epoch":1777316451.0522218,"status":"ok"}],"startup_retire_elapsed_s":0.0,"startup_notebook_check_elapsed_s":0.0,"startup_notebook_create_elapsed_s":2.818,"startup_prepare_cleanup_elapsed_s":1.859,"startup_prepare_total_elapsed_s":6.871,"setup_elapsed_s_total":66.208,"notebook_check_elapsed_s_total":4.054,"notebook_create_elapsed_s_total":0.0,"notebook_retire_elapsed_s_total":0.0,"add_sources_elapsed_s_total":62.153,"add_cmd_elapsed_s_total":52.489,"materialization_wait_elapsed_s_total":1.891,"extract_elapsed_s_total":14.32,"cleanup_elapsed_s_total":10.198,"batch_elapsed_s_total":90.726,"content_fetch_status_counts_total":{"ready":50},"source_ready_age_s_total":548.303,"source_ready_age_s_max":16.145,"source_ready_age_s_avg":10.966,"youtube_ytdlp_elapsed_s_total":0.0,"youtube_ytdlp_elapsed_s_max":0.0,"youtube_ytdlp_elapsed_s_count":0,"youtube_ytdlp_elapsed_s_avg":0.0,"youtube_page_elapsed_s_total":0.0,"youtube_page_elapsed_s_max":0.0,"youtube_page_elapsed_s_count":0,"youtube_page_elapsed_s_avg":0.0,"shared_retry_deferred_count":0,"shared_retry_recovered_count":0,"shared_retry_final_failed_count":0,"shared_retry_processed_count":0,"notebooklm_profile":"ytis-worker-02","state_path":"P:\\packages\\yt-is\\.logs\\breadth_scaling_series_v2\\phase_a\\mid\\worker_states\\worker-02.json","notebook_title":"benchmark-notebooklm_route_plus_fallback_30s_1w-02","status":"ok","returncode":0}
+  ✓ kF_Jf8MPcl0 (ytdlp)
+  ✓ hQMOGdkCIPM (ytdlp)
+  ✓ WGkFZZjTpTs (ytdlp)
+  ✓ B_GSOzvHTds (ytdlp)
+  ✓ TWB3f7CsCq0 (ytdlp)
+  ✓ -_2DIBJsgFw (ytdlp)
+  ✓ 9_IiZr92Fcc (ytdlp)
+  ✓ NnVhDrwj4po (ytdlp)
+  ✓ f6ankxixZWM (ytdlp)
+  ✓ 7_LzWth-Oh8 (ytdlp)
+  ✓ 52HJW-tsCmA (ytdlp)
+  ✓ nBDRSgtA99U (ytdlp)
+  ✓ 7fDnan79L7o (ytdlp)
+  ✓ 5jze9Zddq5c (ytdlp)
+  ✓ HAAAM2Q2a04 (ytdlp)
+  ✓ P0tT2i3TZx8 (ytdlp)
+  ✓ Zr6r3qUaEVs (ytdlp)
+  ✓ 3sf618GmS-o (ytdlp)
+  ✓ kQp7EbxHcKA (ytdlp)
+  ✓ wz8lg_3j3Ok (ytdlp)
+  ✓ wRpcaOfWAC8 (ytdlp)
+  ✓ Udgb9W7Mh1o (ytdlp)
+  ✓ RJNjTkilTAc (ytdlp)
+  ✓ ZLlXkRQnq74 (ytdlp)
+  ✓ YolaQGmej4I (ytdlp)
+  ✓ a11V1rI0_FY (ytdlp)
+  ✓ CQ5W_Pqi7pA (ytdlp)
+  ✓ jJntl74QNWo (ytdlp)
+  ✓ af9oBvhy5YQ (ytdlp)
+  ✓ SbA39f3fSw4 (ytdlp)
+  ✓ YV05S65e7d8 (ytdlp)
+  ✓ NolkcguSEwc (ytdlp)
+  ✓ vGSbwx-Sp1Y (ytdlp)
+  ✓ 1Z8ZUTsKlpo (ytdlp)
+  ✓ oresRMkIvd0 (ytdlp)
+  ✓ mRi-RIpkcYA (ytdlp)
+  ✓ Djx-3Q0zdJM (ytdlp)
+  ✓ EeAs36oP9ok (ytdlp)
+  ✓ CiTjIIcv1vI (ytdlp)
+  ✓ R-Pzb0eygTM (ytdlp)
+  ✓ U7i0cTiY1jM (ytdlp)
+  ✓ asr4tz0XxzA (ytdlp)
+  ✓ T5T5yLSWmvM (ytdlp)
+  ✓ oFp7AB7mX7U (ytdlp)
+  ✓ 1Bfd3s780B8 (ytdlp)
+  ✓ RMOYuL6WSIQ (ytdlp)
+  ✓ iI02JGEhJd8 (ytdlp)
+  ✓ htA67slKCrs (ytdlp)
+  ✓ rr2biN9Qfms (ytdlp)
+  ✓ eRat15qibCY (ytdlp)
+  ✓ OIr58mdPdCA (ytdlp)
+  ✓ lwwBPM6NKTQ (ytdlp)
+  ✓ _UuJ_8Z-j7E (ytdlp)
+  ✓ rMXLIiPpsNc (ytdlp)
+  ✓ FC3vcUgU3CY (whisper)
+  ✓ SFRaTtYtiWQ (ytdlp)
+  ✓ QG5UHrJGul4 (selenium)
+  ✓ 4PiWqB51x5c (ytdlp)
+  ✓ m1mJVCcd3yw (whisper)
+  ✓ Eo_hW_2F0MQ (whisper)
+  ✓ tKswKEjEbnM (ytdlp)
+  ✓ G28HUk2LU4o (ytdlp)
+  ✓ yivuRcf5iS8 (whisper)
+  ✓ i83OeWceFL8 (ytdlp)
+  ✓ 1y4ojCPem9s (ytdlp)
+  ✓ kml-ytZf-_Q (ytdlp)
+  ✓ zgf2d8gsy70 (whisper)
+  ✓ c--LUSFKsBw (ytdlp)
+  ✓ EOPKJiULth0 (ytdlp)
+  ✓ O1py2HMnp5E (ytdlp)
+  ✓ s7a0pfLeaDY (ytdlp)
+  ✓ L4XN_mflzH4 (selenium)
+  ✓ ZOInQJXsaLc (ytdlp)
+  ✓ 1_pKcXgOLlQ (ytdlp)
+  ✓ nnvEOtu8TWU (ytdlp)
+  ✓ 0uDKnexi6Wg (ytdlp)
+  ✓ FQzaog7Ote0 (ytdlp)
+  ✓ mZgy1h1RtkA (ytdlp)
+  ✓ -ldXeTHRpH8 (ytdlp)
+  ✓ vg4iLgPZGsk (ytdlp)
+  ✓ _LjQKEckQVI (ytdlp)
+  ✓ 2f4PkkUUzqg (ytdlp)
+  ✓ E3A3AixB7KM (ytdlp)
+  ✓ Whn9XLzlOFI (ytdlp)
+  ✓ R80Vo3dwNxI (ytdlp)
+  ✓ rCk3CBIrspU (ytdlp)
+  ✓ 6RKaCNaMKMU (ytdlp)
+  ✓ ye6IXqZq638 (ytdlp)
+  ✓ gggIAEaHHmM (ytdlp)
+  ✓ ggJGA_gwRvE (ytdlp)
+  ✓ gL9fq9ybx_Q (whisper)
+  ✓ VODROLcPs-c (ytdlp)
+  ✓ 9kh0qqIWNAE (whisper)
+  ✓ 4qTixOM76EQ (whisper)
+  ✓ Mse4l2NKVqE (ytdlp)
+  ✓ UVgyYrL4wOw (ytdlp)
+  ✓ e4zBv1N7aq8 (ytdlp)
+  ✓ Zu7iX-9jC84 (ytdlp)
+  ✓ 4L9emkN3_C4 (ytdlp)
+
+[source] === Escalation Batch Complete ===
+[source] Successfully extracted: 200
+[source] Failed: 0
+[source] Skipped (cached): 0
+[source] Skipped (negative cache): 0
+[source] Skipped (terminal): 0
+[source] NotebookLM-eligible: 100
+[source] Routed to transcript fallback: 0
+[source] Worker notebook cleanup: 0 deleted, 0 failed
+[source] Stage totals: startup=14.4s, setup=129.4s, add=121.4s, extract=28.8s, cleanup=20.8s, batch=179.0s
+[source] Worker source profile: captioned=100
+[source] Total discovered: 200
+[source] Total processed outcomes: 200

@@ -2758,9 +2758,9 @@ def cmd_fetch(
     os.environ["YTIS_INDUSTRIAL_RUN_ID"] = industrial_run_id
 
     if workers > 1:
-        deleted, failed = cleanup_stale_worker_notebooks()
+        deleted, failed = cleanup_stale_worker_notebooks(delete=True)
         print(
-            f"[source] Pre-flight worker notebook audit: {deleted} worker notebooks reported, {failed} failed"
+            f"[source] Pre-flight worker notebook cleanup: {deleted} worker notebooks deleted, {failed} failed"
         )
         log_action(
             "fetch_worker_prewarm_summary",

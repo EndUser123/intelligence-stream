@@ -260,6 +260,68 @@ class TestReusableBatchLogging:
         assert completed["succeeded"] == 1
         assert completed["failed"] == 0
 
+    def test_reusable_batch_defers_cleanup_until_cadence_reached(self):
+        """Cleanup should be skipped until the configured cadence is reached."""
+        batch_ids = ["vid5"]
+        reset_calls: list[str] = []
+
+        with mock.patch("csf.nlm_batch._load_reusable_notebook_id", return_value="nb-existing"):
+            with mock.patch("csf.nlm_batch._save_reusable_notebook_id"):
+                with mock.patch("csf.nlm_batch._clear_reusable_notebook_state"):
+                    ingestor = nlm_batch.NLMReusableIngestor(cleanup_every_n_batches=2)
+                    with mock.patch.object(ingestor, "_is_notebook_usable", return_value=True):
+                        with mock.patch.object(
+                            ingestor._ingestor,
+                            "_run_cmd",
+                            return_value=type(
+                                "CompletedProcess",
+                                (),
+                                {
+                                    "stdout": json.dumps(
+                                        {
+                                            "notebooks": [
+                                                {
+                                                    "id": "nb-existing",
+                                                    "title": "yt-is-worker-01",
+                                                    "updated_at": "2026-04-21T20:00:00Z",
+                                                }
+                                            ]
+                                        }
+                                    ),
+                                    "stderr": "",
+                                    "returncode": 0,
+                                },
+                            )(),
+                        ):
+                            with mock.patch.object(
+                                ingestor._ingestor,
+                                "_add_sources_in_subbatches",
+                                side_effect=lambda ids, subbatch_size: setattr(ingestor._ingestor, "_last_added_video_ids", list(ids)) or list(ids),
+                            ) as mock_add:
+                                with mock.patch.object(
+                                    ingestor._ingestor,
+                                    "extract_transcripts",
+                                    return_value={"vid5": (True, "text", None)},
+                                ):
+                                    with mock.patch.object(
+                                        ingestor._ingestor,
+                                        "reset_sources",
+                                        side_effect=lambda: reset_calls.append("reset"),
+                                    ):
+                                        with mock.patch("csf.nlm_batch.log_action"):
+                                            with mock.patch(
+                                                "csf.nlm_batch.time.monotonic",
+                                                side_effect=[400.0 + i for i in range(40)],
+                                            ):
+                                                first = ingestor.process_batch(batch_ids)
+                                                second = ingestor.process_batch(batch_ids)
+
+        assert first["vid5"][0] is True
+        assert second["vid5"][0] is True
+        assert mock_add.call_count == 2
+        assert reset_calls == ["reset"]
+        assert ingestor._batches_since_cleanup == 0
+
     def test_reusable_batch_summary_includes_classifier_timing_from_extract_metrics(self):
         """Reusable batch summary should propagate yt-dlp and page timing from extract metrics."""
         batch_ids = ["vid4"]
@@ -321,6 +383,54 @@ class TestReusableBatchLogging:
         assert summary["youtube_ytdlp_elapsed_s_count"] == 2
         assert summary["youtube_page_elapsed_s_total"] == 0.75
         assert summary["youtube_page_elapsed_s_count"] == 1
+
+
+class TestDoubleBufferedReusableBatch:
+    """Double-buffered reusable batches should fall back cleanly when staging fails."""
+
+    def test_double_buffered_reusable_ingestor_falls_back_to_serial(self):
+        """If staging cannot be prepared, the wrapper should still return serial results."""
+        from csf.nlm_batch import DoubleBufferedReusableIngestor
+
+        wrapper = DoubleBufferedReusableIngestor(batch_size=50)
+        serial_result = {"vid1": (True, "text", None)}
+
+        with mock.patch.object(wrapper, "_process_serial_batch", return_value=serial_result) as mock_serial:
+            with mock.patch.object(wrapper, "_prepare_staging_notebook", return_value=False) as mock_stage:
+                result = wrapper.process_batch(["vid1"])
+
+        assert result == serial_result
+        mock_serial.assert_called_once_with(["vid1"])
+        mock_stage.assert_called_once()
+        metrics = wrapper.get_last_process_metrics()
+        assert metrics is not None
+        assert metrics["stage_swap_count"] == 0
+        assert metrics["staging_overlap_elapsed_s"] == 0.0
+        assert metrics["staging_wait_elapsed_s"] == 0.0
+
+    def test_double_buffered_reusable_ingestor_swaps_between_two_batches(self):
+        """A batch stream should stage the next batch while the current batch is processed."""
+        from csf.nlm_batch import DoubleBufferedReusableIngestor
+
+        wrapper = DoubleBufferedReusableIngestor(batch_size=50)
+        calls: list[list[str]] = []
+
+        def fake_run_serial_batch(video_ids):
+            calls.append(list(video_ids))
+            return {vid: (True, "text", None) for vid in video_ids}
+
+        with mock.patch.object(wrapper, "_prepare_staging_notebook", return_value=True):
+            with mock.patch.object(wrapper, "_run_serial_batch", side_effect=fake_run_serial_batch):
+                with mock.patch.object(wrapper, "_run_staging_batch", side_effect=fake_run_serial_batch):
+                    result = wrapper.process_batches([["vid1"], ["vid2"]])
+
+        assert result[0]["vid1"][0] is True
+        assert result[1]["vid2"][0] is True
+        assert {tuple(call) for call in calls} == {("vid1",), ("vid2",)}
+        metrics = wrapper.get_last_process_metrics()
+        assert metrics is not None
+        assert metrics["stage_swap_count"] == 1
+        assert metrics["staging_overlap_elapsed_s"] >= 0.0
 
     def test_reusable_batch_uses_50_source_subbatches_by_default(self):
         """Reusable notebook processing should forward the 50-source subbatch size."""
@@ -634,6 +744,66 @@ class TestWorkerNotebookCleanup:
         )
         assert cleanup_complete["status"] == "audit_only"
         assert cleanup_complete["worker_notebook_count"] == 2
+
+    def test_cleanup_stale_worker_notebooks_deletes_only_stale_ids(self, tmp_path, monkeypatch):
+        """Delete mode should retire only worker notebooks that are no longer active."""
+        state_root = tmp_path / "worker-states"
+        state_root.mkdir()
+        (state_root / "worker-01.json").write_text(json.dumps({"nb_id": "keep-1"}), encoding="utf-8")
+        (state_root / "worker-02.json").write_text(json.dumps({"nb_id": "keep-2"}), encoding="utf-8")
+        monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_STATE_ROOT", str(state_root))
+        monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX", "yt-is-worker")
+        monkeypatch.setenv("YTIS_INDUSTRIAL_RUN_ID", "run-current")
+
+        notebooks = {
+            "notebooks": [
+                {"id": "keep-1", "name": "yt-is-worker-01"},
+                {"id": "stale-1", "name": "yt-is-worker-03"},
+                {"id": "ignore-1", "name": "something-else"},
+            ]
+        }
+        calls: list[list[str]] = []
+        deleted_ids: list[str] = []
+
+        def mock_run_cmd(self, args, timeout=300):
+            calls.append(args)
+            if args[:3] == ["notebook", "list", "--json"]:
+                return type(
+                    "CompletedProcess",
+                    (object,),
+                    {"stdout": json.dumps(notebooks), "stderr": "", "returncode": 0},
+                )()
+            return type(
+                "CompletedProcess",
+                (object,),
+                {"stdout": "", "stderr": "unexpected", "returncode": 1},
+            )()
+
+        def mock_delete_notebook_with_retries(ingestor, nb_id, **kwargs):
+            deleted_ids.append(nb_id)
+            return type(
+                "CompletedProcess",
+                (object,),
+                {"stdout": "deleted", "stderr": "", "returncode": 0},
+            )()
+
+        monkeypatch.setattr(nlm_batch.NLMBatchIngestor, "_run_cmd", mock_run_cmd)
+        monkeypatch.setattr(nlm_batch, "_delete_notebook_with_retries", mock_delete_notebook_with_retries)
+        with mock.patch("subprocess.run", side_effect=AssertionError("cleanup should not call subprocess.run")):
+            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                deleted, failed = nlm_batch.cleanup_stale_worker_notebooks(delete=True)
+
+        assert deleted == 1
+        assert failed == 0
+        assert deleted_ids == ["stale-1"]
+        assert not any(isinstance(cmd, list) and "--delete-worker" in cmd for cmd in calls)
+        cleanup_complete = next(
+            call.args[1]
+            for call in mock_log.call_args_list
+            if call.args[0] == "nlm_worker_notebook_cleanup_complete"
+        )
+        assert cleanup_complete["status"] == "deleted"
+        assert cleanup_complete["stale_worker_notebook_count"] == 1
 
 
 class TestReusableNotebookPrewarm:

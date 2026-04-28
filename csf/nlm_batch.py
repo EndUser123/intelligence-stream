@@ -368,8 +368,8 @@ def _load_current_worker_notebook_ids() -> set[str]:
     return ids
 
 
-def cleanup_stale_worker_notebooks() -> tuple[int, int]:
-    """Audit worker notebooks without deleting the permanent worker-owned notebooks."""
+def cleanup_stale_worker_notebooks(*, delete: bool = False) -> tuple[int, int]:
+    """Audit worker notebooks and optionally delete stale ones."""
     ingestor = NLMBatchIngestor()
     active_nb_ids = _load_current_worker_notebook_ids()
     prefix = _get_worker_notebook_prefix()
@@ -421,19 +421,66 @@ def cleanup_stale_worker_notebooks() -> tuple[int, int]:
             for worker_prefix in _get_worker_notebook_prefixes()
         )
     ]
+    if not delete:
+        log_action(
+            "nlm_worker_notebook_cleanup_complete",
+            {
+                "deleted": 0,
+                "failed": 0,
+                "status": "audit_only",
+                "active_nb_ids": len(active_nb_ids),
+                "notebook_prefix": prefix,
+                "run_id": run_id or None,
+                "worker_notebook_count": len(worker_notebooks),
+            },
+        )
+        return (0, 0)
+
+    deleted = 0
+    failed = 0
+    stale_worker_notebooks = [
+        nb
+        for nb in worker_notebooks
+        if _notebook_entry_id(nb) and _notebook_entry_id(nb) not in active_nb_ids
+    ]
+    for nb in sorted(stale_worker_notebooks, key=lambda item: (_notebook_entry_title(item), _notebook_entry_id(item))):
+        nb_id = _notebook_entry_id(nb)
+        if not nb_id:
+            continue
+        ingestor._nb_id = nb_id
+        try:
+            res = _delete_notebook_with_retries(
+                ingestor,
+                nb_id,
+                timeout=120,
+                retries=2,
+                purpose="cleanup_stale_worker_notebooks",
+            )
+        except Exception:
+            res = subprocess.CompletedProcess(
+                ["nlm", "notebook", "delete", nb_id, "--confirm"],
+                1,
+                "",
+                "delete failed",
+            )
+        if res.returncode == 0:
+            deleted += 1
+        else:
+            failed += 1
     log_action(
         "nlm_worker_notebook_cleanup_complete",
         {
-            "deleted": 0,
-            "failed": 0,
-            "status": "audit_only",
+            "deleted": deleted,
+            "failed": failed,
+            "status": "deleted" if failed == 0 else "delete_failed",
             "active_nb_ids": len(active_nb_ids),
             "notebook_prefix": prefix,
             "run_id": run_id or None,
             "worker_notebook_count": len(worker_notebooks),
+            "stale_worker_notebook_count": len(stale_worker_notebooks),
         },
     )
-    return (0, 0)
+    return (deleted, failed)
 
 
 def _ensure_nlm_auth() -> bool:
@@ -2042,11 +2089,21 @@ class NLMBatchIngestor:
 class NLMReusableIngestor:
     """Holds a single notebook across multiple batches for reuse."""
 
-    def __init__(self, batch_size: int = DEFAULT_NOTEBOOKLM_BATCH_SIZE):
+    def __init__(
+        self,
+        batch_size: int = DEFAULT_NOTEBOOKLM_BATCH_SIZE,
+        cleanup_every_n_batches: int | None = None,
+    ):
         self._ingestor = NLMBatchIngestor(batch_size)
         self._nb_id: Optional[str] = _load_reusable_notebook_id()
         self._last_prepare_metrics: dict[str, object] | None = None
         self._last_process_metrics: dict[str, object] | None = None
+        cfg = get_nlm_config()
+        self._cleanup_every_n_batches = max(
+            1,
+            int(cleanup_every_n_batches if cleanup_every_n_batches is not None else cfg.reusable_cleanup_every_n_batches),
+        )
+        self._batches_since_cleanup = 0
         log_action(
             "nlm_batch_reusable_state_loaded",
             {
@@ -2054,6 +2111,7 @@ class NLMReusableIngestor:
                 "state_path": str(_get_reusable_notebook_state_path()),
                 "notebooklm_profile": _get_notebooklm_profile(),
                 "status": "loaded" if self._nb_id else "empty",
+                "cleanup_every_n_batches": self._cleanup_every_n_batches,
             },
         )
 
@@ -2068,6 +2126,7 @@ class NLMReusableIngestor:
                 "state_path": str(_get_reusable_notebook_state_path()),
                 "notebooklm_profile": _get_notebooklm_profile(),
                 "strategy": "reusable",
+                "cleanup_every_n_batches": self._cleanup_every_n_batches,
             },
         )
         created_new_notebook, setup_mode = self._ensure_notebook([])
@@ -2080,10 +2139,11 @@ class NLMReusableIngestor:
                     "notebooklm_profile": _get_notebooklm_profile(),
                     "setup_mode": setup_mode,
                     "strategy": "reusable",
-                "status": "notebook_create_failed",
-                "elapsed_s": round(time.monotonic() - prep_started_at, 3),
-            },
-        )
+                    "cleanup_every_n_batches": self._cleanup_every_n_batches,
+                    "status": "notebook_create_failed",
+                    "elapsed_s": round(time.monotonic() - prep_started_at, 3),
+                },
+            )
             self._last_prepare_metrics = {
                 "created_new_notebook": created_new_notebook,
                 "setup_mode": setup_mode,
@@ -2104,16 +2164,18 @@ class NLMReusableIngestor:
         cleanup_started_at = time.monotonic()
         self._ingestor._nb_id = self._nb_id
         self._ingestor.cleanup()
+        self._batches_since_cleanup = 0
         if self._nb_id:
             _save_reusable_notebook_id(self._nb_id)
             log_action(
                 "nlm_batch_reusable_state_saved",
                 {
                     "nb_id": self._nb_id,
-                "state_path": str(_get_reusable_notebook_state_path()),
-                "notebooklm_profile": _get_notebooklm_profile(),
-            },
-        )
+                    "state_path": str(_get_reusable_notebook_state_path()),
+                    "notebooklm_profile": _get_notebooklm_profile(),
+                    "cleanup_every_n_batches": self._cleanup_every_n_batches,
+                },
+            )
         self._last_prepare_metrics = {
             "created_new_notebook": created_new_notebook,
             "setup_mode": setup_mode,
@@ -2127,6 +2189,7 @@ class NLMReusableIngestor:
             if getattr(self, "_last_ensure_metrics", None)
             else 0.0,
             "cleanup_elapsed_s": round(time.monotonic() - cleanup_started_at, 3),
+            "cleanup_every_n_batches": self._cleanup_every_n_batches,
             "total_elapsed_s": round(time.monotonic() - prep_started_at, 3),
         }
         log_action(
@@ -2138,6 +2201,7 @@ class NLMReusableIngestor:
                 "setup_mode": setup_mode,
                 "created_new_notebook": created_new_notebook,
                 "cleanup_elapsed_s": round(time.monotonic() - cleanup_started_at, 3),
+                "cleanup_every_n_batches": self._cleanup_every_n_batches,
                 "total_elapsed_s": round(time.monotonic() - prep_started_at, 3),
                 "strategy": "reusable",
             },
@@ -2260,6 +2324,8 @@ class NLMReusableIngestor:
                 "notebook_reused": notebook_reused,
                 "notebooklm_profile": _get_notebooklm_profile(),
                 "subbatch_size": self._ingestor.batch_size,
+                "cleanup_every_n_batches": self._cleanup_every_n_batches,
+                "batches_since_cleanup": self._batches_since_cleanup,
                 "strategy": "reusable",
                 "started_at_epoch": batch_started_at_epoch,
             },
@@ -2277,6 +2343,8 @@ class NLMReusableIngestor:
                 "setup_mode": setup_mode,
                 "notebooklm_profile": _get_notebooklm_profile(),
                 "strategy": "reusable",
+                "cleanup_every_n_batches": self._cleanup_every_n_batches,
+                "batches_since_cleanup": self._batches_since_cleanup,
             },
         )
         if not self._nb_id:
@@ -2326,7 +2394,11 @@ class NLMReusableIngestor:
             extract_elapsed_s = round(time.monotonic() - extract_started_at, 3)
         finally:
             cleanup_started_at = time.monotonic()
-            self._ingestor.reset_sources()  # clear sources, keep notebook
+            self._batches_since_cleanup += 1
+            should_cleanup = self._batches_since_cleanup >= self._cleanup_every_n_batches
+            if should_cleanup:
+                self._ingestor.reset_sources()  # clear sources, keep notebook
+                self._batches_since_cleanup = 0
             if self._nb_id:
                 _save_reusable_notebook_id(self._nb_id)
                 log_action(
@@ -2334,6 +2406,8 @@ class NLMReusableIngestor:
                     {
                         "nb_id": self._nb_id,
                         "state_path": str(_get_reusable_notebook_state_path()),
+                        "cleanup_every_n_batches": self._cleanup_every_n_batches,
+                        "cleanup_performed": should_cleanup,
                     },
                 )
             cleanup_elapsed_s = round(time.monotonic() - cleanup_started_at, 3)
@@ -2364,6 +2438,8 @@ class NLMReusableIngestor:
                 "succeeded": succeeded,
                 "failed": failed,
                 "add_sources_elapsed_s": add_sources_elapsed_s,
+                "cleanup_every_n_batches": self._cleanup_every_n_batches,
+                "batches_since_cleanup": self._batches_since_cleanup,
                 "ensure_notebook_elapsed_s": round(time.monotonic() - setup_started_at, 3),
                 "notebook_check_elapsed_s": self._last_ensure_metrics.get("notebook_check_elapsed_s", 0.0)
                 if getattr(self, "_last_ensure_metrics", None)
@@ -2412,6 +2488,8 @@ class NLMReusableIngestor:
             "extract_elapsed_s": extract_elapsed_s,
             "cleanup_elapsed_s": cleanup_elapsed_s,
             "add_sources_elapsed_s": add_sources_elapsed_s,
+            "cleanup_every_n_batches": self._cleanup_every_n_batches,
+            "batches_since_cleanup": self._batches_since_cleanup,
             "add_cmd_elapsed_s": float(self._ingestor._last_add_cmd_elapsed_s or 0.0),
             "materialization_wait_elapsed_s": float(self._ingestor._last_materialization_wait_elapsed_s or 0.0),
             "ensure_notebook_elapsed_s": round(time.monotonic() - setup_started_at, 3),
@@ -2479,6 +2557,176 @@ class NLMReusableIngestor:
         if self._last_process_metrics is None:
             return None
         return dict(self._last_process_metrics)
+
+
+class DoubleBufferedReusableIngestor:
+    """Reusable batch wrapper that can later overlap staging with extraction."""
+
+    def __init__(
+        self,
+        batch_size: int = DEFAULT_NOTEBOOKLM_BATCH_SIZE,
+        cleanup_every_n_batches: int | None = None,
+    ):
+        self._serial_ingestor = NLMReusableIngestor(
+            batch_size=batch_size,
+            cleanup_every_n_batches=cleanup_every_n_batches,
+        )
+        self._staging_ingestor = NLMReusableIngestor(
+            batch_size=batch_size,
+            cleanup_every_n_batches=cleanup_every_n_batches,
+        )
+        self._last_process_metrics: dict[str, object] | None = None
+        self._last_prepare_metrics: dict[str, object] | None = None
+        self._last_batch_metrics: list[dict[str, object]] | None = None
+
+    def prepare(self) -> tuple[bool, str]:
+        serial_prepared, serial_mode = self._serial_ingestor.prepare()
+        staging_prepared, staging_mode = self._staging_ingestor.prepare()
+        serial_metrics = self._serial_ingestor.get_last_prepare_metrics() or {}
+        staging_metrics = self._staging_ingestor.get_last_prepare_metrics() or {}
+        self._last_prepare_metrics = {
+            "created_new_notebook": bool(serial_metrics.get("created_new_notebook") or staging_metrics.get("created_new_notebook")),
+            "setup_mode": "double_buffered",
+            "notebook_check_elapsed_s": float(serial_metrics.get("notebook_check_elapsed_s") or 0.0)
+            + float(staging_metrics.get("notebook_check_elapsed_s") or 0.0),
+            "create_elapsed_s": float(serial_metrics.get("create_elapsed_s") or 0.0)
+            + float(staging_metrics.get("create_elapsed_s") or 0.0),
+            "retire_elapsed_s": float(serial_metrics.get("retire_elapsed_s") or 0.0)
+            + float(staging_metrics.get("retire_elapsed_s") or 0.0),
+            "cleanup_elapsed_s": float(serial_metrics.get("cleanup_elapsed_s") or 0.0)
+            + float(staging_metrics.get("cleanup_elapsed_s") or 0.0),
+            "total_elapsed_s": float(serial_metrics.get("total_elapsed_s") or 0.0)
+            + float(staging_metrics.get("total_elapsed_s") or 0.0),
+        }
+        return serial_prepared and staging_prepared, "double_buffered"
+
+    def _prepare_staging_notebook(self, video_ids: List[str]) -> bool:
+        """Prepare a future staging notebook.
+
+        The wrapper needs a lightweight gate before it launches a background
+        staging batch. We keep this conservative: empty batches never stage.
+        """
+        return bool(video_ids)
+
+    def _process_serial_batch(self, video_ids: List[str]) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
+        return self._serial_ingestor.process_batch(video_ids)
+
+    def _run_serial_batch(self, video_ids: List[str]) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
+        return self._serial_ingestor.process_batch(video_ids)
+
+    def _run_staging_batch(self, video_ids: List[str]) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
+        return self._staging_ingestor.process_batch(video_ids)
+
+    def process_batch(self, video_ids: List[str]) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
+        staging_started_at = time.monotonic()
+        staging_ready = self._prepare_staging_notebook(video_ids)
+        staging_wait_elapsed_s = round(time.monotonic() - staging_started_at, 3)
+        if not staging_ready:
+            results = self._process_serial_batch(video_ids)
+            serial_metrics = self._serial_ingestor.get_last_process_metrics() or {}
+            self._last_batch_metrics = [dict(serial_metrics)]
+            self._last_process_metrics = {
+                **dict(serial_metrics),
+                "staging_overlap_elapsed_s": 0.0,
+                "staging_wait_elapsed_s": staging_wait_elapsed_s,
+                "stage_swap_count": 0,
+                "strategy": "double_buffered_reusable",
+                "serial_fallback": True,
+            }
+            return results
+
+        results = self._process_serial_batch(video_ids)
+        serial_metrics = self._serial_ingestor.get_last_process_metrics() or {}
+        self._last_batch_metrics = [dict(serial_metrics)]
+        self._last_process_metrics = {
+            **dict(serial_metrics),
+            "staging_overlap_elapsed_s": 0.0,
+            "staging_wait_elapsed_s": staging_wait_elapsed_s,
+            "stage_swap_count": 0,
+            "strategy": "double_buffered_reusable",
+            "serial_fallback": False,
+        }
+        return results
+
+    def process_batches(self, batch_groups: list[list[str]]) -> list[Dict[str, Tuple[bool, Optional[str], Optional[str]]]]:
+        batches = [list(batch) for batch in batch_groups if batch]
+        if not batches:
+            self._last_process_metrics = {
+                "staging_overlap_elapsed_s": 0.0,
+                "staging_wait_elapsed_s": 0.0,
+                "stage_swap_count": 0,
+                "strategy": "double_buffered_reusable",
+                "serial_fallback": False,
+                "total_elapsed_s": 0.0,
+            }
+            return []
+
+        started_at = time.monotonic()
+        results: list[Dict[str, Tuple[bool, Optional[str], Optional[str]]]] = []
+        stage_swap_count = 0
+        staging_overlap_elapsed_s = 0.0
+        staging_wait_elapsed_s = 0.0
+        batch_metrics: list[dict[str, object]] = []
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            index = 0
+            while index < len(batches):
+                current_batch = batches[index]
+                next_index = index + 1
+                staged_future = None
+                staged_started_at = 0.0
+                if next_index < len(batches):
+                    next_batch = batches[next_index]
+                    preflight_started_at = time.monotonic()
+                    staging_ready = self._prepare_staging_notebook(next_batch)
+                    staging_wait_elapsed_s += round(time.monotonic() - preflight_started_at, 3)
+                    if staging_ready:
+                        staged_started_at = time.monotonic()
+                        staged_future = executor.submit(self._run_staging_batch, next_batch)
+                current_result = self._run_serial_batch(current_batch)
+                current_metrics = dict(self._serial_ingestor.get_last_process_metrics() or {})
+                results.append(current_result)
+                batch_metrics.append(current_metrics)
+                if staged_future is not None:
+                    staged_result = staged_future.result()
+                    staged_metrics = dict(self._staging_ingestor.get_last_process_metrics() or {})
+                    staging_overlap_elapsed_s += round(time.monotonic() - staged_started_at, 3)
+                    results.append(staged_result)
+                    batch_metrics.append(staged_metrics)
+                    stage_swap_count += 1
+                    index += 2
+                else:
+                    index += 1
+
+        self._last_batch_metrics = batch_metrics
+        self._last_process_metrics = {
+            "staging_overlap_elapsed_s": round(staging_overlap_elapsed_s, 3),
+            "staging_wait_elapsed_s": round(staging_wait_elapsed_s, 3),
+            "stage_swap_count": stage_swap_count,
+            "strategy": "double_buffered_reusable",
+            "serial_fallback": False,
+            "total_elapsed_s": round(time.monotonic() - started_at, 3),
+        }
+        return results
+
+    def get_last_process_metrics(self) -> dict[str, object] | None:
+        if self._last_process_metrics is None:
+            return None
+        return dict(self._last_process_metrics)
+
+    def get_last_prepare_metrics(self) -> dict[str, object] | None:
+        if self._last_prepare_metrics is None:
+            return None
+        return dict(self._last_prepare_metrics)
+
+    def get_last_batch_metrics(self) -> list[dict[str, object]] | None:
+        if self._last_batch_metrics is None:
+            return None
+        return [dict(item) for item in self._last_batch_metrics]
+
+    def close(self, delete: bool = False) -> None:
+        self._staging_ingestor.close(delete=delete)
+        self._serial_ingestor.close(delete=delete)
 
 
 def process_industrial_batch(video_ids: List[str]) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:

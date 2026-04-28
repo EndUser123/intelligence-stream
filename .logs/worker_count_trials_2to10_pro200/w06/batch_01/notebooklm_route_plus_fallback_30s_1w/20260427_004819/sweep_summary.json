@@ -1,0 +1,151 @@
+{
+  "started_at": 1777272499.6735969,
+  "output_root": "P:\\packages\\yt-is\\.logs\\worker_count_trials_2to10_pro200\\w06\\batch_01\\notebooklm_route_plus_fallback_30s_1w",
+  "sweep_dir": "P:\\packages\\yt-is\\.logs\\worker_count_trials_2to10_pro200\\w06\\batch_01\\notebooklm_route_plus_fallback_30s_1w\\20260427_004819",
+  "limit": 200,
+  "sample_label": "mixed_lane_pro200",
+  "source_filter": "https://www.youtube.com/channel/UCYTISFALLBACKBMK",
+  "worker_counts": [
+    6
+  ],
+  "results": [
+    {
+      "workers": 6,
+      "limit": 200,
+      "sample_label": "mixed_lane_pro200",
+      "source_filter": "https://www.youtube.com/channel/UCYTISFALLBACKBMK",
+      "returncode": 0,
+      "elapsed_s": 3211.286,
+      "stdout_path": "P:\\packages\\yt-is\\.logs\\worker_count_trials_2to10_pro200\\w06\\batch_01\\notebooklm_route_plus_fallback_30s_1w\\20260427_004819\\workers_06\\stdout.txt",
+      "stderr_path": "P:\\packages\\yt-is\\.logs\\worker_count_trials_2to10_pro200\\w06\\batch_01\\notebooklm_route_plus_fallback_30s_1w\\20260427_004819\\workers_06\\stderr.txt",
+      "log_dir": "P:\\packages\\yt-is\\.logs\\worker_count_trials_2to10_pro200\\w06\\batch_01\\notebooklm_route_plus_fallback_30s_1w\\20260427_004819\\workers_06\\logs",
+      "log_file": "P:\\packages\\yt-is\\.logs\\worker_count_trials_2to10_pro200\\w06\\batch_01\\notebooklm_route_plus_fallback_30s_1w\\20260427_004819\\workers_06\\logs\\term_f223d125.jsonl",
+      "fetch_completed": {
+        "source_filter": "https://www.youtube.com/channel/UCYTISFALLBACKBMK",
+        "strategy": "industrial_cli_batch",
+        "backend": "notebooklm_cli_batch",
+        "backlog_threshold": 1,
+        "batch_size": 50,
+        "max_items": 200,
+        "workers": 6,
+        "channels_tracked_total": 1,
+        "channels_blocked_total": 0,
+        "channels_active_total": 1,
+        "pending_total": 200,
+        "cached_total": 0,
+        "cached_hit_rate": 0.0,
+        "cached_sample": [],
+        "industrial_batches_processed": 2,
+        "notebooklm_pending_count": 100,
+        "transcript_fallback_processed_count": 0,
+        "transcript_fallback_queued_count": 100,
+        "terminal_count": 0,
+        "negative_cache_count": 0,
+        "terminal_reason_counts": {},
+        "negative_cache_reason_counts": {},
+        "negative_cache_sample": [],
+        "worker_cleanup_deleted": 0,
+        "worker_cleanup_failed": 0,
+        "worker_stage_totals": {
+          "startup_retire_elapsed_s_total": 0.0,
+          "startup_notebook_check_elapsed_s_total": 0.0,
+          "startup_notebook_create_elapsed_s_total": 6.022,
+          "startup_prepare_cleanup_elapsed_s_total": 4.11,
+          "startup_prepare_total_elapsed_s_total": 14.565999999999999,
+          "setup_elapsed_s_total": 126.828,
+          "notebook_check_elapsed_s_total": 7.746,
+          "notebook_create_elapsed_s_total": 0.0,
+          "notebook_retire_elapsed_s_total": 0.0,
+          "add_sources_elapsed_s_total": 119.081,
+          "content_fetch_status_counts_total": {
+            "ready": 100
+          },
+          "source_ready_age_s_total": 1110.124,
+          "source_ready_age_s_max": 49.231,
+          "source_ready_age_s_avg": 11.203,
+          "youtube_ytdlp_elapsed_s_total": 1.753,
+          "youtube_ytdlp_elapsed_s_max": 1.753,
+          "youtube_ytdlp_elapsed_s_count": 1,
+          "youtube_ytdlp_elapsed_s_avg": 1.753,
+          "youtube_page_elapsed_s_total": 0.0,
+          "youtube_page_elapsed_s_max": 0.0,
+          "youtube_page_elapsed_s_count": 0,
+          "youtube_page_elapsed_s_avg": 0.0,
+          "shared_retry_deferred_count_total": 0.0,
+          "shared_retry_recovered_count_total": 0.0,
+          "shared_retry_final_failed_count_total": 0.0,
+          "shared_retry_processed_count_total": 0.0,
+          "extract_elapsed_s_total": 62.368,
+          "cleanup_elapsed_s_total": 20.642,
+          "batch_elapsed_s_total": 209.837
+        },
+        "worker_source_profile_totals": {
+          "total": 100,
+          "matched": 100,
+          "missing": 0,
+          "source_class_counts": {
+            "captioned": 100
+          },
+          "status_counts": {
+            "pending": 100
+          },
+          "privacy_status_counts": {
+            "unknown": 100
+          },
+          "upload_status_counts": {
+            "unknown": 100
+          },
+          "unavailable_reason_counts": {
+            "unknown": 100
+          },
+          "failure_reason_counts": {
+            "unknown": 100
+          }
+        },
+        "route_no_captions_to_fallback": true,
+        "success_count": 200,
+        "fail_count": 0,
+        "skip_count": 0,
+        "processed_count": 200,
+        "elapsed_s": 3211.286,
+        "success_per_min": 3.74,
+        "processed_per_min": 3.74,
+        "status": "completed"
+      },
+      "process_elapsed_s": 3211.719,
+      "success_count": 200,
+      "fail_count": 0,
+      "skip_count": 0,
+      "processed_count": 200,
+      "hot_path_success_count": 200,
+      "transcript_fallback_success_count": 0,
+      "videos_per_hour": 224.21,
+      "transcript_fallback_videos_per_hour": 0.0,
+      "processed_per_hour": 224.21,
+      "add_elapsed_s": 119.081,
+      "readiness_elapsed_s": 0.0,
+      "cleanup_elapsed_s": 20.642,
+      "worker_idle_wait_s": 3071.563,
+      "materialization_started": false,
+      "timeout_hit": false,
+      "source_ready_age_s_total": 1110.124,
+      "source_ready_age_s_max": 49.231,
+      "source_ready_age_s_avg": 11.101,
+      "shared_retry_deferred_count": 0.0,
+      "shared_retry_recovered_count": 0.0,
+      "shared_retry_final_failed_count": 0.0,
+      "shared_retry_processed_count": 0.0,
+      "youtube_ytdlp_elapsed_s_total": 1.753,
+      "youtube_ytdlp_elapsed_s_max": 1.753,
+      "youtube_ytdlp_elapsed_s_count": 1,
+      "youtube_ytdlp_elapsed_s_avg": 1.753,
+      "youtube_page_elapsed_s_total": 0.0,
+      "youtube_page_elapsed_s_max": 0.0,
+      "youtube_page_elapsed_s_count": 0,
+      "youtube_page_elapsed_s_avg": 0.0,
+      "content_fetch_status_counts": {
+        "ready": 100
+      }
+    }
+  ]
+}

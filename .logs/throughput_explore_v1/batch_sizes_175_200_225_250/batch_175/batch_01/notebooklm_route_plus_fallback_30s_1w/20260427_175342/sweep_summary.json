@@ -1,0 +1,153 @@
+{
+  "started_at": 1777334022.6743445,
+  "output_root": "P:\\packages\\yt-is\\.logs\\throughput_explore_v1\\batch_sizes_175_200_225_250\\batch_175\\batch_01\\notebooklm_route_plus_fallback_30s_1w",
+  "sweep_dir": "P:\\packages\\yt-is\\.logs\\throughput_explore_v1\\batch_sizes_175_200_225_250\\batch_175\\batch_01\\notebooklm_route_plus_fallback_30s_1w\\20260427_175342",
+  "limit": 175,
+  "sample_label": "breadth_narrow",
+  "source_filter": "https://www.youtube.com/channel/UCYTISFALLBACKBMK",
+  "worker_counts": [
+    4
+  ],
+  "results": [
+    {
+      "workers": 4,
+      "limit": 175,
+      "sample_label": "breadth_narrow",
+      "source_filter": "https://www.youtube.com/channel/UCYTISFALLBACKBMK",
+      "returncode": 0,
+      "elapsed_s": 268.862,
+      "stdout_path": "P:\\packages\\yt-is\\.logs\\throughput_explore_v1\\batch_sizes_175_200_225_250\\batch_175\\batch_01\\notebooklm_route_plus_fallback_30s_1w\\20260427_175342\\workers_04\\stdout.txt",
+      "stderr_path": "P:\\packages\\yt-is\\.logs\\throughput_explore_v1\\batch_sizes_175_200_225_250\\batch_175\\batch_01\\notebooklm_route_plus_fallback_30s_1w\\20260427_175342\\workers_04\\stderr.txt",
+      "log_dir": "P:\\packages\\yt-is\\.logs\\throughput_explore_v1\\batch_sizes_175_200_225_250\\batch_175\\batch_01\\notebooklm_route_plus_fallback_30s_1w\\20260427_175342\\workers_04\\logs",
+      "log_file": "P:\\packages\\yt-is\\.logs\\throughput_explore_v1\\batch_sizes_175_200_225_250\\batch_175\\batch_01\\notebooklm_route_plus_fallback_30s_1w\\20260427_175342\\workers_04\\logs\\term_e5e4865a.jsonl",
+      "fetch_completed": {
+        "source_filter": "https://www.youtube.com/channel/UCYTISFALLBACKBMK",
+        "strategy": "industrial_cli_batch",
+        "backend": "notebooklm_cli_batch",
+        "backlog_threshold": 1,
+        "batch_size": 50,
+        "max_items": 175,
+        "workers": 4,
+        "channels_tracked_total": 1,
+        "channels_blocked_total": 0,
+        "channels_active_total": 1,
+        "pending_total": 175,
+        "cached_total": 0,
+        "cached_hit_rate": 0.0,
+        "cached_sample": [],
+        "industrial_batches_processed": 4,
+        "notebooklm_pending_count": 175,
+        "transcript_fallback_processed_count": 0,
+        "transcript_fallback_queued_count": 0,
+        "terminal_count": 0,
+        "negative_cache_count": 0,
+        "terminal_reason_counts": {},
+        "negative_cache_reason_counts": {},
+        "negative_cache_sample": [],
+        "worker_cleanup_deleted": 0,
+        "worker_cleanup_failed": 0,
+        "worker_stage_totals": {
+          "startup_retire_elapsed_s_total": 0.0,
+          "startup_notebook_check_elapsed_s_total": 4.581,
+          "startup_notebook_create_elapsed_s_total": 10.189,
+          "startup_prepare_cleanup_elapsed_s_total": 8.888,
+          "startup_prepare_total_elapsed_s_total": 30.612,
+          "setup_elapsed_s_total": 243.531,
+          "notebook_check_elapsed_s_total": 17.608,
+          "notebook_create_elapsed_s_total": 0.0,
+          "notebook_retire_elapsed_s_total": 0.0,
+          "add_sources_elapsed_s_total": 225.92299999999997,
+          "content_fetch_status_counts_total": {
+            "ready": 174,
+            "too_short": 1
+          },
+          "source_ready_age_s_total": 2157.245,
+          "source_ready_age_s_max": 81.455,
+          "source_ready_age_s_avg": 14.002,
+          "youtube_ytdlp_elapsed_s_total": 7.9,
+          "youtube_ytdlp_elapsed_s_max": 2.156,
+          "youtube_ytdlp_elapsed_s_count": 4,
+          "youtube_ytdlp_elapsed_s_avg": 2.156,
+          "youtube_page_elapsed_s_total": 0.0,
+          "youtube_page_elapsed_s_max": 0.0,
+          "youtube_page_elapsed_s_count": 0,
+          "youtube_page_elapsed_s_avg": 0.0,
+          "shared_retry_deferred_count_total": 0.0,
+          "shared_retry_recovered_count_total": 0.0,
+          "shared_retry_final_failed_count_total": 0.0,
+          "shared_retry_processed_count_total": 0.0,
+          "extract_elapsed_s_total": 188.12400000000002,
+          "cleanup_elapsed_s_total": 38.547,
+          "batch_elapsed_s_total": 470.20399999999995
+        },
+        "worker_source_profile_totals": {
+          "total": 175,
+          "matched": 175,
+          "missing": 0,
+          "source_class_counts": {
+            "captioned": 175
+          },
+          "status_counts": {
+            "pending": 175
+          },
+          "privacy_status_counts": {
+            "unknown": 175
+          },
+          "upload_status_counts": {
+            "unknown": 175
+          },
+          "unavailable_reason_counts": {
+            "unknown": 175
+          },
+          "failure_reason_counts": {
+            "unknown": 175
+          }
+        },
+        "route_no_captions_to_fallback": true,
+        "success_count": 174,
+        "fail_count": 1,
+        "skip_count": 0,
+        "processed_count": 175,
+        "elapsed_s": 268.862,
+        "success_per_min": 38.83,
+        "processed_per_min": 39.05,
+        "status": "completed"
+      },
+      "process_elapsed_s": 268.996,
+      "success_count": 174,
+      "fail_count": 1,
+      "skip_count": 0,
+      "processed_count": 175,
+      "hot_path_success_count": 174,
+      "transcript_fallback_success_count": 0,
+      "videos_per_hour": 2329.82,
+      "transcript_fallback_videos_per_hour": 0.0,
+      "processed_per_hour": 2343.21,
+      "add_elapsed_s": 225.923,
+      "readiness_elapsed_s": 0.0,
+      "cleanup_elapsed_s": 38.547,
+      "worker_idle_wait_s": 4.392,
+      "materialization_started": false,
+      "timeout_hit": false,
+      "source_ready_age_s_total": 2157.245,
+      "source_ready_age_s_max": 81.455,
+      "source_ready_age_s_avg": 12.327,
+      "shared_retry_deferred_count": 0.0,
+      "shared_retry_recovered_count": 0.0,
+      "shared_retry_final_failed_count": 0.0,
+      "shared_retry_processed_count": 0.0,
+      "youtube_ytdlp_elapsed_s_total": 7.9,
+      "youtube_ytdlp_elapsed_s_max": 2.156,
+      "youtube_ytdlp_elapsed_s_count": 4,
+      "youtube_ytdlp_elapsed_s_avg": 1.975,
+      "youtube_page_elapsed_s_total": 0.0,
+      "youtube_page_elapsed_s_max": 0.0,
+      "youtube_page_elapsed_s_count": 0,
+      "youtube_page_elapsed_s_avg": 0.0,
+      "content_fetch_status_counts": {
+        "ready": 174,
+        "too_short": 1
+      }
+    }
+  ]
+}

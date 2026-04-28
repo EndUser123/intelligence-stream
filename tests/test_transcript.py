@@ -548,6 +548,38 @@ class TestWhisperEmptyClassification:
             assert result.failure_reason == "no_transcript"
             assert "likely music or silence" in result.error
 
+    def test_whisper_music_hint_sets_negative_cache(self):
+        with (
+            mock.patch("csf.transcript._fetch_via_ytdlp") as mock_ytdlp,
+            mock.patch("csf.transcript._fetch_via_ytdlp_with_cookies") as mock_ejs,
+            mock.patch("csf.transcript._fetch_via_direct_api") as mock_direct,
+            mock.patch("csf.transcript._fetch_via_selenium_firefox") as mock_selenium,
+            mock.patch("csf.transcript._fetch_via_notebooklm") as mock_nlm,
+            mock.patch("csf.transcript._fetch_via_whisper") as mock_whisper,
+            mock.patch("csf.transcript._set_negative_cache") as mock_negative_cache,
+            mock.patch("time.sleep"),
+        ):
+            mock_ytdlp.return_value = (False, None, "no captions")
+            mock_ejs.return_value = (False, None, "no cookies")
+            mock_direct.return_value = (False, None, "direct_api no_transcript: subtitles disabled")
+            mock_selenium.return_value = (False, None, "selenium failed")
+            mock_nlm.return_value = (False, None, "nlm failed")
+            mock_whisper.return_value = (
+                False,
+                None,
+                "whisper no speech detected (likely music or silence; segments=2, max_no_speech_prob=0.94)",
+            )
+
+            result = fetch_transcript_chain("dQw4w9WgXcQ", LanguageConfig(prefer_lang="en"))
+
+            assert result.transcript == ""
+            assert result.failure_reason == "no_transcript"
+            mock_negative_cache.assert_called_once()
+            args, kwargs = mock_negative_cache.call_args
+            assert args[0] == "dQw4w9WgXcQ"
+            assert args[1] == "no_transcript"
+            assert kwargs["last_stage"] == "whisper"
+
 
 class TestWhisperAdmission:
     """Tests for pre-Whisper admission filtering."""

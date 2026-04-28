@@ -65,3 +65,28 @@ class TestLoadLadderHelpers:
         assert "--worker-state-root" in command
         assert str(tmp_path / "worker_states") in command
         assert "--preserve-worker-state-root" in command
+
+    def test_command_builder_includes_manifest_selection(self, tmp_path):
+        """The fallback benchmark command should carry manifest filters when provided."""
+        command = build_fallback_benchmark_command(
+            python_executable="python",
+            fallback_benchmark_script=Path("P:/packages/yt-is/bin/csf-fallback-crossover-benchmark"),
+            trace_root=Path("P:/packages/yt-is/.logs/worker_count_trials"),
+            cohort_json=Path("P:/packages/yt-is/.logs/breadth_series/cohort.json"),
+            output_root=Path("P:/packages/yt-is/.logs/breadth_series/broad"),
+            source_url="https://www.youtube.com/channel/UCYTISFALLBACKBMK",
+            workers=2,
+            limit=400,
+            batch_size=200,
+            policy="notebooklm_only_30s",
+            cohort_shape="manifest",
+            sample_label="breadth_broad",
+            manifest_json=Path("P:/packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
+            manifest_families="routing,hot_path_control",
+            worker_state_root=tmp_path / "worker_states",
+            preserve_worker_state_root=False,
+        )
+        assert "--manifest-json" in command
+        assert str(Path("P:/packages/yt-is/tests/fixtures/shared_benchmark_manifest.json")) in command
+        assert "--manifest-families" in command
+        assert "routing,hot_path_control" in command

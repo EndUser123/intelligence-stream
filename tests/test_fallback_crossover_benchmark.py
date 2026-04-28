@@ -56,6 +56,16 @@ def test_route_plus_fallback_policy_enables_both_route_and_fallback_workers():
     assert policy["YTIS_TRANSCRIPT_FALLBACK_MIN_START_INTERVAL_S"] == "0"
 
 
+def test_route_plus_fallback_1w_policy_keeps_fallback_to_one_worker():
+    mod = _load_benchmark_module()
+
+    policy = mod.POLICY_ENV["notebooklm_route_plus_fallback_30s_1w"]
+
+    assert policy["YTIS_ROUTE_NO_CAPTIONS_TO_FALLBACK"] == "true"
+    assert policy["YTIS_TRANSCRIPT_FALLBACK_WORKERS"] == "1"
+    assert policy["YTIS_TRANSCRIPT_FALLBACK_MIN_START_INTERVAL_S"] == "0"
+
+
 def test_load_cohort_from_trace_include_ready_collects_ready_events(tmp_path):
     trace_root = tmp_path / "trace-root"
     trace_root.mkdir()
@@ -208,3 +218,24 @@ def test_load_or_build_cohort_mixed_shape_combines_ready_and_non_ready_trace_ite
         "vid-pending-2",
     ]
     assert [item["has_captions"] for item in cohort["items"]] == [True, False, True, False]
+
+
+def test_load_or_build_cohort_manifest_shape_uses_live_trace_cases(tmp_path):
+    mod = _load_benchmark_module()
+    cohort_path = tmp_path / "manifest-cohort.json"
+    cohort = mod._load_or_build_cohort(
+        cohort_path,
+        tmp_path / "trace-root",
+        "manifest",
+        manifest_json=Path("P:/packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
+    )
+
+    assert cohort["cohort_shape"] == "manifest"
+    assert cohort["manifest_json"] == "P:\\packages\\yt-is\\tests\\fixtures\\shared_benchmark_manifest.json"
+    assert all(item["source_type"] == "live_trace" for item in cohort["items"])
+    assert [item["case_id"] for item in cohort["items"]] == [
+        "whisper-skip-music-001",
+        "whisper-recover-001",
+        "whisper-recover-002",
+        "whisper-recover-003",
+    ]

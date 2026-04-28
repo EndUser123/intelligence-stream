@@ -16,6 +16,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from csf.benchmark_manifest import load_benchmark_manifest
 from csf.batch_status import (
     BatchEntry,
     _get_default_db_path,
@@ -30,9 +31,11 @@ from csf.worker_count_sweep import run_worker_count_sweep
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / ".logs" / "fallback_crossover_benchmark"
 DEFAULT_TRACE_ROOT = REPO_ROOT / ".logs" / "worker_count_trials"
+DEFAULT_MANIFEST_JSON = REPO_ROOT / "tests" / "fixtures" / "shared_benchmark_manifest.json"
 DEFAULT_SOURCE_URL = "https://www.youtube.com/channel/UCYTISFALLBACKBMK"
 DEFAULT_WORKERS = 2
 DEFAULT_COHORT_SHAPE = "trace"
+DEFAULT_MANIFEST_FAMILIES = "routing,whisper_admission,fallback_recovery,hot_path_control"
 
 
 POLICY_ENV: dict[str, dict[str, str]] = {
@@ -62,6 +65,16 @@ POLICY_ENV: dict[str, dict[str, str]] = {
         "YTIS_NLM_SOURCE_CONTENT_SHARED_RETRY_POOL_ENABLED": "false",
         "YTIS_ROUTE_NO_CAPTIONS_TO_FALLBACK": "true",
         "YTIS_TRANSCRIPT_FALLBACK_WORKERS": "2",
+        "YTIS_TRANSCRIPT_FALLBACK_MIN_START_INTERVAL_S": "0",
+    },
+    "notebooklm_route_plus_fallback_30s_1w": {
+        "YTIS_INDUSTRIAL_BACKLOG_THRESHOLD": "1",
+        "YTIS_NLM_SOURCE_CONTENT_RETRY_BUDGET_S": "30",
+        "YTIS_NLM_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S": "30",
+        "YTIS_NLM_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S": "30",
+        "YTIS_NLM_SOURCE_CONTENT_SHARED_RETRY_POOL_ENABLED": "false",
+        "YTIS_ROUTE_NO_CAPTIONS_TO_FALLBACK": "true",
+        "YTIS_TRANSCRIPT_FALLBACK_WORKERS": "1",
         "YTIS_TRANSCRIPT_FALLBACK_MIN_START_INTERVAL_S": "0",
     },
     "notebooklm_only_45s": {
@@ -218,12 +231,32 @@ def _merge_trace_cohorts(
     return merged
 
 
-def _load_or_build_cohort(cohort_path: Path, trace_root: Path, cohort_shape: str) -> dict[str, Any]:
+def _parse_csv_list(value: str | None) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    return tuple(item.strip() for item in value.split(",") if item.strip())
+
+
+def _load_or_build_cohort(
+    cohort_path: Path,
+    trace_root: Path,
+    cohort_shape: str,
+    *,
+    manifest_json: Path | None = None,
+    manifest_families: str | None = None,
+) -> dict[str, Any]:
     if cohort_path.exists():
         existing = json.loads(cohort_path.read_text(encoding="utf-8"))
         items = existing.get("items", []) if isinstance(existing, dict) else []
         if items and existing.get("cohort_shape") == cohort_shape:
-            return existing
+            if cohort_shape != "manifest":
+                return existing
+            expected_manifest_json = str(manifest_json or DEFAULT_MANIFEST_JSON)
+            expected_manifest_families = ",".join(_parse_csv_list(manifest_families) or _parse_csv_list(DEFAULT_MANIFEST_FAMILIES))
+            if existing.get("manifest_json") == expected_manifest_json and existing.get("manifest_families") == expected_manifest_families:
+                return existing
+    manifest_json = manifest_json or DEFAULT_MANIFEST_JSON
+    manifest_families_value = ",".join(_parse_csv_list(manifest_families) or _parse_csv_list(DEFAULT_MANIFEST_FAMILIES))
     if cohort_shape == "captioned":
         items = _load_cohort_from_trace(trace_root, include_ready=True)
         if not items:
@@ -232,6 +265,10 @@ def _load_or_build_cohort(cohort_path: Path, trace_root: Path, cohort_shape: str
         ready_items = _load_cohort_from_trace(trace_root, include_ready=True)
         non_ready_items = _load_cohort_from_trace(trace_root, include_ready=False)
         items = _merge_trace_cohorts(ready_items, non_ready_items)
+    elif cohort_shape == "manifest":
+        manifest = load_benchmark_manifest(manifest_json)
+        allowed_families = _parse_csv_list(manifest_families) or _parse_csv_list(DEFAULT_MANIFEST_FAMILIES)
+        items = [case.to_batch_item() for case in manifest.cases_for_benchmark(allowed_families)]
     else:
         items = _load_cohort_from_trace(trace_root, include_ready=False)
     cohort = {
@@ -242,6 +279,9 @@ def _load_or_build_cohort(cohort_path: Path, trace_root: Path, cohort_shape: str
     }
     if cohort_shape == "captioned":
         cohort["batch_status_db_path"] = str(_get_default_db_path())
+    if cohort_shape == "manifest":
+        cohort["manifest_json"] = str(manifest_json)
+        cohort["manifest_families"] = manifest_families_value
     cohort_path.parent.mkdir(parents=True, exist_ok=True)
     cohort_path.write_text(json.dumps(cohort, indent=2), encoding="utf-8")
     return cohort
@@ -376,9 +416,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--cohort-shape",
-        choices=("trace", "captioned", "mixed"),
+        choices=("trace", "captioned", "mixed", "manifest"),
         default=DEFAULT_COHORT_SHAPE,
         help="Frozen cohort shape to build and benchmark",
+    )
+    parser.add_argument(
+        "--manifest-json",
+        type=Path,
+        default=DEFAULT_MANIFEST_JSON,
+        help=f"Path to the shared benchmark manifest (default: {DEFAULT_MANIFEST_JSON})",
+    )
+    parser.add_argument(
+        "--manifest-families",
+        default=DEFAULT_MANIFEST_FAMILIES,
+        help="Comma-separated manifest families to include for manifest cohorts",
     )
     parser.add_argument(
         "--sample-label",
@@ -403,7 +454,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    cohort = _load_or_build_cohort(args.cohort_json, args.trace_root, args.cohort_shape)
+    cohort = _load_or_build_cohort(
+        args.cohort_json,
+        args.trace_root,
+        args.cohort_shape,
+        manifest_json=args.manifest_json,
+        manifest_families=args.manifest_families,
+    )
     items = list(cohort.get("items", []) or [])
     if not items:
         print(f"[benchmark] No cohort items found in {args.cohort_json}", file=sys.stderr)

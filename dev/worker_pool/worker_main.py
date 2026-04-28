@@ -19,6 +19,7 @@ from csf.nlm_batch import (
     close_reusable_ingestor,
     get_last_prepare_metrics,
     get_last_reusable_process_metrics,
+    DoubleBufferedReusableIngestor,
     process_industrial_batch_reusable,
     set_reusable_ingestor,
     NLMReusableIngestor,
@@ -50,6 +51,13 @@ def _load_batches(path: Path) -> list[list[str]]:
         return [cleaned] if cleaned else []
     cleaned = [line.strip() for line in text.splitlines() if line.strip()]
     return [cleaned] if cleaned else []
+
+
+def _get_reusable_pipeline_mode() -> str:
+    value = os.getenv("YTIS_REUSABLE_PIPELINE_MODE", "").strip().lower().replace("-", "_")
+    if value == "double_buffered":
+        return "double_buffered"
+    return "serial"
 
 
 def _write_result_file(result_path: Path | None, data: dict[str, object]) -> None:
@@ -192,6 +200,9 @@ def main(argv: list[str] | None = None) -> int:
         "extract_elapsed_s_total": 0.0,
         "cleanup_elapsed_s_total": 0.0,
         "batch_elapsed_s_total": 0.0,
+        "staging_overlap_elapsed_s_total": 0.0,
+        "staging_wait_elapsed_s_total": 0.0,
+        "stage_swap_count_total": 0,
         "content_fetch_status_counts_total": {},
         "source_ready_age_s_total": 0.0,
         "source_ready_age_s_max": 0.0,
@@ -208,6 +219,7 @@ def main(argv: list[str] | None = None) -> int:
         "shared_retry_recovered_count": 0,
         "shared_retry_final_failed_count": 0,
         "shared_retry_processed_count": 0,
+        "pipeline_strategy": "reusable",
         "notebooklm_profile": notebooklm_profile,
         "state_path": args.state_path,
         "notebook_title": args.notebook_title,
@@ -245,7 +257,8 @@ def main(argv: list[str] | None = None) -> int:
                 separators=(",", ":"),
             )
         )
-        ingestor = NLMReusableIngestor()
+        pipeline_mode = _get_reusable_pipeline_mode()
+        ingestor = DoubleBufferedReusableIngestor() if pipeline_mode == "double_buffered" else NLMReusableIngestor()
         log_action(
             "worker_notebook_reset_completed",
             {
@@ -313,8 +326,16 @@ def main(argv: list[str] | None = None) -> int:
         total_video_count = 0
         total_succeeded = 0
         total_failed = 0
+        double_buffered_batch_results: list[dict[str, tuple[bool, Optional[str], Optional[str]]]] | None = None
+        double_buffered_batch_metrics: list[dict[str, object]] | None = None
+        double_buffered_pipeline_metrics: dict[str, object] = {}
 
         cfg = get_nlm_config()
+        if pipeline_mode == "double_buffered" and len(batches) > 1:
+            double_buffered_batch_results = ingestor.process_batches(batches)
+            double_buffered_batch_metrics = ingestor.get_last_batch_metrics() or []
+            double_buffered_pipeline_metrics = ingestor.get_last_process_metrics() or {}
+            worker_result["pipeline_strategy"] = str(double_buffered_pipeline_metrics.get("strategy") or "double_buffered_reusable")
 
         def _drain_shared_retry_pool() -> None:
             nonlocal total_succeeded, total_failed
@@ -458,62 +479,24 @@ def main(argv: list[str] | None = None) -> int:
                     },
                     separators=(",", ":"),
                 )
-            )
+                )
 
-        for batch_index, video_ids in enumerate(batches, 1):
-            batch_started_at = time.monotonic()
-            batch_started_at_epoch = time.time()
-            total_video_count += len(video_ids)
-            source_profile = summarize_video_ids(video_ids)
-            _merge_source_profile_totals(worker_source_profile, source_profile)
-            log_action(
-                "worker_batch_started",
-                {
-                    "worker_id": args.worker_id,
-                    "batch_index": batch_index,
-                    "batch_count": len(batches),
-                    "batch_size": len(video_ids),
-                    "video_count": len(video_ids),
-                    "source_profile": source_profile,
-                    "notebooklm_profile": notebooklm_profile,
-                    "state_path": args.state_path,
-                    "notebook_title": args.notebook_title,
-                    "started_at_epoch": batch_started_at_epoch,
-                },
+        def _record_batch_completion(
+            batch_index: int,
+            video_ids: list[str],
+            batch_started_at: float,
+            batch_started_at_epoch: float,
+            batch_succeeded: int,
+            batch_failed: int,
+            source_profile: dict[str, object],
+            metrics: dict[str, object],
+        ) -> None:
+            nonlocal total_succeeded, total_failed
+            batch_elapsed_s = float(
+                metrics.get("batch_elapsed_s")
+                or metrics.get("total_elapsed_s")
+                or round(time.monotonic() - batch_started_at, 3)
             )
-            results = process_industrial_batch_reusable(video_ids)
-            batch_succeeded = 0
-            batch_failed = 0
-            for vid, (success, transcript, err) in results.items():
-                if success and transcript:
-                    set_cached_transcript(vid, "en", "notebooklm", transcript)
-                    mark_complete(vid, last_stage="notebooklm")
-                    total_succeeded += 1
-                    batch_succeeded += 1
-                else:
-                    total_failed += 1
-                    batch_failed += 1
-            log_action(
-                "worker_batch_completed",
-                {
-                    "worker_id": args.worker_id,
-                    "batch_index": batch_index,
-                    "batch_count": len(batches),
-                    "batch_size": len(video_ids),
-                    "video_count": len(video_ids),
-                    "succeeded": batch_succeeded,
-                    "failed": batch_failed,
-                    "elapsed_s": round(time.monotonic() - batch_started_at, 3),
-                    "source_profile": source_profile,
-                    "notebooklm_profile": notebooklm_profile,
-                    "state_path": args.state_path,
-                    "notebook_title": args.notebook_title,
-                    "started_at_epoch": batch_started_at_epoch,
-                    "completed_at_epoch": time.time(),
-                },
-            )
-            metrics = get_last_reusable_process_metrics() or {}
-            batch_elapsed_s = float(metrics.get("total_elapsed_s") or round(time.monotonic() - batch_started_at, 3))
             setup_elapsed_s = float(metrics.get("setup_elapsed_s") or 0.0)
             notebook_check_elapsed_s = float(metrics.get("notebook_check_elapsed_s") or 0.0)
             notebook_create_elapsed_s = float(metrics.get("notebook_create_elapsed_s") or 0.0)
@@ -539,6 +522,10 @@ def main(argv: list[str] | None = None) -> int:
             shared_retry_recovered_count = int(metrics.get("shared_retry_recovered_count") or 0)
             shared_retry_final_failed_count = int(metrics.get("shared_retry_final_failed_count") or 0)
             shared_retry_processed_count = int(metrics.get("shared_retry_processed_count") or 0)
+            staging_overlap_elapsed_s = float(metrics.get("staging_overlap_elapsed_s") or 0.0)
+            staging_wait_elapsed_s = float(metrics.get("staging_wait_elapsed_s") or 0.0)
+            stage_swap_count = int(metrics.get("stage_swap_count") or 0)
+            pipeline_strategy = str(metrics.get("strategy") or worker_result.get("pipeline_strategy") or "reusable")
             subbatch_metrics = list(metrics.get("subbatch_metrics") or [])
             worker_subbatch_metrics.extend([dict(item) for item in subbatch_metrics if isinstance(item, dict)])
             worker_result["setup_elapsed_s_total"] = float(worker_result["setup_elapsed_s_total"]) + setup_elapsed_s
@@ -551,6 +538,10 @@ def main(argv: list[str] | None = None) -> int:
             worker_result["extract_elapsed_s_total"] = float(worker_result["extract_elapsed_s_total"]) + extract_elapsed_s
             worker_result["cleanup_elapsed_s_total"] = float(worker_result["cleanup_elapsed_s_total"]) + cleanup_elapsed_s
             worker_result["batch_elapsed_s_total"] = float(worker_result["batch_elapsed_s_total"]) + batch_elapsed_s
+            worker_result["staging_overlap_elapsed_s_total"] = float(worker_result["staging_overlap_elapsed_s_total"]) + staging_overlap_elapsed_s
+            worker_result["staging_wait_elapsed_s_total"] = float(worker_result["staging_wait_elapsed_s_total"]) + staging_wait_elapsed_s
+            worker_result["stage_swap_count_total"] = int(worker_result["stage_swap_count_total"]) + stage_swap_count
+            worker_result["pipeline_strategy"] = pipeline_strategy
             worker_result["content_fetch_status_counts_total"] = dict(
                 Counter(worker_result.get("content_fetch_status_counts_total", {}) or {})
                 + Counter(content_fetch_status_counts)
@@ -627,6 +618,10 @@ def main(argv: list[str] | None = None) -> int:
                     "shared_retry_recovered_count": shared_retry_recovered_count,
                     "shared_retry_final_failed_count": shared_retry_final_failed_count,
                     "shared_retry_processed_count": shared_retry_processed_count,
+                    "staging_overlap_elapsed_s": staging_overlap_elapsed_s,
+                    "staging_wait_elapsed_s": staging_wait_elapsed_s,
+                    "stage_swap_count": stage_swap_count,
+                    "pipeline_strategy": pipeline_strategy,
                     "source_profile": source_profile,
                     "subbatch_count": len(subbatch_metrics),
                     "subbatch_metrics": subbatch_metrics,
@@ -637,6 +632,123 @@ def main(argv: list[str] | None = None) -> int:
                     "completed_at_epoch": time.time(),
                 },
             )
+
+        for batch_index, video_ids in enumerate(batches, 1):
+            batch_started_at = time.monotonic()
+            batch_started_at_epoch = time.time()
+            total_video_count += len(video_ids)
+            source_profile = summarize_video_ids(video_ids)
+            _merge_source_profile_totals(worker_source_profile, source_profile)
+            log_action(
+                "worker_batch_started",
+                {
+                    "worker_id": args.worker_id,
+                    "batch_index": batch_index,
+                    "batch_count": len(batches),
+                    "batch_size": len(video_ids),
+                    "video_count": len(video_ids),
+                    "source_profile": source_profile,
+                    "notebooklm_profile": notebooklm_profile,
+                    "state_path": args.state_path,
+                    "notebook_title": args.notebook_title,
+                    "started_at_epoch": batch_started_at_epoch,
+                },
+            )
+            if pipeline_mode == "double_buffered" and len(batches) > 1:
+                results = double_buffered_batch_results[batch_index - 1] if double_buffered_batch_results is not None else {}
+                batch_succeeded = 0
+                batch_failed = 0
+                for vid, (success, transcript, err) in results.items():
+                    if success and transcript:
+                        set_cached_transcript(vid, "en", "notebooklm", transcript)
+                        mark_complete(vid, last_stage="notebooklm")
+                        total_succeeded += 1
+                        batch_succeeded += 1
+                    else:
+                        total_failed += 1
+                        batch_failed += 1
+                metrics = (
+                    double_buffered_batch_metrics[batch_index - 1]
+                    if double_buffered_batch_metrics is not None and batch_index - 1 < len(double_buffered_batch_metrics)
+                    else (get_last_reusable_process_metrics() or {})
+                )
+                batch_completed_elapsed_s = float(
+                    metrics.get("batch_elapsed_s")
+                    or metrics.get("total_elapsed_s")
+                    or round(time.monotonic() - batch_started_at, 3)
+                )
+                log_action(
+                    "worker_batch_completed",
+                    {
+                        "worker_id": args.worker_id,
+                        "batch_index": batch_index,
+                        "batch_count": len(batches),
+                        "batch_size": len(video_ids),
+                        "video_count": len(video_ids),
+                        "succeeded": batch_succeeded,
+                        "failed": batch_failed,
+                        "elapsed_s": batch_completed_elapsed_s,
+                        "source_profile": source_profile,
+                        "notebooklm_profile": notebooklm_profile,
+                        "state_path": args.state_path,
+                        "notebook_title": args.notebook_title,
+                        "started_at_epoch": batch_started_at_epoch,
+                        "completed_at_epoch": time.time(),
+                    },
+                )
+                _record_batch_completion(
+                    batch_index,
+                    video_ids,
+                    batch_started_at,
+                    batch_started_at_epoch,
+                    batch_succeeded,
+                    batch_failed,
+                    source_profile,
+                    metrics,
+                )
+            else:
+                results = process_industrial_batch_reusable(video_ids)
+                batch_succeeded = 0
+                batch_failed = 0
+                for vid, (success, transcript, err) in results.items():
+                    if success and transcript:
+                        set_cached_transcript(vid, "en", "notebooklm", transcript)
+                        mark_complete(vid, last_stage="notebooklm")
+                        total_succeeded += 1
+                        batch_succeeded += 1
+                    else:
+                        total_failed += 1
+                        batch_failed += 1
+                log_action(
+                    "worker_batch_completed",
+                    {
+                        "worker_id": args.worker_id,
+                        "batch_index": batch_index,
+                        "batch_count": len(batches),
+                        "batch_size": len(video_ids),
+                        "video_count": len(video_ids),
+                        "succeeded": batch_succeeded,
+                        "failed": batch_failed,
+                        "elapsed_s": round(time.monotonic() - batch_started_at, 3),
+                        "source_profile": source_profile,
+                        "notebooklm_profile": notebooklm_profile,
+                        "state_path": args.state_path,
+                        "notebook_title": args.notebook_title,
+                        "started_at_epoch": batch_started_at_epoch,
+                        "completed_at_epoch": time.time(),
+                    },
+                )
+                metrics = get_last_reusable_process_metrics() or {}
+                _record_batch_completion(
+                    batch_index,
+                    video_ids,
+                    batch_started_at,
+                    batch_started_at_epoch,
+                    batch_succeeded,
+                    batch_failed,
+                    source_profile,
+                    metrics,
+                )
             log_action(
                 "worker_completed",
                 {
@@ -662,6 +774,9 @@ def main(argv: list[str] | None = None) -> int:
                     "extract_elapsed_s_total": worker_result["extract_elapsed_s_total"],
                     "cleanup_elapsed_s_total": worker_result["cleanup_elapsed_s_total"],
                     "batch_elapsed_s_total": worker_result["batch_elapsed_s_total"],
+                    "staging_overlap_elapsed_s_total": worker_result["staging_overlap_elapsed_s_total"],
+                    "staging_wait_elapsed_s_total": worker_result["staging_wait_elapsed_s_total"],
+                    "stage_swap_count_total": worker_result["stage_swap_count_total"],
                     "content_fetch_status_counts_total": worker_result["content_fetch_status_counts_total"],
                     "source_ready_age_s_total": worker_result["source_ready_age_s_total"],
                     "source_ready_age_s_max": worker_result["source_ready_age_s_max"],
@@ -674,12 +789,34 @@ def main(argv: list[str] | None = None) -> int:
                     "youtube_page_elapsed_s_max": worker_result["youtube_page_elapsed_s_max"],
                     "youtube_page_elapsed_s_count": worker_result["youtube_page_elapsed_s_count"],
                     "youtube_page_elapsed_s_avg": worker_result["youtube_page_elapsed_s_avg"],
+                    "pipeline_strategy": worker_result["pipeline_strategy"],
                     "notebooklm_profile": notebooklm_profile,
                     "state_path": args.state_path,
                     "notebook_title": args.notebook_title,
                 },
             )
         _drain_shared_retry_pool()
+        if pipeline_mode == "double_buffered" and len(batches) > 1:
+            worker_result["staging_overlap_elapsed_s_total"] = float(
+                double_buffered_pipeline_metrics.get("staging_overlap_elapsed_s")
+                or worker_result["staging_overlap_elapsed_s_total"]
+                or 0.0
+            )
+            worker_result["staging_wait_elapsed_s_total"] = float(
+                double_buffered_pipeline_metrics.get("staging_wait_elapsed_s")
+                or worker_result["staging_wait_elapsed_s_total"]
+                or 0.0
+            )
+            worker_result["stage_swap_count_total"] = int(
+                double_buffered_pipeline_metrics.get("stage_swap_count")
+                or worker_result["stage_swap_count_total"]
+                or 0
+            )
+            worker_result["pipeline_strategy"] = str(
+                double_buffered_pipeline_metrics.get("strategy")
+                or worker_result["pipeline_strategy"]
+                or "double_buffered_reusable"
+            )
         worker_result.update(
             {
                 "batch_count": len(batches),
@@ -703,6 +840,9 @@ def main(argv: list[str] | None = None) -> int:
                 "extract_elapsed_s_total": worker_result["extract_elapsed_s_total"],
                 "cleanup_elapsed_s_total": worker_result["cleanup_elapsed_s_total"],
                 "batch_elapsed_s_total": worker_result["batch_elapsed_s_total"],
+                "staging_overlap_elapsed_s_total": worker_result["staging_overlap_elapsed_s_total"],
+                "staging_wait_elapsed_s_total": worker_result["staging_wait_elapsed_s_total"],
+                "stage_swap_count_total": worker_result["stage_swap_count_total"],
                 "content_fetch_status_counts_total": worker_result["content_fetch_status_counts_total"],
                 "source_ready_age_s_total": worker_result["source_ready_age_s_total"],
                 "source_ready_age_s_max": worker_result["source_ready_age_s_max"],
@@ -715,6 +855,7 @@ def main(argv: list[str] | None = None) -> int:
                 "youtube_page_elapsed_s_max": worker_result["youtube_page_elapsed_s_max"],
                 "youtube_page_elapsed_s_count": worker_result["youtube_page_elapsed_s_count"],
                 "youtube_page_elapsed_s_avg": worker_result["youtube_page_elapsed_s_avg"],
+                "pipeline_strategy": worker_result["pipeline_strategy"],
                 "shared_retry_deferred_count": worker_result["shared_retry_deferred_count"],
                 "shared_retry_recovered_count": worker_result["shared_retry_recovered_count"],
                 "shared_retry_final_failed_count": worker_result["shared_retry_final_failed_count"],

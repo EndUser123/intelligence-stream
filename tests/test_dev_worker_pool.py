@@ -424,3 +424,248 @@ class TestWorkerMain:
         result = json.loads(result_path.read_text(encoding="utf-8"))
         assert result["status"] == "ok"
         assert result["returncode"] == 0
+
+    def test_main_uses_double_buffered_pipeline_when_enabled(self, tmp_path, monkeypatch, capsys):
+        """The worker should switch to the double-buffered reusable pipeline when requested."""
+        input_path = tmp_path / "batches.json"
+        input_path.write_text(json.dumps([["a"], ["b"]]), encoding="utf-8")
+        result_path = tmp_path / "result.json"
+
+        process_batch_calls: list[list[str]] = []
+        process_batches_calls: list[list[list[str]]] = []
+        close_calls: list[bool] = []
+
+        class DummyDoubleBufferedReusableIngestor:
+            def __init__(self):
+                self._prepare_metrics = {
+                    "retire_elapsed_s": 0.10,
+                    "notebook_check_elapsed_s": 0.20,
+                    "create_elapsed_s": 0.30,
+                    "cleanup_elapsed_s": 0.40,
+                    "total_elapsed_s": 1.00,
+                }
+                self._process_metrics = {
+                    "staging_overlap_elapsed_s": 0.55,
+                    "staging_wait_elapsed_s": 0.15,
+                    "stage_swap_count": 1,
+                    "strategy": "double_buffered_reusable",
+                    "serial_fallback": False,
+                    "total_elapsed_s": 4.0,
+                }
+                self._batch_metrics = [
+                    {
+                        "setup_mode": "create",
+                        "notebook_reused": False,
+                        "setup_elapsed_s": 1.25,
+                        "notebook_check_elapsed_s": 0.10,
+                        "notebook_create_elapsed_s": 0.60,
+                        "notebook_retire_elapsed_s": 0.05,
+                        "add_sources_elapsed_s": 0.50,
+                        "add_cmd_elapsed_s": 0.30,
+                        "materialization_wait_elapsed_s": 0.20,
+                        "extract_elapsed_s": 2.5,
+                        "cleanup_elapsed_s": 0.75,
+                        "batch_elapsed_s": 4.5,
+                        "content_fetch_status_counts": {},
+                        "source_ready_age_s_total": 0.0,
+                        "source_ready_age_s_max": 0.0,
+                        "source_ready_age_s_avg": 0.0,
+                        "youtube_ytdlp_elapsed_s_total": 0.0,
+                        "youtube_ytdlp_elapsed_s_max": 0.0,
+                        "youtube_ytdlp_elapsed_s_count": 0,
+                        "youtube_ytdlp_elapsed_s_avg": 0.0,
+                        "youtube_page_elapsed_s_total": 0.0,
+                        "youtube_page_elapsed_s_max": 0.0,
+                        "youtube_page_elapsed_s_count": 0,
+                        "youtube_page_elapsed_s_avg": 0.0,
+                        "shared_retry_deferred_count": 0,
+                        "shared_retry_recovered_count": 0,
+                        "shared_retry_final_failed_count": 0,
+                        "shared_retry_processed_count": 0,
+                        "subbatch_metrics": [
+                            {
+                                "subbatch_index": 1,
+                                "subbatch_size": 1,
+                                "target_subbatch_size": 1,
+                                "attempted_count": 1,
+                                "added_count": 1,
+                                "add_cmd_elapsed_s": 0.10,
+                                "materialization_wait_elapsed_s": 0.05,
+                                "elapsed_s": 0.15,
+                                "returncode": 0,
+                                "failure_reason": None,
+                                "status": "ok",
+                                "source_profile": {
+                                    "total": 1,
+                                    "matched": 1,
+                                    "missing": 0,
+                                    "source_class_counts": {"captioned": 1},
+                                    "status_counts": {"pending": 1},
+                                    "privacy_status_counts": {"public": 1},
+                                    "upload_status_counts": {"processed": 1},
+                                    "unavailable_reason_counts": {"unknown": 1},
+                                    "failure_reason_counts": {"unknown": 1},
+                                },
+                            }
+                        ],
+                        "staging_overlap_elapsed_s": 0.55,
+                        "staging_wait_elapsed_s": 0.15,
+                        "stage_swap_count": 1,
+                        "strategy": "double_buffered_reusable",
+                        "serial_fallback": False,
+                    },
+                    {
+                        "setup_mode": "reuse",
+                        "notebook_reused": True,
+                        "setup_elapsed_s": 0.75,
+                        "notebook_check_elapsed_s": 0.05,
+                        "notebook_create_elapsed_s": 0.0,
+                        "notebook_retire_elapsed_s": 0.0,
+                        "add_sources_elapsed_s": 0.40,
+                        "add_cmd_elapsed_s": 0.20,
+                        "materialization_wait_elapsed_s": 0.10,
+                        "extract_elapsed_s": 1.5,
+                        "cleanup_elapsed_s": 0.35,
+                        "batch_elapsed_s": 3.0,
+                        "content_fetch_status_counts": {},
+                        "source_ready_age_s_total": 0.0,
+                        "source_ready_age_s_max": 0.0,
+                        "source_ready_age_s_avg": 0.0,
+                        "youtube_ytdlp_elapsed_s_total": 0.0,
+                        "youtube_ytdlp_elapsed_s_max": 0.0,
+                        "youtube_ytdlp_elapsed_s_count": 0,
+                        "youtube_ytdlp_elapsed_s_avg": 0.0,
+                        "youtube_page_elapsed_s_total": 0.0,
+                        "youtube_page_elapsed_s_max": 0.0,
+                        "youtube_page_elapsed_s_count": 0,
+                        "youtube_page_elapsed_s_avg": 0.0,
+                        "shared_retry_deferred_count": 0,
+                        "shared_retry_recovered_count": 0,
+                        "shared_retry_final_failed_count": 0,
+                        "shared_retry_processed_count": 0,
+                        "subbatch_metrics": [
+                            {
+                                "subbatch_index": 1,
+                                "subbatch_size": 1,
+                                "target_subbatch_size": 1,
+                                "attempted_count": 1,
+                                "added_count": 1,
+                                "add_cmd_elapsed_s": 0.08,
+                                "materialization_wait_elapsed_s": 0.04,
+                                "elapsed_s": 0.12,
+                                "returncode": 0,
+                                "failure_reason": None,
+                                "status": "ok",
+                                "source_profile": {
+                                    "total": 1,
+                                    "matched": 1,
+                                    "missing": 0,
+                                    "source_class_counts": {"captioned": 1},
+                                    "status_counts": {"pending": 1},
+                                    "privacy_status_counts": {"public": 1},
+                                    "upload_status_counts": {"processed": 1},
+                                    "unavailable_reason_counts": {"unknown": 1},
+                                    "failure_reason_counts": {"unknown": 1},
+                                },
+                            }
+                        ],
+                        "staging_overlap_elapsed_s": 0.55,
+                        "staging_wait_elapsed_s": 0.15,
+                        "stage_swap_count": 1,
+                        "strategy": "double_buffered_reusable",
+                        "serial_fallback": False,
+                    },
+                ]
+
+            def prepare(self):
+                return True, "double_buffered"
+
+            def process_batches(self, batch_groups):
+                process_batches_calls.append([list(batch) for batch in batch_groups])
+                return [
+                    {vid: (True, f"text-{vid}", None) for vid in batch_groups[0]},
+                    {vid: (True, f"text-{vid}", None) for vid in batch_groups[1]},
+                ]
+
+            def process_batch(self, video_ids):
+                process_batch_calls.append(list(video_ids))
+                return {vid: (True, f"text-{vid}", None) for vid in video_ids}
+
+            def get_last_prepare_metrics(self):
+                return dict(self._prepare_metrics)
+
+            def get_last_process_metrics(self):
+                return dict(self._process_metrics)
+
+            def get_last_batch_metrics(self):
+                return [dict(item) for item in self._batch_metrics]
+
+            def close(self, delete=False):
+                close_calls.append(delete)
+
+        monkeypatch.setenv("YTIS_REUSABLE_PIPELINE_MODE", "double_buffered")
+        monkeypatch.setattr(worker_main, "NLMReusableIngestor", DummyDoubleBufferedReusableIngestor)
+        monkeypatch.setattr(worker_main, "DoubleBufferedReusableIngestor", DummyDoubleBufferedReusableIngestor)
+        monkeypatch.setattr(worker_main, "process_industrial_batch_reusable", lambda vids: (_ for _ in ()).throw(AssertionError("serial path should not be used")))
+        monkeypatch.setattr(worker_main, "get_last_reusable_process_metrics", lambda: {})
+        monkeypatch.setattr(worker_main, "get_last_prepare_metrics", lambda: {})
+        monkeypatch.setattr(worker_main, "set_cached_transcript", lambda *args, **kwargs: None)
+        monkeypatch.setattr(worker_main, "mark_complete", lambda *args, **kwargs: None)
+        monkeypatch.setattr(worker_main, "close_reusable_ingestor", lambda delete=False: close_calls.append(delete))
+        monkeypatch.setattr(worker_main, "log_action", lambda *args, **kwargs: None)
+        monkeypatch.setattr(
+            worker_main,
+            "get_nlm_config",
+            lambda: type("Cfg", (), {"source_content_shared_retry_pool_enabled": False})(),
+        )
+        monkeypatch.setattr(
+            worker_main,
+            "summarize_video_ids",
+            lambda vids: {
+                "total": len(vids),
+                "matched": len(vids),
+                "missing": 0,
+                "source_class_counts": {"captioned": len(vids)},
+                "status_counts": {"pending": len(vids)},
+                "privacy_status_counts": {"public": len(vids)},
+                "upload_status_counts": {"processed": len(vids)},
+                "unavailable_reason_counts": {"unknown": len(vids)},
+                "failure_reason_counts": {"unknown": len(vids)},
+            },
+        )
+
+        rc = worker_main.main(
+            [
+                "--input",
+                str(input_path),
+                "--state-path",
+                str(tmp_path / "state.json"),
+                "--notebook-title",
+                "yt-is-worker-01",
+                "--notebooklm-profile",
+                "ytis-worker-01",
+                "--worker-id",
+                "worker-01",
+                "--result-path",
+                str(result_path),
+            ]
+        )
+
+        assert rc == 0
+        assert process_batches_calls == [[["a"], ["b"]]]
+        assert process_batch_calls == []
+        assert close_calls == [True]
+        output = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+        assert output["batch_count"] == 2
+        assert output["succeeded"] == 2
+        assert output["failed"] == 0
+        assert output["batch_elapsed_s_total"] == 7.5
+        assert output["staging_overlap_elapsed_s_total"] == 0.55
+        assert output["staging_wait_elapsed_s_total"] == 0.15
+        assert output["stage_swap_count_total"] == 1
+        assert output["pipeline_strategy"] == "double_buffered_reusable"
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        assert result["batch_count"] == 2
+        assert result["succeeded"] == 2
+        assert result["failed"] == 0
+        assert result["batch_elapsed_s_total"] == 7.5

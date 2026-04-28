@@ -369,6 +369,9 @@ class NLMIndustrialScraper:
             or getattr(self.browser_cfg, "browser_profile_seed_root", "")
             or r"P:\packages\yt-is\.browser\notebooklm"
         )
+        profile_directory = str(getattr(self.browser_cfg, "nlm_browser_profile_directory", "") or "").strip()
+        if profile_directory:
+            return browser_profile_root, profile_directory
         if browser_profile_root.exists():
             local_state = browser_profile_root / "Local State"
             if local_state.is_file():

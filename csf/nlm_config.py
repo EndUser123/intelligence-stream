@@ -34,6 +34,7 @@ class NLMConfig:
     browser_profile_seed_root: str = "P:/.data/yt-is/notebooklm-browser-session"
     nlm_browser_mode: str = "persistent"
     nlm_browser_profile_root: str = r"P:\.data\yt-is\browser\notebooklm"
+    nlm_browser_profile_directory: str = ""
     nlm_browser_executable: str = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
     nlm_browser_channel: str = "chrome"
     nlm_browser_bootstrap_headless: bool = False
@@ -91,6 +92,10 @@ def get_nlm_config() -> NLMConfig:
                     r"P:\.data\yt-is\browser\notebooklm",
                 ).strip()
                 or r"P:\.data\yt-is\browser\notebooklm",
+                nlm_browser_profile_directory=os.environ.get(
+                    "YTIS_NLM_BROWSER_PROFILE_DIRECTORY",
+                    "",
+                ).strip(),
                 nlm_browser_executable=os.environ.get(
                     "YTIS_NLM_BROWSER_EXECUTABLE",
                     r"C:\Program Files\Google\Chrome\Application\chrome.exe",

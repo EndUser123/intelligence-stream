@@ -24,6 +24,39 @@ def _load_csf_source_module():
     return module
 
 
+def test_industrial_worker_env_uses_lane_profile_prefix(tmp_path, monkeypatch):
+    """Industrial workers should get lane-specific CLI profile names."""
+    mod = _load_csf_source_module()
+    monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_STATE_ROOT", str(tmp_path / "states"))
+    monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX", "benchmark-shard-pro")
+    monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILE_PREFIX", "ytis-pro-worker")
+
+    worker = mod._build_industrial_worker_launch(worker_id=3, worker_batches=[["vid001"]])
+
+    assert worker["worker_label"] == "worker-03"
+    assert worker["state_path"] == str(tmp_path / "states" / "worker-03.json")
+    assert worker["notebook_title"] == "benchmark-shard-pro-03"
+    assert worker["notebooklm_profile"] == "ytis-pro-worker-03"
+    assert worker["env"]["YTIS_NLM_OWNER_STATE_PATH"] == worker["state_path"]
+    assert worker["env"]["YTIS_NLM_OWNER_NOTEBOOK_TITLE"] == "benchmark-shard-pro-03"
+    assert worker["env"]["NOTEBOOKLM_PROFILE"] == "ytis-pro-worker-03"
+
+
+def test_industrial_worker_env_can_use_explicit_lane_profiles(tmp_path, monkeypatch):
+    """Industrial workers can bind to exact CLI auth profiles when names are not prefix-derived."""
+    mod = _load_csf_source_module()
+    monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_STATE_ROOT", str(tmp_path / "states"))
+    monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX", "benchmark-shard-pro")
+    monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILES", "alt,ytis-pro-worker-02")
+
+    worker = mod._build_industrial_worker_launch(worker_id=1, worker_batches=[["vid001"]])
+
+    assert worker["worker_label"] == "worker-01"
+    assert worker["notebook_title"] == "benchmark-shard-pro-01"
+    assert worker["notebooklm_profile"] == "alt"
+    assert worker["env"]["NOTEBOOKLM_PROFILE"] == "alt"
+
+
 def test_cmd_fetch_logs_fetch_start_and_first_download_started_industrial():
     """cmd_fetch logs a run-start marker and a first-download marker for industrial backlogs."""
     mod = _load_csf_source_module()

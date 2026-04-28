@@ -218,6 +218,12 @@ The following results were collected after the plan was written and should be tr
   - serial success/fail: `249/51`
   - double-buffered success/fail: `299/1`
   - decision: serial wins on this shape
+- Repeat comparison on the intermediate `limit 300` shape:
+  - serial hot-path vph: `2240.86`
+  - double-buffered hot-path vph: `2140.72`
+  - serial success/fail: `299/1`
+  - double-buffered success/fail: `299/1`
+  - decision: serial repeats as the winner on this shape
 - Same comparison on the `limit 250` shape:
   - serial hot-path vph: `2270.78`
   - double-buffered hot-path vph: `2160.38`

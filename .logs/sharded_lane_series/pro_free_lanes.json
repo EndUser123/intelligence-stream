@@ -1,0 +1,34 @@
+[
+  {
+    "lane": "a_hominidae_pro",
+    "account_class": "pro",
+    "workers": 4,
+    "notebooklm_profile_prefix": "ytis-pro-worker",
+    "notebooklm_profiles": [
+      "ytis-pro-worker-01",
+      "ytis-pro-worker-02",
+      "ytis-pro-worker-03",
+      "ytis-pro-worker-04"
+    ],
+    "browser_profile_root": "P:/.data/yt-is/browser/notebooklm-pro",
+    "browser_profile_directory": "Profile 2",
+    "worker_state_root": "P:/packages/yt-is/.logs/sharded_lane_series/a_hominidae_pro/worker_states",
+    "notebook_prefix": "benchmark-shard-a-hominidae-pro"
+  },
+  {
+    "lane": "troup_hominidae_free",
+    "account_class": "free",
+    "workers": 4,
+    "notebooklm_profile_prefix": "ytis-free-worker",
+    "notebooklm_profiles": [
+      "ytis-free-worker-01",
+      "ytis-free-worker-02",
+      "ytis-free-worker-03",
+      "ytis-free-worker-04"
+    ],
+    "browser_profile_root": "P:/.data/yt-is/browser/notebooklm-free",
+    "browser_profile_directory": "Default",
+    "worker_state_root": "P:/packages/yt-is/.logs/sharded_lane_series/troup_hominidae_free/worker_states",
+    "notebook_prefix": "benchmark-shard-troup-hominidae-free"
+  }
+]

@@ -1,0 +1,379 @@
+"""Concurrent NotebookLM lane sharding benchmark runner."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Iterable
+
+from csf.breadth_series import _aggregate_summary
+from csf.load_ladder import build_fallback_benchmark_command
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+FALLBACK_BENCHMARK_SCRIPT = REPO_ROOT / "bin" / "csf-fallback-crossover-benchmark"
+DEFAULT_OUTPUT_ROOT = REPO_ROOT / ".logs" / "sharded_lane_series"
+DEFAULT_TRACE_ROOT = REPO_ROOT / ".logs" / "worker_count_trials"
+DEFAULT_COHORT_JSON = DEFAULT_OUTPUT_ROOT / "cohort.json"
+DEFAULT_SOURCE_URL = "https://www.youtube.com/channel/UCYTISFALLBACKBMK"
+DEFAULT_POLICY = "notebooklm_route_plus_fallback_30s_1w"
+DEFAULT_LIMIT = 400
+DEFAULT_BATCH_SIZE = 200
+DEFAULT_MANIFEST_JSON = REPO_ROOT / "tests" / "fixtures" / "shared_benchmark_manifest.json"
+DEFAULT_REUSABLE_PIPELINE_MODE = "serial"
+
+
+@dataclass(frozen=True, slots=True)
+class LaneConfig:
+    """A single independent NotebookLM execution lane."""
+
+    lane: str
+    account_class: str
+    workers: int
+    notebooklm_profile_prefix: str
+    browser_profile_root: Path
+    worker_state_root: Path
+    notebook_prefix: str
+    notebooklm_profiles: tuple[str, ...] = ()
+    browser_profile_directory: str = ""
+    coordinator_notebooklm_profile: str | None = None
+
+    @property
+    def coordinator_profile(self) -> str:
+        if self.coordinator_notebooklm_profile:
+            return self.coordinator_notebooklm_profile
+        if self.notebooklm_profiles:
+            return self.notebooklm_profiles[0]
+        return f"{self.notebooklm_profile_prefix}-01"
+
+
+def _normalize_path(value: object) -> Path:
+    return Path(str(value or "").strip())
+
+
+def _lane_from_dict(raw: dict[str, object]) -> LaneConfig:
+    lane = str(raw.get("lane") or "").strip()
+    if not lane:
+        raise ValueError("lane is required")
+    workers = int(raw.get("workers") or 0)
+    if workers < 1:
+        raise ValueError(f"lane {lane}: workers must be >= 1")
+    profile_prefix = str(raw.get("notebooklm_profile_prefix") or "").strip()
+    raw_profiles = raw.get("notebooklm_profiles") or []
+    if not isinstance(raw_profiles, list):
+        raise ValueError(f"lane {lane}: notebooklm_profiles must be a list")
+    profiles = tuple(str(item).strip() for item in raw_profiles if str(item).strip())
+    if not profile_prefix and not profiles:
+        raise ValueError(f"lane {lane}: notebooklm_profile_prefix or notebooklm_profiles is required")
+    if profiles and len(profiles) < workers:
+        raise ValueError(f"lane {lane}: notebooklm_profiles must include at least {workers} profiles")
+    notebook_prefix = str(raw.get("notebook_prefix") or "").strip()
+    if not notebook_prefix:
+        raise ValueError(f"lane {lane}: notebook_prefix is required")
+    browser_profile_root = _normalize_path(raw.get("browser_profile_root"))
+    if not str(browser_profile_root):
+        raise ValueError(f"lane {lane}: browser_profile_root is required")
+    worker_state_root = _normalize_path(raw.get("worker_state_root"))
+    if not str(worker_state_root):
+        raise ValueError(f"lane {lane}: worker_state_root is required")
+    coordinator_profile = str(raw.get("coordinator_notebooklm_profile") or "").strip() or None
+    return LaneConfig(
+        lane=lane,
+        account_class=str(raw.get("account_class") or lane).strip(),
+        workers=workers,
+        notebooklm_profile_prefix=profile_prefix,
+        notebooklm_profiles=profiles,
+        browser_profile_root=browser_profile_root,
+        worker_state_root=worker_state_root,
+        notebook_prefix=notebook_prefix,
+        browser_profile_directory=str(raw.get("browser_profile_directory") or "").strip(),
+        coordinator_notebooklm_profile=coordinator_profile,
+    )
+
+
+def _validate_lanes(lanes: Iterable[LaneConfig]) -> tuple[LaneConfig, ...]:
+    lane_tuple = tuple(lanes)
+    if not lane_tuple:
+        raise ValueError("at least one lane is required")
+    seen: dict[str, set[str]] = {
+        "lane": set(),
+        "notebooklm_profile_namespace": set(),
+        "browser_profile_namespace": set(),
+        "worker_state_root": set(),
+        "notebook_prefix": set(),
+    }
+    for lane in lane_tuple:
+        profile_namespace = ",".join(lane.notebooklm_profiles) if lane.notebooklm_profiles else lane.notebooklm_profile_prefix
+        browser_namespace = str(lane.browser_profile_root / lane.browser_profile_directory) if lane.browser_profile_directory else str(lane.browser_profile_root)
+        values = {
+            "lane": lane.lane,
+            "notebooklm_profile_namespace": profile_namespace,
+            "browser_profile_namespace": browser_namespace,
+            "worker_state_root": str(lane.worker_state_root),
+            "notebook_prefix": lane.notebook_prefix,
+        }
+        for field, value in values.items():
+            if value in seen[field]:
+                raise ValueError(f"duplicate lane {field}: {value}")
+            seen[field].add(value)
+    return lane_tuple
+
+
+def load_lane_configs(path: Path) -> tuple[LaneConfig, ...]:
+    """Load and validate lane configs from JSON."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, list):
+        raise ValueError("lane config must be a JSON list")
+    lanes = [_lane_from_dict(item) for item in data if isinstance(item, dict)]
+    if len(lanes) != len(data):
+        raise ValueError("each lane config item must be an object")
+    return _validate_lanes(lanes)
+
+
+def _lane_env(base_env: dict[str, str], lane: LaneConfig, reusable_pipeline_mode: str) -> dict[str, str]:
+    env = dict(base_env)
+    env["NOTEBOOKLM_PROFILE"] = lane.coordinator_profile
+    env["YTIS_NLM_BROWSER_PROFILE_ROOT"] = str(lane.browser_profile_root)
+    if lane.browser_profile_directory:
+        env["YTIS_NLM_BROWSER_PROFILE_DIRECTORY"] = lane.browser_profile_directory
+    else:
+        env.pop("YTIS_NLM_BROWSER_PROFILE_DIRECTORY", None)
+    env["YTIS_INDUSTRIAL_WORKER_STATE_ROOT"] = str(lane.worker_state_root)
+    env["YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX"] = lane.notebook_prefix
+    env["YTIS_BENCHMARK_WORKER_NOTEBOOK_PREFIX"] = lane.notebook_prefix
+    if lane.notebooklm_profile_prefix:
+        env["YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILE_PREFIX"] = lane.notebooklm_profile_prefix
+    else:
+        env.pop("YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILE_PREFIX", None)
+    if lane.notebooklm_profiles:
+        env["YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILES"] = ",".join(lane.notebooklm_profiles)
+    else:
+        env.pop("YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILES", None)
+    if reusable_pipeline_mode:
+        env["YTIS_REUSABLE_PIPELINE_MODE"] = reusable_pipeline_mode
+    return env
+
+
+def _run_lane(
+    *,
+    lane: LaneConfig,
+    trace_root: Path,
+    output_root: Path,
+    cohort_json: Path,
+    source_url: str,
+    policy: str,
+    limit: int,
+    batch_size: int,
+    manifest_json: Path,
+    python_executable: str | None,
+    reusable_pipeline_mode: str,
+    env: dict[str, str],
+) -> dict[str, Any]:
+    lane_output_root = output_root / lane.lane
+    lane_output_root.mkdir(parents=True, exist_ok=True)
+    lane_cohort_json = cohort_json.parent / f"{cohort_json.stem}.{lane.lane}{cohort_json.suffix}"
+    command = build_fallback_benchmark_command(
+        python_executable=python_executable or sys.executable,
+        fallback_benchmark_script=FALLBACK_BENCHMARK_SCRIPT,
+        trace_root=trace_root,
+        cohort_json=lane_cohort_json,
+        output_root=lane_output_root,
+        source_url=source_url,
+        workers=lane.workers,
+        limit=limit,
+        batch_size=batch_size,
+        policy=policy,
+        cohort_shape="captioned",
+        sample_label=f"shard_{lane.lane}",
+        manifest_json=None,
+        manifest_families=None,
+        worker_state_root=lane.worker_state_root,
+        preserve_worker_state_root=False,
+    )
+    started_at = time.monotonic()
+    proc = subprocess.run(
+        command,
+        cwd=str(REPO_ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    finished_at = time.monotonic()
+    (lane_output_root / "lane.stdout.txt").write_text(proc.stdout or "", encoding="utf-8")
+    (lane_output_root / "lane.stderr.txt").write_text(proc.stderr or "", encoding="utf-8")
+    summary_path = lane_output_root / "benchmark_summary.json"
+    if proc.returncode != 0:
+        raise RuntimeError(f"lane {lane.lane} failed with returncode={proc.returncode}")
+    if not summary_path.exists():
+        raise RuntimeError(f"lane {lane.lane} missing benchmark summary: {summary_path}")
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    aggregate = _aggregate_summary(summary, policy)
+    return {
+        "lane": lane.lane,
+        "account_class": lane.account_class,
+        "workers": lane.workers,
+        "notebooklm_profile_prefix": lane.notebooklm_profile_prefix,
+        "notebooklm_profiles": list(lane.notebooklm_profiles),
+        "coordinator_notebooklm_profile": lane.coordinator_profile,
+        "browser_profile_root": str(lane.browser_profile_root),
+        "browser_profile_directory": lane.browser_profile_directory,
+        "worker_state_root": str(lane.worker_state_root),
+        "notebook_prefix": lane.notebook_prefix,
+        "started_at": round(started_at, 3),
+        "finished_at": round(finished_at, 3),
+        "wall_elapsed_s": round(finished_at - started_at, 3),
+        "returncode": proc.returncode,
+        "command": command,
+        "output_root": str(lane_output_root),
+        "benchmark_summary_path": str(summary_path),
+        "aggregate": aggregate,
+        **aggregate,
+    }
+
+
+def compute_combined_hot_path_vph(lane_reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
+    """Compute combined sharded throughput using concurrent wall-clock span."""
+    reports = list(lane_reports)
+    if not reports:
+        raise ValueError("at least one lane report is required")
+    started_at = min(float(report["started_at"]) for report in reports)
+    finished_at = max(float(report["finished_at"]) for report in reports)
+    wall_elapsed_s = round(finished_at - started_at, 3)
+    hot_path_success = sum(int(report.get("hot_path_success_count_total") or 0) for report in reports)
+    fallback_success = sum(int(report.get("transcript_fallback_success_count_total") or 0) for report in reports)
+    fail_count = sum(int(report.get("fail_count_total") or 0) for report in reports)
+    processed_count = sum(int(report.get("processed_count_total") or 0) for report in reports)
+    return {
+        "lane_count": len(reports),
+        "started_at": round(started_at, 3),
+        "finished_at": round(finished_at, 3),
+        "wall_elapsed_s": wall_elapsed_s,
+        "hot_path_success_count_total": hot_path_success,
+        "transcript_fallback_success_count_total": fallback_success,
+        "fail_count_total": fail_count,
+        "processed_count_total": processed_count,
+        "hot_path_videos_per_hour": round(hot_path_success / wall_elapsed_s * 3600.0, 2) if wall_elapsed_s > 0 else 0.0,
+        "transcript_fallback_videos_per_hour": round(fallback_success / wall_elapsed_s * 3600.0, 2) if wall_elapsed_s > 0 else 0.0,
+        "processed_per_hour": round(processed_count / wall_elapsed_s * 3600.0, 2) if wall_elapsed_s > 0 else 0.0,
+    }
+
+
+def run_sharded_lane_series(
+    *,
+    lanes: Iterable[LaneConfig],
+    trace_root: Path = DEFAULT_TRACE_ROOT,
+    output_root: Path = DEFAULT_OUTPUT_ROOT,
+    cohort_json: Path = DEFAULT_COHORT_JSON,
+    source_url: str = DEFAULT_SOURCE_URL,
+    policy: str = DEFAULT_POLICY,
+    limit: int = DEFAULT_LIMIT,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    manifest_json: Path = DEFAULT_MANIFEST_JSON,
+    python_executable: str | None = None,
+    reusable_pipeline_mode: str = DEFAULT_REUSABLE_PIPELINE_MODE,
+) -> dict[str, Any]:
+    """Run all NotebookLM lanes concurrently and aggregate hot-path VPH."""
+    lane_configs = _validate_lanes(lanes)
+    output_root.mkdir(parents=True, exist_ok=True)
+    cohort_json.parent.mkdir(parents=True, exist_ok=True)
+    base_env = os.environ.copy()
+
+    lane_reports_by_name: dict[str, dict[str, Any]] = {}
+    with ThreadPoolExecutor(max_workers=len(lane_configs)) as executor:
+        futures = {
+            executor.submit(
+                _run_lane,
+                lane=lane,
+                trace_root=trace_root,
+                output_root=output_root,
+                cohort_json=cohort_json,
+                source_url=source_url,
+                policy=policy,
+                limit=limit,
+                batch_size=batch_size,
+                manifest_json=manifest_json,
+                python_executable=python_executable,
+                reusable_pipeline_mode=reusable_pipeline_mode,
+                env=_lane_env(base_env, lane, reusable_pipeline_mode),
+            ): lane
+            for lane in lane_configs
+        }
+        for future in as_completed(futures):
+            lane = futures[future]
+            lane_reports_by_name[lane.lane] = future.result()
+
+    lane_reports = [lane_reports_by_name[lane.lane] for lane in lane_configs]
+    combined = compute_combined_hot_path_vph(lane_reports)
+    report = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "metric_contract": "combined_hot_path_videos_per_hour_excludes_whisper",
+        "trace_root": str(trace_root),
+        "cohort_json": str(cohort_json),
+        "source_url": source_url,
+        "policy": policy,
+        "limit": limit,
+        "batch_size": batch_size,
+        "reusable_pipeline_mode": reusable_pipeline_mode,
+        "lanes": [asdict(lane) | {"browser_profile_root": str(lane.browser_profile_root), "worker_state_root": str(lane.worker_state_root)} for lane in lane_configs],
+        "runs": lane_reports,
+        "combined": combined,
+    }
+    report_path = output_root / "sharded_lane_series_summary.json"
+    report["report_path"] = str(report_path)
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    return report
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Run concurrent NotebookLM lane sharding benchmark")
+    parser.add_argument("--lane-config", required=True, type=Path, help="JSON list of lane configs")
+    parser.add_argument("--trace-root", type=Path, default=DEFAULT_TRACE_ROOT)
+    parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
+    parser.add_argument("--cohort-json", type=Path, default=DEFAULT_COHORT_JSON)
+    parser.add_argument("--source-url", default=DEFAULT_SOURCE_URL)
+    parser.add_argument("--policy", default=DEFAULT_POLICY)
+    parser.add_argument("--limit", type=int, default=DEFAULT_LIMIT)
+    parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
+    parser.add_argument("--manifest-json", type=Path, default=DEFAULT_MANIFEST_JSON)
+    parser.add_argument("--python-executable", default=None)
+    parser.add_argument("--reusable-pipeline-mode", default=DEFAULT_REUSABLE_PIPELINE_MODE)
+    args = parser.parse_args(argv)
+
+    report = run_sharded_lane_series(
+        lanes=load_lane_configs(args.lane_config),
+        trace_root=args.trace_root,
+        output_root=args.output_root,
+        cohort_json=args.cohort_json,
+        source_url=args.source_url,
+        policy=args.policy,
+        limit=args.limit,
+        batch_size=args.batch_size,
+        manifest_json=args.manifest_json,
+        python_executable=args.python_executable,
+        reusable_pipeline_mode=args.reusable_pipeline_mode,
+    )
+    combined = report["combined"]
+    print(
+        "[sharded] combined_hot_vph={vph:.2f} hot_success={success} "
+        "fail={fail} wall_elapsed_s={elapsed:.1f}".format(
+            vph=float(combined["hot_path_videos_per_hour"]),
+            success=int(combined["hot_path_success_count_total"]),
+            fail=int(combined["fail_count_total"]),
+            elapsed=float(combined["wall_elapsed_s"]),
+        )
+    )
+    print(f"[sharded] summary={report['report_path']}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

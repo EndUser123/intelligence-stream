@@ -345,7 +345,10 @@ def _run_policy(
             os.environ[key] = value
         for key, value in {
             "YTIS_INDUSTRIAL_WORKER_STATE_ROOT": str(worker_state_root),
-            "YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX": f"benchmark-{policy_name}",
+            "YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX": os.environ.get(
+                "YTIS_BENCHMARK_WORKER_NOTEBOOK_PREFIX",
+                f"benchmark-{policy_name}",
+            ),
         }.items():
             previous_env[key] = os.environ.get(key)
             os.environ[key] = value

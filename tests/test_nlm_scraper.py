@@ -740,15 +740,23 @@ class TestSeleniumProfileIsolation:
 
     def test_init_driver_uses_dedicated_chrome_profile_root(self, scraper, tmp_path, monkeypatch):
         """Persistent Chrome should seed a Selenium-only session root from the dedicated NotebookLM browser root."""
+        from dataclasses import replace
+
         browser_root = tmp_path / ".browser" / "notebooklm"
         browser_root.mkdir(parents=True, exist_ok=True)
         monkeypatch.setenv("YTIS_NLM_BROWSER_PROFILE_ROOT", str(browser_root))
+        replacement = replace(
+            scraper.browser_cfg,
+            nlm_browser_profile_root=str(browser_root),
+            nlm_browser_profile_directory="Default",
+        )
+        local_scraper = scraper.__class__(headless=True, browser_cfg=replacement)
 
         chrome_mock = mock.MagicMock()
         with mock.patch("csf.nlm_scraper.webdriver.Chrome", return_value=chrome_mock) as mock_chrome:
-            with mock.patch.object(scraper, "_seed_profile_tree") as mock_seed:
+            with mock.patch.object(local_scraper, "_seed_profile_tree") as mock_seed:
                 with mock.patch("csf.nlm_scraper.log_action") as mock_log:
-                    scraper._init_driver()
+                    local_scraper._init_driver()
 
         selected = next(
             call.args[1]
@@ -765,6 +773,38 @@ class TestSeleniumProfileIsolation:
         assert "selenium-profiles/chrome" in user_data_dir_args[0].replace("\\", "/")
         profile_dir_args = [arg for arg in opts.arguments if arg.startswith("--profile-directory=")]
         assert profile_dir_args == ["--profile-directory=Default"]
+
+    def test_init_driver_can_select_chrome_profile_directory(self, scraper, tmp_path):
+        """A lane should be able to bind CDP/Selenium to a specific Chrome profile directory."""
+        from dataclasses import replace
+
+        browser_root = tmp_path / ".browser" / "notebooklm"
+        (browser_root / "Profile 2").mkdir(parents=True, exist_ok=True)
+
+        replacement = replace(
+            scraper.browser_cfg,
+            nlm_browser_profile_root=str(browser_root),
+            nlm_browser_profile_directory="Profile 2",
+        )
+        local_scraper = scraper.__class__(headless=True, browser_cfg=replacement)
+
+        chrome_mock = mock.MagicMock()
+        with mock.patch("csf.nlm_scraper.webdriver.Chrome", return_value=chrome_mock) as mock_chrome:
+            with mock.patch.object(local_scraper, "_seed_profile_tree") as mock_seed:
+                with mock.patch("csf.nlm_scraper.log_action") as mock_log:
+                    local_scraper._init_driver()
+
+        selected = next(
+            call.args[1]
+            for call in mock_log.call_args_list
+            if call.args and call.args[0] == "selenium_profile_selected"
+        )
+        assert selected["profile_name"] == "Profile 2"
+        assert selected["seeded"] is True
+        mock_seed.assert_called_once()
+        opts = mock_chrome.call_args.kwargs["options"]
+        profile_dir_args = [arg for arg in opts.arguments if arg.startswith("--profile-directory=")]
+        assert profile_dir_args == ["--profile-directory=Profile 2"]
 
     def test_seed_browser_profile_reseeds_when_stale(self, scraper, tmp_path, monkeypatch):
         """Non-persistent Selenium should reseed a stale clone that still has a DevToolsActivePort marker."""

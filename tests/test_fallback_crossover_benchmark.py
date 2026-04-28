@@ -66,6 +66,34 @@ def test_route_plus_fallback_1w_policy_keeps_fallback_to_one_worker():
     assert policy["YTIS_TRANSCRIPT_FALLBACK_MIN_START_INTERVAL_S"] == "0"
 
 
+def test_run_policy_honors_benchmark_worker_notebook_prefix(tmp_path, monkeypatch):
+    mod = _load_benchmark_module()
+    captured: dict[str, str | None] = {}
+
+    def fake_run_worker_count_sweep(**_kwargs):
+        captured["prefix"] = mod.os.environ.get("YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX")
+        captured["state_root"] = mod.os.environ.get("YTIS_INDUSTRIAL_WORKER_STATE_ROOT")
+        return {"results": []}
+
+    monkeypatch.setenv("YTIS_BENCHMARK_WORKER_NOTEBOOK_PREFIX", "benchmark-shard-pro")
+    monkeypatch.setattr(mod, "run_worker_count_sweep", fake_run_worker_count_sweep)
+
+    mod._run_policy(
+        policy_name="notebooklm_route_plus_fallback_30s_1w",
+        items=[{"video_id": "vid-a", "source_url": "https://example.invalid", "has_captions": True}],
+        source_url="https://www.youtube.com/channel/UCYTISFALLBACKBMK",
+        output_root=tmp_path / "out",
+        workers=4,
+        limit=1,
+        python_executable="python.exe",
+        sample_label="shard_pro",
+        worker_state_root_override=tmp_path / "states",
+    )
+
+    assert captured["prefix"] == "benchmark-shard-pro"
+    assert captured["state_root"] == str(tmp_path / "states")
+
+
 def test_load_cohort_from_trace_include_ready_collects_ready_events(tmp_path):
     trace_root = tmp_path / "trace-root"
     trace_root.mkdir()

@@ -159,6 +159,60 @@ def _load_worker_summary(result_path: Path | None, stdout_text: str) -> dict[str
     return summary
 
 
+def _build_industrial_worker_launch(
+    *,
+    worker_id: int,
+    worker_batches: list[list[str]],
+) -> dict[str, object]:
+    """Build per-worker subprocess settings without mutating process-wide env."""
+    state_root = Path(
+        os.getenv(
+            "YTIS_INDUSTRIAL_WORKER_STATE_ROOT",
+            "P:/.data/yt-is/industrial-worker-states",
+        )
+    )
+    notebook_prefix = os.getenv(
+        "YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX",
+        "yt-is-worker",
+    )
+    profile_prefix = os.getenv(
+        "YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILE_PREFIX",
+        "ytis-worker",
+    )
+    explicit_profiles = [
+        item.strip()
+        for item in os.getenv("YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILES", "").split(",")
+        if item.strip()
+    ]
+    state_root.mkdir(parents=True, exist_ok=True)
+    state_path = state_root / f"worker-{worker_id:02d}.json"
+    notebook_title = f"{notebook_prefix}-{worker_id:02d}"
+    if explicit_profiles:
+        if worker_id > len(explicit_profiles):
+            raise ValueError(
+                "YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILES must include "
+                f"a profile for worker {worker_id:02d}"
+            )
+        notebooklm_profile = explicit_profiles[worker_id - 1]
+    else:
+        notebooklm_profile = f"{profile_prefix}-{worker_id:02d}"
+    worker_env = os.environ.copy()
+    worker_env["YTIS_NLM_OWNER_STATE_PATH"] = str(state_path)
+    worker_env["YTIS_NLM_OWNER_NOTEBOOK_TITLE"] = notebook_title
+    worker_env["YTIS_NLM_REUSABLE_STATE_PATH"] = str(state_path)
+    worker_env["YTIS_NLM_REUSABLE_NOTEBOOK_TITLE"] = notebook_title
+    worker_env["NOTEBOOKLM_PROFILE"] = notebooklm_profile
+    return {
+        "worker_label": f"worker-{worker_id:02d}",
+        "state_path": str(state_path),
+        "notebook_title": notebook_title,
+        "notebooklm_profile": notebooklm_profile,
+        "batch_count": len(worker_batches),
+        "video_count": sum(len(batch) for batch in worker_batches),
+        "env": worker_env,
+    }
+
+
 def _build_fetch_completed_payload(
     *,
     source_filter: str | None,
@@ -1936,29 +1990,20 @@ def cmd_fetch(
         return [group for group in groups if group]
 
     def _run_industrial_worker(worker_id: int, worker_batches: list[list[str]]) -> tuple[int, dict[str, object], str, str]:
-        state_root = Path(
-            os.getenv(
-                "YTIS_INDUSTRIAL_WORKER_STATE_ROOT",
-                "P:/.data/yt-is/industrial-worker-states",
-            )
+        launch = _build_industrial_worker_launch(
+            worker_id=worker_id,
+            worker_batches=worker_batches,
         )
-        notebook_prefix = os.getenv(
-            "YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX",
-            "yt-is-worker",
-        )
-        state_root.mkdir(parents=True, exist_ok=True)
-        state_path = state_root / f"worker-{worker_id:02d}.json"
-        notebook_title = f"{notebook_prefix}-{worker_id:02d}"
-        os.environ["YTIS_NLM_OWNER_STATE_PATH"] = str(state_path)
-        os.environ["YTIS_NLM_OWNER_NOTEBOOK_TITLE"] = notebook_title
-        os.environ["YTIS_NLM_REUSABLE_STATE_PATH"] = str(state_path)
-        os.environ["YTIS_NLM_REUSABLE_NOTEBOOK_TITLE"] = notebook_title
+        state_path = Path(str(launch["state_path"]))
+        notebook_title = str(launch["notebook_title"])
+        notebooklm_profile = str(launch["notebooklm_profile"])
+        worker_label = str(launch["worker_label"])
+        worker_env = launch["env"]
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tmp:
             json.dump(worker_batches, tmp)
             batch_file = Path(tmp.name)
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tmp:
             result_path = Path(tmp.name)
-        worker_label = f"worker-{worker_id:02d}"
         started_at = time.monotonic()
         log_action(
             "fetch_worker_started",
@@ -1968,6 +2013,7 @@ def cmd_fetch(
                 "video_count": sum(len(batch) for batch in worker_batches),
                 "state_path": str(state_path),
                 "notebook_title": notebook_title,
+                "notebooklm_profile": notebooklm_profile,
             },
         )
         cmd = [
@@ -1980,13 +2026,15 @@ def cmd_fetch(
             str(state_path),
             "--notebook-title",
             notebook_title,
+            "--notebooklm-profile",
+            notebooklm_profile,
             "--worker-id",
             worker_label,
             "--result-path",
             str(result_path),
         ]
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True)
+            proc = subprocess.run(cmd, capture_output=True, text=True, env=worker_env)
         finally:
             try:
                 batch_file.unlink()

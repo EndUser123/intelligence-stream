@@ -1,0 +1,33 @@
+Traceback (most recent call last):
+  File "P:\packages\yt-is\bin\csf-source", line 3758, in <module>
+    main()
+    ~~~~^^
+  File "P:\packages\yt-is\bin\csf-source", line 3731, in main
+    cmd_fetch(
+    ~~~~~~~~~^
+        source_filter=args.source,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        max_items=args.limit,
+        ^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "P:\packages\yt-is\bin\csf-source", line 2825, in cmd_fetch
+    deleted, failed = cleanup_stale_worker_notebooks(delete=True)
+                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "P:\packages\yt-is\csf\nlm_batch.py", line 394, in cleanup_stale_worker_notebooks
+    res = ingestor._run_cmd(["notebook", "list", "--json"], timeout=30)
+  File "P:\packages\yt-is\csf\nlm_batch.py", line 704, in _run_cmd
+    login = subprocess.run(
+        ["nlm", "login", "--force", *login_profile_args],
+        capture_output=True, text=True, timeout=120,
+    )
+  File "C:\Python314\Lib\subprocess.py", line 556, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\subprocess.py", line 1220, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\subprocess.py", line 1644, in _communicate
+    raise TimeoutExpired(self.args, orig_timeout)
+subprocess.TimeoutExpired: Command '['nlm', 'login', '--force', '--profile', 'ytis-pro-worker-01']' timed out after 120 seconds

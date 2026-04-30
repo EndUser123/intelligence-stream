@@ -1,0 +1,325 @@
+# NotebookLM Auth Robustness Test Plan
+
+> For future LLM agents: follow this plan before trusting a long Pro+Free throughput soak as auth evidence. A long run is only conclusive if the logs prove multiple auth refresh paths actually executed.
+
+## Goal
+
+Validate that NotebookLM auth stays profile-pinned and account-correct during repeated high-throughput Pro+Free runs, including multiple re-authentication events. The current working set has three auth families and twelve worker profiles.
+
+Status: the benchmark auth helper now checks account identity, and `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS` is implemented in `csf/nlm_batch.py`. Use this plan to verify those behaviors in live runs.
+
+## Read First
+
+- `P:/packages/yt-is/docs/operations/sharded-lane-series.md`
+- `P:/packages/yt-is/docs/operations/notebooklm-auth-family-extension.md`
+- `P:/packages/yt-is/docs/operations/hot-path-throughput-next-test-plan.md`
+- `P:/packages/yt-is/docs/operations/notebooklm-auth-rerun-recipe.md`
+- `P:/packages/yt-is/docs/operations/test-registry.md`
+- `P:/packages/yt-is/csf/nlm_worker_auth.py`
+- `P:/packages/yt-is/csf/nlm_batch.py`
+- `P:/packages/yt-is/tests/test_nlm_worker_auth.py`
+- `P:/packages/yt-is/tests/test_nlm_batch.py`
+
+## Current Auth Contract
+
+- `csf-nlm-worker-auth sync` parses the `Account:` line from `nlm login --check`.
+- A valid session on the wrong account is auth failure.
+- Worker `01` profiles can be repaired through the dedicated Pro/Free CDP roots before credentials are copied to sibling workers.
+- Benchmark subprocesses run with `YTIS_NLM_AUTH_NONINTERACTIVE=1`.
+- Benchmark workers must use `NOTEBOOKLM_PROFILE`; unprofiled `nlm login --force` invalidates the run.
+- If you add a 4th family, extend the lists in this file and use [NotebookLM Auth Family Extension Guide](notebooklm-auth-family-extension.md) for the exact update order.
+
+Expected accounts:
+
+- Pro workers: `a.hominidae@gmail.com`
+- Free workers: `troup.hominidae@gmail.com`
+- Free2 workers: `brsthomson@hotmail.com`
+
+Expected worker profiles:
+
+- `ytis-pro-worker-01`
+- `ytis-pro-worker-02`
+- `ytis-pro-worker-03`
+- `ytis-pro-worker-04`
+- `ytis-free1-worker-01`
+- `ytis-free1-worker-02`
+- `ytis-free1-worker-03`
+- `ytis-free1-worker-04`
+- `ytis-free2-worker-01`
+- `ytis-free2-worker-02`
+- `ytis-free2-worker-03`
+- `ytis-free2-worker-04`
+
+## Non-Negotiable Stop Conditions
+
+Stop immediately and mark the run invalid if any of these occur:
+
+- A command line contains `nlm login --force` without `--profile`.
+- Chrome launches or uses `C:\Users\brsth\.notebooklm-mcp-cli\chrome-profile`.
+- Any Pro worker reports `troup.hominidae@gmail.com`.
+- Any Free worker reports `a.hominidae@gmail.com`.
+- Any Free2 worker reports `a.hominidae@gmail.com` or `troup.hominidae@gmail.com`.
+- `PERMISSION_DENIED` dominates source materialization.
+- A benchmark starts before all configured worker profiles pass account-aware checks.
+
+## Phase 1: Static And Unit Gates
+
+Run from `P:/packages/yt-is`.
+
+```powershell
+$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
+pytest tests/test_nlm_worker_auth.py tests/test_sharded_lane_series.py -q
+python -m py_compile csf/nlm_worker_auth.py csf/sharded_lane_series.py tests/test_nlm_worker_auth.py tests/test_sharded_lane_series.py bin/csf-nlm-worker-auth
+```
+
+Expected:
+
+- `19 passed`
+- `py_compile` exits `0`
+
+If this fails, fix the account-aware auth helper before continuing.
+
+## Phase 2: Live Worker Sync Drill
+
+Run the live sync without creating another backup:
+
+```powershell
+$env:PYTHONPATH = 'P:\packages\yt-is'
+python P:/packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+```
+
+Then verify each profile explicitly:
+
+```powershell
+$profiles = @(
+  'ytis-pro-worker-01', 'ytis-pro-worker-02', 'ytis-pro-worker-03', 'ytis-pro-worker-04',
+  'ytis-free1-worker-01', 'ytis-free1-worker-02', 'ytis-free1-worker-03', 'ytis-free1-worker-04',
+  'ytis-free2-worker-01', 'ytis-free2-worker-02', 'ytis-free2-worker-03', 'ytis-free2-worker-04'
+)
+foreach ($profile in $profiles) {
+  nlm login --check --profile $profile
+}
+```
+
+Expected:
+
+- Pro profiles report `Account: a.hominidae@gmail.com`.
+- Free profiles report `Account: troup.hominidae@gmail.com`.
+- Free2 profiles report `Account: brsthomson@hotmail.com`.
+- No profile reports the other account family.
+
+If `sync` fails because Google needs passkey/browser approval, refresh only the affected worker `01` through the manual CDP flow in `sharded-lane-series.md`, then rerun this phase.
+
+## Phase 3: Verify The Deterministic In-Run Auth Stress Hook
+
+Purpose: make the long soak prove multiple refreshes. Do not skip this phase unless auth refresh events are already known to occur naturally during the soak.
+
+Implementation target:
+
+- Modify: `P:/packages/yt-is/csf/nlm_batch.py`
+- Test: `P:/packages/yt-is/tests/test_nlm_batch.py`
+
+Required behavior:
+
+- Env var `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS` is available.
+- Default is disabled.
+- When set to a positive integer `N`, every Nth `_ensure_nlm_auth()` check should force the refresh branch even if `nlm login --check` succeeds.
+- The forced path must still use `NOTEBOOKLM_PROFILE`.
+- In `YTIS_NLM_AUTH_NONINTERACTIVE=1`, missing `NOTEBOOKLM_PROFILE` must fail closed.
+- Log a distinct event such as `nlm_auth_forced_refresh_scheduled` with `notebooklm_profile` and `check_count`.
+
+Minimum tests:
+
+```powershell
+$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
+pytest tests/test_nlm_batch.py -q -k "auth_context or auth_refresh"
+```
+
+Add or update tests so they prove:
+
+- forced refresh uses `nlm login --force --profile <profile>`
+- forced refresh never uses unprofiled `nlm login --force`
+- noninteractive mode without `NOTEBOOKLM_PROFILE` fails closed
+- forced refresh logs the profile and check count
+
+Expected before continuing:
+
+- Focused tests pass.
+- `python -m py_compile csf/nlm_batch.py tests/test_nlm_batch.py` exits `0`.
+
+## Phase 4: Short Validation Smoke
+
+Run a small benchmark with forced refresh enabled before the long soak, but do not use the most aggressive cadence unless you are specifically debugging auth churn.
+
+```powershell
+$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS = '5'
+python P:/packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+python P:/packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --output-root P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_forced_smoke_v1 `
+  --cohort-json P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_forced_smoke_v1/cohort.json `
+  --limit 50 `
+  --batch-size 50 `
+  --reusable-pipeline-mode serial
+Remove-Item Env:\YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS
+```
+
+Use `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS='1'` only for a dedicated auth-stress drill where browser churn is the thing under test.
+
+During the run, watch for invalid auth launches:
+
+```powershell
+Get-CimInstance Win32_Process |
+  Where-Object { $_.CommandLine -match 'nlm login --force|remote-debugging-port=9222|\.notebooklm-mcp-cli\\chrome-profile|notebooklm-pro|notebooklm-free' } |
+  Select-Object ProcessId, Name, CommandLine
+```
+
+Pass criteria:
+
+- The run completes.
+- Logs show `nlm_auth_forced_refresh_scheduled` or equivalent.
+- Any `nlm login --force` command is profile-pinned.
+- No default NotebookLM Chrome profile appears.
+- Post-run `python P:/packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync` still passes.
+
+## Phase 5: Long Max-Throughput Soak
+
+Run repeated Pro+Free no-stagger max-throughput loops for at least `75` minutes. Prefer repeated standard runs over one giant limit because artifacts stay easier to compare.
+
+If you need forced refreshes during the soak, start with `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS='5'` instead of `1`. That still proves repeated re-authentication without turning the run into a browser-launch stress test.
+
+Use fresh output roots:
+
+- `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run01`
+- `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run02`
+- Continue until elapsed wall time is greater than `75` minutes.
+
+Command template:
+
+```powershell
+$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS = '5'
+python P:/packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+python P:/packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --output-root P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run01 `
+  --cohort-json P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run01/cohort.json `
+  --limit 400 `
+  --batch-size 200 `
+  --reusable-pipeline-mode serial
+```
+
+Leave the cadence at `5` unless a specific auth bug requires more aggressive refresh churn. If you are only checking sustained throughput, do not set `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS` at all.
+
+Run the process guard every 5 minutes in another terminal:
+
+```powershell
+Get-Date
+Get-CimInstance Win32_Process |
+  Where-Object { $_.CommandLine -match 'csf-sharded-lane-series|csf-source fetch|nlm login --force|remote-debugging-port=9222|\.notebooklm-mcp-cli\\chrome-profile|notebooklm-pro|notebooklm-free' } |
+  Select-Object ProcessId, Name, CommandLine
+```
+
+After each run:
+
+```powershell
+python P:/packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+```
+
+Pass criteria:
+
+- Total soak duration is greater than `75` minutes.
+- At least two auth refresh events are observed across artifacts or process logs.
+- Every observed refresh is profile-pinned.
+- All post-run sync checks report the expected accounts.
+- No unprofiled auth browser or default NotebookLM Chrome profile appears.
+- Benchmark summaries are structurally valid and use the standard metric contract.
+
+If no refresh events occur naturally during the long soak, the soak is endurance evidence only. Do not claim it proves re-auth correctness; rerun with the forced-refresh hook from Phase 3.
+
+## Phase 6: Evidence Extraction
+
+Extract summary data for each run:
+
+```powershell
+@'
+import json
+from pathlib import Path
+
+roots = sorted(Path("P:/packages/yt-is/.logs/sharded_lane_series").glob("pro_free_auth_soak_v1_run*/sharded_lane_series_summary.json"))
+for path in roots:
+    summary = json.loads(path.read_text())
+    print(json.dumps({
+        "artifact": str(path),
+        "combined_hot_path_vph": summary["combined"]["hot_path_videos_per_hour"],
+        "success": summary["combined"]["hot_path_success_count_total"],
+        "failure": summary["combined"]["fail_count_total"],
+        "processed": summary["combined"]["processed_count_total"],
+        "wall_elapsed_s": summary["combined"]["wall_elapsed_s"],
+        "lanes": {
+            lane["lane"]: {
+                "hot_path_vph": lane["hot_path_videos_per_hour"],
+                "success": lane["hot_path_success_count_total"],
+                "failure": lane["fail_count_total"],
+                "content_fetch_status_counts_total": lane.get("content_fetch_status_counts_total"),
+            }
+            for lane in summary["runs"]
+        },
+    }, indent=2))
+'@ | python -
+```
+
+Search for auth events:
+
+```powershell
+rg -n "nlm_auth|nlm_login|login --force|Account:|PERMISSION_DENIED|chrome-profile" P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run*
+```
+
+## Documentation Requirements
+
+After the test:
+
+- Add a row to `P:/packages/yt-is/docs/operations/test-registry.md`.
+- Update `P:/packages/yt-is/docs/operations/sharded-lane-series.md` if the auth contract changes.
+- If the run is invalid, say exactly which stop condition triggered.
+- If no refresh event occurred, mark the result as endurance-only, not re-auth proof.
+
+## Adding Another Family
+
+If a 4th lane is added later, update these places together:
+
+- `csf/nlm_worker_auth.py` `DEFAULT_FAMILIES`
+- the lane JSON used by the sharded benchmark
+- `docs/operations/sharded-lane-series.md`
+- this file's expected accounts and profile lists
+- `tests/test_nlm_worker_auth.py`
+- `tests/test_sharded_lane_series.py`
+
+The exact update order is documented in [NotebookLM Auth Family Extension Guide](notebooklm-auth-family-extension.md).
+
+## Final Decision Rules
+
+Mark the auth robustness test `proven` only if:
+
+- the unit/process gates pass
+- the live sync drill passes
+- the short forced-refresh smoke passes
+- the long soak exceeds `75` minutes
+- at least two refresh events are observed
+- every post-run account check is correct
+
+Mark it `negative` if:
+
+- any refresh maps a worker profile to the wrong account
+- any unprofiled auth command appears
+- the default NotebookLM Chrome profile appears
+- post-run account checks fail
+
+Mark it `partial` if:
+
+- the long soak completes but no refresh events occur
+- only one refresh event occurs
+- throughput artifacts are valid but process-monitor evidence is missing

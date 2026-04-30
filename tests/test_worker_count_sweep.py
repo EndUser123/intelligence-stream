@@ -29,7 +29,7 @@ def test_load_fetch_completed_event_from_jsonl(tmp_path):
                             "transcript_fallback_success_count": 3,
                             "worker_stage_totals": {
                                 "add_sources_elapsed_s_total": 3.0,
-                                "content_fetch_status_counts_total": {"ready": 2, "too_short": 1},
+                                "content_fetch_status_counts_total": {"ready": 2, "nlm_content_below_threshold": 1},
                                 "source_ready_age_s_total": 6.0,
                                 "source_ready_age_s_max": 4.0,
                                 "youtube_ytdlp_elapsed_s_total": 2.5,
@@ -88,7 +88,7 @@ def test_run_fetch_trial_captures_fetch_completed_summary(tmp_path, monkeypatch)
                                 "add_sources_elapsed_s_total": 4.5,
                                 "materialization_wait_elapsed_s_total": 2.0,
                                 "cleanup_elapsed_s_total": 0.5,
-                                "content_fetch_status_counts_total": {"ready": 2, "too_short": 1},
+                                "content_fetch_status_counts_total": {"ready": 2, "nlm_content_below_threshold": 1},
                             "source_ready_age_s_total": 6.0,
                             "source_ready_age_s_max": 4.0,
                             "youtube_ytdlp_elapsed_s_total": 2.5,
@@ -138,7 +138,7 @@ def test_run_fetch_trial_captures_fetch_completed_summary(tmp_path, monkeypatch)
     assert summary.source_filter == "https://www.youtube.com/channel/UCYTISFALLBACKBMK"
     assert summary.materialization_started is True
     assert summary.timeout_hit is False
-    assert summary.content_fetch_status_counts == {"ready": 2, "too_short": 1}
+    assert summary.content_fetch_status_counts == {"ready": 2, "nlm_content_below_threshold": 1}
     assert summary.source_ready_age_s_total == 6.0
     assert summary.source_ready_age_s_max == 4.0
     assert summary.source_ready_age_s_avg == 2.0

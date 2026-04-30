@@ -59,6 +59,14 @@ def _get_scheduler() -> BatchScheduler:
     return _scheduler
 
 
+def _get_nlm_login_profile_args() -> list[str]:
+    """Return CLI args that target the active NotebookLM auth profile."""
+    profile = os.environ.get("NOTEBOOKLM_PROFILE", "").strip()
+    if not profile:
+        return []
+    return ["--profile", profile]
+
+
 # Module-level NLM scraper singleton — one terminal-local staging notebook
 # reused across all _fetch_via_notebooklm calls within this process.
 _nlm_scraper: "NLMIndustrialScraper | None" = None
@@ -1529,7 +1537,7 @@ def _ensure_nlm_auth() -> bool:
     # 3. Run --check probe (for freshness tracker to record success)
     try:
         check = subprocess.run(
-            ["nlm", "login", "--check"],
+            ["nlm", "login", "--check", *_get_nlm_login_profile_args()],
             capture_output=True, timeout=30,
         )
         if check.returncode == 0:
@@ -1548,7 +1556,7 @@ def _ensure_nlm_auth() -> bool:
             {"component": "transcript", "mode": "force", "status": "started"},
         )
         login = subprocess.run(
-            ["nlm", "login", "--force"],
+            ["nlm", "login", "--force", *_get_nlm_login_profile_args()],
             capture_output=True, timeout=120,
         )
         login_elapsed = round(time.perf_counter() - login_started, 3)

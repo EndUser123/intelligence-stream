@@ -1,0 +1,91 @@
+[source] Preflight scan: checking 1 active channels (0 blocked skipped) for pending videos...
+[source] Pending item limit reached at 50; stopping scan early.
+[source] Preflight scan complete: 1 active channels, 50 pending, 0 cached, 0 neg-cache, 0 terminal, 50 notebooklm, 0 transcript-fallback
+[source] Parallel industrial dispatch: 1 batches across 1 workers...
+[source] Escalation Batch Process
+[source] Channels: 1 active / 1 tracked
+[source] Already cached: 0
+[source] Negative-cache skips: 0
+[source] Pending extraction: 50
+[source] Run limit: 50 pending items
+[source] Mode: LIVE
+[source] Strategy: Industrial (Batch NLM)
+[source] Method: NotebookLM CLI batch for captioned/no-captions items; live items use transcript fallback
+[source] Workers: 4
+
+[source] Pre-flight worker notebook cleanup: 0 worker notebooks deleted, 0 failed
+{"worker_id":"worker-01","event":"worker_notebook_reset_started","notebooklm_profile":"ytis-pro-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states\\worker-01.json","notebook_title":"benchmark-shard-a-hominidae-pro-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"benchmark-shard-a-hominidae-pro-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states\\worker-01.json"}}
+{"worker_id":"worker-01","event":"worker_notebook_reset_completed","notebooklm_profile":"ytis-pro-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states\\worker-01.json","notebook_title":"benchmark-shard-a-hominidae-pro-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"benchmark-shard-a-hominidae-pro-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states\\worker-01.json"}}
+[NLM-Batch] Creating notebook...
+[NLM-Batch] Adding 0 sources in sub-batches...
+{"worker_id":"worker-01","event":"notebook_prewarm","prepared":true,"setup_mode":"create","notebooklm_profile":"ytis-pro-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states\\worker-01.json","notebook_title":"benchmark-shard-a-hominidae-pro-01","elapsed_s":6.823}
+[NLM-Batch] Adding 50 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-50/50...
+[NLM-Batch]   Adding sub-batch 1 (50 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 50 sources in parallel (primary)...
+  ✓ dFP1ywyPspo | 861 chars
+  ✓ CDOqV89_mUw | 6731 chars
+  ✓ 0Xgb3i-sIJE | 929 chars
+  ✓ LDp3vbdmVLE | 6385 chars
+  ✓ AhQXGEA2bsg | 515 chars
+  ✓ jW35PssNZ74 | 1029 chars
+  ✓ WYwmp8VK1kc | 910 chars
+  ✓ v0j2nV5Y6Lo | 808 chars
+  ✓ UwPMvya_QPA | 878 chars
+  ✓ WV7BWIC1NnM | 846 chars
+  ✓ JOuDVfpxZbA | 625 chars
+  ✓ JDGGvyvaz_o | 861 chars
+  ✓ 79hrArnapP4 | 512 chars
+  ✓ iUDwsjjwFLU | 50359 chars
+  ✓ ORxtEvebZ04 | 623 chars
+  ✓ syJ7LuXIs38 | 717 chars
+  ✓ hH5jo2umLwY | 787 chars
+  ✓ DYOJExc-42c | 805 chars
+  ✓ -ogj_6X_Lno | 918 chars
+  ✓ Bp960s3DJE4 | 621 chars
+  ✓ 7oSFPkTmkzc | 871 chars
+  ✓ R3Qn9CxdCUA | 7645 chars
+  ✓ 5G1GG1Ld-P8 | 822 chars
+  ✓ TQttr5t5FDA | 660 chars
+  ✓ q4E06YF3XhI | 861 chars
+  ✓ 2IwJIPpzc9g | 20593 chars
+  ✓ Bz0jtIk75G4 | 893 chars
+  ✓ SY8KjMV498k | 650 chars
+  ✓ 78tr5jAL2QQ | 7170 chars
+  ✓ rX4_UEBL12o | 948 chars
+  ✓ k8f4BjQIX6s | 782 chars
+  ✓ UuqavY-Vc6g | 794 chars
+  ✓ V-jGF7-f2P0 | 6928 chars
+  ✓ W3ShmTWiVfo | 694 chars
+  ✓ _Mt0oRrSm3U | 730 chars
+  ✓ L-Ztvsb3M0E | 509 chars
+  ✓ 0pNMqakwz7w | 431 chars
+  ✓ 6QfIzJfzXvY | 623 chars
+  ✓ okfcF8gBpfA | 928 chars
+  ✓ Jg6P56v5HoE | 1011 chars
+[NLM-Batch] Fetching 10 sources in parallel (retry)...
+  ✓ 2VnMAjG802M | 22890 chars
+  ✓ 7zR5yNvnelo | 8206 chars
+  ✓ _SYyosQ6jBQ | 718 chars
+  ✓ jD3kQp0DlLk | 513 chars
+  ✓ wn3-9eDZLrc | 976 chars
+  ✓ 4Nh0NaGOeNA | 642 chars
+  ✓ BJxTHVMwVwk | 696 chars
+  ✓ ASwoXgqr59E | 554 chars
+  ✗ Dm72estvrnA | Fetch failed for eb8322b6-f033-4341-a102-f8354d34b09e: command_failed
+  ✗ lLtuDKpMS8M | Fetch failed for 5804baf7-6185-4636-bfd8-f81b76fccc50: command_failed
+{"worker_id":"worker-01","input":"C:\\Users\\brsth\\AppData\\Local\\Temp\\tmpt5a34nkl.json","batch_count":1,"video_count":50,"succeeded":48,"failed":2,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"captioned":50},"status_counts":{"pending":50},"privacy_status_counts":{"unknown":50},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"subbatch_metrics":[{"subbatch_index":1,"subbatch_size":50,"target_subbatch_size":50,"attempted_count":50,"added_count":50,"add_cmd_elapsed_s":51.345,"materialization_wait_elapsed_s":2.007,"elapsed_s":53.352,"returncode":0,"failure_reason":null,"source_profile":{"total":50,"matched":50,"missing":0,"source_class_counts":{"captioned":50},"status_counts":{"pending":50},"privacy_status_counts":{"unknown":50},"upload_status_counts":{"unknown":50},"unavailable_reason_counts":{"unknown":50},"failure_reason_counts":{"unknown":50}},"current_source_count":50,"source_materialization_ready_at_epoch":1777584740.1093316,"status":"ok"}],"startup_retire_elapsed_s":0.0,"startup_notebook_check_elapsed_s":0.0,"startup_notebook_create_elapsed_s":2.281,"startup_prepare_cleanup_elapsed_s":1.895,"startup_prepare_total_elapsed_s":6.82,"setup_elapsed_s_total":85.581,"notebook_check_elapsed_s_total":15.469,"notebook_create_elapsed_s_total":0.0,"notebook_retire_elapsed_s_total":0.0,"add_sources_elapsed_s_total":70.111,"add_cmd_elapsed_s_total":51.345,"materialization_wait_elapsed_s_total":2.007,"extract_elapsed_s_total":173.131,"cleanup_elapsed_s_total":6.966,"batch_elapsed_s_total":265.679,"staging_overlap_elapsed_s_total":0.0,"staging_wait_elapsed_s_total":0.0,"stage_swap_count_total":0,"content_fetch_status_counts_total":{"ready":48,"command_failed":2},"source_ready_age_s_total":2392.685,"source_ready_age_s_max":177.161,"source_ready_age_s_avg":47.854,"youtube_ytdlp_elapsed_s_total":24.032,"youtube_ytdlp_elapsed_s_max":2.478,"youtube_ytdlp_elapsed_s_count":12,"youtube_ytdlp_elapsed_s_avg":2.003,"youtube_page_elapsed_s_total":0.0,"youtube_page_elapsed_s_max":0.0,"youtube_page_elapsed_s_count":0,"youtube_page_elapsed_s_avg":0.0,"shared_retry_deferred_count":0,"shared_retry_recovered_count":0,"shared_retry_final_failed_count":0,"shared_retry_processed_count":0,"pipeline_strategy":"reusable","notebooklm_profile":"ytis-pro-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states\\worker-01.json","notebook_title":"benchmark-shard-a-hominidae-pro-01","status":"ok","returncode":0}
+
+[source] === Escalation Batch Complete ===
+[source] Successfully extracted: 48
+[source] Failed: 2
+[source] Skipped (cached): 0
+[source] Skipped (negative cache): 0
+[source] Skipped (terminal): 0
+[source] NotebookLM-eligible: 50
+[source] Routed to transcript fallback: 0
+[source] Worker notebook cleanup: 0 deleted, 0 failed
+[source] Stage totals: startup=6.8s, setup=85.6s, add=70.1s, extract=173.1s, cleanup=7.0s, batch=265.7s
+[source] Worker source profile: captioned=50
+[source] Total discovered: 50
+[source] Total processed outcomes: 50

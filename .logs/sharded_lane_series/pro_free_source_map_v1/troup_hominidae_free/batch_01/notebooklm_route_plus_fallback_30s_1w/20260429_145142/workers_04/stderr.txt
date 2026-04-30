@@ -1,0 +1,29 @@
+[source] NLM auth expired, re-authenticating...
+Traceback (most recent call last):
+  File "P:\packages\yt-is\bin\csf-source", line 3758, in <module>
+    main()
+    ~~~~^^
+  File "P:\packages\yt-is\bin\csf-source", line 3731, in main
+    cmd_fetch(
+    ~~~~~~~~~^
+        source_filter=args.source,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        max_items=args.limit,
+        ^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "P:\packages\yt-is\bin\csf-source", line 2819, in cmd_fetch
+    _ensure_nlm_auth()
+    ~~~~~~~~~~~~~~~~^^
+  File "P:\packages\yt-is\bin\csf-source", line 313, in _ensure_nlm_auth
+    login_res = subprocess.run(["nlm", "login", *login_profile_args], capture_output=True, text=True, timeout=120)
+  File "C:\Python314\Lib\subprocess.py", line 556, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\subprocess.py", line 1220, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\subprocess.py", line 1644, in _communicate
+    raise TimeoutExpired(self.args, orig_timeout)
+subprocess.TimeoutExpired: Command '['nlm', 'login', '--profile', 'ytis-free-worker-01']' timed out after 120 seconds

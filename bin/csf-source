@@ -171,10 +171,8 @@ def _build_industrial_worker_launch(
             "P:/.data/yt-is/industrial-worker-states",
         )
     )
-    notebook_prefix = os.getenv(
-        "YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX",
-        "yt-is-worker",
-    )
+    notebook_prefix_override = os.getenv("YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX", "").strip()
+    notebook_prefix = notebook_prefix_override or "yt-is-worker"
     profile_prefix = os.getenv(
         "YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILE_PREFIX",
         "ytis-worker",
@@ -186,7 +184,6 @@ def _build_industrial_worker_launch(
     ]
     state_root.mkdir(parents=True, exist_ok=True)
     state_path = state_root / f"worker-{worker_id:02d}.json"
-    notebook_title = f"{notebook_prefix}-{worker_id:02d}"
     if explicit_profiles:
         if worker_id > len(explicit_profiles):
             raise ValueError(
@@ -196,6 +193,14 @@ def _build_industrial_worker_launch(
         notebooklm_profile = explicit_profiles[worker_id - 1]
     else:
         notebooklm_profile = f"{profile_prefix}-{worker_id:02d}"
+    if notebook_prefix_override:
+        notebook_title = f"{notebook_prefix}-{worker_id:02d}"
+    elif explicit_profiles:
+        notebook_title = notebooklm_profile
+    elif profile_prefix != "ytis-worker":
+        notebook_title = f"{profile_prefix}-{worker_id:02d}"
+    else:
+        notebook_title = f"{notebook_prefix}-{worker_id:02d}"
     worker_env = os.environ.copy()
     worker_env["YTIS_NLM_OWNER_STATE_PATH"] = str(state_path)
     worker_env["YTIS_NLM_OWNER_NOTEBOOK_TITLE"] = notebook_title
@@ -288,6 +293,51 @@ def _build_fetch_completed_payload(
         "processed_per_min": round(processed_count / elapsed_s * 60, 2) if elapsed_s > 0 else None,
         "status": status,
     }
+
+
+def _get_nlm_login_profile_args() -> list[str]:
+    """Return CLI args that target the active NotebookLM auth profile."""
+    profile = os.getenv("NOTEBOOKLM_PROFILE", "").strip()
+    if not profile:
+        return []
+    return ["--profile", profile]
+
+
+def _is_nlm_auth_noninteractive() -> bool:
+    """Return whether auth checks must avoid browser/passkey prompts."""
+    value = os.getenv("YTIS_NLM_AUTH_NONINTERACTIVE", "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _ensure_nlm_auth() -> bool:
+    """Check NotebookLM auth and refresh it within the active profile if needed."""
+    login_profile_args = _get_nlm_login_profile_args()
+    try:
+        login_check = subprocess.run(
+            ["nlm", "login", "--check", *login_profile_args],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        print("[source] FATAL: NLM auth check timed out.", file=sys.stderr)
+        sys.exit(1)
+    if login_check.returncode == 0:
+        return True
+    force_arg = "--force" if _is_nlm_auth_noninteractive() else ""
+    mode = "force" if force_arg else "interactive"
+    print(f"[source] NLM auth expired, re-authenticating with nlm login ({mode})...", file=sys.stderr)
+    try:
+        login_cmd = ["nlm", "login", *([force_arg] if force_arg else []), *login_profile_args]
+        login_res = subprocess.run(login_cmd, capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        print("[source] FATAL: NLM login timed out.", file=sys.stderr)
+        sys.exit(1)
+    if login_res.returncode != 0:
+        print(f"[source] FATAL: NLM login failed: {login_res.stderr}", file=sys.stderr)
+        sys.exit(1)
+    print("[source] NLM re-authenticated.", file=sys.stderr)
+    return True
 
 
 def _empty_source_profile_totals() -> dict[str, object]:
@@ -2788,19 +2838,7 @@ def cmd_fetch(
     print()
 
     # Ensure NLM is authenticated before any live fetch run.
-    login_check = subprocess.run(
-        ["nlm", "login", "--check"],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    if login_check.returncode != 0:
-        print("[source] NLM auth expired, re-authenticating...", file=sys.stderr)
-        login_res = subprocess.run(["nlm", "login"], capture_output=True, text=True, timeout=120)
-        if login_res.returncode != 0:
-            print(f"[source] FATAL: NLM login failed: {login_res.stderr}", file=sys.stderr)
-            sys.exit(1)
-        print("[source] NLM re-authenticated.", file=sys.stderr)
+    _ensure_nlm_auth()
 
     industrial_run_id = uuid.uuid4().hex
     os.environ["YTIS_INDUSTRIAL_RUN_ID"] = industrial_run_id

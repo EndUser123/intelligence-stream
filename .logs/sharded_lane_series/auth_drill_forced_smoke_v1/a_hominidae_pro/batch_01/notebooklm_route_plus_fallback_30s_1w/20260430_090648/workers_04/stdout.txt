@@ -1,0 +1,101 @@
+[source] Preflight scan: checking 1 active channels (0 blocked skipped) for pending videos...
+[source] Pending item limit reached at 20; stopping scan early.
+[source] Preflight scan complete: 1 active channels, 20 pending, 0 cached, 0 neg-cache, 0 terminal, 20 notebooklm, 0 transcript-fallback
+[source] Parallel industrial dispatch: 1 batches across 1 workers...
+[source] Escalation Batch Process
+[source] Channels: 1 active / 1 tracked
+[source] Already cached: 0
+[source] Negative-cache skips: 0
+[source] Pending extraction: 20
+[source] Run limit: 20 pending items
+[source] Mode: LIVE
+[source] Strategy: Industrial (Batch NLM)
+[source] Method: NotebookLM CLI batch for captioned/no-captions items; live items use transcript fallback
+[source] Workers: 4
+
+[source] Pre-flight worker notebook cleanup: 0 worker notebooks deleted, 0 failed
+{"worker_id":"worker-01","event":"worker_notebook_reset_started","notebooklm_profile":"ytis-pro-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states\\worker-01.json","notebook_title":"benchmark-shard-a-hominidae-pro-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"benchmark-shard-a-hominidae-pro-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states\\worker-01.json"}}
+{"worker_id":"worker-01","event":"worker_notebook_reset_completed","notebooklm_profile":"ytis-pro-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states\\worker-01.json","notebook_title":"benchmark-shard-a-hominidae-pro-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"benchmark-shard-a-hominidae-pro-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states\\worker-01.json"}}
+[NLM-Batch] Creating notebook...
+[NLM-Batch] Adding 0 sources in sub-batches...
+{"worker_id":"worker-01","event":"notebook_prewarm","prepared":true,"setup_mode":"create","notebooklm_profile":"ytis-pro-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states\\worker-01.json","notebook_title":"benchmark-shard-a-hominidae-pro-01","elapsed_s":199.316}
+[NLM-Batch] Adding 20 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-20/20...
+[NLM-Batch]   Adding sub-batch 1 (20 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 20 sources in parallel (primary)...
+[Throttle] 3 consecutive failures — throttling 2.0s
+[Throttle] 4 consecutive failures — throttling 4.0s
+[Throttle] 5 consecutive failures — throttling 8.0s
+[Throttle] 6 consecutive failures — throttling 16.0s
+[Throttle] 7 consecutive failures — throttling 32.0s
+[Throttle] 8 consecutive failures — throttling 60.0s
+[Throttle] 9 consecutive failures — throttling 60.0s
+[Throttle] 10 consecutive failures — throttling 60.0s
+[Throttle] 11 consecutive failures — throttling 60.0s
+[Throttle] 12 consecutive failures — throttling 60.0s
+[Throttle] 13 consecutive failures — throttling 60.0s
+[Throttle] 14 consecutive failures — throttling 60.0s
+[Throttle] 15 consecutive failures — throttling 60.0s
+[Throttle] 16 consecutive failures — throttling 60.0s
+[Throttle] 17 consecutive failures — throttling 60.0s
+[Throttle] 18 consecutive failures — throttling 60.0s
+[Throttle] 19 consecutive failures — throttling 60.0s
+[Throttle] 20 consecutive failures — throttling 60.0s
+[Throttle] 21 consecutive failures — throttling 60.0s
+[NLM-Batch] Fetching 20 sources in parallel (retry)...
+[Throttle] 22 consecutive failures — throttling 60.0s
+  ✗ WV7BWIC1NnM | Fetch failed for 9f36465f-6411-4758-8491-4534f4e9c8a4: command_failed
+[Throttle] 23 consecutive failures — throttling 60.0s
+  ✗ jD3kQp0DlLk | Fetch failed for 19659fcb-7558-4c57-80bf-476127b58c29: command_failed
+[Throttle] 24 consecutive failures — throttling 60.0s
+  ✗ 7zR5yNvnelo | Fetch failed for 7fa58542-dacd-4616-9eba-e3847c32717d: command_failed
+[Throttle] 25 consecutive failures — throttling 60.0s
+  ✗ v0j2nV5Y6Lo | Fetch failed for 7836c3d7-0f49-4fe8-950c-cc35e885f26f: command_failed
+[Throttle] 26 consecutive failures — throttling 60.0s
+[Throttle] 27 consecutive failures — throttling 60.0s
+[Throttle] 28 consecutive failures — throttling 60.0s
+  ✗ 2VnMAjG802M | Fetch failed for 34b4fc77-8215-4349-8b7f-75a6609f3866: command_failed
+  ✗ iUDwsjjwFLU | Fetch failed for 2bc173d9-9fdc-4503-9695-76b95fb42f94: command_failed
+  ✗ JDGGvyvaz_o | Fetch failed for 2ef86a3b-2bdf-4d08-90d3-f2b603f71d9c: command_failed
+[Throttle] 29 consecutive failures — throttling 60.0s
+[Throttle] 30 consecutive failures — throttling 60.0s
+  ✗ ORxtEvebZ04 | Fetch failed for c09f1ede-58c7-4732-b399-dda7feda29f9: command_failed
+  ✗ AhQXGEA2bsg | Fetch failed for 12116221-f810-48b8-ae12-79371a480168: command_failed
+[Throttle] 31 consecutive failures — throttling 60.0s
+  ✗ JOuDVfpxZbA | Fetch failed for a825a226-b8fe-451b-a6b8-7d0bfe01bb86: command_failed
+[Throttle] 32 consecutive failures — throttling 60.0s
+  ✗ 0Xgb3i-sIJE | Fetch failed for 45652b4e-a4a4-48f6-b3bf-f7175ee2aa91: command_failed
+[Throttle] 33 consecutive failures — throttling 60.0s
+  ✗ CDOqV89_mUw | Fetch failed for f97fc1b3-8247-46ee-8933-c4dc91288385: command_failed
+[Throttle] 34 consecutive failures — throttling 60.0s
+  ✗ 79hrArnapP4 | Fetch failed for 9abc7471-9fad-4f88-8a0f-f8051f3d7999: command_failed
+[Throttle] 35 consecutive failures — throttling 60.0s
+  ✗ WYwmp8VK1kc | Fetch failed for 8fa2b83c-57b9-46ec-b6d4-d241ade0181f: command_failed
+[Throttle] 36 consecutive failures — throttling 60.0s
+  ✗ LDp3vbdmVLE | Fetch failed for c4541417-39e6-4334-b497-2ee6d4a015f3: command_failed
+[Throttle] 37 consecutive failures — throttling 60.0s
+  ✗ hH5jo2umLwY | Fetch failed for 278566ed-8b86-41a0-9485-82c893a9d450: command_failed
+[Throttle] 38 consecutive failures — throttling 60.0s
+  ✗ jW35PssNZ74 | Fetch failed for 0fe557c9-70e4-4f22-8762-f7c78219524e: command_failed
+[Throttle] 39 consecutive failures — throttling 60.0s
+  ✗ lLtuDKpMS8M | Fetch failed for 652fab31-d6ff-4dac-83e8-28b606358d00: command_failed
+[Throttle] 40 consecutive failures — throttling 60.0s
+  ✗ dFP1ywyPspo | Fetch failed for b0d8a57c-64cf-4231-bbd7-6130acb1549d: command_failed
+[Throttle] 41 consecutive failures — throttling 60.0s
+  ✗ UwPMvya_QPA | Fetch failed for b5661654-c6b6-4c6f-a090-1d09d1416eb7: command_failed
+[Throttle] 42 consecutive failures — throttling 60.0s
+{"worker_id":"worker-01","input":"C:\\Users\\brsth\\AppData\\Local\\Temp\\tmpkrgu6vb6.json","batch_count":1,"video_count":20,"succeeded":0,"failed":20,"source_profile":{"total":20,"matched":20,"missing":0,"source_class_counts":{"captioned":20},"status_counts":{"pending":20},"privacy_status_counts":{"unknown":20},"upload_status_counts":{"unknown":20},"unavailable_reason_counts":{"unknown":20},"failure_reason_counts":{"unknown":20}},"subbatch_metrics":[{"subbatch_index":1,"subbatch_size":20,"target_subbatch_size":50,"attempted_count":20,"added_count":20,"add_cmd_elapsed_s":62.057,"materialization_wait_elapsed_s":21.908,"elapsed_s":83.965,"returncode":0,"failure_reason":null,"source_profile":{"total":20,"matched":20,"missing":0,"source_class_counts":{"captioned":20},"status_counts":{"pending":20},"privacy_status_counts":{"unknown":20},"upload_status_counts":{"unknown":20},"unavailable_reason_counts":{"unknown":20},"failure_reason_counts":{"unknown":20}},"current_source_count":20,"source_materialization_ready_at_epoch":1777562016.0225272,"status":"ok"}],"startup_retire_elapsed_s":0.0,"startup_notebook_check_elapsed_s":0.0,"startup_notebook_create_elapsed_s":39.329,"startup_prepare_cleanup_elapsed_s":39.78,"startup_prepare_total_elapsed_s":199.314,"setup_elapsed_s_total":251.372,"notebook_check_elapsed_s_total":80.235,"notebook_create_elapsed_s_total":0.0,"notebook_retire_elapsed_s_total":0.0,"add_sources_elapsed_s_total":171.137,"add_cmd_elapsed_s_total":62.057,"materialization_wait_elapsed_s_total":21.908,"extract_elapsed_s_total":2518.196,"cleanup_elapsed_s_total":357.255,"batch_elapsed_s_total":3126.823,"staging_overlap_elapsed_s_total":0.0,"staging_wait_elapsed_s_total":0.0,"stage_swap_count_total":0,"content_fetch_status_counts_total":{"command_failed":20},"source_ready_age_s_total":33451.936,"source_ready_age_s_max":2560.244,"source_ready_age_s_avg":1672.597,"youtube_ytdlp_elapsed_s_total":77.824,"youtube_ytdlp_elapsed_s_max":2.928,"youtube_ytdlp_elapsed_s_count":40,"youtube_ytdlp_elapsed_s_avg":1.946,"youtube_page_elapsed_s_total":0.0,"youtube_page_elapsed_s_max":0.0,"youtube_page_elapsed_s_count":0,"youtube_page_elapsed_s_avg":0.0,"shared_retry_deferred_count":0,"shared_retry_recovered_count":0,"shared_retry_final_failed_count":0,"shared_retry_processed_count":0,"pipeline_strategy":"reusable","notebooklm_profile":"ytis-pro-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states\\worker-01.json","notebook_title":"benchmark-shard-a-hominidae-pro-01","status":"ok","returncode":0}
+
+[source] === Escalation Batch Complete ===
+[source] Successfully extracted: 0
+[source] Failed: 20
+[source] Skipped (cached): 0
+[source] Skipped (negative cache): 0
+[source] Skipped (terminal): 0
+[source] NotebookLM-eligible: 20
+[source] Routed to transcript fallback: 0
+[source] Worker notebook cleanup: 0 deleted, 0 failed
+[source] Stage totals: startup=199.3s, setup=251.4s, add=171.1s, extract=2518.2s, cleanup=357.3s, batch=3126.8s
+[source] Worker source profile: captioned=20
+[source] Total discovered: 20
+[source] Total processed outcomes: 20

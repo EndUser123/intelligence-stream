@@ -1,0 +1,51 @@
+[source] Preflight scan: checking 1 active channels (0 blocked skipped) for pending videos...
+[source] Pending item limit reached at 10; stopping scan early.
+[source] Preflight scan complete: 1 active channels, 10 pending, 0 cached, 0 neg-cache, 0 terminal, 10 notebooklm, 0 transcript-fallback
+[source] Parallel industrial dispatch: 1 batches across 1 workers...
+[source] Escalation Batch Process
+[source] Channels: 1 active / 1 tracked
+[source] Already cached: 0
+[source] Negative-cache skips: 0
+[source] Pending extraction: 10
+[source] Run limit: 10 pending items
+[source] Mode: LIVE
+[source] Strategy: Industrial (Batch NLM)
+[source] Method: NotebookLM CLI batch for captioned/no-captions items; live items use transcript fallback
+[source] Workers: 4
+
+[source] Pre-flight worker notebook cleanup: 1 worker notebooks deleted, 0 failed
+{"worker_id":"worker-01","event":"worker_notebook_reset_started","notebooklm_profile":"ytis-free-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\troup_hominidae_free\\worker_states\\worker-01.json","notebook_title":"benchmark-shard-troup-hominidae-free-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"benchmark-shard-troup-hominidae-free-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\troup_hominidae_free\\worker_states\\worker-01.json"}}
+{"worker_id":"worker-01","event":"worker_notebook_reset_completed","notebooklm_profile":"ytis-free-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\troup_hominidae_free\\worker_states\\worker-01.json","notebook_title":"benchmark-shard-troup-hominidae-free-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"benchmark-shard-troup-hominidae-free-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\troup_hominidae_free\\worker_states\\worker-01.json"}}
+{"worker_id":"worker-01","event":"notebook_prewarm","prepared":true,"setup_mode":"reuse","notebooklm_profile":"ytis-free-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\troup_hominidae_free\\worker_states\\worker-01.json","notebook_title":"benchmark-shard-troup-hominidae-free-01","elapsed_s":19.879}
+[Throttle] Success restored after 1 failures — delay reset
+[NLM-Batch] Creating notebook...
+[Throttle] Success restored after 1 failures — delay reset
+[NLM-Batch] Adding 10 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-10/10...
+[NLM-Batch]   Adding sub-batch 1 (10 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 10 sources in parallel (primary)...
+  ✓ iUDwsjjwFLU | 50359 chars
+  ✓ ORxtEvebZ04 | 623 chars
+  ✓ hH5jo2umLwY | 787 chars
+  ✓ lLtuDKpMS8M | 819 chars
+  ✓ JOuDVfpxZbA | 625 chars
+  ✓ JDGGvyvaz_o | 861 chars
+  ✓ 7zR5yNvnelo | 8206 chars
+  ✓ UwPMvya_QPA | 878 chars
+  ✓ 79hrArnapP4 | 512 chars
+  ✓ WV7BWIC1NnM | 846 chars
+{"worker_id":"worker-01","input":"C:\\Users\\brsth\\AppData\\Local\\Temp\\tmp9hxbx6ox.json","batch_count":1,"video_count":10,"succeeded":10,"failed":0,"source_profile":{"total":10,"matched":10,"missing":0,"source_class_counts":{"captioned":10},"status_counts":{"pending":10},"privacy_status_counts":{"unknown":10},"upload_status_counts":{"unknown":10},"unavailable_reason_counts":{"unknown":10},"failure_reason_counts":{"unknown":10}},"subbatch_metrics":[{"subbatch_index":1,"subbatch_size":10,"target_subbatch_size":50,"attempted_count":10,"added_count":10,"add_cmd_elapsed_s":20.813,"materialization_wait_elapsed_s":5.292,"elapsed_s":26.104999999999997,"returncode":0,"failure_reason":null,"source_profile":{"total":10,"matched":10,"missing":0,"source_class_counts":{"captioned":10},"status_counts":{"pending":10},"privacy_status_counts":{"unknown":10},"upload_status_counts":{"unknown":10},"unavailable_reason_counts":{"unknown":10},"failure_reason_counts":{"unknown":10}},"current_source_count":10,"source_materialization_ready_at_epoch":1777570818.2058237,"status":"ok"}],"startup_retire_elapsed_s":0.0,"startup_notebook_check_elapsed_s":12.195,"startup_notebook_create_elapsed_s":0.0,"startup_prepare_cleanup_elapsed_s":7.68,"startup_prepare_total_elapsed_s":19.876,"setup_elapsed_s_total":64.897,"notebook_check_elapsed_s_total":0.0,"notebook_create_elapsed_s_total":52.002,"notebook_retire_elapsed_s_total":0.0,"add_sources_elapsed_s_total":0.0,"add_cmd_elapsed_s_total":20.813,"materialization_wait_elapsed_s_total":5.292,"extract_elapsed_s_total":44.969,"cleanup_elapsed_s_total":10.979,"batch_elapsed_s_total":120.845,"staging_overlap_elapsed_s_total":0.0,"staging_wait_elapsed_s_total":0.0,"stage_swap_count_total":0,"content_fetch_status_counts_total":{"ready":10},"source_ready_age_s_total":149.549,"source_ready_age_s_max":14.956,"source_ready_age_s_avg":14.955,"youtube_ytdlp_elapsed_s_total":0.0,"youtube_ytdlp_elapsed_s_max":0.0,"youtube_ytdlp_elapsed_s_count":0,"youtube_ytdlp_elapsed_s_avg":0.0,"youtube_page_elapsed_s_total":0.0,"youtube_page_elapsed_s_max":0.0,"youtube_page_elapsed_s_count":0,"youtube_page_elapsed_s_avg":0.0,"shared_retry_deferred_count":0,"shared_retry_recovered_count":0,"shared_retry_final_failed_count":0,"shared_retry_processed_count":0,"pipeline_strategy":"reusable","notebooklm_profile":"ytis-free-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\troup_hominidae_free\\worker_states\\worker-01.json","notebook_title":"benchmark-shard-troup-hominidae-free-01","status":"ok","returncode":0}
+
+[source] === Escalation Batch Complete ===
+[source] Successfully extracted: 10
+[source] Failed: 0
+[source] Skipped (cached): 0
+[source] Skipped (negative cache): 0
+[source] Skipped (terminal): 0
+[source] NotebookLM-eligible: 10
+[source] Routed to transcript fallback: 0
+[source] Worker notebook cleanup: 1 deleted, 0 failed
+[source] Stage totals: startup=19.9s, setup=64.9s, add=0.0s, extract=45.0s, cleanup=11.0s, batch=120.8s
+[source] Worker source profile: captioned=10
+[source] Total discovered: 10
+[source] Total processed outcomes: 10

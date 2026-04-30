@@ -221,7 +221,7 @@ def test_load_or_build_cohort_mixed_shape_combines_ready_and_non_ready_trace_ite
                         "action": "nlm_batch_source_content_fetch_completed",
                         "data": {
                             "video_id": "vid-pending-2",
-                            "status": "too_short",
+                            "status": "nlm_content_below_threshold",
                             "source_url": "",
                             "youtube_ytdlp_classification": "ok",
                             "title": "Pending Title 2",

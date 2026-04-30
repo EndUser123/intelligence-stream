@@ -13,6 +13,7 @@ import subprocess
 import time
 import re
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -21,6 +22,12 @@ from csf.batch_status import summarize_video_ids
 from csf.display import format_result_row
 from csf.csf_logging import log_action
 from csf.nlm_config import get_nlm_config
+from csf.nlm_worker_auth import (
+    DEFAULT_FAMILIES,
+    expected_email_for_profile,
+    refresh_source_profile,
+    sync_worker_profiles,
+)
 from csf.shared_retry_pool import enqueue as enqueue_shared_retry
 from csf.youtube_page_inspector import inspect_youtube_watch_page, inspect_youtube_watch_page_via_ytdlp
 
@@ -56,6 +63,118 @@ _SOURCE_CONTENT_RETRY_BUDGET_S = max(0.0, float(_NLM_CONFIG.source_content_retry
 _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S = max(0.0, float(_NLM_CONFIG.source_content_retry_queue_delay_s))
 _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S = max(0.0, float(_NLM_CONFIG.source_content_retry_queue_budget_s))
 _SOURCE_CONTENT_SHARED_RETRY_POOL_ENABLED = bool(_NLM_CONFIG.source_content_shared_retry_pool_enabled)
+_NLM_CONTENT_READY_THRESHOLD = 100
+_NLM_CONTENT_BELOW_THRESHOLD_STATUS = "nlm_content_below_threshold"
+_LEGACY_NLM_CONTENT_BELOW_THRESHOLD_STATUS = "too_short"
+_ZERO_GROWTH_ADD_RESET_RETRY_LIMIT = 1
+_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS = 0
+
+
+def _get_nlm_auth_force_refresh_every_checks() -> int:
+    raw = os.getenv("YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS", "").strip()
+    if not raw:
+        return 0
+    try:
+        value = int(raw)
+    except ValueError:
+        return 0
+    return value if value > 0 else 0
+
+
+def _next_nlm_auth_check_count() -> int:
+    global _NLM_AUTH_CHECK_COUNT
+    with _NLM_AUTH_CHECK_COUNT_LOCK:
+        _NLM_AUTH_CHECK_COUNT += 1
+        return _NLM_AUTH_CHECK_COUNT
+
+
+def _extract_account(stdout: str, stderr: str = "") -> str:
+    for line in f"{stdout}\n{stderr}".splitlines():
+        stripped = line.strip()
+        if stripped.lower().startswith("account:"):
+            return stripped.split(":", 1)[1].strip().lower()
+    return ""
+
+
+def _session_matches_expected_account(check: subprocess.CompletedProcess, expected_email: str) -> bool:
+    expected = expected_email.strip().lower()
+    if not expected:
+        return True
+    return _extract_account(check.stdout or "", check.stderr or "") == expected
+
+
+def _auth_family_for_profile(profile: str):
+    profile = profile.strip()
+    if not profile:
+        return None
+    for family in DEFAULT_FAMILIES:
+        if profile == family.source_profile or profile in family.sibling_profiles:
+            return family
+    return None
+
+
+def _refresh_nlm_auth_session(
+    auth_context: _NLMAuthContext,
+    *,
+    timeout_s: float = 120.0,
+    force_source_refresh: bool = False,
+) -> bool:
+    expected_email = auth_context.expected_email.strip().lower()
+    family = _auth_family_for_profile(auth_context.profile) if expected_email else None
+    if family is not None:
+        try:
+            if force_source_refresh and not refresh_source_profile(family, timeout_s=timeout_s):
+                return False
+            sync_worker_profiles(families=(family,), backup=False)
+        except (FileNotFoundError, RuntimeError, ValueError):
+            return False
+        try:
+            check = subprocess.run(
+                ["nlm", "login", "--check", *auth_context.login_profile_args],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return False
+        return check.returncode == 0 and _session_matches_expected_account(check, expected_email)
+
+    try:
+        login = subprocess.run(
+            ["nlm", "login", "--force", *auth_context.login_profile_args],
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return False
+    if login.returncode != 0:
+        return False
+    if not expected_email:
+        return True
+    return _extract_account(login.stdout or "", login.stderr or "") == expected_email
+
+
+_NLM_AUTH_CHECK_COUNT = 0
+_NLM_AUTH_CHECK_COUNT_LOCK = threading.Lock()
+
+
+@dataclass(frozen=True)
+class _NLMAuthContext:
+    profile: str
+    login_profile_args: list[str]
+    requires_profile: bool
+    expected_email: str = ""
+
+    @property
+    def has_profile(self) -> bool:
+        return bool(self.login_profile_args)
+
+    @property
+    def should_fail_closed(self) -> bool:
+        return self.requires_profile and not self.has_profile
 
 
 class NotebookSourceMaterializationTimeout(RuntimeError):
@@ -95,6 +214,30 @@ def _get_notebooklm_profile() -> str:
     return override or _DEFAULT_NOTEBOOKLM_PROFILE
 
 
+def _get_nlm_login_profile_args() -> list[str]:
+    """Return CLI args that target the active NotebookLM auth profile."""
+    profile = os.getenv("NOTEBOOKLM_PROFILE", "").strip()
+    if not profile:
+        return []
+    return ["--profile", profile]
+
+
+def _is_nlm_auth_noninteractive() -> bool:
+    value = os.getenv("YTIS_NLM_AUTH_NONINTERACTIVE", "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _get_nlm_auth_context() -> _NLMAuthContext:
+    """Centralize the profile pinning decision for NotebookLM auth refresh."""
+    profile = _get_notebooklm_profile()
+    return _NLMAuthContext(
+        profile=profile,
+        login_profile_args=_get_nlm_login_profile_args(),
+        requires_profile=_is_nlm_auth_noninteractive(),
+        expected_email=expected_email_for_profile(profile),
+    )
+
+
 def _extract_video_id_from_source_entry(source: object) -> str | None:
     """Best-effort extraction of a video ID from a NotebookLM source entry."""
     if not isinstance(source, dict):
@@ -118,9 +261,19 @@ def _extract_video_id_from_source_entry(source: object) -> str | None:
     return None
 
 
+def _extract_source_ids_from_add_stdout(stdout: str) -> list[str]:
+    """Extract NotebookLM source IDs from a successful add command's stdout."""
+    source_ids: list[str] = []
+    for line in (stdout or "").splitlines():
+        match = re.search(r"Source ID:\s*([^\s]+)", line)
+        if match:
+            source_ids.append(match.group(1))
+    return source_ids
+
+
 def _should_retry_source_content_fetch(status: str, res: subprocess.CompletedProcess) -> bool:
     """Retry content fetches that look transient rather than terminal."""
-    if status == "too_short":
+    if status in {_NLM_CONTENT_BELOW_THRESHOLD_STATUS, _LEGACY_NLM_CONTENT_BELOW_THRESHOLD_STATUS}:
         return True
     if status != "command_failed":
         return False
@@ -131,7 +284,7 @@ def _should_retry_source_content_fetch(status: str, res: subprocess.CompletedPro
 
 def _should_defer_source_content_fetch(ytdlp_probe: dict[str, object], status: str) -> bool:
     """Return True when a failure should be queued for a second NotebookLM pass."""
-    if status not in {"command_failed", "too_short"}:
+    if status not in {"command_failed", _NLM_CONTENT_BELOW_THRESHOLD_STATUS, _LEGACY_NLM_CONTENT_BELOW_THRESHOLD_STATUS}:
         return False
     classification = str(ytdlp_probe.get("classification") or "").strip().lower()
     return classification == "ok"
@@ -486,40 +639,142 @@ def cleanup_stale_worker_notebooks(*, delete: bool = False) -> tuple[int, int]:
 def _ensure_nlm_auth() -> bool:
     """Verify nlm CLI auth is valid, auto-recover if expired.
 
-    Runs 'nlm login --check' (30s timeout). On failure, calls 'nlm login --force'
-    (120s timeout) to auto-re-authenticate via Chrome headless.
+    Runs 'nlm login --check' (30s timeout). On failure, calls a profile-pinned
+    'nlm login --force' (120s timeout) to auto-re-authenticate.
     Returns True if auth is valid or was just refreshed.
     """
     import subprocess
 
+    auth_context = _get_nlm_auth_context()
+    if auth_context.should_fail_closed:
+        log_action(
+            "nlm_auth_failed",
+            {
+                "component": "nlm_batch",
+                "status": "missing_profile",
+                "mode": "noninteractive",
+                "notebooklm_profile": auth_context.profile,
+            },
+        )
+        return False
+
+    check_count = _next_nlm_auth_check_count()
+    force_every = _get_nlm_auth_force_refresh_every_checks()
     check = subprocess.run(
-        ["nlm", "login", "--check"], capture_output=True, text=True, timeout=30
+        ["nlm", "login", "--check", *auth_context.login_profile_args], capture_output=True, text=True, timeout=30
     )
-    if check.returncode == 0:
-        log_action("nlm_auth_checked", {"component": "nlm_batch", "status": "ok"})
+    check_account = _extract_account(check.stdout or "", check.stderr or "")
+    expected_email = auth_context.expected_email.strip().lower()
+    check_matches_expected = check.returncode == 0 and (not expected_email or check_account == expected_email)
+    force_scheduled = force_every > 0 and check_count % force_every == 0
+    if check_matches_expected and not force_scheduled:
+        log_action(
+            "nlm_auth_checked",
+            {
+                "component": "nlm_batch",
+                "status": "ok",
+                "notebooklm_profile": auth_context.profile,
+                "account": check_account or None,
+                "expected_email": expected_email or None,
+                "check_count": check_count,
+            },
+        )
         return True
+
+    if check.returncode == 0 and expected_email and check_account and check_account != expected_email:
+        log_action(
+            "nlm_auth_failed",
+            {
+                "component": "nlm_batch",
+                "status": "wrong_account",
+                "notebooklm_profile": auth_context.profile,
+                "account": check_account,
+                "expected_email": expected_email,
+                "check_count": check_count,
+            },
+        )
+    elif force_scheduled and check_matches_expected:
+        log_action(
+            "nlm_auth_forced_refresh_scheduled",
+            {
+                "component": "nlm_batch",
+                "notebooklm_profile": auth_context.profile,
+                "expected_email": expected_email or None,
+                "check_count": check_count,
+            },
+        )
+    elif check.returncode != 0:
+        log_action(
+            "nlm_auth_failed",
+            {
+                "component": "nlm_batch",
+                "status": "check_failed",
+                "notebooklm_profile": auth_context.profile,
+                "check_count": check_count,
+            },
+        )
 
     # Auth expired — serialize refresh so multiple workers do not launch
     # duplicate browser login flows at the same time.
     _AUTH_LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
     with fasteners.InterProcessLock(str(_AUTH_LOCK_PATH)):
         check = subprocess.run(
-            ["nlm", "login", "--check"], capture_output=True, text=True, timeout=30
+            ["nlm", "login", "--check", *auth_context.login_profile_args], capture_output=True, text=True, timeout=30
         )
-        if check.returncode == 0:
-            log_action("nlm_auth_checked", {"component": "nlm_batch", "status": "ok"})
+        check_account = _extract_account(check.stdout or "", check.stderr or "")
+        check_matches_expected = check.returncode == 0 and (not expected_email or check_account == expected_email)
+        force_scheduled = force_every > 0 and check_count % force_every == 0
+        if check_matches_expected and not force_scheduled:
+            log_action(
+                "nlm_auth_checked",
+                {
+                    "component": "nlm_batch",
+                    "status": "ok",
+                    "notebooklm_profile": auth_context.profile,
+                    "account": check_account or None,
+                    "expected_email": expected_email or None,
+                    "check_count": check_count,
+                },
+            )
             return True
+
+        if check.returncode == 0 and expected_email and check_account and check_account != expected_email:
+            log_action(
+                "nlm_auth_failed",
+                {
+                    "component": "nlm_batch",
+                    "status": "wrong_account",
+                    "notebooklm_profile": auth_context.profile,
+                    "account": check_account,
+                    "expected_email": expected_email,
+                    "check_count": check_count,
+                },
+            )
+        elif force_scheduled and check_matches_expected:
+            log_action(
+                "nlm_auth_forced_refresh_scheduled",
+                {
+                    "component": "nlm_batch",
+                    "notebooklm_profile": auth_context.profile,
+                    "expected_email": expected_email or None,
+                    "check_count": check_count,
+                },
+            )
 
         login_started = time.perf_counter()
         log_action(
             "nlm_login_started",
-            {"component": "nlm_batch", "mode": "force", "status": "started"},
+            {
+                "component": "nlm_batch",
+                "mode": "force",
+                "status": "started",
+                "notebooklm_profile": auth_context.profile,
+                "check_count": check_count,
+            },
         )
-        login = subprocess.run(
-            ["nlm", "login", "--force"], capture_output=True, text=True, timeout=120
-        )
+        login = _refresh_nlm_auth_session(auth_context, timeout_s=120, force_source_refresh=force_scheduled)
         login_elapsed = round(time.perf_counter() - login_started, 3)
-        if login.returncode == 0:
+        if login:
             log_action(
                 "nlm_login_completed",
                 {
@@ -527,9 +782,19 @@ def _ensure_nlm_auth() -> bool:
                     "mode": "force",
                     "status": "ok",
                     "elapsed_s": login_elapsed,
+                    "notebooklm_profile": auth_context.profile,
+                    "check_count": check_count,
                 },
             )
-            log_action("nlm_auth_refreshed", {"component": "nlm_batch", "status": "ok"})
+            log_action(
+                "nlm_auth_refreshed",
+                {
+                    "component": "nlm_batch",
+                    "status": "ok",
+                    "notebooklm_profile": auth_context.profile,
+                    "check_count": check_count,
+                },
+            )
             return True
         log_action(
             "nlm_login_failed",
@@ -538,16 +803,28 @@ def _ensure_nlm_auth() -> bool:
                 "mode": "force",
                 "status": "failed",
                 "elapsed_s": login_elapsed,
-                "returncode": login.returncode,
+                "returncode": 1,
+                "notebooklm_profile": auth_context.profile,
+                "check_count": check_count,
             },
         )
-        log_action("nlm_auth_failed", {"component": "nlm_batch", "status": "refresh_failed"})
+        log_action(
+            "nlm_auth_failed",
+            {
+                "component": "nlm_batch",
+                "status": "refresh_failed",
+                "notebooklm_profile": auth_context.profile,
+                "check_count": check_count,
+            },
+        )
         return False
 
 
 # Minimum characters for a "valid" high-fidelity transcript
 _MIN_TRANSCRIPT_CHARS = 500
 _MAX_SUBBATCH_RETRY_DEPTH = 4
+_ZERO_GROWTH_ADD_RETRY_LIMIT = 1
+_ZERO_GROWTH_ADD_RETRY_DELAY_S = 5.0
 
 # Dynamic throttling: rate limit detection and backoff
 _INITIAL_DELAY = 0.5       # seconds before first retry
@@ -651,6 +928,7 @@ class NLMBatchIngestor:
         self._last_add_cmd_elapsed_s: float = 0.0
         self._last_materialization_wait_elapsed_s: float = 0.0
         self._last_materialization_ready_at_epoch: float = 0.0
+        self._last_added_source_ids: List[str] = []
         self._last_extract_metrics: dict[str, object] | None = None
         self._current_source_count: int = 0
         self._video_ready_epoch_by_id: dict[str, float] = {}
@@ -689,11 +967,11 @@ class NLMBatchIngestor:
                 for kw in ["Authentication Error", "authentication error", "Auth Error", "auth error"]
             )
             if is_auth_error:
-                login = subprocess.run(
-                    ["nlm", "login", "--force"],
-                    capture_output=True, text=True, timeout=120,
-                )
-                if login.returncode == 0:
+                auth_context = _get_nlm_auth_context()
+                if auth_context.should_fail_closed:
+                    tracker.record_failure(is_rate_limit=False)
+                    return res
+                if _refresh_nlm_auth_session(auth_context, timeout_s=120):
                     res = subprocess.run(
                         ["nlm"] + args, capture_output=True, text=True, timeout=timeout,
                     )
@@ -808,6 +1086,7 @@ class NLMBatchIngestor:
         subbatch_index: int,
         expected_total: int,
         retry_depth: int = 0,
+        reset_depth: int = 0,
         source_profile: Optional[dict[str, object]] = None,
     ) -> List[str]:
         """Add one chunk, recursively splitting on add failures.
@@ -852,13 +1131,15 @@ class NLMBatchIngestor:
         add_args = ["source", "add", self._nb_id, "--wait"]
         for vid in batch_ids:
             add_args.extend(["--url", f"https://www.youtube.com/watch?v={vid}"])
+        self._last_added_source_ids = []
         res = self._run_cmd(add_args, timeout=600)
         add_cmd_elapsed_s = round(time.monotonic() - chunk_started_at, 3)
         self._last_add_cmd_elapsed_s = add_cmd_elapsed_s
         self._last_add_returncode = res.returncode
         # Probe source count after add — key diagnostic for capacity correlation
         source_count_after = self._get_current_source_count()
-        added_count = len(batch_ids) if res.returncode == 0 else 0
+        add_recovered = res.returncode != 0 and source_count_after >= source_count_before + len(batch_ids)
+        added_count = len(batch_ids) if (res.returncode == 0 or add_recovered) else 0
         log_action(
             "nlm_batch_subbatch_add_completed",
             {
@@ -869,6 +1150,7 @@ class NLMBatchIngestor:
                 "retry_depth": retry_depth,
                 "returncode": res.returncode,
                 "added_count": added_count,
+                "recovered": add_recovered,
                 "elapsed_s": add_cmd_elapsed_s,
                 "source_profile": source_profile,
                 "source_count_before": source_count_before,
@@ -880,7 +1162,7 @@ class NLMBatchIngestor:
                 "completed_at_epoch": time.time(),
             },
         )
-        if res.returncode == 0:
+        if res.returncode == 0 or add_recovered:
             wait_started_at = time.monotonic()
             wait_started_at_epoch = time.time()
             log_action(
@@ -952,6 +1234,23 @@ class NLMBatchIngestor:
                 },
             )
             self._last_materialization_ready_at_epoch = wait_completed_at_epoch
+            parsed_source_ids = _extract_source_ids_from_add_stdout(res.stdout)
+            if len(parsed_source_ids) == len(batch_ids):
+                self._last_added_source_ids = parsed_source_ids
+            else:
+                self._last_added_source_ids = []
+                log_action(
+                    "nlm_batch_subbatch_add_source_id_parse_mismatch",
+                    {
+                        "nb_id": self._nb_id,
+                        "subbatch_index": subbatch_index,
+                        "subbatch_size": len(batch_ids),
+                        "parsed_source_id_count": len(parsed_source_ids),
+                        "expected_source_id_count": len(batch_ids),
+                        "retry_depth": retry_depth,
+                        "source_profile": source_profile,
+                    },
+                )
             for vid in batch_ids:
                 self._video_ready_epoch_by_id[vid] = wait_completed_at_epoch
             return list(batch_ids)
@@ -964,6 +1263,78 @@ class NLMBatchIngestor:
             print(f"[NLM-Batch]   stderr: {res.stderr[:200]}")
 
         self._last_add_failure_reason = _classify_subbatch_add_failure(res, materialization_waited=False)
+        zero_growth_add_failure = res.returncode != 0 and source_count_after == source_count_before
+        if zero_growth_add_failure and reset_depth == 0 and retry_depth < _ZERO_GROWTH_ADD_RETRY_LIMIT:
+            retry_delay_s = _ZERO_GROWTH_ADD_RETRY_DELAY_S
+            log_action(
+                "nlm_batch_subbatch_add_retry_scheduled",
+                {
+                    "nb_id": self._nb_id,
+                    "subbatch_index": subbatch_index,
+                    "subbatch_size": len(batch_ids),
+                    "expected_total": expected_total,
+                    "retry_depth": retry_depth,
+                    "next_retry_depth": retry_depth + 1,
+                    "retry_delay_s": retry_delay_s,
+                    "returncode": res.returncode,
+                    "source_profile": source_profile,
+                    "source_count_before": source_count_before,
+                    "source_count_after": source_count_after,
+                    "failure_reason": self._last_add_failure_reason,
+                    "stdout": (res.stdout or "")[:200],
+                    "stderr": (res.stderr or "")[:200],
+                },
+            )
+            print(
+                f"[NLM-Batch]   Sub-batch {subbatch_index} zero-growth add failure; "
+                f"retrying in {retry_delay_s:.1f}s (retry_depth={retry_depth})"
+            )
+            time.sleep(retry_delay_s)
+            return self._add_sources_chunk(
+                batch_ids,
+                subbatch_index=subbatch_index,
+                expected_total=expected_total,
+                retry_depth=retry_depth + 1,
+                reset_depth=reset_depth,
+                source_profile=source_profile,
+            )
+        if zero_growth_add_failure and reset_depth < _ZERO_GROWTH_ADD_RESET_RETRY_LIMIT:
+            reset_delay_s = _ZERO_GROWTH_ADD_RETRY_DELAY_S
+            log_action(
+                "nlm_batch_subbatch_add_notebook_reset_scheduled",
+                {
+                    "nb_id": self._nb_id,
+                    "subbatch_index": subbatch_index,
+                    "subbatch_size": len(batch_ids),
+                    "expected_total": expected_total,
+                    "retry_depth": retry_depth,
+                    "reset_depth": reset_depth,
+                    "next_reset_depth": reset_depth + 1,
+                    "retry_delay_s": reset_delay_s,
+                    "returncode": res.returncode,
+                    "source_profile": source_profile,
+                    "source_count_before": source_count_before,
+                    "source_count_after": source_count_after,
+                    "failure_reason": self._last_add_failure_reason,
+                    "stdout": (res.stdout or "")[:200],
+                    "stderr": (res.stderr or "")[:200],
+                },
+            )
+            print(
+                f"[NLM-Batch]   Sub-batch {subbatch_index} zero-growth add failure; "
+                f"resetting notebook and retrying in {reset_delay_s:.1f}s "
+                f"(retry_depth={retry_depth}, reset_depth={reset_depth})"
+            )
+            self._rotate_notebook()
+            time.sleep(reset_delay_s)
+            return self._add_sources_chunk(
+                batch_ids,
+                subbatch_index=subbatch_index,
+                expected_total=expected_total,
+                retry_depth=0,
+                reset_depth=reset_depth + 1,
+                source_profile=source_profile,
+            )
         log_action(
             "nlm_batch_subbatch_add_failed",
             {
@@ -977,6 +1348,8 @@ class NLMBatchIngestor:
                 "source_profile": source_profile,
                 "source_count_before": source_count_before,
                 "source_count_after": source_count_after,
+                "retry_depth": retry_depth,
+                "reset_depth": reset_depth,
                 "failure_reason": _classify_subbatch_add_failure(res, materialization_waited=False),
                 "stdout": (res.stdout or "")[:200],
                 "stderr": (res.stderr or "")[:200],
@@ -999,6 +1372,7 @@ class NLMBatchIngestor:
         current_subbatch_size = max(1, subbatch_size)
         next_index = 0
         subbatch_index = 0
+        added_source_ids: List[str] = []
         while next_index < total:
             subbatch_index += 1
             window_size = min(current_subbatch_size, total - next_index)
@@ -1087,6 +1461,7 @@ class NLMBatchIngestor:
             # Track running source count after each subbatch
             self._current_source_count = self._get_current_source_count()
             added_ids.extend(added_chunk_ids)
+            added_source_ids.extend(self._last_added_source_ids)
             subbatch_metrics = {
                 "subbatch_index": subbatch_index,
                 "subbatch_size": window_size,
@@ -1148,6 +1523,7 @@ class NLMBatchIngestor:
             next_index += window_size
 
         self._last_added_video_ids = added_ids
+        self._last_added_source_ids = added_source_ids
         return added_ids
 
     def create_batch_notebook(self, batch_ids: List[str]) -> Optional[str]:
@@ -1223,10 +1599,58 @@ class NLMBatchIngestor:
                 source_id_by_video_id[video_id] = source_id
         title_match_count = sum(1 for vid in batch_ids if vid in source_id_by_video_id)
         order_fallback_count = max(0, len(batch_ids) - title_match_count)
+        canonical_source_ids = [
+            str(source_id).strip()
+            for source_id in getattr(self, "_last_added_source_ids", [])
+            if str(source_id or "").strip()
+        ]
+        missing_video_ids = [vid for vid in batch_ids if vid not in source_id_by_video_id]
+        mapping_failure_reason = ""
+        if canonical_source_ids:
+            if len(canonical_source_ids) != len(batch_ids):
+                mapping_failure_reason = "Source mapping failed"
+            else:
+                source_id_by_video_id = dict(zip(batch_ids, canonical_source_ids))
+                source_id_list = canonical_source_ids
+                title_match_count = len(batch_ids)
+                order_fallback_count = 0
+                missing_video_ids = []
+        elif missing_video_ids:
+            if title_match_count == 0 and len(source_id_list) == len(batch_ids):
+                source_id_by_video_id = dict(zip(batch_ids, source_id_list))
+                missing_video_ids = []
+                order_fallback_count = len(batch_ids)
+            else:
+                mapping_failure_reason = "Source mapping failed"
+        duplicate_source_ids = []
+        if not mapping_failure_reason:
+            seen_source_ids: dict[str, int] = {}
+            for source_id in source_id_by_video_id.values():
+                seen_source_ids[source_id] = seen_source_ids.get(source_id, 0) + 1
+            duplicate_source_ids = [source_id for source_id, count in seen_source_ids.items() if count > 1]
+            if duplicate_source_ids:
+                mapping_failure_reason = "Source mapping failed"
+        if mapping_failure_reason:
+            log_action(
+                "nlm_batch_source_mapping_failed",
+                {
+                    "nb_id": self._nb_id,
+                    "batch_size": len(batch_ids),
+                    "source_id_title_match_count": title_match_count,
+                    "source_id_order_fallback_count": order_fallback_count,
+                    "duplicate_source_ids": duplicate_source_ids,
+                    "canonical_source_id_count": len(canonical_source_ids),
+                    "expected_source_id_count": len(batch_ids),
+                    "missing_video_ids": missing_video_ids[:10],
+                    "source_ids": canonical_source_ids[:10],
+                    "video_ids": batch_ids[:10],
+                    "materialization_ready_at_epoch": ready_reference_epoch,
+                },
+            )
         
         results = {}
         content_fetch_stats = {
-            "status_counts": {"ready": 0, "too_short": 0, "command_failed": 0, "parse_failed": 0},
+            "status_counts": {"ready": 0, _NLM_CONTENT_BELOW_THRESHOLD_STATUS: 0, "command_failed": 0, "parse_failed": 0},
             "ready_age_s_total": 0.0,
             "ready_age_s_max": 0.0,
             "attempts_total": 0,
@@ -1309,7 +1733,7 @@ class NLMBatchIngestor:
                             if not content:
                                 content = data.get("content", "")
                         content_length = len(content)
-                        if content_length > 100:
+                        if content_length > _NLM_CONTENT_READY_THRESHOLD:
                             status = "ready"
                             log_action(
                                 "nlm_batch_source_content_readiness_probe_completed",
@@ -1325,7 +1749,10 @@ class NLMBatchIngestor:
                                     "returncode": res.returncode,
                                     "content_length": content_length,
                                     "status": status,
-                                    "ready_threshold": 100,
+                                    "ready_threshold": _NLM_CONTENT_READY_THRESHOLD,
+                                    "extraction_outcome": "nlm_ready",
+                                    "nlm_content_chars": content_length,
+                                    "usable_text_chars": content_length,
                                     "source_ready_age_s": ready_age_s,
                                     "materialization_ready_at_epoch": ready_reference_epoch,
                                 },
@@ -1336,7 +1763,7 @@ class NLMBatchIngestor:
                                 "content_length": content_length,
                                 "ready_at_epoch": completed_at_epoch,
                             }
-                        status = "too_short"
+                        status = _NLM_CONTENT_BELOW_THRESHOLD_STATUS
                     except Exception:
                         status = "parse_failed"
                 log_action(
@@ -1353,7 +1780,10 @@ class NLMBatchIngestor:
                         "returncode": res.returncode,
                         "content_length": content_length,
                         "status": status,
-                        "ready_threshold": 100,
+                        "ready_threshold": _NLM_CONTENT_READY_THRESHOLD,
+                        "extraction_outcome": status,
+                        "nlm_content_chars": content_length,
+                        "usable_text_chars": 0,
                         "source_ready_age_s": ready_age_s,
                         "materialization_ready_at_epoch": ready_reference_epoch,
                         "stdout": (res.stdout or "")[:200],
@@ -1369,7 +1799,7 @@ class NLMBatchIngestor:
                     }
                 time.sleep(_READY_PROBE_INTERVAL_S)
 
-        if _READY_PROBE_EARLY and batch_ids:
+        if _READY_PROBE_EARLY and batch_ids and not mapping_failure_reason:
             probe_video_id = batch_ids[0]
             probe_source_id = source_id_by_video_id.get(probe_video_id) or (source_id_list[0] if source_id_list else "")
             if probe_source_id:
@@ -1460,7 +1890,7 @@ class NLMBatchIngestor:
                             if not content:
                                 content = data.get("content", "")
                         content_length = len(content)
-                        if content_length > 100:
+                        if content_length > _NLM_CONTENT_READY_THRESHOLD:
                             status = "ready"
                             with status_lock:
                                 content_fetch_stats["status_counts"][status] = content_fetch_stats["status_counts"].get(status, 0) + 1
@@ -1481,7 +1911,10 @@ class NLMBatchIngestor:
                                     "returncode": res.returncode,
                                     "content_length": content_length,
                                     "status": status,
-                                    "ready_threshold": 100,
+                                    "ready_threshold": _NLM_CONTENT_READY_THRESHOLD,
+                                    "extraction_outcome": "nlm_ready",
+                                    "nlm_content_chars": content_length,
+                                    "usable_text_chars": content_length,
                                     "source_ready_age_s": attempt_ready_age_s,
                                     "materialization_ready_at_epoch": ready_reference_epoch,
                                     "attempts": attempt,
@@ -1499,9 +1932,11 @@ class NLMBatchIngestor:
                                 "attempts": attempt,
                                 "returncode": res.returncode,
                                 "content_length": content_length,
+                                "nlm_content_chars": content_length,
+                                "usable_text_chars": content_length,
                                 "youtube_ytdlp_classification": None,
                             }
-                        status = "too_short"
+                        status = _NLM_CONTENT_BELOW_THRESHOLD_STATUS
                         failure_reason = f"Fetch failed for {source_id}: {status}"
                         retryable = _should_retry_source_content_fetch(status, res)
                     except Exception:
@@ -1580,6 +2015,9 @@ class NLMBatchIngestor:
                     "attempts": int(last_result["attempts"]),
                     "returncode": int(last_result["returncode"]),
                     "content_length": int(last_result["content_length"]),
+                    "nlm_content_chars": int(last_result["content_length"]),
+                    "usable_text_chars": 0,
+                    "extraction_outcome": final_status,
                     "youtube_ytdlp_classification": youtube_ytdlp_probe.get("classification"),
                     "youtube_ytdlp_available": youtube_ytdlp_probe.get("available"),
                     "youtube_ytdlp_availability": youtube_ytdlp_probe.get("availability"),
@@ -1619,7 +2057,10 @@ class NLMBatchIngestor:
                     "returncode": int(last_result["returncode"]),
                     "content_length": int(last_result["content_length"]),
                     "status": final_status,
-                    "ready_threshold": 100,
+                    "ready_threshold": _NLM_CONTENT_READY_THRESHOLD,
+                    "extraction_outcome": final_status,
+                    "nlm_content_chars": int(last_result["content_length"]),
+                    "usable_text_chars": 0,
                     "source_ready_age_s": final_ready_age_s,
                     "materialization_ready_at_epoch": ready_reference_epoch,
                     "failure_reason": str(last_result["failure_reason"]),
@@ -1666,6 +2107,9 @@ class NLMBatchIngestor:
                 "attempts": int(last_result["attempts"]),
                 "returncode": int(last_result["returncode"]),
                 "content_length": int(last_result["content_length"]),
+                "nlm_content_chars": int(last_result["content_length"]),
+                "usable_text_chars": 0,
+                "extraction_outcome": final_status,
                 "youtube_ytdlp_classification": youtube_ytdlp_probe.get("classification"),
                 "youtube_ytdlp_available": youtube_ytdlp_probe.get("available"),
                 "youtube_ytdlp_availability": youtube_ytdlp_probe.get("availability"),
@@ -1727,8 +2171,6 @@ class NLMBatchIngestor:
         batch_items: list[tuple[str, str]] = []
         for i, vid in enumerate(batch_ids):
             source_id = source_id_by_video_id.get(vid)
-            if not source_id and i < len(source_id_list):
-                source_id = source_id_list[i]
             if source_id:
                 batch_items.append((vid, source_id))
 
@@ -1739,76 +2181,80 @@ class NLMBatchIngestor:
         shared_retry_recovered_count = 0
         shared_retry_final_failed_count = 0
 
-        primary_results, retry_queue = _run_fetch_round(batch_items, pass_name="primary", allow_retry_queue=True)
-        results.update(primary_results)
-        retry_queue_deferred_count += len(retry_queue)
+        if mapping_failure_reason:
+            for vid in batch_ids:
+                results[vid] = (False, None, mapping_failure_reason)
+        else:
+            primary_results, retry_queue = _run_fetch_round(batch_items, pass_name="primary", allow_retry_queue=True)
+            results.update(primary_results)
+            retry_queue_deferred_count += len(retry_queue)
 
-        if retry_queue and _SOURCE_CONTENT_SHARED_RETRY_POOL_ENABLED:
-            log_action(
-                "nlm_batch_source_content_shared_retry_queue_window_started",
-                {
-                    "nb_id": self._nb_id,
-                    "batch_size": len(batch_ids),
-                    "shared_retry_queue_count": len(retry_queue),
-                    "shared_retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
-                    "shared_retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
-                    "materialization_ready_at_epoch": ready_reference_epoch,
-                },
-            )
-            for vid, _source_id, queued_error in retry_queue:
-                enqueue_shared_retry(
-                    vid,
-                    retry_count=0,
-                    delay_s=_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
-                    last_error=str(queued_error or "retry queued"),
+            if retry_queue and _SOURCE_CONTENT_SHARED_RETRY_POOL_ENABLED:
+                log_action(
+                    "nlm_batch_source_content_shared_retry_queue_window_started",
+                    {
+                        "nb_id": self._nb_id,
+                        "batch_size": len(batch_ids),
+                        "shared_retry_queue_count": len(retry_queue),
+                        "shared_retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
+                        "shared_retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
+                        "materialization_ready_at_epoch": ready_reference_epoch,
+                    },
                 )
-            shared_retry_deferred_count = len(retry_queue)
-            log_action(
-                "nlm_batch_source_content_shared_retry_queue_window_completed",
-                {
-                    "nb_id": self._nb_id,
-                    "batch_size": len(batch_ids),
-                    "shared_retry_queue_count": shared_retry_deferred_count,
-                    "shared_retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
-                    "shared_retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
-                    "materialization_ready_at_epoch": ready_reference_epoch,
-                },
-            )
-        elif retry_queue and _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S > 0:
-            log_action(
-                "nlm_batch_source_content_retry_queue_window_started",
-                {
-                    "nb_id": self._nb_id,
-                    "batch_size": len(batch_ids),
-                    "retry_queue_count": len(retry_queue),
-                    "retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
-                    "retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
-                    "materialization_ready_at_epoch": ready_reference_epoch,
-                },
-            )
-            if _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S > 0:
-                time.sleep(_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S)
-            retry_results, retry_queue = _run_fetch_round(
-                [(vid, source_id) for vid, source_id, _queued_error in retry_queue],
-                pass_name="retry",
-                allow_retry_queue=False,
-            )
-            results.update(retry_results)
-            retry_queue_recovered_count = sum(1 for ok, _, _ in retry_results.values() if ok)
-            retry_queue_final_failed_count = len(retry_results) - retry_queue_recovered_count
-            log_action(
-                "nlm_batch_source_content_retry_queue_window_completed",
-                {
-                    "nb_id": self._nb_id,
-                    "batch_size": len(batch_ids),
-                    "retry_queue_count": retry_queue_deferred_count,
-                    "recovered_count": retry_queue_recovered_count,
-                    "final_failed_count": retry_queue_final_failed_count,
-                    "retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
-                    "retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
-                    "materialization_ready_at_epoch": ready_reference_epoch,
-                },
-            )
+                for vid, _source_id, queued_error in retry_queue:
+                    enqueue_shared_retry(
+                        vid,
+                        retry_count=0,
+                        delay_s=_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
+                        last_error=str(queued_error or "retry queued"),
+                    )
+                shared_retry_deferred_count = len(retry_queue)
+                log_action(
+                    "nlm_batch_source_content_shared_retry_queue_window_completed",
+                    {
+                        "nb_id": self._nb_id,
+                        "batch_size": len(batch_ids),
+                        "shared_retry_queue_count": shared_retry_deferred_count,
+                        "shared_retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
+                        "shared_retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
+                        "materialization_ready_at_epoch": ready_reference_epoch,
+                    },
+                )
+            elif retry_queue and _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S > 0:
+                log_action(
+                    "nlm_batch_source_content_retry_queue_window_started",
+                    {
+                        "nb_id": self._nb_id,
+                        "batch_size": len(batch_ids),
+                        "retry_queue_count": len(retry_queue),
+                        "retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
+                        "retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
+                        "materialization_ready_at_epoch": ready_reference_epoch,
+                    },
+                )
+                if _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S > 0:
+                    time.sleep(_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S)
+                retry_results, retry_queue = _run_fetch_round(
+                    [(vid, source_id) for vid, source_id, _queued_error in retry_queue],
+                    pass_name="retry",
+                    allow_retry_queue=False,
+                )
+                results.update(retry_results)
+                retry_queue_recovered_count = sum(1 for ok, _, _ in retry_results.values() if ok)
+                retry_queue_final_failed_count = len(retry_results) - retry_queue_recovered_count
+                log_action(
+                    "nlm_batch_source_content_retry_queue_window_completed",
+                    {
+                        "nb_id": self._nb_id,
+                        "batch_size": len(batch_ids),
+                        "retry_queue_count": retry_queue_deferred_count,
+                        "recovered_count": retry_queue_recovered_count,
+                        "final_failed_count": retry_queue_final_failed_count,
+                        "retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
+                        "retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
+                        "materialization_ready_at_epoch": ready_reference_epoch,
+                    },
+                )
 
         for vid in batch_ids:
             if vid not in results:

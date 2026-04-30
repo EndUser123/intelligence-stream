@@ -374,3 +374,14 @@
 {"timestamp": "2026-04-19T20:45:25.813564+00:00", "trace_id": "term_ed9756b6", "action": "nlm_batch_reusable_state_saved", "data": {"nb_id": "4c985c88-8555-4e78-85ee-58bc85f9d263", "state_path": "P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-03.json", "notebooklm_profile": "ytis-worker-03"}}
 {"timestamp": "2026-04-19T20:45:25.813913+00:00", "trace_id": "term_ed9756b6", "action": "worker_cleanup_ingestor_close_completed", "data": {"worker_id": "worker-03", "elapsed_s": 5.489, "notebooklm_profile": "ytis-worker-03", "state_path": "P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-03.json", "notebook_title": "yt-is::industrial::worker::worker-03"}}
 {"timestamp": "2026-04-19T20:45:25.814210+00:00", "trace_id": "term_ed9756b6", "action": "worker_cleanup_completed", "data": {"worker_id": "worker-03", "notebooklm_profile": "ytis-worker-03", "state_path": "P:\\__csf\\.data\\yt-is\\industrial-worker-states\\worker-03.json", "notebook_title": "yt-is::industrial::worker::worker-03"}}
+{"timestamp": "2026-04-29T14:14:20.146589+00:00", "trace_id": "term_ed9756b6", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-29T14:14:20.158834+00:00", "trace_id": "term_ed9756b6", "action": "nlm_login_started", "data": {"component": "nlm_batch", "mode": "force", "status": "started"}}
+{"timestamp": "2026-04-29T14:14:20.159160+00:00", "trace_id": "term_ed9756b6", "action": "nlm_login_completed", "data": {"component": "nlm_batch", "mode": "force", "status": "ok", "elapsed_s": 0.0}}
+{"timestamp": "2026-04-29T14:14:20.159395+00:00", "trace_id": "term_ed9756b6", "action": "nlm_auth_refreshed", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-29T14:14:20.171952+00:00", "trace_id": "term_ed9756b6", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-29T14:14:20.182478+00:00", "trace_id": "term_ed9756b6", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-29T14:14:20.192845+00:00", "trace_id": "term_ed9756b6", "action": "nlm_login_started", "data": {"component": "nlm_batch", "mode": "force", "status": "started"}}
+{"timestamp": "2026-04-29T14:14:20.193141+00:00", "trace_id": "term_ed9756b6", "action": "nlm_login_failed", "data": {"component": "nlm_batch", "mode": "force", "status": "failed", "elapsed_s": 0.0, "returncode": 1}}
+{"timestamp": "2026-04-29T14:14:20.193371+00:00", "trace_id": "term_ed9756b6", "action": "nlm_auth_failed", "data": {"component": "nlm_batch", "status": "refresh_failed"}}
+{"timestamp": "2026-04-29T14:14:20.236058+00:00", "trace_id": "term_ed9756b6", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}
+{"timestamp": "2026-04-29T14:14:20.247626+00:00", "trace_id": "term_ed9756b6", "action": "nlm_auth_checked", "data": {"component": "nlm_batch", "status": "ok"}}

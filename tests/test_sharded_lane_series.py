@@ -9,6 +9,7 @@ from csf.sharded_lane_series import (
     LaneConfig,
     compute_combined_hot_path_vph,
     load_lane_configs,
+    preflight_lane_auth_profiles,
     run_sharded_lane_series,
 )
 
@@ -97,6 +98,23 @@ def test_pro_free_lane_config_uses_dedicated_browser_roots():
     assert lanes[0].browser_profile_root != lanes[1].browser_profile_root
 
 
+def test_pro_free_hotmail_lane_config_includes_second_free_account():
+    config_path = Path("P:/packages/yt-is/.logs/sharded_lane_series/pro_free_hotmail_lanes.json")
+    lanes = load_lane_configs(config_path)
+
+    assert len(lanes) == 3
+    assert lanes[2].lane == "brsthomson_hotmail_free"
+    assert lanes[2].account_class == "free"
+    assert lanes[2].notebooklm_profiles == (
+        "ytis-free2-worker-01",
+        "ytis-free2-worker-02",
+        "ytis-free2-worker-03",
+        "ytis-free2-worker-04",
+    )
+    assert str(lanes[2].browser_profile_root).replace("\\", "/").endswith("browser/notebooklm-free-2")
+    assert lanes[2].browser_profile_directory == "Default"
+
+
 def test_free_only_lane_config_uses_free_account_route():
     config_path = Path("P:/packages/yt-is/.logs/sharded_lane_series/free_only_lanes.json")
     (lane,) = load_lane_configs(config_path)
@@ -104,10 +122,10 @@ def test_free_only_lane_config_uses_free_account_route():
     assert lane.lane == "troup_hominidae_free"
     assert lane.account_class == "free"
     assert lane.notebooklm_profiles == (
-        "ytis-free-worker-01",
-        "ytis-free-worker-02",
-        "ytis-free-worker-03",
-        "ytis-free-worker-04",
+        "ytis-free1-worker-01",
+        "ytis-free1-worker-02",
+        "ytis-free1-worker-03",
+        "ytis-free1-worker-04",
     )
     assert str(lane.browser_profile_root).replace("\\", "/").endswith("browser/notebooklm-free")
     assert lane.browser_profile_directory == "Default"
@@ -124,6 +142,109 @@ def test_compute_combined_hot_path_vph_uses_wall_clock_not_sum_of_lane_elapsed()
     assert combined["hot_path_success_count_total"] == 594
     assert combined["wall_elapsed_s"] == 420.0
     assert combined["hot_path_videos_per_hour"] == 5091.43
+
+
+def test_preflight_lane_auth_profiles_refreshes_expired_profile_before_run(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        if cmd == ["nlm", "login", "--check", "--profile", "ytis-free1-worker-01"]:
+            return type("CompletedProcess", (), {"returncode": 1, "stdout": "", "stderr": "expired"})()
+        if cmd == ["nlm", "login", "--force", "--profile", "ytis-free1-worker-01"]:
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "Account: troup.hominidae@gmail.com\n", "stderr": ""})()
+        return type("CompletedProcess", (), {"returncode": 1, "stdout": "", "stderr": "unexpected"})()
+
+    monkeypatch.setattr("csf.sharded_lane_series.subprocess.run", fake_run)
+
+    preflight_lane_auth_profiles(
+        (
+            LaneConfig(
+                lane="free",
+                account_class="free",
+                workers=1,
+                notebooklm_profile_prefix="ytis-free1-worker",
+                notebooklm_profiles=("ytis-free1-worker-01",),
+                browser_profile_root=Path("P:/.data/yt-is/browser/notebooklm-free"),
+                worker_state_root=Path("P:/.logs/shards/free/worker_states"),
+                notebook_prefix="benchmark-shard-free",
+            ),
+        )
+    )
+
+    assert calls == [
+        ["nlm", "login", "--check", "--profile", "ytis-free1-worker-01"],
+        ["nlm", "login", "--force", "--profile", "ytis-free1-worker-01"],
+    ]
+
+
+def test_preflight_lane_auth_profiles_refreshes_wrong_account_before_run(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        if cmd == ["nlm", "login", "--check", "--profile", "ytis-free1-worker-01"]:
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "Account: a.hominidae@gmail.com\n", "stderr": ""})()
+        if cmd == ["nlm", "login", "--force", "--profile", "ytis-free1-worker-01"]:
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "Account: troup.hominidae@gmail.com\n", "stderr": ""})()
+        return type("CompletedProcess", (), {"returncode": 1, "stdout": "", "stderr": "unexpected"})()
+
+    monkeypatch.setattr("csf.sharded_lane_series.subprocess.run", fake_run)
+
+    preflight_lane_auth_profiles(
+        (
+            LaneConfig(
+                lane="free",
+                account_class="free",
+                workers=1,
+                notebooklm_profile_prefix="ytis-free1-worker",
+                notebooklm_profiles=("ytis-free1-worker-01",),
+                browser_profile_root=Path("P:/.data/yt-is/browser/notebooklm-free"),
+                worker_state_root=Path("P:/.logs/shards/free/worker_states"),
+                notebook_prefix="benchmark-shard-free",
+            ),
+        )
+    )
+
+    assert calls == [
+        ["nlm", "login", "--check", "--profile", "ytis-free1-worker-01"],
+        ["nlm", "login", "--force", "--profile", "ytis-free1-worker-01"],
+    ]
+
+
+def test_preflight_lane_auth_profiles_rejects_profile_when_refresh_fails(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        return type("CompletedProcess", (), {"returncode": 1, "stdout": "", "stderr": "expired"})()
+
+    monkeypatch.setattr("csf.sharded_lane_series.subprocess.run", fake_run)
+
+    try:
+        preflight_lane_auth_profiles(
+            (
+                LaneConfig(
+                    lane="free",
+                    account_class="free",
+                    workers=1,
+                    notebooklm_profile_prefix="ytis-free1-worker",
+                    notebooklm_profiles=("ytis-free1-worker-01",),
+                    browser_profile_root=Path("P:/.data/yt-is/browser/notebooklm-free"),
+                    worker_state_root=Path("P:/.logs/shards/free/worker_states"),
+                    notebook_prefix="benchmark-shard-free",
+                ),
+            )
+        )
+    except RuntimeError as exc:
+        assert "ytis-free1-worker-01" in str(exc)
+    else:
+        raise AssertionError("failed refresh should stop the benchmark before lane launch")
+
+    assert calls == [
+        ["nlm", "login", "--check", "--profile", "ytis-free1-worker-01"],
+        ["nlm", "login", "--force", "--profile", "ytis-free1-worker-01"],
+    ]
 
 
 def test_run_sharded_lane_series_passes_isolated_lane_env(tmp_path, monkeypatch):
@@ -147,6 +268,7 @@ def test_run_sharded_lane_series_passes_isolated_lane_env(tmp_path, monkeypatch)
                         "YTIS_NLM_BROWSER_PROFILE_ROOT",
                         "YTIS_NLM_BROWSER_PROFILE_DIRECTORY",
                         "YTIS_REUSABLE_PIPELINE_MODE",
+                        "YTIS_NLM_AUTH_NONINTERACTIVE",
                     )
                 },
             }
@@ -185,8 +307,8 @@ def test_run_sharded_lane_series_passes_isolated_lane_env(tmp_path, monkeypatch)
                 lane="free",
                 account_class="free",
                 workers=4,
-                notebooklm_profile_prefix="ytis-free-worker",
-                notebooklm_profiles=("default", "ytis-free-worker-02", "ytis-free-worker-03", "ytis-free-worker-04"),
+                notebooklm_profile_prefix="ytis-free1-worker",
+                notebooklm_profiles=("default", "ytis-free1-worker-02", "ytis-free1-worker-03", "ytis-free1-worker-04"),
                 browser_profile_root=Path("P:/.data/yt-is/browser/notebooklm-free"),
                 browser_profile_directory="Profile 1",
                 worker_state_root=tmp_path / "free" / "worker_states",
@@ -211,12 +333,14 @@ def test_run_sharded_lane_series_passes_isolated_lane_env(tmp_path, monkeypatch)
     assert calls[0]["env"]["YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILES"] == "alt,ytis-pro-worker-02,ytis-pro-worker-03,ytis-pro-worker-04"
     assert calls[0]["env"]["YTIS_NLM_BROWSER_PROFILE_ROOT"] == "P:\\.data\\yt-is\\browser\\notebooklm-pro"
     assert calls[0]["env"]["YTIS_NLM_BROWSER_PROFILE_DIRECTORY"] == "Profile 2"
+    assert calls[0]["env"]["YTIS_NLM_AUTH_NONINTERACTIVE"] == "1"
     assert calls[1]["env"]["YTIS_INDUSTRIAL_WORKER_STATE_ROOT"].endswith("free\\worker_states")
     assert calls[1]["env"]["YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX"] == "benchmark-shard-free"
-    assert calls[1]["env"]["YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILE_PREFIX"] == "ytis-free-worker"
-    assert calls[1]["env"]["YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILES"] == "default,ytis-free-worker-02,ytis-free-worker-03,ytis-free-worker-04"
+    assert calls[1]["env"]["YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILE_PREFIX"] == "ytis-free1-worker"
+    assert calls[1]["env"]["YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILES"] == "default,ytis-free1-worker-02,ytis-free1-worker-03,ytis-free1-worker-04"
     assert calls[1]["env"]["YTIS_NLM_BROWSER_PROFILE_ROOT"] == "P:\\.data\\yt-is\\browser\\notebooklm-free"
     assert calls[1]["env"]["YTIS_NLM_BROWSER_PROFILE_DIRECTORY"] == "Profile 1"
+    assert calls[1]["env"]["YTIS_NLM_AUTH_NONINTERACTIVE"] == "1"
     assert report["combined"]["hot_path_success_count_total"] == 594
     assert report["combined"]["hot_path_videos_per_hour"] == 5091.43
     assert Path(report["report_path"]).exists()

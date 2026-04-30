@@ -1,0 +1,50 @@
+[source] Preflight scan: checking 1 active channels (0 blocked skipped) for pending videos...
+[source] Pending item limit reached at 10; stopping scan early.
+[source] Preflight scan complete: 1 active channels, 10 pending, 0 cached, 0 neg-cache, 0 terminal, 10 notebooklm, 0 transcript-fallback
+[source] Parallel industrial dispatch: 1 batches across 1 workers...
+[source] Escalation Batch Process
+[source] Channels: 1 active / 1 tracked
+[source] Already cached: 0
+[source] Negative-cache skips: 0
+[source] Pending extraction: 10
+[source] Run limit: 10 pending items
+[source] Mode: LIVE
+[source] Strategy: Industrial (Batch NLM)
+[source] Method: NotebookLM CLI batch for captioned/no-captions items; live items use transcript fallback
+[source] Workers: 4
+
+[source] Pre-flight worker notebook cleanup: 0 worker notebooks deleted, 0 failed
+{"worker_id":"worker-01","event":"worker_notebook_reset_started","notebooklm_profile":"ytis-free2-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\brsthomson_hotmail_free\\worker_states\\worker-01.json","notebook_title":"benchmark-shard-brsthomson-hotmail-free-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"benchmark-shard-brsthomson-hotmail-free-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\brsthomson_hotmail_free\\worker_states\\worker-01.json"}}
+{"worker_id":"worker-01","event":"worker_notebook_reset_completed","notebooklm_profile":"ytis-free2-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\brsthomson_hotmail_free\\worker_states\\worker-01.json","notebook_title":"benchmark-shard-brsthomson-hotmail-free-01","cleanup_info":{"status":"owner_title_reuse","notebook_title":"benchmark-shard-brsthomson-hotmail-free-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\brsthomson_hotmail_free\\worker_states\\worker-01.json"}}
+[NLM-Batch] Creating notebook...
+[NLM-Batch] Adding 0 sources in sub-batches...
+{"worker_id":"worker-01","event":"notebook_prewarm","prepared":true,"setup_mode":"create","notebooklm_profile":"ytis-free2-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\brsthomson_hotmail_free\\worker_states\\worker-01.json","notebook_title":"benchmark-shard-brsthomson-hotmail-free-01","elapsed_s":226.386}
+[NLM-Batch] Adding 10 sources in sub-batches...
+[NLM-Batch]   Adding sources 1-10/10...
+[NLM-Batch]   Adding sub-batch 1 (10 sources, retry_depth=0, nb_sources_before=0)...
+[NLM-Batch] Fetching 10 sources in parallel (primary)...
+  ✓ WYwmp8VK1kc | 910 chars
+  ✓ LDp3vbdmVLE | 6385 chars
+  ✓ 2VnMAjG802M | 22890 chars
+  ✓ v0j2nV5Y6Lo | 808 chars
+  ✓ jW35PssNZ74 | 1029 chars
+  ✓ dFP1ywyPspo | 861 chars
+  ✓ jD3kQp0DlLk | 513 chars
+  ✓ 0Xgb3i-sIJE | 929 chars
+  ✓ AhQXGEA2bsg | 515 chars
+  ✓ CDOqV89_mUw | 6731 chars
+{"worker_id":"worker-01","input":"C:\\Users\\brsth\\AppData\\Local\\Temp\\tmpea79e_1t.json","batch_count":1,"video_count":10,"succeeded":10,"failed":0,"source_profile":{"total":10,"matched":10,"missing":0,"source_class_counts":{"captioned":10},"status_counts":{"pending":10},"privacy_status_counts":{"unknown":10},"upload_status_counts":{"unknown":10},"unavailable_reason_counts":{"unknown":10},"failure_reason_counts":{"unknown":10}},"subbatch_metrics":[{"subbatch_index":1,"subbatch_size":10,"target_subbatch_size":50,"attempted_count":10,"added_count":10,"add_cmd_elapsed_s":32.768,"materialization_wait_elapsed_s":9.053,"elapsed_s":41.821,"returncode":0,"failure_reason":null,"source_profile":{"total":10,"matched":10,"missing":0,"source_class_counts":{"captioned":10},"status_counts":{"pending":10},"privacy_status_counts":{"unknown":10},"upload_status_counts":{"unknown":10},"unavailable_reason_counts":{"unknown":10},"failure_reason_counts":{"unknown":10}},"current_source_count":10,"source_materialization_ready_at_epoch":1777570514.1660566,"status":"ok"}],"startup_retire_elapsed_s":0.0,"startup_notebook_check_elapsed_s":0.0,"startup_notebook_create_elapsed_s":7.373,"startup_prepare_cleanup_elapsed_s":16.129,"startup_prepare_total_elapsed_s":226.383,"setup_elapsed_s_total":85.044,"notebook_check_elapsed_s_total":14.642,"notebook_create_elapsed_s_total":0.0,"notebook_retire_elapsed_s_total":0.0,"add_sources_elapsed_s_total":70.401,"add_cmd_elapsed_s_total":32.768,"materialization_wait_elapsed_s_total":9.053,"extract_elapsed_s_total":67.191,"cleanup_elapsed_s_total":35.81,"batch_elapsed_s_total":188.044,"staging_overlap_elapsed_s_total":0.0,"staging_wait_elapsed_s_total":0.0,"stage_swap_count_total":0,"content_fetch_status_counts_total":{"ready":10},"source_ready_age_s_total":236.622,"source_ready_age_s_max":23.663,"source_ready_age_s_avg":23.662,"youtube_ytdlp_elapsed_s_total":0.0,"youtube_ytdlp_elapsed_s_max":0.0,"youtube_ytdlp_elapsed_s_count":0,"youtube_ytdlp_elapsed_s_avg":0.0,"youtube_page_elapsed_s_total":0.0,"youtube_page_elapsed_s_max":0.0,"youtube_page_elapsed_s_count":0,"youtube_page_elapsed_s_avg":0.0,"shared_retry_deferred_count":0,"shared_retry_recovered_count":0,"shared_retry_final_failed_count":0,"shared_retry_processed_count":0,"pipeline_strategy":"reusable","notebooklm_profile":"ytis-free2-worker-01","state_path":"P:\\packages\\yt-is\\.logs\\sharded_lane_series\\brsthomson_hotmail_free\\worker_states\\worker-01.json","notebook_title":"benchmark-shard-brsthomson-hotmail-free-01","status":"ok","returncode":0}
+
+[source] === Escalation Batch Complete ===
+[source] Successfully extracted: 10
+[source] Failed: 0
+[source] Skipped (cached): 0
+[source] Skipped (negative cache): 0
+[source] Skipped (terminal): 0
+[source] NotebookLM-eligible: 10
+[source] Routed to transcript fallback: 0
+[source] Worker notebook cleanup: 0 deleted, 0 failed
+[source] Stage totals: startup=226.4s, setup=85.0s, add=70.4s, extract=67.2s, cleanup=35.8s, batch=188.0s
+[source] Worker source profile: captioned=10
+[source] Total discovered: 10
+[source] Total processed outcomes: 10

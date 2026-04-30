@@ -1342,6 +1342,30 @@ class TestNlmAuthLogging:
             "nlm_auth_refreshed",
         ]
 
+    def test_auth_refresh_uses_profile_env(self):
+        """Profile-aware auth refresh should stay on the active NotebookLM profile."""
+        import csf.transcript
+
+        calls: list[list[str]] = []
+
+        def mock_run(cmd, **kwargs):
+            calls.append(cmd)
+            if cmd == ["nlm", "login", "--check", "--profile", "ytis-pro-worker-01"]:
+                return mock.MagicMock(returncode=1, stdout="", stderr="Auth expired")
+            if cmd == ["nlm", "login", "--force", "--profile", "ytis-pro-worker-01"]:
+                return mock.MagicMock(returncode=0, stdout="", stderr="OK")
+            return mock.MagicMock(returncode=0, stdout="", stderr="")
+
+        with mock.patch.dict(csf.transcript.os.environ, {"NOTEBOOKLM_PROFILE": "ytis-pro-worker-01"}):
+            with mock.patch("subprocess.run", side_effect=mock_run):
+                with mock.patch("csf.transcript.log_action"):
+                    assert csf.transcript._ensure_nlm_auth() is True
+
+        assert calls[:2] == [
+            ["nlm", "login", "--check", "--profile", "ytis-pro-worker-01"],
+            ["nlm", "login", "--force", "--profile", "ytis-pro-worker-01"],
+        ]
+
 
 class TestDirectApiFallback:
     """Tests for _fetch_via_direct_api fallback."""

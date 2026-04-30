@@ -23,7 +23,7 @@ Goal:
 
 Runs:
 - Worker-count sweep: `1, 2, 3, 4, 6, 8` workers on the same sample family.
-- CLI retry A/B: current first-failure behavior vs retry-on-`NOT_FOUND` / `too_short`.
+- CLI retry A/B: current first-failure behavior vs retry-on-`NOT_FOUND` / `nlm_content_below_threshold`.
 - Batch-size check: `25` vs `50` on the free-tier notebook.
 
 Exit criteria:
@@ -125,7 +125,7 @@ Execution checklist:
 2. Re-run the same winner on the Pro NotebookLM `300`-source notebook limit.
 3. Lock the retry and readiness rules into the defaults:
    - DOM spinner/checkmark gates probing
-   - CLI `source content` retries transient `NOT_FOUND` / `too_short`
+   - CLI `source content` retries transient `NOT_FOUND` / `nlm_content_below_threshold`
    - final failure only after the adaptive window is exceeded
 4. Update the run sheet and handoff with the final winner and the final stop conditions.
 5. Archive the obsolete benchmark variants so future runs do not drift back to old paths.
@@ -604,7 +604,7 @@ This step is already required by the first preflight above. Repeat it any time t
 - DOM checkmark inferred as spinner inactive
 - CLI `source content` status:
   - `ready`
-  - `too_short`
+  - `nlm_content_below_threshold`
   - `command_failed`
   - `parse_failed`
 - elapsed age from source materialization to first ready probe

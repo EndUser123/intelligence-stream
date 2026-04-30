@@ -1390,6 +1390,34 @@ class TestReadinessMatrixLogging:
         assert final_payload["content_length"] == 101
         assert final_payload["ready_threshold"] == 100
 
+    def test_probe_source_content_readiness_classifies_below_threshold_content(self, scraper):
+        """Readiness probes should not label sparse NotebookLM content as a short video."""
+        scraper._staging_nb_id = "nb-test"
+
+        def fake_run_nlm(args, timeout=300):
+            return type(
+                "CompletedProcess",
+                (),
+                {"returncode": 0, "stdout": json.dumps({"value": {"content": "x" * 50}}), "stderr": ""},
+            )()
+
+        with mock.patch.object(scraper, "_run_nlm", side_effect=fake_run_nlm):
+            with mock.patch("csf.nlm_scraper.log_action") as mock_log:
+                with mock.patch("csf.nlm_scraper.time.monotonic", side_effect=[0.0, 999.0, 999.1]):
+                    with mock.patch("csf.nlm_scraper.time.time", side_effect=[10.0, 10.1, 10.2]):
+                        result = scraper._probe_source_content_readiness(
+                            "src-1",
+                            "vid-1",
+                            ready_reference_epoch=0.0,
+                        )
+
+        assert result["status"] == "nlm_content_below_threshold"
+        final_payload = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "staging_source_content_readiness_probe_completed")
+        assert final_payload["status"] == "nlm_content_below_threshold"
+        assert final_payload["extraction_outcome"] == "nlm_content_below_threshold"
+        assert final_payload["nlm_content_chars"] == 50
+        assert final_payload["usable_text_chars"] == 0
+
     def test_scrape_sources_matrix_logs_dom_snapshot(self, scraper):
         """Matrix mode should capture both DOM spinner state and CLI readiness probe logs."""
 

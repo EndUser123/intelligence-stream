@@ -1,0 +1,10 @@
+[benchmark] Running batch 1 size=200
+[benchmark] Running policy: notebooklm_route_plus_fallback_30s_1w
+[trial] workers=4 success=199 fail=1 elapsed=211.0s hot_vph=3399.7 fallback_recovered=0
+[benchmark] Running batch 2 size=200
+[benchmark] Running policy: notebooklm_route_plus_fallback_30s_1w
+[trial] workers=4 success=199 fail=1 elapsed=296.9s hot_vph=2413.8 fallback_recovered=0
+[benchmark] Wrote cohort: P:\packages\yt-is\.logs\sharded_lane_series\pro_free_source_map_v1\cohort.a_hominidae_pro.json
+[benchmark] Wrote summary: P:\packages\yt-is\.logs\sharded_lane_series\pro_free_source_map_v1\a_hominidae_pro\benchmark_summary.json
+[benchmark] batch=1 notebooklm_route_plus_fallback_30s_1w: success=199 fail=1 hot_vph=3399.66 fallback_recovered=0
+[benchmark] batch=2 notebooklm_route_plus_fallback_30s_1w: success=199 fail=1 hot_vph=2413.82 fallback_recovered=0

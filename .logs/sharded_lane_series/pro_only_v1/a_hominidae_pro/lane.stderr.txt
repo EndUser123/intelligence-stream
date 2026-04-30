@@ -1,0 +1,27 @@
+Traceback (most recent call last):
+  File "P:\packages\yt-is\bin\csf-fallback-crossover-benchmark", line 560, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "P:\packages\yt-is\bin\csf-fallback-crossover-benchmark", line 489, in main
+    sweep_summary = _run_policy(
+        policy_name=policy_name,
+    ...<8 lines>...
+        preserve_worker_state_root=args.preserve_worker_state_root,
+    )
+  File "P:\packages\yt-is\bin\csf-fallback-crossover-benchmark", line 355, in _run_policy
+    sweep_summary = run_worker_count_sweep(
+        worker_counts=[workers],
+    ...<4 lines>...
+        python_executable=python_executable,
+    )
+  File "P:\packages\yt-is\csf\worker_count_sweep.py", line 395, in run_worker_count_sweep
+    trial = _run_fetch_trial(
+        workers=workers,
+    ...<4 lines>...
+        python_executable=python_executable,
+    )
+  File "P:\packages\yt-is\csf\worker_count_sweep.py", line 359, in _run_fetch_trial
+    fetch_completed = _load_fetch_completed_event(log_dir)
+  File "P:\packages\yt-is\csf\worker_count_sweep.py", line 304, in _load_fetch_completed_event
+    raise RuntimeError(f"no fetch_completed event found in {log_file}")
+RuntimeError: no fetch_completed event found in P:\packages\yt-is\.logs\sharded_lane_series\pro_only_v1\a_hominidae_pro\batch_01\notebooklm_route_plus_fallback_30s_1w\20260428_174934\workers_04\logs\term_a103413f.jsonl

@@ -44,6 +44,18 @@ except ImportError:
     sys.exit(1)
 
 
+_NLM_CONTENT_READY_THRESHOLD = 100
+_NLM_CONTENT_BELOW_THRESHOLD_STATUS = "nlm_content_below_threshold"
+
+
+def _get_nlm_login_profile_args() -> list[str]:
+    """Return CLI args that target the active NotebookLM auth profile."""
+    profile = os.environ.get("NOTEBOOKLM_PROFILE", "").strip()
+    if not profile:
+        return []
+    return ["--profile", profile]
+
+
 class NLMIndustrialScraper:
     # NotebookLM Plus limit — used to detect when to clear and reuse
     MAX_SOURCES_PER_NOTEBOOK = 300
@@ -1195,7 +1207,7 @@ class NLMIndustrialScraper:
                 {"component": "nlm_scraper", "mode": "force", "status": "started"},
             )
             login = subprocess.run(
-                ["nlm", "login", "--force"],
+                ["nlm", "login", "--force", *_get_nlm_login_profile_args()],
                 capture_output=True, text=True, timeout=120,
             )
             login_elapsed = round(time.perf_counter() - login_started, 3)
@@ -1274,7 +1286,7 @@ class NLMIndustrialScraper:
             if attempt < 2:
                 print(f"[Industrial] Re-authenticating before retry...")
                 login = subprocess.run(
-                    ["nlm", "login", "--force"],
+                    ["nlm", "login", "--force", *_get_nlm_login_profile_args()],
                     capture_output=True, text=True, timeout=120,
                 )
                 if login.returncode != 0:
@@ -1457,7 +1469,7 @@ class NLMIndustrialScraper:
                         if not content:
                             content = data.get("content", "")
                     content_length = len(content)
-                    if content_length > 100:
+                    if content_length > _NLM_CONTENT_READY_THRESHOLD:
                         status = "ready"
                         log_action(
                             "staging_source_content_readiness_probe_completed",
@@ -1474,7 +1486,10 @@ class NLMIndustrialScraper:
                                 "returncode": res.returncode,
                                 "content_length": content_length,
                                 "status": status,
-                                "ready_threshold": 100,
+                                "ready_threshold": _NLM_CONTENT_READY_THRESHOLD,
+                                "extraction_outcome": "nlm_ready",
+                                "nlm_content_chars": content_length,
+                                "usable_text_chars": content_length,
                                 "source_ready_age_s": ready_age_s,
                                 "materialization_ready_at_epoch": ready_reference_epoch,
                             },
@@ -1485,7 +1500,7 @@ class NLMIndustrialScraper:
                             "content_length": content_length,
                             "ready_at_epoch": completed_at_epoch,
                         }
-                    status = "too_short"
+                    status = _NLM_CONTENT_BELOW_THRESHOLD_STATUS
                 except Exception:
                     status = "parse_failed"
             log_action(
@@ -1503,7 +1518,10 @@ class NLMIndustrialScraper:
                     "returncode": res.returncode,
                     "content_length": content_length,
                     "status": status,
-                    "ready_threshold": 100,
+                    "ready_threshold": _NLM_CONTENT_READY_THRESHOLD,
+                    "extraction_outcome": status,
+                    "nlm_content_chars": content_length,
+                    "usable_text_chars": 0,
                     "source_ready_age_s": ready_age_s,
                     "materialization_ready_at_epoch": ready_reference_epoch,
                     "stdout": (res.stdout or "")[:200],
@@ -1544,7 +1562,12 @@ class NLMIndustrialScraper:
                     "nlm_auth_checked",
                     {"component": "nlm_scraper", "status": "expired"},
                 )
-                login = subprocess.run(["nlm", "login", "--force"], capture_output=True, text=True, timeout=120)
+                login = subprocess.run(
+                    ["nlm", "login", "--force", *_get_nlm_login_profile_args()],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
                 if login.returncode != 0:
                     log_action(
                         "nlm_auth_failed",
@@ -1946,7 +1969,7 @@ class NLMIndustrialScraper:
                     print(f"{len(transcript)} chars")
                 else:
                     context_not_ready_streak = 0
-                    results[vid] = (False, None, "content too short or empty")
+                    results[vid] = (False, None, "content below threshold or empty")
                     log_action(
                         "industrial_scrape_video_finished",
                         {
@@ -1955,11 +1978,11 @@ class NLMIndustrialScraper:
                             "source_id": source_id,
                             "index": idx,
                             "batch_size": len(vid_to_src),
-                            "status": "too_short",
+                            "status": "nlm_transcript_below_threshold",
                             "elapsed_s": round(time.monotonic() - video_started_at, 3),
                         },
                     )
-                    print("✗ too short")
+                    print("✗ below threshold")
 
             except Exception as e:
                 error_msg = str(e)
@@ -2010,7 +2033,7 @@ class NLMIndustrialScraper:
                                 print(f"{len(transcript)} chars (stale recovery)")
                             else:
                                 context_not_ready_streak = 0
-                                results[vid] = (False, None, "content too short or empty")
+                                results[vid] = (False, None, "content below threshold or empty")
                                 log_action(
                                     "industrial_scrape_video_finished",
                                     {
@@ -2019,11 +2042,11 @@ class NLMIndustrialScraper:
                                         "source_id": source_id,
                                         "index": idx,
                                         "batch_size": len(vid_to_src),
-                                        "status": "too_short_stale_recovery",
+                                        "status": "nlm_transcript_below_threshold_stale_recovery",
                                         "elapsed_s": round(time.monotonic() - video_started_at, 3),
                                     },
                                 )
-                                print("✗ too short")
+                                print("✗ below threshold")
                         else:
                             print(
                                 f"[Industrial] stale recovery lookup failed for vid={vid} "

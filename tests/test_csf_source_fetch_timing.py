@@ -57,6 +57,53 @@ def test_industrial_worker_env_can_use_explicit_lane_profiles(tmp_path, monkeypa
     assert worker["env"]["NOTEBOOKLM_PROFILE"] == "alt"
 
 
+def test_industrial_worker_default_notebook_title_uses_profile_prefix(tmp_path, monkeypatch):
+    """Default worker notebook titles should not collide across auth lanes."""
+    mod = _load_csf_source_module()
+    monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_STATE_ROOT", str(tmp_path / "states"))
+    monkeypatch.delenv("YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX", raising=False)
+    monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILE_PREFIX", "ytis-pro-worker")
+
+    worker = mod._build_industrial_worker_launch(worker_id=1, worker_batches=[["vid001"]])
+
+    assert worker["notebook_title"] == "ytis-pro-worker-01"
+    assert worker["env"]["YTIS_NLM_OWNER_NOTEBOOK_TITLE"] == "ytis-pro-worker-01"
+
+
+def test_industrial_worker_default_notebook_title_uses_explicit_profile(tmp_path, monkeypatch):
+    """Explicit auth profile lists should also produce distinct visible notebook names."""
+    mod = _load_csf_source_module()
+    monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_STATE_ROOT", str(tmp_path / "states"))
+    monkeypatch.delenv("YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX", raising=False)
+    monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILES", "ytis-free2-worker-01,ytis-free2-worker-02")
+
+    worker = mod._build_industrial_worker_launch(worker_id=2, worker_batches=[["vid001"]])
+
+    assert worker["notebook_title"] == "ytis-free2-worker-02"
+    assert worker["env"]["YTIS_NLM_OWNER_NOTEBOOK_TITLE"] == "ytis-free2-worker-02"
+
+
+def test_ensure_nlm_auth_noninteractive_uses_force_refresh(monkeypatch):
+    """Benchmark runs may use bounded force refresh, but not plain interactive login."""
+    mod = _load_csf_source_module()
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        return types.SimpleNamespace(returncode=0 if "--force" in cmd else 1, stdout="", stderr="expired")
+
+    monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-01")
+    monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+    monkeypatch.setattr(mod.subprocess, "run", fake_run)
+
+    assert mod._ensure_nlm_auth() is True
+
+    assert calls == [
+        ["nlm", "login", "--check", "--profile", "ytis-free1-worker-01"],
+        ["nlm", "login", "--force", "--profile", "ytis-free1-worker-01"],
+    ]
+
+
 def test_cmd_fetch_logs_fetch_start_and_first_download_started_industrial():
     """cmd_fetch logs a run-start marker and a first-download marker for industrial backlogs."""
     mod = _load_csf_source_module()

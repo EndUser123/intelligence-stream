@@ -16,6 +16,7 @@ from typing import Any, Iterable
 
 from csf.breadth_series import _aggregate_summary
 from csf.load_ladder import build_fallback_benchmark_command
+from csf.nlm_worker_auth import expected_email_for_profile
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -45,6 +46,7 @@ class LaneConfig:
     notebooklm_profiles: tuple[str, ...] = ()
     browser_profile_directory: str = ""
     coordinator_notebooklm_profile: str | None = None
+    startup_delay_s: float = 0.0
 
     @property
     def coordinator_profile(self) -> str:
@@ -85,6 +87,9 @@ def _lane_from_dict(raw: dict[str, object]) -> LaneConfig:
     if not str(worker_state_root):
         raise ValueError(f"lane {lane}: worker_state_root is required")
     coordinator_profile = str(raw.get("coordinator_notebooklm_profile") or "").strip() or None
+    startup_delay_s = float(raw.get("startup_delay_s") or 0.0)
+    if startup_delay_s < 0:
+        raise ValueError(f"lane {lane}: startup_delay_s must be >= 0")
     return LaneConfig(
         lane=lane,
         account_class=str(raw.get("account_class") or lane).strip(),
@@ -96,6 +101,7 @@ def _lane_from_dict(raw: dict[str, object]) -> LaneConfig:
         notebook_prefix=notebook_prefix,
         browser_profile_directory=str(raw.get("browser_profile_directory") or "").strip(),
         coordinator_notebooklm_profile=coordinator_profile,
+        startup_delay_s=startup_delay_s,
     )
 
 
@@ -125,6 +131,79 @@ def _validate_lanes(lanes: Iterable[LaneConfig]) -> tuple[LaneConfig, ...]:
                 raise ValueError(f"duplicate lane {field}: {value}")
             seen[field].add(value)
     return lane_tuple
+
+
+def _extract_account(stdout: str, stderr: str = "") -> str:
+    for line in f"{stdout}\n{stderr}".splitlines():
+        stripped = line.strip()
+        if stripped.lower().startswith("account:"):
+            return stripped.split(":", 1)[1].strip().lower()
+    return ""
+
+
+def _lane_auth_profiles(lane: LaneConfig) -> list[str]:
+    profiles: list[str] = [lane.coordinator_profile]
+    if lane.notebooklm_profiles:
+        profiles.extend(lane.notebooklm_profiles[: lane.workers])
+    else:
+        profiles.extend(f"{lane.notebooklm_profile_prefix}-{idx:02d}" for idx in range(1, lane.workers + 1))
+    unique: list[str] = []
+    for profile in profiles:
+        if profile and profile not in unique:
+            unique.append(profile)
+    return unique
+
+
+def preflight_lane_auth_profiles(lanes: Iterable[LaneConfig], *, timeout_s: float = 30.0) -> None:
+    """Validate all lane NotebookLM profiles before starting a benchmark run."""
+    checked: set[str] = set()
+    for lane in _validate_lanes(lanes):
+        for profile in _lane_auth_profiles(lane):
+            if profile in checked:
+                continue
+            checked.add(profile)
+            if _profile_auth_check(profile, timeout_s=timeout_s):
+                continue
+            if not _profile_auth_force_refresh(profile, timeout_s=max(120.0, timeout_s)):
+                raise RuntimeError(f"NotebookLM auth expired for profile {profile} and force refresh failed")
+
+
+def _profile_auth_check(profile: str, *, timeout_s: float) -> bool:
+    try:
+        res = subprocess.run(
+            ["nlm", "login", "--check", "--profile", profile],
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return False
+    if res.returncode != 0:
+        return False
+    expected_email = expected_email_for_profile(profile)
+    if not expected_email:
+        return True
+    return _extract_account(res.stdout or "", res.stderr or "") == expected_email.lower()
+
+
+def _profile_auth_force_refresh(profile: str, *, timeout_s: float) -> bool:
+    try:
+        res = subprocess.run(
+            ["nlm", "login", "--force", "--profile", profile],
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return False
+    if res.returncode != 0:
+        return False
+    expected_email = expected_email_for_profile(profile)
+    if not expected_email:
+        return True
+    return _extract_account(res.stdout or "", res.stderr or "") == expected_email.lower()
 
 
 def load_lane_configs(path: Path) -> tuple[LaneConfig, ...]:
@@ -159,6 +238,7 @@ def _lane_env(base_env: dict[str, str], lane: LaneConfig, reusable_pipeline_mode
         env.pop("YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILES", None)
     if reusable_pipeline_mode:
         env["YTIS_REUSABLE_PIPELINE_MODE"] = reusable_pipeline_mode
+    env["YTIS_NLM_AUTH_NONINTERACTIVE"] = "1"
     return env
 
 
@@ -180,6 +260,9 @@ def _run_lane(
     lane_output_root = output_root / lane.lane
     lane_output_root.mkdir(parents=True, exist_ok=True)
     lane_cohort_json = cohort_json.parent / f"{cohort_json.stem}.{lane.lane}{cohort_json.suffix}"
+    started_at = time.monotonic()
+    if lane.startup_delay_s > 0:
+        time.sleep(lane.startup_delay_s)
     command = build_fallback_benchmark_command(
         python_executable=python_executable or sys.executable,
         fallback_benchmark_script=FALLBACK_BENCHMARK_SCRIPT,
@@ -198,7 +281,6 @@ def _run_lane(
         worker_state_root=lane.worker_state_root,
         preserve_worker_state_root=False,
     )
-    started_at = time.monotonic()
     proc = subprocess.run(
         command,
         cwd=str(REPO_ROOT),
@@ -228,6 +310,7 @@ def _run_lane(
         "browser_profile_directory": lane.browser_profile_directory,
         "worker_state_root": str(lane.worker_state_root),
         "notebook_prefix": lane.notebook_prefix,
+        "startup_delay_s": lane.startup_delay_s,
         "started_at": round(started_at, 3),
         "finished_at": round(finished_at, 3),
         "wall_elapsed_s": round(finished_at - started_at, 3),
@@ -348,8 +431,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reusable-pipeline-mode", default=DEFAULT_REUSABLE_PIPELINE_MODE)
     args = parser.parse_args(argv)
 
+    lanes = load_lane_configs(args.lane_config)
+    preflight_lane_auth_profiles(lanes)
     report = run_sharded_lane_series(
-        lanes=load_lane_configs(args.lane_config),
+        lanes=lanes,
         trace_root=args.trace_root,
         output_root=args.output_root,
         cohort_json=args.cohort_json,

@@ -28,6 +28,14 @@ youtube_cookies.txt
 *.log
 logs/
 
+# Curated auth benchmark evidence is added explicitly when needed.
+# Ignore new sharded lane trees by default so bulk run roots do not get staged.
+.logs/sharded_lane_series/**
+!.logs/sharded_lane_series/**/
+!.logs/sharded_lane_series/**/sharded_lane_series_summary.json
+!.logs/sharded_lane_series/**/logs/
+!.logs/sharded_lane_series/**/logs/term_*.jsonl
+
 # Evidence / Research
 .evidence/
 .research_report.md

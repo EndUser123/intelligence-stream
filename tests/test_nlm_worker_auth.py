@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+from unittest import mock
 
 from csf import nlm_worker_auth
 
@@ -137,6 +138,34 @@ def test_default_pro_family_uses_signed_in_pro_chrome_profile():
     assert pro_family.expected_email == "a.hominidae@gmail.com"
     assert pro_family.cdp_browser_root == r"P:\.data\yt-is\browser\notebooklm-pro"
     assert pro_family.cdp_browser_profile_directory == "Profile"
+
+
+def test_profile_session_is_valid_fails_closed_when_default_chrome_profile_is_running(monkeypatch):
+    monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+    stop_calls = []
+
+    with mock.patch("csf.nlm_worker_auth._chrome_pids_for_root", return_value={12345}):
+        with mock.patch("csf.nlm_worker_auth._stop_chrome_pids", side_effect=lambda pids: stop_calls.append(set(pids))):
+            with mock.patch("csf.nlm_worker_auth.subprocess.run") as mock_run:
+                mock_run.side_effect = AssertionError("default chrome-profile should fail closed before nlm runs")
+                assert nlm_worker_auth.profile_session_is_valid("ytis-free1-worker-01") is False
+
+    assert stop_calls == [{12345}]
+
+
+def test_refresh_profile_session_stops_default_chrome_profile_after_force_login(monkeypatch):
+    monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+    stop_calls = []
+
+    with mock.patch("csf.nlm_worker_auth._chrome_pids_for_root", side_effect=[set(), {67890}]):
+        with mock.patch("csf.nlm_worker_auth._stop_chrome_pids", side_effect=lambda pids: stop_calls.append(set(pids))):
+            with mock.patch(
+                "csf.nlm_worker_auth.subprocess.run",
+                return_value=subprocess.CompletedProcess(["nlm", "login", "--force", "--profile", "ytis-free1-worker-01"], 0, "Account: troup.hominidae@gmail.com\n", ""),
+            ):
+                assert nlm_worker_auth.refresh_profile_session("ytis-free1-worker-01") is False
+
+    assert stop_calls == [{67890}]
 
 
 def test_sync_worker_profiles_rejects_wrong_source_account(tmp_path):
@@ -450,6 +479,86 @@ def test_refresh_source_profile_restores_source_snapshot_when_cdp_unreachable(tm
     assert ok is False
     assert (root / "ytis-pro-worker-01" / "metadata.json").read_text(encoding="utf-8") == before_metadata
     assert (root / "ytis-pro-worker-01" / "cookies.json").read_text(encoding="utf-8") == before_cookies
+
+
+def test_refresh_source_profile_fails_closed_when_default_chrome_profile_appears(tmp_path, monkeypatch):
+    root = tmp_path / "profiles"
+    _write_profile(root, "ytis-pro-worker-01", "a.hominidae@gmail.com", "fresh-pro")
+    before_metadata = (root / "ytis-pro-worker-01" / "metadata.json").read_text(encoding="utf-8")
+    before_cookies = (root / "ytis-pro-worker-01" / "cookies.json").read_text(encoding="utf-8")
+    pid_snapshots = iter([set(), {12345}])
+    stopped_pids: list[int] = []
+    called: list[list[str]] = []
+
+    monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+    monkeypatch.setattr(nlm_worker_auth, "DEFAULT_PROFILE_ROOT", root)
+    monkeypatch.setattr(nlm_worker_auth, "_stop_chrome_for_root", lambda browser_root: None)
+    monkeypatch.setattr(nlm_worker_auth, "_mark_browser_profile_clean", lambda browser_root, profile: None)
+    monkeypatch.setattr(nlm_worker_auth, "_wait_for_cdp", lambda port, timeout_s=20.0: True)
+    monkeypatch.setattr(nlm_worker_auth, "_close_cdp_noise_tabs", lambda port: 0)
+    monkeypatch.setattr(nlm_worker_auth.subprocess, "Popen", lambda *args, **kwargs: object())
+    monkeypatch.setattr(nlm_worker_auth, "_chrome_pids_for_root", lambda browser_root: next(pid_snapshots))
+    monkeypatch.setattr(nlm_worker_auth, "_stop_chrome_pids", lambda pids: stopped_pids.extend(sorted(pids)))
+
+    def fake_run(cmd, **kwargs):
+        called.append(cmd)
+        if cmd[:2] == ["nlm", "login"] and "--provider" in cmd and "--cdp-url" in cmd:
+            return subprocess.CompletedProcess(cmd, 0, "Account: a.hominidae@gmail.com\n", "")
+        return subprocess.CompletedProcess(cmd, 1, "", "unexpected command")
+
+    monkeypatch.setattr(nlm_worker_auth.subprocess, "run", fake_run)
+
+    ok = nlm_worker_auth.refresh_source_profile(nlm_worker_auth.DEFAULT_FAMILIES[0], timeout_s=1)
+
+    assert ok is False
+    assert stopped_pids == [12345]
+    assert called == [
+        [
+            "nlm",
+            "login",
+            "--profile",
+            "ytis-pro-worker-01",
+            "--provider",
+            "openclaw",
+            "--cdp-url",
+            "http://127.0.0.1:18870",
+            "--force",
+        ]
+    ]
+    assert (root / "ytis-pro-worker-01" / "metadata.json").read_text(encoding="utf-8") == before_metadata
+    assert (root / "ytis-pro-worker-01" / "cookies.json").read_text(encoding="utf-8") == before_cookies
+
+
+def test_refresh_source_profile_refuses_existing_default_chrome_profile_in_noninteractive_mode(
+    tmp_path, monkeypatch
+):
+    root = tmp_path / "profiles"
+    _write_profile(root, "ytis-free1-worker-01", "troup.hominidae@gmail.com", "fresh-free")
+    popen_calls: list[object] = []
+    run_calls: list[list[str]] = []
+
+    monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+    monkeypatch.setattr(nlm_worker_auth, "DEFAULT_PROFILE_ROOT", root)
+    monkeypatch.setattr(nlm_worker_auth, "_chrome_pids_for_root", lambda browser_root: {999})
+    monkeypatch.setattr(nlm_worker_auth.subprocess, "Popen", lambda *args, **kwargs: popen_calls.append(args))
+
+    def fake_run(cmd, **kwargs):
+        run_calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(nlm_worker_auth.subprocess, "run", fake_run)
+
+    ok = nlm_worker_auth.refresh_source_profile(nlm_worker_auth.DEFAULT_FAMILIES[1], timeout_s=1)
+
+    assert ok is False
+    assert popen_calls == []
+    assert run_calls == []
+    assert (root / "ytis-free1-worker-01" / "metadata.json").read_text(encoding="utf-8") == json.dumps(
+        {"email": "troup.hominidae@gmail.com", "last_validated": "2026-04-29T10:00:00"}
+    )
+    assert (root / "ytis-free1-worker-01" / "cookies.json").read_text(encoding="utf-8") == json.dumps(
+        [{"name": "fresh-free"}]
+    )
 
 
 def test_close_cdp_noise_tabs_only_closes_known_false_tabs(monkeypatch):

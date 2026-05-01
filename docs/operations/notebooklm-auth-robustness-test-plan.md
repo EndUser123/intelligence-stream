@@ -14,9 +14,10 @@ Status: the benchmark auth helper now checks account identity, and `YTIS_NLM_AUT
 - The update matters to this project because it keeps the auth helper on the current launcher/runtime path and includes upstream auth robustness fixes that shipped after `0.5.30`.
 - Relevant upstream changes to remember:
   - `0.5.30` fixed stale `NOTEBOOKLM_COOKIES` auth loops and removed deprecated cookie/session env vars.
-  - `0.5.31` separated MCP stdout and stderr so the server does not exit on startup chatter.
-  - `0.6.0` added label management and related CLI/MCP commands; useful, but not central to the throughput soak.
-  - `0.6.2` on upstream `main` adds a login timeout fix and skips `HeadlessChrome` automation browsers during login, which is directly relevant to the multi-browser environment we are testing.
+- `0.5.31` separated MCP stdout and stderr so the server does not exit on startup chatter.
+- `0.6.0` added label management and related CLI/MCP commands; useful, but not central to the throughput soak.
+- `0.6.2` on upstream `main` adds a login timeout fix and skips `HeadlessChrome` automation browsers during login, which is directly relevant to the multi-browser environment we are testing.
+- Even on `0.6.2`, benchmark validation must still watch for `C:\Users\brsth\.notebooklm-mcp-cli\chrome-profile`; the local guard treats that profile as invalid during noninteractive forced refresh.
 - No code changes were required in `yt-is` just to consume `0.6.2`, but the auth soak should still be treated as sensitive to launcher/profile changes because the project depends on profile-pinned `nlm login --check` behavior.
 
 ## Read First
@@ -204,7 +205,19 @@ Pass criteria:
 - Logs show `nlm_auth_forced_refresh_scheduled` or equivalent.
 - Any `nlm login --force` command is profile-pinned.
 - No default NotebookLM Chrome profile appears.
+- If `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS=1` is used, the run must either emit `nlm_auth_forced_refresh_scheduled` with no default `chrome-profile` process or fail closed before any default-profile Chrome mutation becomes evidence.
 - Post-run `python P:/packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync` still passes.
+
+Observed stress run:
+
+- Benchmark-shaped forced-refresh stress roots produced too much browser churn and were pruned from the workspace after the direct marker proof landed.
+- Use `pro_free_auth_marker_v4` as the canonical forced-refresh proof.
+
+Marker and guard drills:
+
+- `pro_free_auth_marker_v4` wrote `P:\packages\yt-is\.logs\sharded_lane_series\pro_free_auth_marker_v4\logs\term_ad61538d.jsonl`.
+- That JSONL contains `nlm_auth_forced_refresh_scheduled`, `nlm_login_started`, `nlm_login_completed`, and `nlm_auth_refreshed` for `ytis-pro-worker-01`.
+- The guard drill returned `check_exit=1` and `remaining_default_profile_processes=0` after starting a shared default-profile Chrome tree.
 
 ## Phase 5: Long Max-Throughput Soak
 
@@ -216,6 +229,7 @@ Use fresh output roots:
 
 - `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run01`
 - `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run02`
+- `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run03`
 - Continue until elapsed wall time is greater than `75` minutes.
 
 Command template:
@@ -234,6 +248,16 @@ python P:/packages/yt-is/bin/csf-sharded-lane-series `
 ```
 
 Leave the cadence at `5` unless a specific auth bug requires more aggressive refresh churn. If you are only checking sustained throughput, do not set `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS` at all.
+
+Observed soak evidence:
+
+- `run01` wall elapsed `2035.2s`
+- `run02` wall elapsed `1714.443s`
+- `run03` wall elapsed `1238.153s`
+- Combined wall elapsed across `run01` through `run03`: `4987.792s` (`83.13` minutes)
+- `run03` completed with combined hot-path vph `1157.21`, `398` hot-path successes, `2` failures, and `400` processed
+- The only `run03` failures were `nlm_content_below_threshold`; no default NotebookLM Chrome profile remained after cleanup
+- I did not find a natural `nlm_auth_forced_refresh_scheduled` event in the soak roots, so treat the soak as endurance evidence only and keep `pro_free_auth_marker_v4` as the explicit forced-refresh marker proof
 
 Run the process guard every 5 minutes in another terminal:
 

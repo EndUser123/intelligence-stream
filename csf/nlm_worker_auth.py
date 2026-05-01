@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 
 
 DEFAULT_PROFILE_ROOT = Path.home() / ".notebooklm-mcp-cli" / "profiles"
+DEFAULT_NLM_CHROME_PROFILE_ROOT = Path.home() / ".notebooklm-mcp-cli" / "chrome-profile"
 
 
 @dataclass(frozen=True)
@@ -126,30 +127,16 @@ def _restore_profile_state(profile_root: Path, profile: str, snapshot: dict[str,
 
 def profile_session_is_valid(profile: str, *, timeout_s: float = 30.0) -> bool:
     """Return whether the NotebookLM CLI can use the profile without interactive login."""
-    try:
-        res = subprocess.run(
-            _nlm_command("login", "--check", "--profile", profile),
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
+    res = _run_nlm_command_fail_closed(["login", "--check", "--profile", profile], timeout_s=timeout_s)
+    if res is None:
         return False
     return res.returncode == 0
 
 
 def profile_session_account(profile: str, *, timeout_s: float = 30.0) -> str:
     """Return the account reported by `nlm login --check`, or empty string if invalid."""
-    try:
-        res = subprocess.run(
-            _nlm_command("login", "--check", "--profile", profile),
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
+    res = _run_nlm_command_fail_closed(["login", "--check", "--profile", profile], timeout_s=timeout_s)
+    if res is None:
         return ""
     if res.returncode != 0:
         return ""
@@ -165,15 +152,8 @@ def refresh_profile_session(profile: str, *, timeout_s: float = 120.0) -> bool:
     """Ask nlm to renew a profile using its bounded automatic force-login path."""
     profile_root = DEFAULT_PROFILE_ROOT
     snapshot = _snapshot_profile_state(profile_root, profile)
-    try:
-        res = subprocess.run(
-            _nlm_command("login", "--force", "--profile", profile),
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
+    res = _run_nlm_command_fail_closed(["login", "--force", "--profile", profile], timeout_s=timeout_s)
+    if res is None:
         if snapshot is not None:
             _restore_profile_state(profile_root, profile, snapshot)
         return False
@@ -188,6 +168,102 @@ def refresh_profile_session(profile: str, *, timeout_s: float = 120.0) -> bool:
 
 def _chrome_executable() -> str:
     return os.getenv("YTIS_NLM_BROWSER_EXECUTABLE", r"C:\Program Files\Google\Chrome\Application\chrome.exe")
+
+
+def _is_noninteractive_auth() -> bool:
+    value = os.getenv("YTIS_NLM_AUTH_NONINTERACTIVE", "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _default_chrome_profile_pids() -> set[int]:
+    if not _is_noninteractive_auth():
+        return set()
+    return _chrome_pids_for_root(DEFAULT_NLM_CHROME_PROFILE_ROOT)
+
+
+def _run_nlm_command_fail_closed(
+    args: list[str],
+    *,
+    timeout_s: float,
+) -> subprocess.CompletedProcess | None:
+    default_profile_pids_before = _default_chrome_profile_pids()
+    if default_profile_pids_before:
+        _stop_chrome_pids(default_profile_pids_before)
+        return None
+    try:
+        res = subprocess.run(
+            _nlm_command(*args),
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return None
+    default_profile_pids_after = _default_chrome_profile_pids()
+    new_default_profile_pids = default_profile_pids_after - default_profile_pids_before
+    if new_default_profile_pids:
+        _stop_chrome_pids(new_default_profile_pids)
+        return None
+    return res
+
+
+def _ps_single_quote(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _chrome_pids_for_root(browser_root: str | Path) -> set[int]:
+    if os.name != "nt" or not browser_root:
+        return set()
+    root = str(browser_root)
+    ps = (
+        "$root = "
+        + _ps_single_quote(root)
+        + "; "
+        + "$matches = Get-CimInstance Win32_Process -Filter \"name = 'chrome.exe'\" | "
+        + "Where-Object { $_.CommandLine -like \"*$root*\" }; "
+        + "$matches | ForEach-Object { $_.ProcessId }"
+    )
+    try:
+        res = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return set()
+    if res.returncode != 0:
+        return set()
+    pids: set[int] = set()
+    for line in (res.stdout or "").splitlines():
+        try:
+            pids.add(int(line.strip()))
+        except ValueError:
+            continue
+    return pids
+
+
+def _stop_chrome_pids(pids: set[int]) -> None:
+    if os.name != "nt" or not pids:
+        return
+    pid_list = ",".join(str(pid) for pid in sorted(pids))
+    ps = (
+        "$pids = @("
+        + pid_list
+        + "); "
+        + "$pids | ForEach-Object { "
+        + "$p = Get-Process -Id $_ -ErrorAction SilentlyContinue; "
+        + "if ($p) { [void]$p.CloseMainWindow() } "
+        + "}; "
+        + "Start-Sleep -Seconds 2; "
+        + "$pids | ForEach-Object { "
+        + "$p = Get-Process -Id $_ -ErrorAction SilentlyContinue; "
+        + "if ($p -and -not $p.HasExited) { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue } "
+        + "}"
+    )
+    subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True, timeout=20, check=False)
 
 
 def _stop_chrome_for_root(browser_root: str) -> None:
@@ -275,6 +351,13 @@ def refresh_source_profile(family: AuthFamily, *, timeout_s: float = 120.0) -> b
     """Refresh worker-01 through its dedicated browser root when configured."""
     profile_root = DEFAULT_PROFILE_ROOT
     snapshot = _snapshot_profile_state(profile_root, family.source_profile)
+    default_profile_pids_before: set[int] = set()
+    if _is_noninteractive_auth():
+        default_profile_pids_before = _chrome_pids_for_root(DEFAULT_NLM_CHROME_PROFILE_ROOT)
+        if default_profile_pids_before:
+            if snapshot is not None:
+                _restore_profile_state(profile_root, family.source_profile, snapshot)
+            return False
     use_cdp = os.getenv("YTIS_NLM_WORKER_AUTH_USE_CDP", "1").strip().lower() not in {"0", "false", "no", "off"}
     if not use_cdp or not family.cdp_browser_root or family.cdp_port <= 0:
         return refresh_profile_session(family.source_profile, timeout_s=timeout_s)
@@ -323,6 +406,14 @@ def refresh_source_profile(family: AuthFamily, *, timeout_s: float = 120.0) -> b
         if snapshot is not None:
             _restore_profile_state(profile_root, family.source_profile, snapshot)
         return False
+    if _is_noninteractive_auth():
+        default_profile_pids_after = _chrome_pids_for_root(DEFAULT_NLM_CHROME_PROFILE_ROOT)
+        new_default_profile_pids = default_profile_pids_after - default_profile_pids_before
+        if new_default_profile_pids:
+            _stop_chrome_pids(new_default_profile_pids)
+            if snapshot is not None:
+                _restore_profile_state(profile_root, family.source_profile, snapshot)
+            return False
     success = res.returncode == 0 and _extract_account(res.stdout or "", res.stderr or "") == family.expected_email.lower()
     if not success and snapshot is not None:
         _restore_profile_state(profile_root, family.source_profile, snapshot)

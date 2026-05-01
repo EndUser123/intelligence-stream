@@ -316,6 +316,31 @@ class TestAuthAutoLogin:
         assert sync_calls
         assert ["nlm", "login", "--force", "--profile", "ytis-free1-worker-04"] not in called
 
+    def test_ensure_nlm_auth_fails_closed_when_source_profile_guard_rejects_default_chrome(self, monkeypatch):
+        """Forced refresh must stop when the source-profile guard reports default chrome-profile usage."""
+        import subprocess
+
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-pro-worker-02")
+        monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+        monkeypatch.setenv("YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS", "1")
+        called = []
+
+        def mock_run(cmd, **kwargs):
+            called.append(cmd)
+            if cmd == ["nlm", "login", "--check", "--profile", "ytis-pro-worker-02"]:
+                return subprocess.CompletedProcess(cmd, 0, "Account: a.hominidae@gmail.com\n", "")
+            return subprocess.CompletedProcess(cmd, 1, "", "unexpected command")
+
+        with mock.patch("csf.nlm_batch.refresh_source_profile", return_value=False):
+            with mock.patch("csf.nlm_batch.subprocess.run", side_effect=mock_run):
+                result = nlm_batch._ensure_nlm_auth()
+
+        assert result is False
+        assert called == [
+            ["nlm", "login", "--check", "--profile", "ytis-pro-worker-02"],
+            ["nlm", "login", "--check", "--profile", "ytis-pro-worker-02"],
+        ]
+
     def test_ensure_nlm_auth_unknown_profile_still_uses_profile_pinned_force(self, monkeypatch):
         """Profiles outside known account families keep the profile-pinned nlm force fallback."""
         import subprocess
@@ -396,9 +421,10 @@ class TestAuthAutoLogin:
             return None
 
         with mock.patch("csf.nlm_batch._ensure_nlm_auth", return_value=True):
-            with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=mock_sync_worker_profiles):
-                with mock.patch("csf.nlm_batch.subprocess.run", side_effect=mock_run):
-                    result = ingestor._run_cmd(["source", "list", "nb-1", "--json"])
+            with mock.patch("csf.nlm_batch._default_chrome_profile_pids", return_value=set()):
+                with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=mock_sync_worker_profiles):
+                    with mock.patch("csf.nlm_batch.subprocess.run", side_effect=mock_run):
+                        result = ingestor._run_cmd(["source", "list", "nb-1", "--json"])
 
         assert result.returncode == 0
         assert called == [
@@ -407,6 +433,76 @@ class TestAuthAutoLogin:
             ["nlm", "source", "list", "nb-1", "--json"],
         ]
         assert sync_calls
+
+    def test_run_cmd_fails_closed_when_default_profile_exists_before_auth(self, monkeypatch):
+        """Noninteractive batch work must fail before auth if the shared chrome-profile is already running."""
+
+        class DummyTracker:
+            def apply_delay(self):
+                return None
+
+            def record_failure(self, is_rate_limit):
+                return None
+
+            def record_success(self):
+                return None
+
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-04")
+        monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+        ingestor = nlm_batch.NLMBatchIngestor()
+        stop_calls = []
+
+        with mock.patch("csf.nlm_batch._get_tracker", return_value=DummyTracker()):
+            with mock.patch("csf.nlm_batch._default_chrome_profile_pids", return_value={12345}):
+                with mock.patch("csf.nlm_batch._stop_chrome_pids", side_effect=lambda pids: stop_calls.append(set(pids))):
+                    with mock.patch("csf.nlm_batch._ensure_nlm_auth") as mock_ensure:
+                        with mock.patch("csf.nlm_batch.subprocess.run") as mock_run:
+                            result = ingestor._run_cmd(["source", "list", "nb-1", "--json"])
+
+        assert result.returncode == 1
+        assert "default NotebookLM chrome-profile" in (result.stderr or "")
+        assert stop_calls == [{12345}]
+        mock_ensure.assert_not_called()
+        mock_run.assert_not_called()
+
+    def test_run_cmd_fails_closed_when_default_profile_appears_after_command(self, monkeypatch):
+        """Noninteractive batch work must fail if the shared chrome-profile appears after the nlm command."""
+
+        class DummyTracker:
+            def apply_delay(self):
+                return None
+
+            def record_failure(self, is_rate_limit):
+                return None
+
+            def record_success(self):
+                return None
+
+        import subprocess
+
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-04")
+        monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+        ingestor = nlm_batch.NLMBatchIngestor()
+        stop_calls = []
+
+        with mock.patch("csf.nlm_batch._get_tracker", return_value=DummyTracker()):
+            with mock.patch(
+                "csf.nlm_batch._default_chrome_profile_pids",
+                side_effect=[set(), set(), {67890}],
+            ):
+                with mock.patch("csf.nlm_batch._stop_chrome_pids", side_effect=lambda pids: stop_calls.append(set(pids))):
+                    with mock.patch("csf.nlm_batch._ensure_nlm_auth", return_value=True) as mock_ensure:
+                        with mock.patch(
+                            "csf.nlm_batch.subprocess.run",
+                            return_value=subprocess.CompletedProcess(["nlm", "source", "list", "nb-1", "--json"], 0, "[]", ""),
+                        ) as mock_run:
+                            result = ingestor._run_cmd(["source", "list", "nb-1", "--json"])
+
+        assert result.returncode == 1
+        assert result.stderr == "default NotebookLM chrome-profile is already running: C:\\Users\\brsth\\.notebooklm-mcp-cli\\chrome-profile"
+        assert stop_calls == [{67890}]
+        mock_ensure.assert_called_once()
+        mock_run.assert_called_once()
 
 
 class TestReusableBatchLogging:

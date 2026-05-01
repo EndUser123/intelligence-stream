@@ -24,7 +24,10 @@ from csf.csf_logging import log_action
 from csf.nlm_config import get_nlm_config
 from csf.nlm_worker_auth import (
     DEFAULT_FAMILIES,
+    DEFAULT_NLM_CHROME_PROFILE_ROOT,
+    _chrome_pids_for_root,
     expected_email_for_profile,
+    _stop_chrome_pids,
     refresh_source_profile,
     sync_worker_profiles,
 )
@@ -236,6 +239,44 @@ def _get_nlm_auth_context() -> _NLMAuthContext:
         requires_profile=_is_nlm_auth_noninteractive(),
         expected_email=expected_email_for_profile(profile),
     )
+
+
+def _default_chrome_profile_pids() -> set[int]:
+    if not _is_nlm_auth_noninteractive():
+        return set()
+    return _chrome_pids_for_root(DEFAULT_NLM_CHROME_PROFILE_ROOT)
+
+
+def _fail_closed_on_default_chrome_profile(
+    auth_context: _NLMAuthContext,
+    *,
+    args: List[str],
+    phase: str,
+    stdout: str = "",
+    stderr: str = "",
+) -> subprocess.CompletedProcess | None:
+    default_profile_pids = _default_chrome_profile_pids()
+    if not default_profile_pids:
+        return None
+    _stop_chrome_pids(default_profile_pids)
+    log_action(
+        "nlm_auth_failed",
+        {
+            "component": "nlm_batch",
+            "status": "default_profile_running",
+            "phase": phase,
+            "notebooklm_profile": auth_context.profile,
+            "expected_email": auth_context.expected_email or None,
+            "default_chrome_profile": str(DEFAULT_NLM_CHROME_PROFILE_ROOT),
+            "default_chrome_profile_pids": sorted(default_profile_pids),
+            "command": ["nlm"] + args,
+        },
+    )
+    message = (
+        f"default NotebookLM chrome-profile is already running: "
+        f"{DEFAULT_NLM_CHROME_PROFILE_ROOT}"
+    )
+    return subprocess.CompletedProcess(["nlm"] + args, 1, stdout, stderr or message)
 
 
 def _extract_video_id_from_source_entry(source: object) -> str | None:
@@ -937,11 +978,36 @@ class NLMBatchIngestor:
         tracker = _get_tracker()
         while True:
             tracker.apply_delay()
+            auth_context = _get_nlm_auth_context()
+            default_profile_guard = _fail_closed_on_default_chrome_profile(
+                auth_context,
+                args=args,
+                phase="pre_auth",
+            )
+            if default_profile_guard is not None:
+                tracker.record_failure(is_rate_limit=False)
+                return default_profile_guard
             if not _ensure_nlm_auth():
-                return subprocess.CompletedProcess(
-                    ["nlm"] + args, 1, "", "Auth failed"
-                )
+                return subprocess.CompletedProcess(["nlm"] + args, 1, "", "Auth failed")
+            default_profile_guard = _fail_closed_on_default_chrome_profile(
+                auth_context,
+                args=args,
+                phase="pre_command",
+            )
+            if default_profile_guard is not None:
+                tracker.record_failure(is_rate_limit=False)
+                return default_profile_guard
             res = subprocess.run(["nlm"] + args, capture_output=True, text=True, timeout=timeout)
+            default_profile_guard = _fail_closed_on_default_chrome_profile(
+                auth_context,
+                args=args,
+                phase="post_command",
+                stdout=res.stdout or "",
+                stderr=res.stderr or "",
+            )
+            if default_profile_guard is not None:
+                tracker.record_failure(is_rate_limit=False)
+                return default_profile_guard
 
             # Check for rate limit indicators — require BOTH a status code AND rate-limit context
             # to avoid false positives from bare 500/502 errors that happen to contain "503"

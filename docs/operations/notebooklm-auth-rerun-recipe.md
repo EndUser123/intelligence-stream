@@ -42,6 +42,50 @@ Expected accounts:
 
 If any profile reports the wrong account, stop and repair that family before benchmarking.
 
+## Logging Sink Proof
+
+Use a direct auth-helper probe when you need to prove the forced-refresh marker lands in a pinned log root.
+
+```powershell
+$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:INTELLIGENCE_STREAM_LOG_DIR = 'P:\packages\yt-is\.logs\sharded_lane_series\pro_free_auth_marker_v4\logs'
+$env:YTIS_NLM_AUTH_NONINTERACTIVE = '1'
+$env:YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS = '1'
+$env:NOTEBOOKLM_PROFILE = 'ytis-pro-worker-01'
+python -c "from csf import nlm_batch; print(nlm_batch._ensure_nlm_auth())"
+Remove-Item Env:\YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS
+Remove-Item Env:\YTIS_NLM_AUTH_NONINTERACTIVE
+Remove-Item Env:\INTELLIGENCE_STREAM_LOG_DIR
+Remove-Item Env:\NOTEBOOKLM_PROFILE
+```
+
+Observed proof:
+
+- `pro_free_auth_marker_v4` wrote `P:\packages\yt-is\.logs\sharded_lane_series\pro_free_auth_marker_v4\logs\term_ad61538d.jsonl`.
+- The JSONL contains `nlm_auth_forced_refresh_scheduled`, `nlm_login_started`, `nlm_login_completed`, and `nlm_auth_refreshed` records.
+- No default NotebookLM Chrome profile appeared during the probe.
+
+## Guard Drill
+
+Use the smallest auth entrypoint when you want to prove the default `chrome-profile` is fail-closed.
+
+```powershell
+$chrome = Start-Process -FilePath 'C:\Program Files\Google\Chrome\Application\chrome.exe' `
+  -ArgumentList '--remote-debugging-port=9222 --no-first-run --no-default-browser-check --disable-extensions --user-data-dir=C:\Users\brsth\.notebooklm-mcp-cli\chrome-profile https://notebooklm.google.com' `
+  -WindowStyle Hidden -PassThru
+Start-Sleep -Seconds 5
+$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:YTIS_NLM_AUTH_NONINTERACTIVE = '1'
+python P:/packages/yt-is/bin/csf-nlm-worker-auth check
+Remove-Item Env:\YTIS_NLM_AUTH_NONINTERACTIVE
+```
+
+Observed drill:
+
+- `check_exit=1`
+- `remaining_default_profile_processes=0`
+- The guard stopped the shared default-profile Chrome tree without manual cleanup.
+
 ## Short Validation Smoke
 
 Use this first. It proves repeated re-authentication without maximum browser churn.
@@ -70,23 +114,23 @@ Pass criteria:
 
 ## Auth Stress Drill
 
-Use this only when the goal is to exercise the refresh path as hard as possible.
+Use a direct auth-helper probe when the goal is to prove forced refresh logging. Benchmark-shaped stress roots produced too much browser churn and were pruned from the workspace after the canonical marker proof was captured.
+Keep generated `.logs/sharded_lane_series` trees out of the index by default; force-add only the small summary or marker files that the docs reference.
 
-```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
-$env:YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS = '1'
-python P:/packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
-python P:/packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
-  --output-root P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_stress_v1 `
-  --cohort-json P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_stress_v1/cohort.json `
-  --limit 50 `
-  --batch-size 50 `
-  --reusable-pipeline-mode serial
-Remove-Item Env:\YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS
-```
+Observed soak runs:
 
-This is expected to open more browser windows and is not the default validation path.
+- `pro_free_auth_soak_v1_run01` completed with `1231.13` `hot_path_videos_per_hour`, `696` hot-path successes, and `54` failures.
+- `pro_free_auth_soak_v1_run02` completed with `1240.99` `hot_path_videos_per_hour`, `591` hot-path successes, and `209` failures.
+- `pro_free_auth_soak_v1_run03` completed with `1157.21` `hot_path_videos_per_hour`, `398` hot-path successes, and `2` failures.
+- The three soak runs total `4987.792s` of wall time, which is `83.13` minutes.
+- `run03` had only `nlm_content_below_threshold` failures in the combined summary, and no default NotebookLM Chrome profile remained after cleanup.
+- I did not find a natural `nlm_auth_forced_refresh_scheduled` marker in the soak roots, so keep the separate `pro_free_auth_marker_v4` drill as the explicit forced-refresh proof and treat the soak as endurance evidence.
+
+Observed marker proof:
+
+- `pro_free_auth_marker_v4` wrote `P:\packages\yt-is\.logs\sharded_lane_series\pro_free_auth_marker_v4\logs\term_ad61538d.jsonl`.
+- That JSONL contains `nlm_auth_forced_refresh_scheduled`, `nlm_login_started`, `nlm_login_completed`, and `nlm_auth_refreshed` records for `ytis-pro-worker-01`.
+- The earlier benchmark-shaped `pro_free_auth_marker_v3` run completed cleanly but did not surface the marker in its captured run-root logs, so do not use it as the forced-refresh proof source.
 
 ## Long Soak
 

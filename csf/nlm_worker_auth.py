@@ -36,7 +36,7 @@ DEFAULT_FAMILIES = (
         sibling_profiles=("ytis-pro-worker-02", "ytis-pro-worker-03", "ytis-pro-worker-04"),
         expected_email="a.hominidae@gmail.com",
         cdp_browser_root=r"P:\.data\yt-is\browser\notebooklm-pro",
-        cdp_browser_profile_directory="Profile 2",
+        cdp_browser_profile_directory="Profile",
         cdp_port=18870,
     ),
     AuthFamily(

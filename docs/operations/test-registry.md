@@ -90,4 +90,5 @@ When a benchmark result is only meaningful because the sample changed, record th
 - [Hot-Path Throughput Optimization Series Design](../superpowers/specs/2026-04-28-hot-path-throughput-optimization-series-design.md)
 - [Hot-Path Throughput Next Test Plan](hot-path-throughput-next-test-plan.md)
 - [NotebookLM Auth Robustness Test Plan](notebooklm-auth-robustness-test-plan.md)
+- [NotebookLM Auth Pre-Mortem](notebooklm-auth-pre-mortem.md)
 - [NotebookLM Auth Family Extension Guide](notebooklm-auth-family-extension.md)

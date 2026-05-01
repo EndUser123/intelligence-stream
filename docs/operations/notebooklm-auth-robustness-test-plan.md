@@ -8,12 +8,24 @@ Validate that NotebookLM auth stays profile-pinned and account-correct during re
 
 Status: the benchmark auth helper now checks account identity, and `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS` is implemented in `csf/nlm_batch.py`. Use this plan to verify those behaviors in live runs.
 
+## NotebookLM CLI Update Note
+
+- `nlm` / `notebooklm-mcp-cli` is now pinned in this workspace to GitHub commit `3711e782cfa63db948bd34f9ae6e97210821223c`, which installs `0.6.2`.
+- The update matters to this project because it keeps the auth helper on the current launcher/runtime path and includes upstream auth robustness fixes that shipped after `0.5.30`.
+- Relevant upstream changes to remember:
+  - `0.5.30` fixed stale `NOTEBOOKLM_COOKIES` auth loops and removed deprecated cookie/session env vars.
+  - `0.5.31` separated MCP stdout and stderr so the server does not exit on startup chatter.
+  - `0.6.0` added label management and related CLI/MCP commands; useful, but not central to the throughput soak.
+  - `0.6.2` on upstream `main` adds a login timeout fix and skips `HeadlessChrome` automation browsers during login, which is directly relevant to the multi-browser environment we are testing.
+- No code changes were required in `yt-is` just to consume `0.6.2`, but the auth soak should still be treated as sensitive to launcher/profile changes because the project depends on profile-pinned `nlm login --check` behavior.
+
 ## Read First
 
 - `P:/packages/yt-is/docs/operations/sharded-lane-series.md`
 - `P:/packages/yt-is/docs/operations/notebooklm-auth-family-extension.md`
 - `P:/packages/yt-is/docs/operations/hot-path-throughput-next-test-plan.md`
 - `P:/packages/yt-is/docs/operations/notebooklm-auth-rerun-recipe.md`
+- `P:/packages/yt-is/docs/operations/notebooklm-auth-pre-mortem.md`
 - `P:/packages/yt-is/docs/operations/test-registry.md`
 - `P:/packages/yt-is/csf/nlm_worker_auth.py`
 - `P:/packages/yt-is/csf/nlm_batch.py`
@@ -25,9 +37,18 @@ Status: the benchmark auth helper now checks account identity, and `YTIS_NLM_AUT
 - `csf-nlm-worker-auth sync` parses the `Account:` line from `nlm login --check`.
 - A valid session on the wrong account is auth failure.
 - Worker `01` profiles can be repaired through the dedicated Pro/Free CDP roots before credentials are copied to sibling workers.
+- The dedicated CDP path is the primary repair path; if it cannot recover the lane, stop and diagnose the browser profile mapping instead of switching to a fallback auth route.
 - Benchmark subprocesses run with `YTIS_NLM_AUTH_NONINTERACTIVE=1`.
 - Benchmark workers must use `NOTEBOOKLM_PROFILE`; unprofiled `nlm login --force` invalidates the run.
 - If you add a 4th family, extend the lists in this file and use [NotebookLM Auth Family Extension Guide](notebooklm-auth-family-extension.md) for the exact update order.
+
+## Pre-Mortem
+
+Before a long soak, read [NotebookLM Auth Pre-Mortem](notebooklm-auth-pre-mortem.md) and verify the three things that most often invalidate the evidence:
+
+- the Pro lane points at the signed-in Pro Chrome profile
+- `nlm login --check` reports the expected account for each lane
+- the run root is isolated and the previous smoke or soak outputs are not being mistaken for current evidence
 
 Expected accounts:
 

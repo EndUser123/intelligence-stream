@@ -53,7 +53,7 @@ Save a config like this as `P:/packages/yt-is/.logs/sharded_lane_series/pro_free
     "notebooklm_profile_prefix": "ytis-pro-worker",
     "notebooklm_profiles": ["ytis-pro-worker-01", "ytis-pro-worker-02", "ytis-pro-worker-03", "ytis-pro-worker-04"],
     "browser_profile_root": "P:/.data/yt-is/browser/notebooklm-pro",
-    "browser_profile_directory": "Profile 2",
+    "browser_profile_directory": "Profile",
     "worker_state_root": "P:/packages/yt-is/.logs/sharded_lane_series/a_hominidae_pro/worker_states",
     "notebook_prefix": "benchmark-shard-a-hominidae-pro"
   },
@@ -92,13 +92,14 @@ This command validates that `ytis-pro-worker-01` is `a.hominidae@gmail.com`, `yt
 Current auth contract:
 
 - `csf-nlm-worker-auth sync` checks each worker `01` source profile with `nlm login --check`, parses the reported `Account:`, and treats a valid session on the wrong account as a failed auth state.
-- When a source worker profile is expired or mapped to the wrong account, `csf-nlm-worker-auth sync` uses the configured root-specific CDP refresh path by default. Set `YTIS_NLM_WORKER_AUTH_USE_CDP=0` only for fake-CLI tests or explicit fallback diagnostics.
+- When a source worker profile is expired or mapped to the wrong account, `csf-nlm-worker-auth sync` uses the configured root-specific CDP refresh path by default and fails closed if that path cannot recover the account mapping.
 - The second free account lane is defined in [`P:/packages/yt-is/.logs/sharded_lane_series/pro_free_hotmail_lanes.json`](../../.logs/sharded_lane_series/pro_free_hotmail_lanes.json) and uses `ytis-free2-worker-01` through `ytis-free2-worker-04` on `brsthomson@hotmail.com`.
 - The auth family map in `csf/nlm_worker_auth.py` is still hard-coded. If you add a 4th family, update that file first, then mirror the new lane into the lane JSON, tests, and this doc.
 - `csf-sharded-lane-series` preflights every lane profile before launching Pro/Free lanes and gives `nlm login --force --profile <profile>` one bounded recovery attempt for expired profiles.
 - Benchmark subprocesses run with `YTIS_NLM_AUTH_NONINTERACTIVE=1`, so `csf-source` uses `nlm login --force` instead of plain interactive `nlm login` if auth expires mid-run.
 - `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS` is a stress knob, not a default throughput setting. Use `1` only when the goal is to force browser churn on every auth probe. For routine validation or soak runs, prefer a higher cadence such as `5`, or leave the knob unset entirely if auth churn is not the thing being tested.
 - If automatic CDP renewal fails for `ytis-free1-worker-01` or `ytis-pro-worker-01`, refresh only that worker `01` profile through the manual dedicated CDP root below, then rerun `python P:/packages/yt-is/bin/csf-nlm-worker-auth sync`.
+- For a failure-mode map before long auth-heavy runs, see [NotebookLM Auth Pre-Mortem](notebooklm-auth-pre-mortem.md).
 - Zero-growth `source_add_failed` now has a bounded notebook-reset fallback in `csf/nlm_batch.py`; the `pro_free_source_map_v6` rerun showed that it reduces the failure class but still does not beat the current best sustained `pro_free_source_map_v1` result.
 - Cleanup-cost optimization was attempted with a bulk source-delete path, but `pro_free_cleanup_opt_v2` was negative and the prior chunked cleanup path was restored.
 
@@ -115,7 +116,7 @@ Get-CimInstance Win32_Process -Filter "name = 'chrome.exe'" |
 
 Start-Process -FilePath $chrome -ArgumentList @(
   "--user-data-dir=$proRoot",
-  "--profile-directory=Profile 2",
+  "--profile-directory=Profile",
   "--remote-debugging-port=$proPort",
   "--remote-allow-origins=*",
   '--no-first-run',

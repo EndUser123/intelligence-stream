@@ -13,6 +13,7 @@
 - Do not reuse `auth_smoke_v2` as throughput evidence.
 - Do not set `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS=1` unless the thing under test is browser churn itself.
 - Do not let any command fall back to the default `C:\Users\brsth\.notebooklm-mcp-cli\chrome-profile`.
+- Do not treat a broken CDP lane as a reason to switch auth paths; the dedicated browser profile root is the repair target.
 - Do not force-kill dedicated auth Chrome roots unless graceful close fails. Forced exits leave the profile marked crashed and can cause Chrome to restore stale tabs such as `0.0.0.2` on the next launch.
 - Do not accept a valid session on the wrong Google account.
 
@@ -144,3 +145,4 @@ Record from `sharded_lane_series_summary.json`:
 - Any appearance of the default NotebookLM Chrome profile
 - `PERMISSION_DENIED` dominating source materialization
 - A benchmark starting before all configured worker profiles pass `nlm login --check`
+- A run root or smoke root being reused as if it were fresh evidence

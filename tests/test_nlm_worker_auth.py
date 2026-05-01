@@ -130,6 +130,15 @@ def test_expected_email_for_profile_includes_second_free_account():
     assert nlm_worker_auth.expected_email_for_profile("ytis-free2-worker-04") == "brsthomson@hotmail.com"
 
 
+def test_default_pro_family_uses_signed_in_pro_chrome_profile():
+    pro_family = nlm_worker_auth.DEFAULT_FAMILIES[0]
+
+    assert pro_family.source_profile == "ytis-pro-worker-01"
+    assert pro_family.expected_email == "a.hominidae@gmail.com"
+    assert pro_family.cdp_browser_root == r"P:\.data\yt-is\browser\notebooklm-pro"
+    assert pro_family.cdp_browser_profile_directory == "Profile"
+
+
 def test_sync_worker_profiles_rejects_wrong_source_account(tmp_path):
     root = tmp_path / "profiles"
     _write_profile(root, "ytis-pro-worker-01", "troup.hominidae@gmail.com", "wrong")
@@ -416,6 +425,25 @@ def test_refresh_source_profile_restores_source_snapshot_on_failed_cdp_refresh(t
         return subprocess.CompletedProcess(cmd, 1, "", "unexpected command")
 
     monkeypatch.setattr(nlm_worker_auth.subprocess, "run", fake_run)
+
+    ok = nlm_worker_auth.refresh_source_profile(nlm_worker_auth.DEFAULT_FAMILIES[0], timeout_s=1)
+
+    assert ok is False
+    assert (root / "ytis-pro-worker-01" / "metadata.json").read_text(encoding="utf-8") == before_metadata
+    assert (root / "ytis-pro-worker-01" / "cookies.json").read_text(encoding="utf-8") == before_cookies
+
+
+def test_refresh_source_profile_restores_source_snapshot_when_cdp_unreachable(tmp_path, monkeypatch):
+    root = tmp_path / "profiles"
+    _write_profile(root, "ytis-pro-worker-01", "a.hominidae@gmail.com", "fresh-pro")
+    before_metadata = (root / "ytis-pro-worker-01" / "metadata.json").read_text(encoding="utf-8")
+    before_cookies = (root / "ytis-pro-worker-01" / "cookies.json").read_text(encoding="utf-8")
+
+    monkeypatch.setattr(nlm_worker_auth, "DEFAULT_PROFILE_ROOT", root)
+    monkeypatch.setattr(nlm_worker_auth, "_stop_chrome_for_root", lambda browser_root: None)
+    monkeypatch.setattr(nlm_worker_auth, "_mark_browser_profile_clean", lambda browser_root, profile: None)
+    monkeypatch.setattr(nlm_worker_auth, "_wait_for_cdp", lambda port, timeout_s=20.0: False)
+    monkeypatch.setattr(nlm_worker_auth.subprocess, "Popen", lambda *args, **kwargs: object())
 
     ok = nlm_worker_auth.refresh_source_profile(nlm_worker_auth.DEFAULT_FAMILIES[0], timeout_s=1)
 

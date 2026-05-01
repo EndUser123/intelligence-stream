@@ -95,6 +95,7 @@ def test_pro_free_lane_config_uses_dedicated_browser_roots():
     assert lanes[1].lane == "troup_hominidae_free"
     assert str(lanes[0].browser_profile_root).replace("\\", "/").endswith("browser/notebooklm-pro")
     assert str(lanes[1].browser_profile_root).replace("\\", "/").endswith("browser/notebooklm-free")
+    assert lanes[0].browser_profile_directory == "Profile"
     assert lanes[0].browser_profile_root != lanes[1].browser_profile_root
 
 
@@ -111,6 +112,7 @@ def test_pro_free_hotmail_lane_config_includes_second_free_account():
         "ytis-free2-worker-03",
         "ytis-free2-worker-04",
     )
+    assert lanes[0].browser_profile_directory == "Profile"
     assert str(lanes[2].browser_profile_root).replace("\\", "/").endswith("browser/notebooklm-free-2")
     assert lanes[2].browser_profile_directory == "Default"
 

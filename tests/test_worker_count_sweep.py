@@ -151,3 +151,70 @@ def test_run_fetch_trial_captures_fetch_completed_summary(tmp_path, monkeypatch)
     assert Path(summary.stdout_path).read_text(encoding="utf-8") == "done\n"
     assert Path(summary.stderr_path).read_text(encoding="utf-8") == ""
     assert Path(summary.log_file).exists()
+
+
+def test_run_fetch_trial_falls_back_to_worker_summaries_when_fetch_completed_missing(tmp_path, monkeypatch):
+    def fake_run(command, capture_output, text, cwd, env, check, timeout=None):
+        log_dir = Path(env["INTELLIGENCE_STREAM_LOG_DIR"])
+        log_dir.mkdir(parents=True, exist_ok=True)
+        trace = log_dir / "fake-terminal.jsonl"
+        trace.write_text(
+            json.dumps({"action": "log", "data": {"msg": "ignore"}}) + "\n",
+            encoding="utf-8",
+        )
+        stdout = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "worker_id": "worker-01",
+                        "batch_count": 1,
+                        "video_count": 50,
+                        "succeeded": 49,
+                        "failed": 1,
+                        "content_fetch_status_counts_total": {"ready": 49, "command_failed": 1},
+                        "startup_prepare_total_elapsed_s": 2.0,
+                        "setup_elapsed_s_total": 3.0,
+                        "add_sources_elapsed_s_total": 4.0,
+                        "materialization_wait_elapsed_s_total": 5.0,
+                        "cleanup_elapsed_s_total": 1.0,
+                        "batch_elapsed_s_total": 15.0,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "worker_id": "worker-02",
+                        "batch_count": 1,
+                        "video_count": 50,
+                        "succeeded": 50,
+                        "failed": 0,
+                        "content_fetch_status_counts_total": {"ready": 50},
+                        "startup_prepare_total_elapsed_s": 1.0,
+                        "setup_elapsed_s_total": 2.0,
+                        "add_sources_elapsed_s_total": 3.0,
+                        "materialization_wait_elapsed_s_total": 4.0,
+                        "cleanup_elapsed_s_total": 1.5,
+                        "batch_elapsed_s_total": 13.0,
+                    }
+                ),
+            ]
+        )
+        return mock.Mock(returncode=0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(worker_count_sweep.subprocess, "run", fake_run)
+    summary = worker_count_sweep._run_fetch_trial(
+        workers=2,
+        limit=37,
+        sample_label="mixed_lane",
+        output_dir=tmp_path,
+        source_filter="https://www.youtube.com/channel/UCYTISFALLBACKBMK",
+        python_executable="python.exe",
+    )
+
+    assert summary.success_count == 99
+    assert summary.fail_count == 1
+    assert summary.processed_count == 100
+    assert summary.fetch_completed["terminal_source"] == "stdout_worker_summaries"
+    assert summary.content_fetch_status_counts == {"ready": 99, "command_failed": 1}
+    assert summary.add_elapsed_s == 7.0
+    assert summary.readiness_elapsed_s == 9.0
+    assert summary.cleanup_elapsed_s == 2.5

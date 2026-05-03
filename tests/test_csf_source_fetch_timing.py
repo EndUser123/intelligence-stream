@@ -11,6 +11,8 @@ from importlib.util import module_from_spec, spec_from_loader
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 
 def _load_csf_source_module():
     """Load the extensionless bin/csf-source script as a module."""
@@ -130,6 +132,64 @@ def test_ensure_nlm_auth_reaps_default_profile_before_check_and_continues(monkey
         ["login", "--check", "--profile", "ytis-free1-worker-01"],
     ]
     assert stop_calls == [{12345}]
+
+
+def test_cmd_fetch_logs_terminal_failure_when_auth_guard_aborts():
+    """cmd_fetch should still emit a terminal fetch record when auth aborts before dispatch."""
+    mod = _load_csf_source_module()
+    channel_rows = [("https://www.youtube.com/@example", "pl-1")]
+    pending_entries = [
+        {
+            "video_id": "vid001",
+            "status": "pending",
+            "has_captions": True,
+            "privacy_status": "public",
+            "upload_status": "uploaded",
+            "is_live_content": False,
+            "unavailable_reason": None,
+            "source": "https://www.youtube.com/@example",
+        }
+    ]
+
+    class FakeCursor:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def fetchall(self):
+            return self._rows
+
+    class FakeConn:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def execute(self, *_args, **_kwargs):
+            return FakeCursor(self._rows)
+
+        def close(self):
+            return None
+
+    class FakeStorage:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def _get_conn(self):
+            return FakeConn(self._rows)
+
+    with mock.patch.object(mod, "_get_batch_status_storage", return_value=FakeStorage(channel_rows)):
+        with mock.patch.object(mod, "get_channel_metadata", return_value={"playlist_id": "pl-1"}):
+            with mock.patch.object(mod, "is_channel_blocked", return_value=False):
+                with mock.patch.object(mod, "get_entries_for_source_details", return_value=pending_entries):
+                    with mock.patch.object(mod, "has_cached_transcript", return_value=False):
+                        with mock.patch.object(mod, "_ensure_nlm_auth", side_effect=SystemExit(1)):
+                            with mock.patch.object(mod, "log_action") as mock_log:
+                                with pytest.raises(SystemExit):
+                                    mod.cmd_fetch(source_filter="https://www.youtube.com/@example", dry_run=False, workers=1)
+
+    log_names = [call.args[0] for call in mock_log.call_args_list]
+    assert "fetch_completed" in log_names
+    completed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "fetch_completed")
+    assert completed["status"] == "failed"
+    assert "SystemExit" in completed["failure_reason"]
 
 
 def test_cmd_fetch_logs_fetch_start_and_first_download_started_industrial():

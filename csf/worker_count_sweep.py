@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 import time
+from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -305,6 +306,89 @@ def _load_fetch_completed_event(log_dir: Path) -> dict[str, Any]:
     return fetch_completed
 
 
+def _load_worker_summary_rows(stdout_text: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for line in stdout_text.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(entry, dict):
+            continue
+        required_keys = {"worker_id", "batch_count", "video_count", "succeeded", "failed"}
+        if required_keys.issubset(entry):
+            rows.append(entry)
+    return rows
+
+
+def _synthesize_fetch_completed_from_worker_summaries(stdout_text: str, *, elapsed_s: float) -> dict[str, Any] | None:
+    rows = _load_worker_summary_rows(stdout_text)
+    if not rows:
+        return None
+
+    worker_stage_totals: dict[str, Any] = {}
+    max_totals: dict[str, float] = {}
+    content_fetch_counts: Counter[str] = Counter()
+    success_count = 0
+    fail_count = 0
+    skip_count = 0
+    processed_count = 0
+
+    for row in rows:
+        success_count += int(row.get("succeeded", 0) or 0)
+        fail_count += int(row.get("failed", 0) or 0)
+        skip_count += int(row.get("skip_count", 0) or 0)
+        processed_count += int(row.get("video_count", 0) or 0)
+
+        content_counts = row.get("content_fetch_status_counts_total", {}) or {}
+        if isinstance(content_counts, dict):
+            content_fetch_counts.update({str(key): int(value or 0) for key, value in content_counts.items()})
+
+        for key, value in row.items():
+            if key in {
+                "worker_id",
+                "input",
+                "batch_count",
+                "video_count",
+                "succeeded",
+                "failed",
+                "source_profile",
+                "subbatch_metrics",
+                "status",
+                "returncode",
+                "pipeline_strategy",
+                "notebooklm_profile",
+                "state_path",
+                "notebook_title",
+                "error",
+            }:
+                continue
+            if isinstance(value, (int, float)):
+                if key.endswith("_max"):
+                    max_totals[key] = max(max_totals.get(key, 0.0), float(value))
+                elif key.endswith("_total") or key.endswith("_count"):
+                    worker_stage_totals[key] = float(worker_stage_totals.get(key, 0.0) or 0.0) + float(value)
+
+    worker_stage_totals["content_fetch_status_counts_total"] = dict(content_fetch_counts)
+    for key, value in max_totals.items():
+        worker_stage_totals[key] = value
+
+    return {
+        "terminal_source": "stdout_worker_summaries",
+        "success_count": success_count,
+        "fail_count": fail_count,
+        "skip_count": skip_count,
+        "processed_count": processed_count,
+        "elapsed_s": elapsed_s,
+        "worker_stage_totals": worker_stage_totals,
+        "materialization_started": False,
+        "timeout_hit": False,
+    }
+
+
 def _run_fetch_trial(
     *,
     workers: int,
@@ -356,7 +440,14 @@ def _run_fetch_trial(
     stdout_path.write_text(stdout_text, encoding="utf-8")
     stderr_path.write_text(stderr_text, encoding="utf-8")
 
-    fetch_completed = _load_fetch_completed_event(log_dir)
+    try:
+        fetch_completed = _load_fetch_completed_event(log_dir)
+    except RuntimeError as exc:
+        fetch_completed = _synthesize_fetch_completed_from_worker_summaries(stdout_text, elapsed_s=elapsed_s)
+        if fetch_completed is None:
+            raise RuntimeError(
+                f"{exc}; stdout worker-summary fallback unavailable for {run_dir}"
+            ) from exc
     log_file = _latest_jsonl_file(log_dir)
     if log_file is None:
         raise RuntimeError(f"no JSONL trace found in {log_dir}")

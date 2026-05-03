@@ -264,6 +264,7 @@ def _build_fetch_completed_payload(
     negative_cache_reason_counts: dict[str, int] | None = None,
     negative_cache_sample: list[dict[str, object]] | None = None,
     route_no_captions_to_fallback: bool = False,
+    failure_reason: str | None = None,
 ) -> dict[str, object]:
     return {
         "source_filter": source_filter,
@@ -302,6 +303,7 @@ def _build_fetch_completed_payload(
         "success_per_min": round(success_count / elapsed_s * 60, 2) if elapsed_s > 0 else None,
         "processed_per_min": round(processed_count / elapsed_s * 60, 2) if elapsed_s > 0 else None,
         "status": status,
+        "failure_reason": failure_reason,
     }
 
 
@@ -480,6 +482,7 @@ def _log_fetch_completed(
     negative_cache_reason_counts: dict[str, int] | None = None,
     negative_cache_sample: list[dict[str, object]] | None = None,
     route_no_captions_to_fallback: bool = False,
+    failure_reason: str | None = None,
 ) -> None:
     processed_count = success_count + fail_count + skip_count
     log_action(
@@ -519,6 +522,7 @@ def _log_fetch_completed(
             processed_count=processed_count,
             elapsed_s=elapsed_s,
             status=status,
+            failure_reason=failure_reason,
         ),
     )
 
@@ -1660,6 +1664,8 @@ def cmd_fetch(
         },
     )
     first_download_logged = False
+    deleted = 0
+    failed = 0
 
     def _log_first_download_started(kind: str, **details) -> None:
         nonlocal first_download_logged
@@ -1672,6 +1678,56 @@ def cmd_fetch(
         }
         payload.update(details)
         log_action("first_download_started", payload)
+
+    def _format_fetch_terminal_failure_reason(exc: BaseException | None) -> str:
+        if exc is None:
+            return "fetch_completed_missing"
+        if isinstance(exc, SystemExit):
+            return f"SystemExit: {exc.code}"
+        return f"{type(exc).__name__}: {exc}"
+
+    def _log_fetch_terminal_failure(failure_reason: str) -> None:
+        stage_totals = _build_worker_stage_totals_payload()
+        worker_source_profile_totals = _build_worker_source_profile_totals_payload()
+        elapsed_s = round(time.monotonic() - fetch_started_at, 3)
+        _log_fetch_completed(
+            source_filter=source_filter,
+            strategy=strategy_name,
+            backend=backend_name,
+            backlog_threshold=backlog_threshold,
+            batch_size=batch_size,
+            max_items=max_items,
+            workers=workers,
+            channels_tracked_total=tracked_count,
+            channels_blocked_total=blocked_count,
+            channels_active_total=channel_count,
+            pending_total=total_pending,
+            cached_total=cached_count,
+            cached_hit_rate=round(cached_count / (cached_count + total_pending + terminal_count), 4)
+            if (cached_count + total_pending + terminal_count)
+            else 0.0,
+            cached_sample=cached_sample,
+            negative_cache_count=negative_cache_count,
+            negative_cache_reason_counts=dict(negative_cache_reason_counts),
+            negative_cache_sample=negative_cache_sample,
+            route_no_captions_to_fallback=route_no_captions_to_fallback,
+            industrial_batches_processed=industrial_batches_processed,
+            notebooklm_pending_count=notebooklm_pending_count,
+            transcript_fallback_processed_count=transcript_fallback_processed_count,
+            transcript_fallback_queued_count=transcript_fallback_queued_count,
+            terminal_count=terminal_count,
+            terminal_reason_counts=dict(terminal_reason_counts),
+            worker_cleanup_deleted=deleted,
+            worker_cleanup_failed=failed,
+            worker_stage_totals=stage_totals,
+            worker_source_profile_totals=worker_source_profile_totals,
+            success_count=success_count,
+            fail_count=fail_count,
+            skip_count=skip_count,
+            elapsed_s=elapsed_s,
+            status="failed",
+            failure_reason=failure_reason,
+        )
 
     def _log_worker_health_warning(reason: str, **details) -> None:
         log_action(
@@ -2909,7 +2965,11 @@ def cmd_fetch(
     print()
 
     # Ensure NLM is authenticated before any live fetch run.
-    _ensure_nlm_auth()
+    try:
+        _ensure_nlm_auth()
+    except BaseException as exc:
+        _log_fetch_terminal_failure(_format_fetch_terminal_failure_reason(exc))
+        raise
 
     industrial_run_id = uuid.uuid4().hex
     os.environ["YTIS_INDUSTRIAL_RUN_ID"] = industrial_run_id

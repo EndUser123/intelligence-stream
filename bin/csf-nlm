@@ -41,6 +41,7 @@ _LOCK_DIR.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from csf import batch
+from csf import nlm_auth_guard
 from csf.batch_status import (
     get_channel_metadata,
     get_pending_nlm_exports,
@@ -60,19 +61,19 @@ def _check_auth() -> bool:
     nlm_path = Path("P:/npm/bin/nlm-cli.js")
     if nlm_path.exists():
         cmd = ["node", str(nlm_path), "login", "--check"]
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            return False
     else:
-        cmd = ["nlm", "login", "--check"]
-
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        result = nlm_auth_guard.run_nlm(["login", "--check"], timeout_s=30)
         return result.returncode == 0
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        return False
 
 
 def cmd_sync(notebook: str | None = None) -> None:

@@ -21,6 +21,7 @@ from pathlib import Path
 # Add packages root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from csf import nlm_auth_guard
 from csf.cache import set_cached_transcript, has_cached_transcript
 
 # NotebookLM notebooks containing YouTube transcripts
@@ -37,10 +38,9 @@ YOUTUBE_NOTEBOOKS = {
 
 def run_nlm_query(notebook_id: str, prompt: str) -> dict:
     """Run nlm notebook query and return JSON result."""
-    result = subprocess.run(
-        ["nlm", "notebook", "query", notebook_id, prompt, "--json"],
-        capture_output=True,
-        text=True,
+    result = nlm_auth_guard.run_nlm(
+        nlm_auth_guard.add_profile_args(["notebook", "query", notebook_id, prompt, "--json"]),
+        timeout_s=300,
     )
 
     if result.returncode != 0:
@@ -54,11 +54,7 @@ def run_nlm_query(notebook_id: str, prompt: str) -> dict:
 
 def check_auth() -> bool:
     """Verify nlm authentication is valid."""
-    result = subprocess.run(
-        ["nlm", "notebook", "list", "--quiet"],
-        capture_output=True,
-        text=True,
-    )
+    result = nlm_auth_guard.run_nlm(nlm_auth_guard.add_profile_args(["notebook", "list", "--quiet"]), timeout_s=300)
     return result.returncode == 0
 
 
@@ -66,7 +62,7 @@ def ensure_auth() -> None:
     """Re-authenticate if session expired."""
     if not check_auth():
         print("[AUTH] Session expired, re-authenticating...")
-        result = subprocess.run(["nlm", "login"], capture_output=True, text=True)
+        result = nlm_auth_guard.run_nlm(["login"], timeout_s=120)
         if result.returncode != 0:
             print(f"[AUTH] Failed to re-authenticate: {result.stderr}")
             raise RuntimeError("Authentication failed")
@@ -79,10 +75,9 @@ def get_video_list(notebook_id: str) -> list[dict]:
     Returns list of dicts with source_id, title.
     """
     # Get the actual source list from nlm
-    sources_result = subprocess.run(
-        ["nlm", "source", "list", notebook_id, "--json"],
-        capture_output=True,
-        text=True,
+    sources_result = nlm_auth_guard.run_nlm(
+        nlm_auth_guard.add_profile_args(["source", "list", notebook_id, "--json"]),
+        timeout_s=300,
     )
 
     if sources_result.returncode != 0:

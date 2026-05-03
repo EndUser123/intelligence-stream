@@ -1,0 +1,27 @@
+Traceback (most recent call last):
+  File "P:\packages\yt-is\bin\csf-sharded-lane-series", line 15, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "P:\packages\yt-is\csf\sharded_lane_series.py", line 543, in main
+    report = run_sharded_lane_series(
+        lanes=lanes,
+    ...<9 lines>...
+        reusable_pipeline_mode=args.reusable_pipeline_mode,
+    )
+  File "P:\packages\yt-is\csf\sharded_lane_series.py", line 500, in run_sharded_lane_series
+    lane_reports_by_name[lane.lane] = future.result()
+                                      ~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\concurrent\futures\_base.py", line 443, in result
+    return self.__get_result()
+           ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\concurrent\futures\_base.py", line 395, in __get_result
+    raise self._exception
+  File "C:\Python314\Lib\concurrent\futures\thread.py", line 86, in run
+    result = ctx.run(self.task)
+  File "C:\Python314\Lib\concurrent\futures\thread.py", line 73, in run
+    return fn(*args, **kwargs)
+  File "P:\packages\yt-is\csf\sharded_lane_series.py", line 395, in _run_lane
+    raise RuntimeError(
+        f"lane {lane.lane} invalidated by NotebookLM auth/source failures: {sample}"
+    )
+RuntimeError: lane a_hominidae_pro invalidated by NotebookLM auth/source failures: batch_02\notebooklm_route_plus_fallback_30s_1w\20260502_165206\workers_04\logs\term_c89ec6f7.jsonl:70: source_add_failed subbatch_size=12; batch_02\notebooklm_route_plus_fallback_30s_1w\20260502_165206\workers_04\logs\term_c89ec6f7.jsonl:82: source_add_failed subbatch_size=13; batch_02\notebooklm_route_plus_fallback_30s_1w\20260502_165206\workers_04\logs\term_c89ec6f7.jsonl:104: source_add_failed subbatch_size=12; batch_02\notebooklm_route_plus_fallback_30s_1w\20260502_165206\workers_04\logs\term_c89ec6f7.jsonl:112: source_add_failed subbatch_size=13

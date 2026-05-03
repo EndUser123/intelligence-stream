@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from csf import nlm_auth_guard
 from csf.youtube_page_inspector import inspect_youtube_watch_page_via_ytdlp
 
 
@@ -62,11 +63,9 @@ def _nlm_env(profile: str) -> dict[str, str]:
 
 
 def _run_nlm(profile: str, args: list[str], *, timeout_s: int) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["nlm", *args],
-        capture_output=True,
-        text=True,
-        timeout=timeout_s,
+    return nlm_auth_guard.run_nlm(
+        nlm_auth_guard.add_profile_args(args, profile),
+        timeout_s=timeout_s,
         env=_nlm_env(profile),
     )
 

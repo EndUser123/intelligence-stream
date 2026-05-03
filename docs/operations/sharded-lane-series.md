@@ -20,12 +20,15 @@ Each lane must have an isolated namespace for:
 - `NOTEBOOKLM_PROFILE`
 - worker `NOTEBOOKLM_PROFILE` prefix
 - optional explicit worker `NOTEBOOKLM_PROFILE` list
+- explicit `expected_email` when the lane is not already covered by the auth-family map
 - Chrome browser profile root
 - Chrome browser profile directory
 - worker state root
 - worker notebook title prefix
 
 The CLI profile and Chrome profile directory for a lane must represent the same Google account.
+The benchmark now fails closed if a lane profile has no account mapping. For a new lane, set `expected_email`
+in the lane JSON or add the profile to the auth-family map before starting a run.
 When the worker auth profiles are not prefix-derived, set `notebooklm_profiles` to the exact CLI profile names in worker order.
 For the YT-IS Pro/Free lanes, keep the browser roots lane-specific and persistent:
 
@@ -39,6 +42,7 @@ For the current Pro/Free/Free2 run, the account mapping is:
 - `brsthomson@hotmail.com` -> `brsthomson_hotmail_free`
 
 To add a 4th auth family, follow the extension recipe in [NotebookLM Auth Family Extension Guide](notebooklm-auth-family-extension.md). The short version is: add one new `AuthFamily` in `csf/nlm_worker_auth.py`, add one new lane entry in the lane JSON, give it its own browser root, browser profile directory, worker-state root, notebook prefix, and CDP port, then add matching tests and sync/check the new worker `01` before benchmarking.
+If the new lane is not yet part of `DEFAULT_FAMILIES`, set `expected_email` in the lane JSON so preflight can verify the account without guessing. The worker env also propagates `YTIS_NLM_EXPECTED_EMAIL` as an explicit fallback for unmapped future lanes.
 
 ## Example Config
 
@@ -81,6 +85,15 @@ Use a root-specific CDP port when refreshing lane auth. Plain `nlm login --profi
 
 For a full repeated-refresh validation workflow, use [`notebooklm-auth-robustness-test-plan.md`](notebooklm-auth-robustness-test-plan.md).
 
+## Recommended Run Order
+
+Use this order for a new benchmark root:
+
+1. `python P:/packages/yt-is/bin/csf-nlm-worker-auth doctor --lane-config <lane-config> --run-root <run-root>`
+1. Short smoke run with a fresh output root
+1. `python P:/packages/yt-is/bin/csf-run-evidence-check --run-root <run-root>`
+1. Long soak only after the doctor, smoke, and evidence check all pass
+
 Preferred worker-profile repair after worker `01` for each account is valid:
 
 ```powershell
@@ -93,10 +106,16 @@ Current auth contract:
 
 - `csf-nlm-worker-auth sync` checks each worker `01` source profile with `nlm login --check`, parses the reported `Account:`, and treats a valid session on the wrong account as a failed auth state.
 - When a source worker profile is expired or mapped to the wrong account, `csf-nlm-worker-auth sync` uses the configured root-specific CDP refresh path by default and fails closed if that path cannot recover the account mapping.
+- `csf-nlm-worker-auth doctor` is the fast preflight gate for a benchmark root: it validates the lane config, confirms the run root is empty, and refuses to start a run on dirty evidence.
+- `csf-nlm-worker-auth doctor` also fails closed when a lane profile has no expected-account mapping.
+- `csf-sharded-lane-series` pins `INTELLIGENCE_STREAM_LOG_DIR` into each lane output root so auth markers and lane events stay inside the benchmark evidence tree.
+- `csf/nlm_batch.py` self-heals cleanup commands if a transient default `chrome-profile` appears after the batch work is already complete, so a stale shared-profile intrusion does not invalidate an otherwise successful run.
 - The second free account lane is defined in [`P:/packages/yt-is/.logs/sharded_lane_series/pro_free_hotmail_lanes.json`](../../.logs/sharded_lane_series/pro_free_hotmail_lanes.json) and uses `ytis-free2-worker-01` through `ytis-free2-worker-04` on `brsthomson@hotmail.com`.
-- The auth family map in `csf/nlm_worker_auth.py` is still hard-coded. If you add a 4th family, update that file first, then mirror the new lane into the lane JSON, tests, and this doc.
+- The canonical evidence index is [Evidence Index](evidence/README.md); treat full run roots as runtime output, not the source of truth.
+- The auth family map in `csf/nlm_worker_auth.py` is still the primary source of truth. If you add a 4th family, update that file first, then mirror the new lane into the lane JSON, tests, and this doc. If the lane exists before the code map is extended, set `expected_email` in the lane JSON so doctor/preflight can still validate it.
 - `csf-sharded-lane-series` preflights every lane profile before launching Pro/Free lanes and gives `nlm login --force --profile <profile>` one bounded recovery attempt for expired profiles.
 - Benchmark subprocesses run with `YTIS_NLM_AUTH_NONINTERACTIVE=1`, so `csf-source` uses `nlm login --force` instead of plain interactive `nlm login` if auth expires mid-run.
+- `YTIS_NLM_EXPECTED_EMAIL` can be used as an explicit fallback for future lane profiles that are not yet part of the hard-coded auth-family map, but the preferred contract is still to set `expected_email` in the lane JSON or extend `DEFAULT_FAMILIES`.
 - `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS` is a stress knob, not a default throughput setting. Use `1` only when the goal is to force browser churn on every auth probe. For routine validation or soak runs, prefer a higher cadence such as `5`, or leave the knob unset entirely if auth churn is not the thing being tested.
 - If automatic CDP renewal fails for `ytis-free1-worker-01` or `ytis-pro-worker-01`, refresh only that worker `01` profile through the manual dedicated CDP root below, then rerun `python P:/packages/yt-is/bin/csf-nlm-worker-auth sync`.
 - For a failure-mode map before long auth-heavy runs, see [NotebookLM Auth Pre-Mortem](notebooklm-auth-pre-mortem.md).

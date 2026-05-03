@@ -8,6 +8,16 @@ from unittest import mock
 from csf import nlm_batch, nlm_config
 
 
+@pytest.fixture(autouse=True)
+def _clear_nlm_auth_cache():
+    """Auth cache should not leak across test cases."""
+    with nlm_batch.nlm_auth_guard._AUTH_CHECK_CACHE_LOCK:
+        nlm_batch.nlm_auth_guard._AUTH_CHECK_CACHE.clear()
+    yield
+    with nlm_batch.nlm_auth_guard._AUTH_CHECK_CACHE_LOCK:
+        nlm_batch.nlm_auth_guard._AUTH_CHECK_CACHE.clear()
+
+
 class TestRateLimitDetection:
     """Distinguishability gate: requires BOTH status code AND rate-limit context."""
 
@@ -110,6 +120,16 @@ class TestSubBatchReset:
 class TestAuthAutoLogin:
     """nlm_batch must auto-recover from auth expiry before running commands."""
 
+    @pytest.fixture(autouse=True)
+    def _no_real_default_profile_probe(self, monkeypatch):
+        """Auth unit tests should not query or close real Chrome processes unless a test opts in."""
+        monkeypatch.setattr(nlm_batch, "_default_chrome_profile_pids", lambda: set())
+        with nlm_batch.nlm_auth_guard._AUTH_CHECK_CACHE_LOCK:
+            nlm_batch.nlm_auth_guard._AUTH_CHECK_CACHE.clear()
+        yield
+        with nlm_batch.nlm_auth_guard._AUTH_CHECK_CACHE_LOCK:
+            nlm_batch.nlm_auth_guard._AUTH_CHECK_CACHE.clear()
+
     def test_auth_context_makes_profile_requirement_explicit(self, monkeypatch):
         """Noninteractive auth should expose one obvious profile-pinning decision."""
         monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-pro-worker-02")
@@ -144,21 +164,17 @@ class TestAuthAutoLogin:
         def mock_run(cmd, **kwargs):
             called.append(cmd)
             # Simulate: --check fails, --force succeeds
-            if cmd == ["nlm", "login", "--check"]:
+            if cmd == ["login", "--check"]:
                 return subprocess.CompletedProcess(cmd, 1, "", "Auth expired")
-            if cmd == ["nlm", "login", "--force"]:
+            if cmd == ["login", "--force"]:
                 return subprocess.CompletedProcess(cmd, 0, "", "OK")
             return subprocess.CompletedProcess(cmd, 0, "", "")
 
-        original_run = subprocess.run
-        subprocess.run = mock_run
-        try:
+        with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
             result = nlm_batch._ensure_nlm_auth()
-            assert result is True
-            assert ["nlm", "login", "--check"] in called
-            assert ["nlm", "login", "--force"] in called
-        finally:
-            subprocess.run = original_run
+        assert result is True
+        assert ["login", "--check"] in called
+        assert ["login", "--force"] in called
 
     def test_ensure_nlm_auth_uses_family_sync_for_known_profile_refresh(self, monkeypatch):
         """Known worker auth refresh must stay inside the active account family."""
@@ -172,7 +188,7 @@ class TestAuthAutoLogin:
 
         def mock_run(cmd, **kwargs):
             called.append(cmd)
-            if cmd == ["nlm", "login", "--check", "--profile", "ytis-pro-worker-03"] and repaired:
+            if cmd == ["login", "--check", "--profile", "ytis-pro-worker-03"] and repaired:
                 return subprocess.CompletedProcess(cmd, 0, "Account: a.hominidae@gmail.com\n", "")
             return subprocess.CompletedProcess(cmd, 1, "", "Auth expired")
 
@@ -183,14 +199,14 @@ class TestAuthAutoLogin:
             return None
 
         with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=mock_sync_worker_profiles):
-            with mock.patch("csf.nlm_batch.subprocess.run", side_effect=mock_run):
+            with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
                 result = nlm_batch._ensure_nlm_auth()
 
         assert result is True
         assert called == [
-            ["nlm", "login", "--check", "--profile", "ytis-pro-worker-03"],
-            ["nlm", "login", "--check", "--profile", "ytis-pro-worker-03"],
-            ["nlm", "login", "--check", "--profile", "ytis-pro-worker-03"],
+            ["login", "--check", "--profile", "ytis-pro-worker-03"],
+            ["login", "--check", "--profile", "ytis-pro-worker-03"],
+            ["login", "--check", "--profile", "ytis-pro-worker-03"],
         ]
         assert sync_calls
 
@@ -206,7 +222,7 @@ class TestAuthAutoLogin:
             called.append(cmd)
             return subprocess.CompletedProcess(cmd, 1, "", "Auth expired")
 
-        with mock.patch("csf.nlm_batch.subprocess.run", side_effect=mock_run):
+        with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
             with mock.patch("csf.nlm_batch.log_action") as mock_log:
                 result = nlm_batch._ensure_nlm_auth()
 
@@ -227,9 +243,9 @@ class TestAuthAutoLogin:
 
         def mock_run(cmd, **kwargs):
             called.append(cmd)
-            if cmd == ["nlm", "login", "--check", "--profile", "ytis-pro-worker-02"] and not repaired:
+            if cmd == ["login", "--check", "--profile", "ytis-pro-worker-02"] and not repaired:
                 return subprocess.CompletedProcess(cmd, 0, "Account: troup.hominidae@gmail.com\n", "")
-            if cmd == ["nlm", "login", "--check", "--profile", "ytis-pro-worker-02"]:
+            if cmd == ["login", "--check", "--profile", "ytis-pro-worker-02"]:
                 return subprocess.CompletedProcess(cmd, 0, "Account: a.hominidae@gmail.com\n", "")
             return subprocess.CompletedProcess(cmd, 1, "", "unexpected command")
 
@@ -240,14 +256,14 @@ class TestAuthAutoLogin:
             return None
 
         with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=mock_sync_worker_profiles):
-            with mock.patch("csf.nlm_batch.subprocess.run", side_effect=mock_run):
+            with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
                 result = nlm_batch._ensure_nlm_auth()
 
         assert result is True
         assert called == [
-            ["nlm", "login", "--check", "--profile", "ytis-pro-worker-02"],
-            ["nlm", "login", "--check", "--profile", "ytis-pro-worker-02"],
-            ["nlm", "login", "--check", "--profile", "ytis-pro-worker-02"],
+            ["login", "--check", "--profile", "ytis-pro-worker-02"],
+            ["login", "--check", "--profile", "ytis-pro-worker-02"],
+            ["login", "--check", "--profile", "ytis-pro-worker-02"],
         ]
         assert sync_calls
 
@@ -261,20 +277,20 @@ class TestAuthAutoLogin:
 
         def mock_run(cmd, **kwargs):
             called.append(cmd)
-            if cmd == ["nlm", "login", "--check", "--profile", "ytis-free1-worker-02"]:
+            if cmd == ["login", "--check", "--profile", "ytis-free1-worker-02"]:
                 return subprocess.CompletedProcess(cmd, 0, "Account: a.hominidae@gmail.com\n", "")
             return subprocess.CompletedProcess(cmd, 1, "", "unexpected command")
 
         with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=RuntimeError("repair failed")):
-            with mock.patch("csf.nlm_batch.subprocess.run", side_effect=mock_run):
+            with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
                 result = nlm_batch._ensure_nlm_auth()
 
         assert result is False
         assert called == [
-            ["nlm", "login", "--check", "--profile", "ytis-free1-worker-02"],
-            ["nlm", "login", "--check", "--profile", "ytis-free1-worker-02"],
+            ["login", "--check", "--profile", "ytis-free1-worker-02"],
+            ["login", "--check", "--profile", "ytis-free1-worker-02"],
         ]
-        assert ["nlm", "login", "--force", "--profile", "ytis-free1-worker-02"] not in called
+        assert ["login", "--force", "--profile", "ytis-free1-worker-02"] not in called
 
     def test_ensure_nlm_auth_uses_family_refresh_for_forced_refresh_schedule(self, monkeypatch):
         """Forced refresh for known workers must use the dedicated account-family source profile."""
@@ -289,7 +305,7 @@ class TestAuthAutoLogin:
 
         def mock_run(cmd, **kwargs):
             called.append(cmd)
-            if cmd == ["nlm", "login", "--check", "--profile", "ytis-free1-worker-04"]:
+            if cmd == ["login", "--check", "--profile", "ytis-free1-worker-04"]:
                 return subprocess.CompletedProcess(cmd, 0, "Account: troup.hominidae@gmail.com\n", "")
             return subprocess.CompletedProcess(cmd, 1, "", "unexpected command")
 
@@ -303,18 +319,18 @@ class TestAuthAutoLogin:
 
         with mock.patch("csf.nlm_batch.refresh_source_profile", side_effect=mock_refresh_source_profile):
             with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=mock_sync_worker_profiles):
-                with mock.patch("csf.nlm_batch.subprocess.run", side_effect=mock_run):
+                with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
                     result = nlm_batch._ensure_nlm_auth()
 
         assert result is True
         assert called == [
-            ["nlm", "login", "--check", "--profile", "ytis-free1-worker-04"],
-            ["nlm", "login", "--check", "--profile", "ytis-free1-worker-04"],
-            ["nlm", "login", "--check", "--profile", "ytis-free1-worker-04"],
+            ["login", "--check", "--profile", "ytis-free1-worker-04"],
+            ["login", "--check", "--profile", "ytis-free1-worker-04"],
+            ["login", "--check", "--profile", "ytis-free1-worker-04"],
         ]
         assert source_refresh_calls == ["ytis-free1-worker-01"]
         assert sync_calls
-        assert ["nlm", "login", "--force", "--profile", "ytis-free1-worker-04"] not in called
+        assert ["login", "--force", "--profile", "ytis-free1-worker-04"] not in called
 
     def test_ensure_nlm_auth_fails_closed_when_source_profile_guard_rejects_default_chrome(self, monkeypatch):
         """Forced refresh must stop when the source-profile guard reports default chrome-profile usage."""
@@ -327,18 +343,18 @@ class TestAuthAutoLogin:
 
         def mock_run(cmd, **kwargs):
             called.append(cmd)
-            if cmd == ["nlm", "login", "--check", "--profile", "ytis-pro-worker-02"]:
+            if cmd == ["login", "--check", "--profile", "ytis-pro-worker-02"]:
                 return subprocess.CompletedProcess(cmd, 0, "Account: a.hominidae@gmail.com\n", "")
             return subprocess.CompletedProcess(cmd, 1, "", "unexpected command")
 
         with mock.patch("csf.nlm_batch.refresh_source_profile", return_value=False):
-            with mock.patch("csf.nlm_batch.subprocess.run", side_effect=mock_run):
+            with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
                 result = nlm_batch._ensure_nlm_auth()
 
         assert result is False
         assert called == [
-            ["nlm", "login", "--check", "--profile", "ytis-pro-worker-02"],
-            ["nlm", "login", "--check", "--profile", "ytis-pro-worker-02"],
+            ["login", "--check", "--profile", "ytis-pro-worker-02"],
+            ["login", "--check", "--profile", "ytis-pro-worker-02"],
         ]
 
     def test_ensure_nlm_auth_unknown_profile_still_uses_profile_pinned_force(self, monkeypatch):
@@ -351,18 +367,18 @@ class TestAuthAutoLogin:
 
         def mock_run(cmd, **kwargs):
             called.append(cmd)
-            if cmd == ["nlm", "login", "--force", "--profile", "custom-worker-01"]:
+            if cmd == ["login", "--force", "--profile", "custom-worker-01"]:
                 return subprocess.CompletedProcess(cmd, 0, "Account: custom@example.com\n", "")
             return subprocess.CompletedProcess(cmd, 1, "", "Auth expired")
 
-        with mock.patch("csf.nlm_batch.subprocess.run", side_effect=mock_run):
+        with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
             result = nlm_batch._ensure_nlm_auth()
 
         assert result is True
         assert called == [
-            ["nlm", "login", "--check", "--profile", "custom-worker-01"],
-            ["nlm", "login", "--check", "--profile", "custom-worker-01"],
-            ["nlm", "login", "--force", "--profile", "custom-worker-01"],
+            ["login", "--check", "--profile", "custom-worker-01"],
+            ["login", "--check", "--profile", "custom-worker-01"],
+            ["login", "--force", "--profile", "custom-worker-01"],
         ]
 
     def test_ensure_nlm_auth_forced_refresh_every_checks_schedules_profile_pinned_force(self, monkeypatch):
@@ -376,24 +392,78 @@ class TestAuthAutoLogin:
 
         def mock_run(cmd, **kwargs):
             called.append(cmd)
-            if cmd == ["nlm", "login", "--check", "--profile", "custom-worker-02"]:
+            if cmd == ["login", "--check", "--profile", "custom-worker-02"]:
                 return subprocess.CompletedProcess(cmd, 0, "Account: custom@example.com\n", "")
-            if cmd == ["nlm", "login", "--force", "--profile", "custom-worker-02"]:
+            if cmd == ["login", "--force", "--profile", "custom-worker-02"]:
                 return subprocess.CompletedProcess(cmd, 0, "Account: custom@example.com\n", "")
             return subprocess.CompletedProcess(cmd, 1, "", "unexpected command")
 
         with mock.patch("csf.nlm_batch.log_action") as mock_log:
-            with mock.patch("csf.nlm_batch.subprocess.run", side_effect=mock_run):
+            with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
                 result = nlm_batch._ensure_nlm_auth()
 
         assert result is True
         assert called == [
-            ["nlm", "login", "--check", "--profile", "custom-worker-02"],
-            ["nlm", "login", "--check", "--profile", "custom-worker-02"],
-            ["nlm", "login", "--force", "--profile", "custom-worker-02"],
+            ["login", "--check", "--profile", "custom-worker-02"],
+            ["login", "--check", "--profile", "custom-worker-02"],
+            ["login", "--force", "--profile", "custom-worker-02"],
         ]
         log_names = [call.args[0] for call in mock_log.call_args_list]
         assert "nlm_auth_forced_refresh_scheduled" in log_names
+
+    def test_ensure_nlm_auth_forced_refresh_bypasses_recent_success_cache(self, monkeypatch):
+        """Forced refresh must still run even when the auth check cache is fresh."""
+        import subprocess
+
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "custom-worker-03")
+        monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+        monkeypatch.setenv("YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS", "1")
+        called = []
+
+        def mock_run(cmd, **kwargs):
+            called.append(cmd)
+            if cmd == ["login", "--check", "--profile", "custom-worker-03"]:
+                return subprocess.CompletedProcess(cmd, 0, "Account: custom@example.com\n", "")
+            if cmd == ["login", "--force", "--profile", "custom-worker-03"]:
+                return subprocess.CompletedProcess(cmd, 0, "Account: custom@example.com\n", "")
+            return subprocess.CompletedProcess(cmd, 1, "", "unexpected command")
+
+        context = nlm_batch._get_nlm_auth_context()
+        nlm_batch.nlm_auth_guard.auth_check_cache_store(context)
+        with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
+            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                result = nlm_batch._ensure_nlm_auth()
+
+        assert result is True
+        assert called == [
+            ["login", "--check", "--profile", "custom-worker-03"],
+            ["login", "--check", "--profile", "custom-worker-03"],
+            ["login", "--force", "--profile", "custom-worker-03"],
+        ]
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_auth_forced_refresh_scheduled" in log_names
+
+    def test_ensure_nlm_auth_skips_check_when_cache_is_fresh_and_not_forced(self, monkeypatch):
+        """A fresh cache entry should suppress the subprocess until the cache expires."""
+
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "custom-worker-04")
+        monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+        called = []
+
+        def mock_run(cmd, **kwargs):
+            called.append(cmd)
+            raise AssertionError("cached auth should not re-run nlm")
+
+        context = nlm_batch._get_nlm_auth_context()
+        nlm_batch.nlm_auth_guard.auth_check_cache_store(context)
+        with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
+            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                result = nlm_batch._ensure_nlm_auth()
+
+        assert result is True
+        assert called == []
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_auth_checked" in log_names
 
     def test_run_cmd_auth_error_refresh_uses_active_profile(self, monkeypatch):
         """Commands that expire mid-flight must refresh the active profile, not default auth."""
@@ -408,9 +478,9 @@ class TestAuthAutoLogin:
 
         def mock_run(cmd, **kwargs):
             called.append(cmd)
-            if cmd == ["nlm", "source", "list", "nb-1", "--json"] and len(called) == 1:
+            if cmd == ["source", "list", "nb-1", "--json", "--profile", "ytis-free1-worker-04"] and len(called) == 1:
                 return subprocess.CompletedProcess(cmd, 1, "", "Authentication Error")
-            if cmd == ["nlm", "login", "--check", "--profile", "ytis-free1-worker-04"] and repaired:
+            if cmd == ["login", "--check", "--profile", "ytis-free1-worker-04"] and repaired:
                 return subprocess.CompletedProcess(cmd, 0, "Account: troup.hominidae@gmail.com\n", "")
             return subprocess.CompletedProcess(cmd, 0, "[]", "")
 
@@ -423,19 +493,45 @@ class TestAuthAutoLogin:
         with mock.patch("csf.nlm_batch._ensure_nlm_auth", return_value=True):
             with mock.patch("csf.nlm_batch._default_chrome_profile_pids", return_value=set()):
                 with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=mock_sync_worker_profiles):
-                    with mock.patch("csf.nlm_batch.subprocess.run", side_effect=mock_run):
+                    with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
                         result = ingestor._run_cmd(["source", "list", "nb-1", "--json"])
 
         assert result.returncode == 0
         assert called == [
-            ["nlm", "source", "list", "nb-1", "--json"],
-            ["nlm", "login", "--check", "--profile", "ytis-free1-worker-04"],
-            ["nlm", "source", "list", "nb-1", "--json"],
+            ["source", "list", "nb-1", "--json", "--profile", "ytis-free1-worker-04"],
+            ["login", "--check", "--profile", "ytis-free1-worker-04"],
+            ["source", "list", "nb-1", "--json", "--profile", "ytis-free1-worker-04"],
         ]
         assert sync_calls
 
-    def test_run_cmd_fails_closed_when_default_profile_exists_before_auth(self, monkeypatch):
-        """Noninteractive batch work must fail before auth if the shared chrome-profile is already running."""
+    def test_run_cmd_profile_pins_source_and_notebook_commands(self, monkeypatch):
+        """The work command must use the same explicit profile as the auth check."""
+        import subprocess
+
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-pro-worker-04")
+        monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+        ingestor = nlm_batch.NLMBatchIngestor()
+        called = []
+
+        def mock_run(cmd, **kwargs):
+            called.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, "[]", "")
+
+        with mock.patch("csf.nlm_batch._ensure_nlm_auth", return_value=True):
+            with mock.patch("csf.nlm_batch._default_chrome_profile_pids", return_value=set()):
+                with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
+                    source_result = ingestor._run_cmd(["source", "list", "nb-1", "--json"])
+                    notebook_result = ingestor._run_cmd(["notebook", "list", "--json"])
+
+        assert source_result.returncode == 0
+        assert notebook_result.returncode == 0
+        assert called == [
+            ["source", "list", "nb-1", "--json", "--profile", "ytis-pro-worker-04"],
+            ["notebook", "list", "--json", "--profile", "ytis-pro-worker-04"],
+        ]
+
+    def test_run_cmd_self_heals_when_default_profile_exists_before_auth(self, monkeypatch):
+        """Noninteractive batch work should reap a transient shared chrome-profile before auth and continue."""
 
         class DummyTracker:
             def apply_delay(self):
@@ -453,20 +549,71 @@ class TestAuthAutoLogin:
         stop_calls = []
 
         with mock.patch("csf.nlm_batch._get_tracker", return_value=DummyTracker()):
-            with mock.patch("csf.nlm_batch._default_chrome_profile_pids", return_value={12345}):
+            with mock.patch(
+                "csf.nlm_batch._default_chrome_profile_pids",
+                side_effect=[{12345}, set(), set()],
+            ):
                 with mock.patch("csf.nlm_batch._stop_chrome_pids", side_effect=lambda pids: stop_calls.append(set(pids))):
-                    with mock.patch("csf.nlm_batch._ensure_nlm_auth") as mock_ensure:
-                        with mock.patch("csf.nlm_batch.subprocess.run") as mock_run:
-                            result = ingestor._run_cmd(["source", "list", "nb-1", "--json"])
+                    with mock.patch("csf.nlm_batch._ensure_nlm_auth", return_value=True) as mock_ensure:
+                        with mock.patch(
+                            "csf.nlm_batch.run_nlm",
+                            return_value=subprocess.CompletedProcess(["source", "list", "nb-1", "--json"], 0, "[]", ""),
+                        ) as mock_run:
+                            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                result = ingestor._run_cmd(["source", "list", "nb-1", "--json"])
 
-        assert result.returncode == 1
-        assert "default NotebookLM chrome-profile" in (result.stderr or "")
+        assert result.returncode == 0
         assert stop_calls == [{12345}]
-        mock_ensure.assert_not_called()
-        mock_run.assert_not_called()
+        mock_ensure.assert_called_once()
+        mock_run.assert_called_once()
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_auth_recovered" in log_names
+        assert "nlm_auth_failed" not in log_names
 
-    def test_run_cmd_fails_closed_when_default_profile_appears_after_command(self, monkeypatch):
-        """Noninteractive batch work must fail if the shared chrome-profile appears after the nlm command."""
+    def test_run_cmd_retries_once_when_default_profile_exists_before_command(self, monkeypatch):
+        """A transient default profile before a harmless command should be reaped and retried once."""
+
+        class DummyTracker:
+            def apply_delay(self):
+                return None
+
+            def record_failure(self, is_rate_limit):
+                return None
+
+            def record_success(self):
+                return None
+
+        import subprocess
+
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-04")
+        monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+        ingestor = nlm_batch.NLMBatchIngestor()
+        stop_calls = []
+
+        with mock.patch("csf.nlm_batch._get_tracker", return_value=DummyTracker()):
+            with mock.patch(
+                "csf.nlm_batch._default_chrome_profile_pids",
+                side_effect=[set(), {67890}, set(), set(), set(), set()],
+            ):
+                with mock.patch("csf.nlm_batch._stop_chrome_pids", side_effect=lambda pids: stop_calls.append(set(pids))):
+                    with mock.patch("csf.nlm_batch._ensure_nlm_auth", return_value=True) as mock_ensure:
+                        with mock.patch(
+                            "csf.nlm_batch.run_nlm",
+                            return_value=subprocess.CompletedProcess(["source", "list", "nb-1", "--json"], 0, "[]", ""),
+                        ) as mock_run:
+                            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                result = ingestor._run_cmd(["source", "list", "nb-1", "--json"])
+
+        assert result.returncode == 0
+        assert stop_calls == [{67890}]
+        assert mock_ensure.call_count == 2
+        assert mock_run.call_count == 1
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_auth_recovered" in log_names
+        assert "nlm_auth_failed" not in log_names
+
+    def test_run_cmd_self_heals_when_default_profile_appears_after_command(self, monkeypatch):
+        """Noninteractive batch work should reap default chrome-profile after a successful command and continue."""
 
         class DummyTracker:
             def apply_delay(self):
@@ -493,16 +640,183 @@ class TestAuthAutoLogin:
                 with mock.patch("csf.nlm_batch._stop_chrome_pids", side_effect=lambda pids: stop_calls.append(set(pids))):
                     with mock.patch("csf.nlm_batch._ensure_nlm_auth", return_value=True) as mock_ensure:
                         with mock.patch(
-                            "csf.nlm_batch.subprocess.run",
-                            return_value=subprocess.CompletedProcess(["nlm", "source", "list", "nb-1", "--json"], 0, "[]", ""),
+                            "csf.nlm_batch.run_nlm",
+                            return_value=subprocess.CompletedProcess(["source", "list", "nb-1", "--json"], 0, "[]", ""),
                         ) as mock_run:
-                            result = ingestor._run_cmd(["source", "list", "nb-1", "--json"])
+                            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                result = ingestor._run_cmd(["source", "list", "nb-1", "--json"])
 
-        assert result.returncode == 1
-        assert result.stderr == "default NotebookLM chrome-profile is already running: C:\\Users\\brsth\\.notebooklm-mcp-cli\\chrome-profile"
+        assert result.returncode == 0
         assert stop_calls == [{67890}]
         mock_ensure.assert_called_once()
         mock_run.assert_called_once()
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_auth_recovered" in log_names
+        assert "nlm_auth_failed" not in log_names
+
+    def test_run_cmd_reaps_default_profile_after_failed_command_without_invalidation(self, monkeypatch):
+        """A failed command should still clear a transient default profile without turning it into a lane invalidation."""
+
+        class DummyTracker:
+            def apply_delay(self):
+                return None
+
+            def record_failure(self, is_rate_limit):
+                return None
+
+            def record_success(self):
+                return None
+
+        import subprocess
+
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-pro-worker-04")
+        monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+        ingestor = nlm_batch.NLMBatchIngestor()
+        stop_calls = []
+
+        with mock.patch("csf.nlm_batch._get_tracker", return_value=DummyTracker()):
+            with mock.patch(
+                "csf.nlm_batch._default_chrome_profile_pids",
+                side_effect=[set(), set(), {67890}],
+            ):
+                with mock.patch("csf.nlm_batch._stop_chrome_pids", side_effect=lambda pids: stop_calls.append(set(pids))):
+                    with mock.patch("csf.nlm_batch._ensure_nlm_auth", return_value=True) as mock_ensure:
+                        with mock.patch(
+                            "csf.nlm_batch.run_nlm",
+                            return_value=subprocess.CompletedProcess(["source", "content", "src-1", "--json"], 1, "", "command failed"),
+                        ) as mock_run:
+                            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                result = ingestor._run_cmd(["source", "content", "src-1", "--json"])
+
+        assert result.returncode == 1
+        assert stop_calls == [{67890}]
+        mock_ensure.assert_called_once()
+        mock_run.assert_called_once()
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_auth_recovered" in log_names
+        assert "nlm_auth_failed" not in log_names
+
+    def test_run_cmd_self_heals_when_default_profile_exists_before_cleanup_command(self, monkeypatch):
+        """Cleanup commands should reap a transient default chrome-profile and keep going."""
+
+        class DummyTracker:
+            def apply_delay(self):
+                return None
+
+            def record_failure(self, is_rate_limit):
+                return None
+
+            def record_success(self):
+                return None
+
+        import subprocess
+
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-04")
+        monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+        ingestor = nlm_batch.NLMBatchIngestor()
+        stop_calls = []
+
+        with mock.patch("csf.nlm_batch._get_tracker", return_value=DummyTracker()):
+            with mock.patch(
+                "csf.nlm_batch._default_chrome_profile_pids",
+                side_effect=[{67890}, set(), set()],
+            ):
+                with mock.patch("csf.nlm_batch._stop_chrome_pids", side_effect=lambda pids: stop_calls.append(set(pids))):
+                    with mock.patch("csf.nlm_batch._ensure_nlm_auth", return_value=True) as mock_ensure:
+                        with mock.patch(
+                            "csf.nlm_batch.run_nlm",
+                            return_value=subprocess.CompletedProcess(["source", "delete", "nb-1", "--confirm", "s1"], 0, "deleted", ""),
+                        ) as mock_run:
+                            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                result = ingestor._run_cmd(["source", "delete", "nb-1", "--confirm", "s1"])
+
+        assert result.returncode == 0
+        assert stop_calls == [{67890}]
+        mock_ensure.assert_called_once()
+        mock_run.assert_called_once()
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_auth_recovered" in log_names
+        assert "nlm_auth_failed" not in log_names
+
+    def test_ensure_nlm_auth_fails_closed_when_login_check_spawns_default_profile(self, monkeypatch):
+        """A profile-pinned auth check must fail closed if upstream recovery opens the default profile."""
+        import subprocess
+
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-03")
+        monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+        stop_calls = []
+        called = []
+
+        def mock_run(cmd, **kwargs):
+            called.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, "Account: troup.hominidae@gmail.com\n", "")
+
+        with mock.patch("csf.nlm_batch._default_chrome_profile_pids", side_effect=[set(), {24680}, {24680}]):
+            with mock.patch("csf.nlm_batch._stop_chrome_pids", side_effect=lambda pids: stop_calls.append(set(pids))):
+                with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
+                    result = nlm_batch._ensure_nlm_auth()
+
+        assert result is False
+        assert called == [
+            ["login", "--check", "--profile", "ytis-free1-worker-03"],
+            ["login", "--check", "--profile", "ytis-free1-worker-03"],
+        ]
+        assert stop_calls == [{24680}, {24680}]
+
+    def test_ensure_nlm_auth_retries_once_when_login_check_spawns_default_profile_and_recovers(self, monkeypatch):
+        """A transient default profile during auth check should be reaped and retried once."""
+        import subprocess
+
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-03")
+        monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+        stop_calls = []
+        called = []
+
+        def mock_run(cmd, **kwargs):
+            called.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, "Account: troup.hominidae@gmail.com\n", "")
+
+        with mock.patch("csf.nlm_batch._default_chrome_profile_pids", side_effect=[set(), {24680}, set()]):
+            with mock.patch("csf.nlm_batch._stop_chrome_pids", side_effect=lambda pids: stop_calls.append(set(pids))):
+                with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
+                    with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                        result = nlm_batch._ensure_nlm_auth()
+
+        assert result is True
+        assert called == [
+            ["login", "--check", "--profile", "ytis-free1-worker-03"],
+            ["login", "--check", "--profile", "ytis-free1-worker-03"],
+        ]
+        assert stop_calls == [{24680}]
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_auth_recovered" in log_names
+        assert "nlm_auth_failed" not in log_names
+
+    def test_ensure_nlm_auth_reaps_default_profile_before_check_and_continues(self, monkeypatch):
+        """A transient default profile should be reaped before auth and the active profile should continue."""
+        import subprocess
+
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-03")
+        monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+        stop_calls = []
+        called = []
+
+        def mock_run(cmd, **kwargs):
+            called.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, "Account: troup.hominidae@gmail.com\n", "")
+
+        with mock.patch("csf.nlm_batch._default_chrome_profile_pids", side_effect=[{24680}, set(), set()]):
+            with mock.patch("csf.nlm_batch._stop_chrome_pids", side_effect=lambda pids: stop_calls.append(set(pids))):
+                with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
+                    with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                        result = nlm_batch._ensure_nlm_auth()
+
+        assert result is True
+        assert called == [["login", "--check", "--profile", "ytis-free1-worker-03"]]
+        assert stop_calls == [{24680}]
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_auth_recovered" in log_names
+        assert "nlm_auth_failed" not in log_names
 
 
 class TestReusableBatchLogging:
@@ -700,47 +1014,49 @@ class TestReusableBatchLogging:
                 with mock.patch("csf.nlm_batch._clear_reusable_notebook_state"):
                     ingestor = nlm_batch.NLMReusableIngestor()
                     with mock.patch.object(ingestor, "_ensure_notebook", return_value=(False, "reuse")):
-                        with mock.patch.object(
-                            ingestor._ingestor,
-                            "extract_transcripts",
-                            return_value={"vid4": (False, None, "err")},
-                        ) as mock_extract:
-                            with mock.patch.object(ingestor._ingestor, "reset_sources") as mock_reset:
-                                with mock.patch.object(
-                                    ingestor._ingestor,
-                                    "get_last_extract_metrics",
-                                    return_value={
-                                        "content_fetch_status_counts": {"command_failed": 1},
-                                        "source_ready_age_s_total": 12.0,
-                                        "source_ready_age_s_max": 12.0,
-                                        "source_ready_age_s_avg": 12.0,
-                                        "content_fetch_attempts_total": 2,
-                                        "content_fetch_attempts_max": 2,
-                                        "content_fetch_attempts_avg": 2.0,
-                                        "retry_queue_deferred_count": 1,
-                                        "retry_queue_recovered_count": 0,
-                                        "retry_queue_final_failed_count": 1,
-                                        "shared_retry_deferred_count": 0,
-                                        "shared_retry_recovered_count": 0,
-                                        "shared_retry_final_failed_count": 0,
-                                        "materialization_ready_at_epoch": 123.0,
-                                        "youtube_ytdlp_elapsed_s_total": 3.5,
-                                        "youtube_ytdlp_elapsed_s_max": 2.0,
-                                        "youtube_ytdlp_elapsed_s_count": 2,
-                                        "youtube_ytdlp_elapsed_s_avg": 1.75,
-                                        "youtube_page_elapsed_s_total": 0.75,
-                                        "youtube_page_elapsed_s_max": 0.75,
-                                        "youtube_page_elapsed_s_count": 1,
-                                        "youtube_page_elapsed_s_avg": 0.75,
-                                    },
-                                ):
-                                    with mock.patch("csf.nlm_batch.log_action") as mock_log:
-                                        with mock.patch("csf.nlm_batch.time.monotonic", side_effect=[300.0 + i for i in range(20)]):
-                                            results = ingestor.process_batch(batch_ids)
+                        with mock.patch.object(ingestor._ingestor, "_add_sources_in_subbatches") as mock_add:
+                            with mock.patch.object(
+                                ingestor._ingestor,
+                                "extract_transcripts",
+                                return_value={"vid4": (False, None, "err")},
+                            ) as mock_extract:
+                                with mock.patch.object(ingestor._ingestor, "reset_sources") as mock_reset:
+                                    with mock.patch.object(
+                                        ingestor._ingestor,
+                                        "get_last_extract_metrics",
+                                        return_value={
+                                            "content_fetch_status_counts": {"command_failed": 1},
+                                            "source_ready_age_s_total": 12.0,
+                                            "source_ready_age_s_max": 12.0,
+                                            "source_ready_age_s_avg": 12.0,
+                                            "content_fetch_attempts_total": 2,
+                                            "content_fetch_attempts_max": 2,
+                                            "content_fetch_attempts_avg": 2.0,
+                                            "retry_queue_deferred_count": 1,
+                                            "retry_queue_recovered_count": 0,
+                                            "retry_queue_final_failed_count": 1,
+                                            "shared_retry_deferred_count": 0,
+                                            "shared_retry_recovered_count": 0,
+                                            "shared_retry_final_failed_count": 0,
+                                            "materialization_ready_at_epoch": 123.0,
+                                            "youtube_ytdlp_elapsed_s_total": 3.5,
+                                            "youtube_ytdlp_elapsed_s_max": 2.0,
+                                            "youtube_ytdlp_elapsed_s_count": 2,
+                                            "youtube_ytdlp_elapsed_s_avg": 1.75,
+                                            "youtube_page_elapsed_s_total": 0.75,
+                                            "youtube_page_elapsed_s_max": 0.75,
+                                            "youtube_page_elapsed_s_count": 1,
+                                            "youtube_page_elapsed_s_avg": 0.75,
+                                        },
+                                    ):
+                                        with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                            with mock.patch("csf.nlm_batch.time.monotonic", side_effect=[300.0 + i for i in range(20)]):
+                                                results = ingestor.process_batch(batch_ids)
 
         assert results["vid4"][0] is False
+        mock_add.assert_called_once_with(batch_ids, subbatch_size=ingestor._ingestor.batch_size)
         mock_extract.assert_called_once_with(batch_ids)
-        assert mock_reset.call_count == 2
+        mock_reset.assert_called_once()
         completed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_reusable_process_completed")
         assert completed["youtube_ytdlp_elapsed_s_total"] == 3.5
         assert completed["youtube_ytdlp_elapsed_s_count"] == 2
@@ -883,14 +1199,10 @@ class TestDoubleBufferedReusableBatch:
             called.append(cmd)
             return subprocess.CompletedProcess(cmd, 0, "", "Auth valid")
 
-        original_run = subprocess.run
-        subprocess.run = mock_run
-        try:
+        with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
             result = nlm_batch._ensure_nlm_auth()
-            assert result is True
-            assert called == [["nlm", "login", "--check"]]
-        finally:
-            subprocess.run = original_run
+        assert result is True
+        assert called == [["login", "--check"]]
 
     def test_ensure_nlm_auth_returns_false_when_force_also_fails(self):
         """When --check and --force both fail, _ensure_nlm_auth returns False."""
@@ -899,13 +1211,9 @@ class TestDoubleBufferedReusableBatch:
         def mock_run(cmd, **kwargs):
             return subprocess.CompletedProcess(cmd, 1, "", "Auth failed")
 
-        original_run = subprocess.run
-        subprocess.run = mock_run
-        try:
+        with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
             result = nlm_batch._ensure_nlm_auth()
-            assert result is False
-        finally:
-            subprocess.run = original_run
+        assert result is False
 
 
 class TestReusableNotebookEnvironmentOverrides:
@@ -961,43 +1269,35 @@ class TestReusableNotebookEnvironmentOverrides:
         def mock_run(cmd, **kwargs):
             return subprocess.CompletedProcess(cmd, 0, "", "Auth valid")
 
-        original_run = subprocess.run
-        subprocess.run = mock_run
-        try:
+        with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
             with mock.patch("csf.nlm_batch.log_action") as mock_log:
                 result = nlm_batch._ensure_nlm_auth()
-            assert result is True
-            mock_log.assert_called_once()
-            assert mock_log.call_args.args[0] == "nlm_auth_checked"
-            assert mock_log.call_args.args[1]["component"] == "nlm_batch"
-        finally:
-            subprocess.run = original_run
+        assert result is True
+        mock_log.assert_called_once()
+        assert mock_log.call_args.args[0] == "nlm_auth_checked"
+        assert mock_log.call_args.args[1]["component"] == "nlm_batch"
 
     def test_ensure_nlm_auth_logs_login_attempt_and_refresh(self):
         """A forced auth refresh should emit login timing markers."""
         import subprocess
 
         def mock_run(cmd, **kwargs):
-            if cmd == ["nlm", "login", "--check"]:
+            if cmd == ["login", "--check"]:
                 return subprocess.CompletedProcess(cmd, 1, "", "Auth expired")
-            if cmd == ["nlm", "login", "--force"]:
+            if cmd == ["login", "--force"]:
                 return subprocess.CompletedProcess(cmd, 0, "", "OK")
             return subprocess.CompletedProcess(cmd, 0, "", "")
 
-        original_run = subprocess.run
-        subprocess.run = mock_run
-        try:
+        with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
             with mock.patch("csf.nlm_batch.log_action") as mock_log:
                 result = nlm_batch._ensure_nlm_auth()
-            assert result is True
-            assert [c.args[0] for c in mock_log.call_args_list] == [
-                "nlm_auth_failed",
-                "nlm_login_started",
-                "nlm_login_completed",
-                "nlm_auth_refreshed",
-            ]
-        finally:
-            subprocess.run = original_run
+        assert result is True
+        assert [c.args[0] for c in mock_log.call_args_list] == [
+            "nlm_auth_failed",
+            "nlm_login_started",
+            "nlm_login_completed",
+            "nlm_auth_refreshed",
+        ]
 
 
 class TestWorkerNotebookCleanup:
@@ -1215,7 +1515,7 @@ class TestReusableNotebookPrewarm:
             cdp_calls.append(cmd)
             if cmd[0] == "node" and "--delete-title" in cmd:
                 return subprocess.CompletedProcess(cmd, 0, "", "deleted")
-            if cmd[:3] == ["nlm", "notebook", "delete"]:
+            if cmd[:3] == ["notebook", "delete"]:
                 raise AssertionError("close(delete=True) should not call direct notebook delete")
             return original_run(cmd, **kwargs)
 
@@ -1223,7 +1523,11 @@ class TestReusableNotebookPrewarm:
         monkeypatch.setattr(nlm_batch, "_clear_reusable_notebook_state", lambda: None)
         monkeypatch.setattr(nlm_batch, "_save_reusable_notebook_id", lambda nb_id: None)
 
-        ingestor.close(delete=True)
+        with mock.patch(
+            "csf.nlm_batch.run_nlm",
+            side_effect=AssertionError("close(delete=True) should not call direct notebook delete"),
+        ):
+            ingestor.close(delete=True)
 
         assert any(
             len(cmd) >= 3 and cmd[0] == "node" and cmd[2] == "--delete-title"
@@ -1383,8 +1687,8 @@ class TestSubBatchFailureMode:
     """NotebookLM add failures should retry in place before falling back."""
 
     def test_zero_growth_add_failure_retries_then_resets_before_final_failure(self):
-        """A zero-growth add failure should retry once, reset once, then fail cleanly if it persists."""
-        ingestor = nlm_batch.NLMBatchIngestor(batch_size=3)
+        """A single-source zero-growth add failure should retry once, reset once, then fail cleanly if it persists."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=1)
         ingestor._nb_id = "nb-123"
         source_list_response = type(
             "CompletedProcess",
@@ -1416,9 +1720,9 @@ class TestSubBatchFailureMode:
                 with mock.patch.object(ingestor, "_rotate_notebook") as mock_rotate:
                     with mock.patch("csf.nlm_batch.log_action") as mock_log:
                         result = ingestor._add_sources_chunk(
-                            ["vid1", "vid2", "vid3"],
+                            ["vid1"],
                             subbatch_index=1,
-                            expected_total=3,
+                            expected_total=1,
                         )
 
         assert result == []
@@ -1429,6 +1733,84 @@ class TestSubBatchFailureMode:
         log_names = [call.args[0] for call in mock_log.call_args_list]
         assert "nlm_batch_subbatch_add_retry_scheduled" in log_names
         assert "nlm_batch_subbatch_add_notebook_reset_scheduled" in log_names
+        assert "nlm_batch_subbatch_add_failed" in log_names
+
+    def test_zero_growth_add_failure_splits_and_recovers_after_reset(self):
+        """A multi-source zero-growth add failure should split and recover after the bounded reset fallback."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
+        ingestor._nb_id = "nb-123"
+        add_response = type(
+            "CompletedProcess",
+            (),
+            {"stdout": "", "stderr": "Could not add URL sources", "returncode": 1},
+        )()
+        add_succeeded = type(
+            "CompletedProcess",
+            (),
+            {"stdout": "Source ID: s1", "stderr": "", "returncode": 0},
+        )()
+
+        with mock.patch.object(
+            ingestor,
+            "_get_current_source_count",
+            side_effect=[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2],
+        ):
+            with mock.patch.object(
+                ingestor,
+                "_run_cmd",
+                side_effect=[add_response, add_response, add_response, add_succeeded, add_succeeded],
+            ) as mock_run_cmd:
+                with mock.patch.object(ingestor, "_wait_for_sources_ready", return_value=True) as wait_mock:
+                    with mock.patch("csf.nlm_batch.time.sleep") as mock_sleep:
+                        with mock.patch.object(ingestor, "_rotate_notebook") as mock_rotate:
+                            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                result = ingestor._add_sources_chunk(["v1", "v2"], subbatch_index=1, expected_total=2)
+
+        assert result == ["v1", "v2"]
+        assert mock_run_cmd.call_count == 5
+        assert mock_sleep.call_count == 2
+        mock_sleep.assert_has_calls([mock.call(5.0), mock.call(5.0)])
+        mock_rotate.assert_called_once()
+        assert wait_mock.call_count == 2
+        wait_mock.assert_has_calls(
+            [
+                mock.call(1, timeout=600, source_count_before_wait=0),
+                mock.call(2, timeout=600, source_count_before_wait=2),
+            ]
+        )
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_batch_subbatch_add_retry_scheduled" in log_names
+        assert "nlm_batch_subbatch_add_notebook_reset_scheduled" in log_names
+        assert "nlm_batch_subbatch_add_split_scheduled" in log_names
+        assert "nlm_batch_subbatch_add_failed" not in log_names
+
+    def test_zero_growth_add_failure_stops_after_two_split_levels(self):
+        """Broad zero-growth add failures should stop after a bounded two-level split tree."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=50)
+        ingestor._nb_id = "nb-123"
+        add_response = type(
+            "CompletedProcess",
+            (),
+            {"stdout": "", "stderr": "Could not add URL sources", "returncode": 1},
+        )()
+
+        with mock.patch.object(ingestor, "_get_current_source_count", return_value=0):
+            with mock.patch.object(ingestor, "_run_cmd", return_value=add_response) as mock_run_cmd:
+                with mock.patch("csf.nlm_batch.time.sleep"):
+                    with mock.patch.object(ingestor, "_rotate_notebook") as mock_rotate:
+                        with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                            result = ingestor._add_sources_chunk(
+                                [f"v{i}" for i in range(50)],
+                                subbatch_index=1,
+                                expected_total=50,
+                            )
+
+        assert result == []
+        assert mock_run_cmd.call_count == 9
+        mock_rotate.assert_called_once()
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert log_names.count("nlm_batch_subbatch_add_split_scheduled") == 3
+        assert "nlm_batch_subbatch_add_split_circuit_opened" in log_names
         assert "nlm_batch_subbatch_add_failed" in log_names
 
     def test_zero_growth_add_failure_recovers_after_notebook_reset(self):
@@ -2253,6 +2635,51 @@ class TestNotebookCapRotation:
         assert results[vid2][0] is True
         assert results[vid2][1] == "B" * 101
 
+    def test_extract_transcripts_uses_order_fallback_for_partial_matches_when_counts_align(self):
+        """A mixed title-match plus order-fallback batch should still resolve when counts align."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
+        ingestor._nb_id = "nb-partial-order"
+        vid1 = "AAAAAAAAAAA"
+        vid2 = "BBBBBBBBBBB"
+
+        def fake_run_cmd(cmd, timeout=300):
+            if cmd[:2] == ["source", "list"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {
+                        "returncode": 0,
+                        "stdout": json.dumps(
+                            {
+                                "sources": [
+                                    {"id": "s1", "title": f"https://www.youtube.com/watch?v={vid1}"},
+                                    {"id": "s2", "title": "Previously processed source"},
+                                ]
+                            }
+                        ),
+                        "stderr": "",
+                    },
+                )()
+            if cmd[:2] == ["source", "content"]:
+                source_id = cmd[2]
+                content = "A" * 101 if source_id == "s1" else "B" * 101
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 0, "stdout": json.dumps({"value": {"content": content}}), "stderr": ""},
+                )()
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
+            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                results = ingestor.extract_transcripts([vid1, vid2])
+
+        assert results[vid1][0] is True
+        assert results[vid1][1] == "A" * 101
+        assert results[vid2][0] is True
+        assert results[vid2][1] == "B" * 101
+        assert not any(call.args[0] == "nlm_batch_source_mapping_failed" for call in mock_log.call_args_list)
+
     def test_extract_transcripts_rejects_partial_mapping_without_order_fallback(self):
         """Partial source-list matches should fail closed instead of guessing by position."""
         ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
@@ -2409,3 +2836,5 @@ class TestBackoffCalculation:
             with tracker._lock:
                 delays.append(tracker._current_delay)
         assert delays == [0.5, 1.0, 2.0, 4.0]
+
+

@@ -38,6 +38,7 @@ try:
     from selenium.webdriver.common.by import By
     from selenium.webdriver.remote.webelement import WebElement
     from csf.csf_logging import log_action
+    from csf import nlm_auth_guard
     from csf.nlm_config import get_nlm_config
 except ImportError:
     print("Error: Selenium not installed. Run 'pip install selenium'.")
@@ -53,7 +54,7 @@ def _get_nlm_login_profile_args() -> list[str]:
     profile = os.environ.get("NOTEBOOKLM_PROFILE", "").strip()
     if not profile:
         return []
-    return ["--profile", profile]
+    return nlm_auth_guard.get_login_profile_args(profile)
 
 
 class NLMIndustrialScraper:
@@ -1185,12 +1186,8 @@ class NLMIndustrialScraper:
         On auth errors (expired token between sessions), re-authenticates
         and retries once — matching the pattern from nlm_batch.py.
         """
-        res = subprocess.run(
-            ["nlm"] + args,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
+        cmd_args = nlm_auth_guard.add_profile_args(args)
+        res = nlm_auth_guard.run_nlm(cmd_args, timeout_s=timeout)
         if res.returncode == 0:
             return res
 
@@ -1206,10 +1203,7 @@ class NLMIndustrialScraper:
                 "nlm_login_started",
                 {"component": "nlm_scraper", "mode": "force", "status": "started"},
             )
-            login = subprocess.run(
-                ["nlm", "login", "--force", *_get_nlm_login_profile_args()],
-                capture_output=True, text=True, timeout=120,
-            )
+            login = nlm_auth_guard.run_nlm(["login", "--force", *_get_nlm_login_profile_args()], timeout_s=120)
             login_elapsed = round(time.perf_counter() - login_started, 3)
             if login.returncode == 0:
                 log_action(
@@ -1225,12 +1219,7 @@ class NLMIndustrialScraper:
                     "nlm_auth_refreshed",
                     {"component": "nlm_scraper", "status": "mid_session_ok"},
                 )
-                res = subprocess.run(
-                    ["nlm"] + args,
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout,
-                )
+                res = nlm_auth_guard.run_nlm(cmd_args, timeout_s=timeout)
             else:
                 log_action(
                     "nlm_login_failed",
@@ -1285,10 +1274,7 @@ class NLMIndustrialScraper:
             print(f"[Industrial] Notebook create attempt {attempt + 1} failed: {res.stderr or '(empty)'}")
             if attempt < 2:
                 print(f"[Industrial] Re-authenticating before retry...")
-                login = subprocess.run(
-                    ["nlm", "login", "--force", *_get_nlm_login_profile_args()],
-                    capture_output=True, text=True, timeout=120,
-                )
+                login = nlm_auth_guard.run_nlm(["login", "--force", *_get_nlm_login_profile_args()], timeout_s=120)
                 if login.returncode != 0:
                     print(f"[Industrial] Re-auth failed: {login.stderr}")
                     break
@@ -1562,12 +1548,7 @@ class NLMIndustrialScraper:
                     "nlm_auth_checked",
                     {"component": "nlm_scraper", "status": "expired"},
                 )
-                login = subprocess.run(
-                    ["nlm", "login", "--force", *_get_nlm_login_profile_args()],
-                    capture_output=True,
-                    text=True,
-                    timeout=120,
-                )
+                login = nlm_auth_guard.run_nlm(["login", "--force", *_get_nlm_login_profile_args()], timeout_s=120)
                 if login.returncode != 0:
                     log_action(
                         "nlm_auth_failed",

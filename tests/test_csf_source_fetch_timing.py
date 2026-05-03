@@ -90,18 +90,46 @@ def test_ensure_nlm_auth_noninteractive_uses_force_refresh(monkeypatch):
 
     def fake_run(cmd, **kwargs):
         calls.append(list(cmd))
-        return types.SimpleNamespace(returncode=0 if "--force" in cmd else 1, stdout="", stderr="expired")
+        if len(calls) == 1:
+            return types.SimpleNamespace(returncode=1, stdout="", stderr="expired")
+        return types.SimpleNamespace(returncode=0, stdout="Account: troup.hominidae@gmail.com\n", stderr="")
 
     monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-01")
     monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
-    monkeypatch.setattr(mod.subprocess, "run", fake_run)
+    monkeypatch.setattr(mod.nlm_auth_guard, "run_nlm", fake_run)
+    monkeypatch.setattr(mod, "refresh_source_profile", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(mod, "sync_worker_profiles", lambda *_args, **_kwargs: None)
 
     assert mod._ensure_nlm_auth() is True
 
     assert calls == [
-        ["nlm", "login", "--check", "--profile", "ytis-free1-worker-01"],
-        ["nlm", "login", "--force", "--profile", "ytis-free1-worker-01"],
+        ["login", "--check", "--profile", "ytis-free1-worker-01"],
+        ["login", "--check", "--profile", "ytis-free1-worker-01"],
     ]
+
+
+def test_ensure_nlm_auth_reaps_default_profile_before_check_and_continues(monkeypatch):
+    """A transient default chrome-profile before auth check should be reaped and retried, not abort the run."""
+    mod = _load_csf_source_module()
+    calls: list[list[str]] = []
+    stop_calls: list[set[int]] = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        return types.SimpleNamespace(returncode=0, stdout="Account: troup.hominidae@gmail.com\n", stderr="")
+
+    monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-01")
+    monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+    monkeypatch.setattr(mod, "_default_nlm_chrome_profile_pids", mock.Mock(side_effect=[{12345}, set()]))
+    monkeypatch.setattr(mod, "_stop_chrome_pids", lambda pids: stop_calls.append(set(pids)))
+    monkeypatch.setattr(mod.nlm_auth_guard, "run_nlm", fake_run)
+
+    assert mod._ensure_nlm_auth() is True
+
+    assert calls == [
+        ["login", "--check", "--profile", "ytis-free1-worker-01"],
+    ]
+    assert stop_calls == [{12345}]
 
 
 def test_cmd_fetch_logs_fetch_start_and_first_download_started_industrial():
@@ -155,7 +183,7 @@ def test_cmd_fetch_logs_fetch_start_and_first_download_started_industrial():
     first_payload = mock_log.call_args_list[log_names.index("first_download_started")].args[1]
     assert first_payload["kind"] == "industrial_cli_batch"
     assert first_payload["batch_index"] == 1
-    assert first_payload["batch_size"] == 200
+    assert first_payload["batch_size"] == 50
     assert first_payload["first_video_id"] == "vid000"
     assert "elapsed_s" in first_payload
 
@@ -375,11 +403,11 @@ def test_cmd_fetch_limit_caps_selected_pending_items():
     completed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "fetch_completed")
     assert invoked["max_items"] == 100
     assert completed["max_items"] == 100
-    assert mock_process.call_count == 1
-    queued_ids = mock_process.call_args.args[0]
-    assert len(queued_ids) == 100
-    assert queued_ids[0] == "vid000"
-    assert queued_ids[-1] == "vid099"
+    assert mock_process.call_count == 2
+    queued_ids = [call.args[0] for call in mock_process.call_args_list]
+    assert [len(batch) for batch in queued_ids] == [50, 50]
+    assert queued_ids[0][0] == "vid000"
+    assert queued_ids[1][-1] == "vid099"
 
 
 def test_cmd_fetch_logs_cached_sample_and_hit_rate():
@@ -1342,12 +1370,12 @@ def test_cmd_fetch_logs_worker_prewarm_summary_before_dispatch(tmp_path):
     completed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "fetch_completed")
     assert completed["worker_cleanup_deleted"] == 3
     assert completed["worker_cleanup_failed"] == 1
-    assert completed["success_count"] == 200
+    assert completed["success_count"] == 800
     assert completed["fail_count"] == 0
-    assert completed["processed_count"] == 200
+    assert completed["processed_count"] == 800
     assert completed["processed_per_min"] is not None
-    assert completed["worker_stage_totals"]["batch_elapsed_s_total"] == 25.75
-    assert completed["worker_stage_totals"]["add_sources_elapsed_s_total"] == 4.75
+    assert completed["worker_stage_totals"]["batch_elapsed_s_total"] == 103.0
+    assert completed["worker_stage_totals"]["add_sources_elapsed_s_total"] == 19.0
 
 
 def test_cmd_fetch_logs_fetch_start_and_first_download_started_surgical():

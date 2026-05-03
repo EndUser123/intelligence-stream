@@ -58,6 +58,7 @@ _LOCK_DIR.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from csf import batch
+from csf import nlm_auth_guard
 from csf.csf_logging import log_user_message, log_action
 from csf.nlm_batch import DEFAULT_NOTEBOOKLM_BATCH_SIZE
 from csf.cache import has_cached_transcript, set_cached_transcript
@@ -72,6 +73,15 @@ from csf.nlm_batch import (
     process_industrial_batch_reusable,
     close_reusable_ingestor,
     cleanup_stale_worker_notebooks,
+)
+from csf.nlm_worker_auth import (
+    DEFAULT_NLM_CHROME_PROFILE_ROOT,
+    _chrome_pids_for_root,
+    _stop_chrome_pids,
+    expected_email_for_profile,
+    family_for_profile,
+    refresh_source_profile,
+    sync_worker_profiles,
 )
 from csf.transcript import (
     LanguageConfig,
@@ -300,41 +310,100 @@ def _get_nlm_login_profile_args() -> list[str]:
     profile = os.getenv("NOTEBOOKLM_PROFILE", "").strip()
     if not profile:
         return []
-    return ["--profile", profile]
+    return nlm_auth_guard.get_login_profile_args(profile)
 
 
 def _is_nlm_auth_noninteractive() -> bool:
     """Return whether auth checks must avoid browser/passkey prompts."""
-    value = os.getenv("YTIS_NLM_AUTH_NONINTERACTIVE", "").strip().lower()
-    return value in {"1", "true", "yes", "on"}
+    return nlm_auth_guard.is_nlm_auth_noninteractive()
+
+
+def _extract_nlm_account(stdout: str, stderr: str = "") -> str:
+    for line in f"{stdout}\n{stderr}".splitlines():
+        stripped = line.strip()
+        if stripped.lower().startswith("account:"):
+            return stripped.split(":", 1)[1].strip().lower()
+    return ""
+
+
+def _default_nlm_chrome_profile_pids() -> set[int]:
+    if not _is_nlm_auth_noninteractive():
+        return set()
+    return _chrome_pids_for_root(DEFAULT_NLM_CHROME_PROFILE_ROOT)
+
+
+def _stop_default_nlm_chrome_profile(stage: str) -> bool:
+    pids = _default_nlm_chrome_profile_pids()
+    if not pids:
+        return False
+    _stop_chrome_pids(pids)
+    print(
+        f"[source] closed default NotebookLM chrome-profile at {stage}: "
+        f"{DEFAULT_NLM_CHROME_PROFILE_ROOT} pids={sorted(pids)}",
+        file=sys.stderr,
+    )
+    return True
 
 
 def _ensure_nlm_auth() -> bool:
     """Check NotebookLM auth and refresh it within the active profile if needed."""
     login_profile_args = _get_nlm_login_profile_args()
-    try:
-        login_check = subprocess.run(
-            ["nlm", "login", "--check", *login_profile_args],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    except subprocess.TimeoutExpired:
+    profile = os.getenv("NOTEBOOKLM_PROFILE", "").strip()
+    expected_email = expected_email_for_profile(profile).lower()
+    if _is_nlm_auth_noninteractive() and not profile:
+        print("[source] FATAL: noninteractive NLM auth requires NOTEBOOKLM_PROFILE.", file=sys.stderr)
+        sys.exit(1)
+    _stop_default_nlm_chrome_profile("auth_check_before")
+    login_check = nlm_auth_guard.run_nlm(["login", "--check", *login_profile_args], timeout_s=30)
+    if login_check.stderr == "NLM command timed out":
         print("[source] FATAL: NLM auth check timed out.", file=sys.stderr)
         sys.exit(1)
-    if login_check.returncode == 0:
+    if _stop_default_nlm_chrome_profile("auth_check_after"):
+        print("[source] FATAL: NLM auth check opened the default chrome-profile.", file=sys.stderr)
+        sys.exit(1)
+    account = _extract_nlm_account(login_check.stdout or "", login_check.stderr or "")
+    if login_check.returncode == 0 and (not expected_email or account == expected_email):
         return True
+    if login_check.returncode == 0 and expected_email and account and account != expected_email:
+        print(
+            f"[source] NLM auth profile {profile} is mapped to {account}, expected {expected_email}.",
+            file=sys.stderr,
+        )
     force_arg = "--force" if _is_nlm_auth_noninteractive() else ""
     mode = "force" if force_arg else "interactive"
     print(f"[source] NLM auth expired, re-authenticating with nlm login ({mode})...", file=sys.stderr)
-    try:
-        login_cmd = ["nlm", "login", *([force_arg] if force_arg else []), *login_profile_args]
-        login_res = subprocess.run(login_cmd, capture_output=True, text=True, timeout=120)
-    except subprocess.TimeoutExpired:
-        print("[source] FATAL: NLM login timed out.", file=sys.stderr)
+    family = family_for_profile(profile)
+    if family is not None and _is_nlm_auth_noninteractive():
+        if not refresh_source_profile(family, timeout_s=120):
+            print("[source] FATAL: dedicated NLM source-profile refresh failed.", file=sys.stderr)
+            sys.exit(1)
+        try:
+            sync_worker_profiles(families=(family,), backup=True)
+        except Exception as exc:
+            print(f"[source] FATAL: worker auth profile sync failed: {exc}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        login_cmd = ["login", *([force_arg] if force_arg else []), *login_profile_args]
+        login_res = nlm_auth_guard.run_nlm(login_cmd, timeout_s=120)
+        if login_res.stderr == "NLM command timed out":
+            print("[source] FATAL: NLM login timed out.", file=sys.stderr)
+            sys.exit(1)
+        if _stop_default_nlm_chrome_profile("auth_refresh_after"):
+            print("[source] FATAL: NLM login opened the default chrome-profile.", file=sys.stderr)
+            sys.exit(1)
+        if login_res.returncode != 0:
+            print(f"[source] FATAL: NLM login failed: {login_res.stderr}", file=sys.stderr)
+            sys.exit(1)
+    verify = nlm_auth_guard.run_nlm(["login", "--check", *login_profile_args], timeout_s=30)
+    if verify.stderr == "NLM command timed out":
+        print("[source] FATAL: NLM post-refresh auth check timed out.", file=sys.stderr)
         sys.exit(1)
-    if login_res.returncode != 0:
-        print(f"[source] FATAL: NLM login failed: {login_res.stderr}", file=sys.stderr)
+    if _stop_default_nlm_chrome_profile("auth_verify_after"):
+        print("[source] FATAL: NLM post-refresh check opened the default chrome-profile.", file=sys.stderr)
+        sys.exit(1)
+    verify_account = _extract_nlm_account(verify.stdout or "", verify.stderr or "")
+    if verify.returncode != 0 or (expected_email and verify_account != expected_email):
+        print("[source] FATAL: NLM auth refresh did not produce the expected profile session.", file=sys.stderr)
         sys.exit(1)
     print("[source] NLM re-authenticated.", file=sys.stderr)
     return True
@@ -1414,7 +1483,9 @@ def cmd_check_all(verbose: bool = False) -> None:
     except Exception as e:
         # If transcript cache query fails, show simpler format
         print(f"[source] Error querying transcript cache: {e}")
-        for channel_url, video_count in channels_meta:
+        for row in channels_meta:
+            channel_url = row[0]
+            video_count = row[1] if len(row) > 1 else 0
             print(f"Channel: {channel_url}")
             print(f"  {video_count or 0} total")
             print("")

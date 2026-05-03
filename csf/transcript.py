@@ -38,6 +38,7 @@ from csf.batch_status import (
 from csf.batch_scheduler import BatchScheduler
 from csf.cache import set_cached_transcript
 from csf.csf_logging import log_action
+from csf import nlm_auth_guard
 from csf.youtube_auth import get_browser_cookies
 
 if TYPE_CHECKING:
@@ -64,7 +65,7 @@ def _get_nlm_login_profile_args() -> list[str]:
     profile = os.environ.get("NOTEBOOKLM_PROFILE", "").strip()
     if not profile:
         return []
-    return ["--profile", profile]
+    return nlm_auth_guard.get_login_profile_args(profile)
 
 
 # Module-level NLM scraper singleton — one terminal-local staging notebook
@@ -311,10 +312,7 @@ class CookieFreshnessTracker:
 
         # TTL expired — run active probe
         try:
-            check = subprocess.run(
-                ["nlm", "login", "--check"],
-                capture_output=True, timeout=30,
-            )
+            check = nlm_auth_guard.run_nlm(["login", "--check", *_get_nlm_login_profile_args()], timeout_s=30)
             if check.returncode == 0:
                 with self._lock:
                     self._last_check = time.monotonic()
@@ -1536,10 +1534,7 @@ def _ensure_nlm_auth() -> bool:
 
     # 3. Run --check probe (for freshness tracker to record success)
     try:
-        check = subprocess.run(
-            ["nlm", "login", "--check", *_get_nlm_login_profile_args()],
-            capture_output=True, timeout=30,
-        )
+        check = nlm_auth_guard.run_nlm(["login", "--check", *_get_nlm_login_profile_args()], timeout_s=30)
         if check.returncode == 0:
             log_action("nlm_auth_checked", {"component": "transcript", "status": "ok"})
             rate_limiter.record_call()
@@ -1555,10 +1550,7 @@ def _ensure_nlm_auth() -> bool:
             "nlm_login_started",
             {"component": "transcript", "mode": "force", "status": "started"},
         )
-        login = subprocess.run(
-            ["nlm", "login", "--force", *_get_nlm_login_profile_args()],
-            capture_output=True, timeout=120,
-        )
+        login = nlm_auth_guard.run_nlm(["login", "--force", *_get_nlm_login_profile_args()], timeout_s=120)
         login_elapsed = round(time.perf_counter() - login_started, 3)
         if login.returncode == 0:
             log_action(
@@ -2239,31 +2231,6 @@ def fetch_transcript_chain(
             return result
         last_error = error
 
-    # All methods failed — non-fatal
-    failure_reason = _classify_failure(last_error, last_stage_reached or "")
-    _log_transcript_chain_event(
-        "transcript_chain_failed",
-        video_id,
-        last_stage=last_stage_reached,
-        failure_reason=failure_reason,
-        error=last_error,
-        elapsed_s=round(time.perf_counter() - chain_started_at, 3),
-    )
-    # Persist final state to shared archive so restart doesn't re-process this video.
-    try:
-        _get_scheduler().archive_finalize(video_id, "failed", None, last_error)
-    except Exception as e:
-        logging.warning(f"[transcript] Failed to archive final failure for {video_id}: {e}")
-    return TranscriptResult(
-        video_id=video_id,
-        lang=prefer_lang,
-        raw_lang=None,
-        was_translated=False,
-        transcript="",
-        source="none",
-        source_stage=None,
-        detected_lang=None,
-        error=last_error,
-        last_stage=last_stage_reached,
-        failure_reason=failure_reason,
-    )
+    # All methods failed; persist the final negative outcome using the same
+    # terminal/soft-cache contract as early failure exits.
+    return _archive_failed_result(last_error, last_stage_reached)

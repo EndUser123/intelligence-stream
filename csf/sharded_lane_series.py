@@ -16,7 +16,16 @@ from typing import Any, Iterable
 
 from csf.breadth_series import _aggregate_summary
 from csf.load_ladder import build_fallback_benchmark_command
-from csf.nlm_worker_auth import expected_email_for_profile
+from csf import nlm_auth_guard
+from csf.nlm_worker_auth import (
+    expected_email_for_profile,
+    doctor_lane_setup,
+    family_for_profile,
+    refresh_source_profile,
+    sync_worker_profiles,
+)
+
+run_nlm = nlm_auth_guard.run_nlm
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +39,7 @@ DEFAULT_LIMIT = 400
 DEFAULT_BATCH_SIZE = 200
 DEFAULT_MANIFEST_JSON = REPO_ROOT / "tests" / "fixtures" / "shared_benchmark_manifest.json"
 DEFAULT_REUSABLE_PIPELINE_MODE = "serial"
+DEFAULT_NLM_CHROME_PROFILE_ROOT = nlm_auth_guard.DEFAULT_NLM_CHROME_PROFILE_ROOT
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +54,7 @@ class LaneConfig:
     worker_state_root: Path
     notebook_prefix: str
     notebooklm_profiles: tuple[str, ...] = ()
+    expected_email: str = ""
     browser_profile_directory: str = ""
     coordinator_notebooklm_profile: str | None = None
     startup_delay_s: float = 0.0
@@ -87,6 +98,7 @@ def _lane_from_dict(raw: dict[str, object]) -> LaneConfig:
     if not str(worker_state_root):
         raise ValueError(f"lane {lane}: worker_state_root is required")
     coordinator_profile = str(raw.get("coordinator_notebooklm_profile") or "").strip() or None
+    expected_email = str(raw.get("expected_email") or "").strip().lower()
     startup_delay_s = float(raw.get("startup_delay_s") or 0.0)
     if startup_delay_s < 0:
         raise ValueError(f"lane {lane}: startup_delay_s must be >= 0")
@@ -100,6 +112,7 @@ def _lane_from_dict(raw: dict[str, object]) -> LaneConfig:
         worker_state_root=worker_state_root,
         notebook_prefix=notebook_prefix,
         browser_profile_directory=str(raw.get("browser_profile_directory") or "").strip(),
+        expected_email=expected_email,
         coordinator_notebooklm_profile=coordinator_profile,
         startup_delay_s=startup_delay_s,
     )
@@ -141,6 +154,33 @@ def _extract_account(stdout: str, stderr: str = "") -> str:
     return ""
 
 
+def _is_nlm_auth_noninteractive() -> bool:
+    value = os.getenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _default_chrome_profile_pids() -> set[int]:
+    return nlm_auth_guard.default_chrome_profile_pids()
+
+
+def _stop_chrome_pids(pids: set[int]) -> None:
+    nlm_auth_guard.stop_chrome_pids(pids)
+
+
+def _stop_default_chrome_profile_if_running(*, stage: str) -> bool:
+    """Close the shared legacy NLM Chrome profile and report whether cleanup happened."""
+    pids = _default_chrome_profile_pids()
+    if not pids:
+        return False
+    _stop_chrome_pids(pids)
+    print(
+        f"[sharded] closed default NotebookLM chrome-profile at {stage}: "
+        f"{DEFAULT_NLM_CHROME_PROFILE_ROOT} pids={sorted(pids)}",
+        file=sys.stderr,
+    )
+    return True
+
+
 def _lane_auth_profiles(lane: LaneConfig) -> list[str]:
     profiles: list[str] = [lane.coordinator_profile]
     if lane.notebooklm_profiles:
@@ -154,56 +194,114 @@ def _lane_auth_profiles(lane: LaneConfig) -> list[str]:
     return unique
 
 
+def _lane_expected_email(lane: LaneConfig, profile: str) -> str:
+    explicit = lane.expected_email.strip().lower()
+    if explicit:
+        return explicit
+    return expected_email_for_profile(profile).strip().lower()
+
+
 def preflight_lane_auth_profiles(lanes: Iterable[LaneConfig], *, timeout_s: float = 30.0) -> None:
     """Validate all lane NotebookLM profiles before starting a benchmark run."""
+    _stop_default_chrome_profile_if_running(stage="preflight_start")
     checked: set[str] = set()
     for lane in _validate_lanes(lanes):
         for profile in _lane_auth_profiles(lane):
             if profile in checked:
                 continue
             checked.add(profile)
-            if _profile_auth_check(profile, timeout_s=timeout_s):
+            expected_email = _lane_expected_email(lane, profile)
+            if not expected_email:
+                raise RuntimeError(
+                    f"lane {lane.lane}: profile {profile} has no expected email mapping; "
+                    "add expected_email to the lane config or update the auth-family map"
+                )
+            if _profile_auth_check(profile, expected_email=expected_email, timeout_s=timeout_s):
                 continue
-            if not _profile_auth_force_refresh(profile, timeout_s=max(120.0, timeout_s)):
+            if not _profile_auth_force_refresh(profile, expected_email=expected_email, timeout_s=max(120.0, timeout_s)):
                 raise RuntimeError(f"NotebookLM auth expired for profile {profile} and force refresh failed")
+            if _stop_default_chrome_profile_if_running(stage=f"preflight_refresh_{profile}"):
+                raise RuntimeError(
+                    f"NotebookLM auth refresh for profile {profile} opened the default chrome-profile"
+                )
 
 
-def _profile_auth_check(profile: str, *, timeout_s: float) -> bool:
-    try:
-        res = subprocess.run(
-            ["nlm", "login", "--check", "--profile", profile],
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
+def _profile_auth_check(profile: str, *, expected_email: str, timeout_s: float) -> bool:
+    if _stop_default_chrome_profile_if_running(stage=f"auth_check_before_{profile}"):
+        return False
+    res = run_nlm(["login", "--check", "--profile", profile], timeout_s=timeout_s)
+    if _stop_default_chrome_profile_if_running(stage=f"auth_check_after_{profile}"):
         return False
     if res.returncode != 0:
         return False
-    expected_email = expected_email_for_profile(profile)
     if not expected_email:
-        return True
+        return False
     return _extract_account(res.stdout or "", res.stderr or "") == expected_email.lower()
 
 
-def _profile_auth_force_refresh(profile: str, *, timeout_s: float) -> bool:
-    try:
-        res = subprocess.run(
-            ["nlm", "login", "--force", "--profile", profile],
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
+def _profile_auth_force_refresh(profile: str, *, expected_email: str, timeout_s: float) -> bool:
+    family = family_for_profile(profile)
+    if family is not None:
+        try:
+            if not refresh_source_profile(family, timeout_s=timeout_s):
+                return False
+            sync_worker_profiles(families=(family,), backup=True)
+        except Exception:
+            return False
+        return _profile_auth_check(profile, expected_email=expected_email, timeout_s=timeout_s)
+
+    if _stop_default_chrome_profile_if_running(stage=f"auth_refresh_before_{profile}"):
+        return False
+    res = run_nlm(["login", "--force", "--profile", profile], timeout_s=timeout_s)
+    if _stop_default_chrome_profile_if_running(stage=f"auth_refresh_after_{profile}"):
         return False
     if res.returncode != 0:
         return False
-    expected_email = expected_email_for_profile(profile)
     if not expected_email:
-        return True
+        return False
     return _extract_account(res.stdout or "", res.stderr or "") == expected_email.lower()
+
+
+def _iter_jsonl_events(root: Path) -> Iterable[tuple[Path, int, dict[str, Any]]]:
+    for path in root.rglob("*.jsonl"):
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for lineno, line in enumerate(lines, 1):
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(event, dict):
+                yield path, lineno, event
+
+
+def _find_invalid_lane_artifacts(lane_output_root: Path) -> list[str]:
+    """Find hard invalidation markers that make benchmark throughput untrustworthy."""
+    findings: list[str] = []
+    for path, lineno, event in _iter_jsonl_events(lane_output_root):
+        action = str(event.get("action") or "")
+        data = event.get("data") if isinstance(event.get("data"), dict) else {}
+        status = str(data.get("status") or "")
+        if action == "nlm_auth_failed" and status == "default_profile_running":
+            findings.append(
+                f"{path.relative_to(lane_output_root)}:{lineno}: default_profile_running "
+                f"profile={data.get('notebooklm_profile') or '<unknown>'}"
+            )
+        if action == "nlm_batch_subbatch_add_failed" and data.get("failure_reason") == "source_add_failed":
+            findings.append(
+                f"{path.relative_to(lane_output_root)}:{lineno}: source_add_failed "
+                f"subbatch_size={data.get('subbatch_size') or '<unknown>'}"
+            )
+    return findings
+
+
+def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    """Write JSON via a temporary file so interrupted runs do not leave partial output."""
+    tmp_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    tmp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    os.replace(tmp_path, path)
 
 
 def load_lane_configs(path: Path) -> tuple[LaneConfig, ...]:
@@ -217,14 +315,25 @@ def load_lane_configs(path: Path) -> tuple[LaneConfig, ...]:
     return _validate_lanes(lanes)
 
 
-def _lane_env(base_env: dict[str, str], lane: LaneConfig, reusable_pipeline_mode: str) -> dict[str, str]:
+def _lane_env(
+    base_env: dict[str, str],
+    lane: LaneConfig,
+    reusable_pipeline_mode: str,
+    *,
+    lane_output_root: Path,
+) -> dict[str, str]:
     env = dict(base_env)
     env["NOTEBOOKLM_PROFILE"] = lane.coordinator_profile
+    env["INTELLIGENCE_STREAM_LOG_DIR"] = str(lane_output_root / "logs")
     env["YTIS_NLM_BROWSER_PROFILE_ROOT"] = str(lane.browser_profile_root)
     if lane.browser_profile_directory:
         env["YTIS_NLM_BROWSER_PROFILE_DIRECTORY"] = lane.browser_profile_directory
     else:
         env.pop("YTIS_NLM_BROWSER_PROFILE_DIRECTORY", None)
+    if lane.expected_email:
+        env["YTIS_NLM_EXPECTED_EMAIL"] = lane.expected_email
+    else:
+        env.pop("YTIS_NLM_EXPECTED_EMAIL", None)
     env["YTIS_INDUSTRIAL_WORKER_STATE_ROOT"] = str(lane.worker_state_root)
     env["YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX"] = lane.notebook_prefix
     env["YTIS_BENCHMARK_WORKER_NOTEBOOK_PREFIX"] = lane.notebook_prefix
@@ -290,6 +399,7 @@ def _run_lane(
         check=False,
     )
     finished_at = time.monotonic()
+    _stop_default_chrome_profile_if_running(stage=f"lane_complete_{lane.lane}")
     (lane_output_root / "lane.stdout.txt").write_text(proc.stdout or "", encoding="utf-8")
     (lane_output_root / "lane.stderr.txt").write_text(proc.stderr or "", encoding="utf-8")
     summary_path = lane_output_root / "benchmark_summary.json"
@@ -297,6 +407,12 @@ def _run_lane(
         raise RuntimeError(f"lane {lane.lane} failed with returncode={proc.returncode}")
     if not summary_path.exists():
         raise RuntimeError(f"lane {lane.lane} missing benchmark summary: {summary_path}")
+    invalid_artifacts = _find_invalid_lane_artifacts(lane_output_root)
+    if invalid_artifacts:
+        sample = "; ".join(invalid_artifacts[:5])
+        raise RuntimeError(
+            f"lane {lane.lane} invalidated by NotebookLM auth/source failures: {sample}"
+        )
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     aggregate = _aggregate_summary(summary, policy)
     return {
@@ -368,6 +484,8 @@ def run_sharded_lane_series(
     lane_configs = _validate_lanes(lanes)
     output_root.mkdir(parents=True, exist_ok=True)
     cohort_json.parent.mkdir(parents=True, exist_ok=True)
+    report_path = output_root / "sharded_lane_series_summary.json"
+    report_path.unlink(missing_ok=True)
     base_env = os.environ.copy()
 
     lane_reports_by_name: dict[str, dict[str, Any]] = {}
@@ -386,7 +504,12 @@ def run_sharded_lane_series(
                 manifest_json=manifest_json,
                 python_executable=python_executable,
                 reusable_pipeline_mode=reusable_pipeline_mode,
-                env=_lane_env(base_env, lane, reusable_pipeline_mode),
+                env=_lane_env(
+                    base_env,
+                    lane,
+                    reusable_pipeline_mode,
+                    lane_output_root=output_root / lane.lane,
+                ),
             ): lane
             for lane in lane_configs
         }
@@ -410,9 +533,8 @@ def run_sharded_lane_series(
         "runs": lane_reports,
         "combined": combined,
     }
-    report_path = output_root / "sharded_lane_series_summary.json"
     report["report_path"] = str(report_path)
-    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    _write_json_atomic(report_path, report)
     return report
 
 
@@ -431,8 +553,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reusable-pipeline-mode", default=DEFAULT_REUSABLE_PIPELINE_MODE)
     args = parser.parse_args(argv)
 
-    lanes = load_lane_configs(args.lane_config)
-    preflight_lane_auth_profiles(lanes)
+    try:
+        lanes = doctor_lane_setup(args.lane_config, args.output_root)
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+        print(f"[sharded] ERROR: {exc}")
+        return 1
     report = run_sharded_lane_series(
         lanes=lanes,
         trace_root=args.trace_root,

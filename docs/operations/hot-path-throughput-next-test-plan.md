@@ -76,6 +76,7 @@ Current interpretation:
 - Keep `--batch-size 200`; it has already beaten nearby and larger batch sizes for this workload.
 - Keep `--reusable-pipeline-mode serial`; double-buffered runs have not established a stable win.
 - Keep profile-pinned NotebookLM commands. Do not use `nlm login switch` in concurrent worker code.
+- For any new root, run `doctor` first, then the smoke, then `csf-run-evidence-check`, then the long soak.
 - Keep dedicated Chrome roots:
   - Pro: `P:/.data/yt-is/browser/notebooklm-pro`
   - Free: `P:/.data/yt-is/browser/notebooklm-free`

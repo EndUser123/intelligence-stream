@@ -32,6 +32,11 @@ from batch_status import (
 )
 from cache import set_cached_transcript
 
+try:
+    from csf import nlm_auth_guard
+except ImportError:
+    import nlm_auth_guard
+
 
 def get_all_pending_videos():
     """Get all pending videos from batch_status database.
@@ -55,11 +60,7 @@ def get_all_pending_videos():
 
 def run_nlm_command(args: list[str]) -> subprocess.CompletedProcess:
     """Run nlm CLI command and return result."""
-    return subprocess.run(
-        ["nlm"] + args,
-        capture_output=True,
-        text=True,
-    )
+    return nlm_auth_guard.run_nlm(nlm_auth_guard.add_profile_args(args), timeout_s=300)
 
 
 def create_ephemeral_notebook(video_id: str) -> Optional[str]:

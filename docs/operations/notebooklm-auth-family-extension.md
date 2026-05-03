@@ -25,6 +25,8 @@ Each lane needs its own values for all of these fields:
 
 If any of those collide with an existing lane, `csf/sharded_lane_series.py` should reject the config before the benchmark starts.
 
+If you are staging a future lane before `DEFAULT_FAMILIES` has been updated, keep `expected_email` in the lane JSON and use it as the explicit account contract. The harness propagates that value as `YTIS_NLM_EXPECTED_EMAIL` so `doctor` and lane preflight still fail closed on the intended account.
+
 ## Files To Update
 
 - `P:/packages/yt-is/csf/nlm_worker_auth.py`
@@ -191,6 +193,7 @@ Expected result:
 - Do not point the new lane at `C:\Users\brsth\.notebooklm-mcp-cli\chrome-profile`.
 - Do not reuse an existing Chrome root or browser profile directory.
 - Do not add the lane only in JSON. Until auth families are externalized, `DEFAULT_FAMILIES` still has to match reality.
+- If you intentionally add the lane JSON first, make sure `expected_email` is set and treat it as temporary until the code map is updated.
 - Do not assume `nlm login --check` is enough; the sync path must also parse the account line.
 
 ## What To Update In The Running Docs

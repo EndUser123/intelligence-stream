@@ -22,17 +22,17 @@ from csf.batch_status import summarize_video_ids
 from csf.display import format_result_row
 from csf.csf_logging import log_action
 from csf.nlm_config import get_nlm_config
+from csf import nlm_auth_guard
 from csf.nlm_worker_auth import (
     DEFAULT_FAMILIES,
-    DEFAULT_NLM_CHROME_PROFILE_ROOT,
-    _chrome_pids_for_root,
     expected_email_for_profile,
-    _stop_chrome_pids,
     refresh_source_profile,
     sync_worker_profiles,
 )
 from csf.shared_retry_pool import enqueue as enqueue_shared_retry
 from csf.youtube_page_inspector import inspect_youtube_watch_page, inspect_youtube_watch_page_via_ytdlp
+
+run_nlm = nlm_auth_guard.run_nlm
 
 
 _DEFAULT_OWNER_NOTEBOOK_STATE_PATH = Path("P:/.data/yt-is/owner_nlm_notebook.json")
@@ -42,6 +42,7 @@ _DEFAULT_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX = "yt-is-worker"
 _LEGACY_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX = "yt-is::industrial::worker"
 _DEFAULT_NOTEBOOKLM_PROFILE = "default"
 _AUTH_LOCK_PATH = Path("P:/.data/yt-is/locks/nlm-auth.lock")
+DEFAULT_NLM_CHROME_PROFILE_ROOT = nlm_auth_guard.DEFAULT_NLM_CHROME_PROFILE_ROOT
 
 _NLM_CONFIG = get_nlm_config()
 DEFAULT_NOTEBOOKLM_BATCH_SIZE = _NLM_CONFIG.notebook_batch_size
@@ -132,24 +133,18 @@ def _refresh_nlm_auth_session(
         except (FileNotFoundError, RuntimeError, ValueError):
             return False
         try:
-            check = subprocess.run(
-                ["nlm", "login", "--check", *auth_context.login_profile_args],
-                capture_output=True,
-                text=True,
-                timeout=30,
-                check=False,
+            check = run_nlm(
+                ["login", "--check", *auth_context.login_profile_args],
+                timeout_s=30,
             )
         except subprocess.TimeoutExpired:
             return False
         return check.returncode == 0 and _session_matches_expected_account(check, expected_email)
 
     try:
-        login = subprocess.run(
-            ["nlm", "login", "--force", *auth_context.login_profile_args],
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-            check=False,
+        login = run_nlm(
+            ["login", "--force", *auth_context.login_profile_args],
+            timeout_s=timeout_s,
         )
     except subprocess.TimeoutExpired:
         return False
@@ -222,29 +217,106 @@ def _get_nlm_login_profile_args() -> list[str]:
     profile = os.getenv("NOTEBOOKLM_PROFILE", "").strip()
     if not profile:
         return []
-    return ["--profile", profile]
+    return nlm_auth_guard.get_login_profile_args(profile)
 
 
 def _is_nlm_auth_noninteractive() -> bool:
-    value = os.getenv("YTIS_NLM_AUTH_NONINTERACTIVE", "").strip().lower()
-    return value in {"1", "true", "yes", "on"}
+    return nlm_auth_guard.is_nlm_auth_noninteractive()
 
 
 def _get_nlm_auth_context() -> _NLMAuthContext:
     """Centralize the profile pinning decision for NotebookLM auth refresh."""
-    profile = _get_notebooklm_profile()
+    profile_override = os.getenv("NOTEBOOKLM_PROFILE", "").strip()
+    profile = profile_override or _DEFAULT_NOTEBOOKLM_PROFILE
+    login_profile_args = nlm_auth_guard.get_login_profile_args(profile_override or None)
+    expected_email = os.getenv("YTIS_NLM_EXPECTED_EMAIL", "").strip().lower() or expected_email_for_profile(profile)
     return _NLMAuthContext(
         profile=profile,
-        login_profile_args=_get_nlm_login_profile_args(),
-        requires_profile=_is_nlm_auth_noninteractive(),
-        expected_email=expected_email_for_profile(profile),
+        login_profile_args=login_profile_args,
+        requires_profile=nlm_auth_guard.is_nlm_auth_noninteractive(),
+        expected_email=expected_email,
     )
 
 
 def _default_chrome_profile_pids() -> set[int]:
-    if not _is_nlm_auth_noninteractive():
+    return nlm_auth_guard.default_chrome_profile_pids()
+
+
+def _stop_chrome_pids(pids: set[int]) -> None:
+    nlm_auth_guard.stop_chrome_pids(pids)
+
+
+def _reap_default_chrome_profile_for_auth(
+    auth_context: _NLMAuthContext,
+    *,
+    args: List[str],
+    phase: str,
+) -> bool:
+    """Reap a transient default chrome-profile before auth can poison the batch."""
+    return _fail_closed_on_default_chrome_profile(
+        auth_context,
+        args=args,
+        phase=phase,
+        allow_pre_auth_recovery=True,
+    )
+
+
+def _reap_default_chrome_profile_after_auth_command(
+    auth_context: _NLMAuthContext,
+    *,
+    args: List[str],
+    phase: str,
+) -> set[int]:
+    """Close a transient default chrome-profile after an auth probe and continue once."""
+    default_profile_pids = _default_chrome_profile_pids()
+    if not default_profile_pids:
         return set()
-    return _chrome_pids_for_root(DEFAULT_NLM_CHROME_PROFILE_ROOT)
+    _stop_chrome_pids(default_profile_pids)
+    log_action(
+        "nlm_auth_recovered",
+        {
+            "component": "nlm_batch",
+            "status": "default_profile_reaped_after_auth_command",
+            "phase": phase,
+            "notebooklm_profile": auth_context.profile,
+            "expected_email": auth_context.expected_email or None,
+            "default_chrome_profile": str(DEFAULT_NLM_CHROME_PROFILE_ROOT),
+            "default_chrome_profile_pids": sorted(default_profile_pids),
+            "command": ["nlm"] + args,
+        },
+    )
+    return set(default_profile_pids)
+
+
+def _reap_default_chrome_profile_before_command(
+    auth_context: _NLMAuthContext,
+    *,
+    args: List[str],
+    phase: str,
+) -> set[int]:
+    """Close a transient default chrome-profile before a non-auth command and continue once."""
+    default_profile_pids = _default_chrome_profile_pids()
+    if not default_profile_pids:
+        return set()
+    _stop_chrome_pids(default_profile_pids)
+    log_action(
+        "nlm_auth_recovered",
+        {
+            "component": "nlm_batch",
+            "status": "default_profile_reaped_before_command",
+            "phase": phase,
+            "notebooklm_profile": auth_context.profile,
+            "expected_email": auth_context.expected_email or None,
+            "default_chrome_profile": str(DEFAULT_NLM_CHROME_PROFILE_ROOT),
+            "default_chrome_profile_pids": sorted(default_profile_pids),
+            "command": ["nlm"] + args,
+        },
+    )
+    return set(default_profile_pids)
+
+
+def _is_cleanup_command(args: List[str]) -> bool:
+    return len(args) >= 2 and tuple(args[:2]) in {("source", "delete"), ("notebook", "delete")}
 
 
 def _fail_closed_on_default_chrome_profile(
@@ -254,11 +326,60 @@ def _fail_closed_on_default_chrome_profile(
     phase: str,
     stdout: str = "",
     stderr: str = "",
+    allow_pre_auth_recovery: bool = False,
+    allow_post_command_recovery: bool = False,
+    command_succeeded: bool = False,
 ) -> subprocess.CompletedProcess | None:
     default_profile_pids = _default_chrome_profile_pids()
     if not default_profile_pids:
         return None
     _stop_chrome_pids(default_profile_pids)
+    if _is_cleanup_command(args):
+        log_action(
+            "nlm_auth_recovered",
+            {
+                "component": "nlm_batch",
+                "status": "default_profile_reaped_during_cleanup",
+                "phase": phase,
+                "notebooklm_profile": auth_context.profile,
+                "expected_email": auth_context.expected_email or None,
+                "default_chrome_profile": str(DEFAULT_NLM_CHROME_PROFILE_ROOT),
+                "default_chrome_profile_pids": sorted(default_profile_pids),
+                "command": ["nlm"] + args,
+            },
+        )
+        return None
+    if allow_pre_auth_recovery and phase.startswith("pre_auth"):
+        log_action(
+            "nlm_auth_recovered",
+            {
+                "component": "nlm_batch",
+                "status": "default_profile_reaped_before_auth",
+                "phase": phase,
+                "notebooklm_profile": auth_context.profile,
+                "expected_email": auth_context.expected_email or None,
+                "default_chrome_profile": str(DEFAULT_NLM_CHROME_PROFILE_ROOT),
+                "default_chrome_profile_pids": sorted(default_profile_pids),
+                "command": ["nlm"] + args,
+            },
+        )
+        return None
+    if allow_post_command_recovery:
+        log_action(
+            "nlm_auth_recovered",
+            {
+                "component": "nlm_batch",
+                "status": "default_profile_reaped_after_command",
+                "phase": phase,
+                "notebooklm_profile": auth_context.profile,
+                "expected_email": auth_context.expected_email or None,
+                "default_chrome_profile": str(DEFAULT_NLM_CHROME_PROFILE_ROOT),
+                "default_chrome_profile_pids": sorted(default_profile_pids),
+                "command_succeeded": command_succeeded,
+                "command": ["nlm"] + args,
+            },
+        )
+        return None
     log_action(
         "nlm_auth_failed",
         {
@@ -277,6 +398,55 @@ def _fail_closed_on_default_chrome_profile(
         f"{DEFAULT_NLM_CHROME_PROFILE_ROOT}"
     )
     return subprocess.CompletedProcess(["nlm"] + args, 1, stdout, stderr or message)
+
+
+def _run_guarded_nlm_auth_command(
+    auth_context: _NLMAuthContext,
+    args: list[str],
+    *,
+    timeout: int,
+    phase: str,
+) -> subprocess.CompletedProcess | None:
+    """Run an auth command and fail closed if upstream opens the default Chrome profile."""
+    try:
+        res = run_nlm(args, timeout_s=timeout)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(["nlm"] + args, 1, "", "NLM auth command timed out")
+    default_profile_pids = _reap_default_chrome_profile_after_auth_command(
+        auth_context,
+        args=args,
+        phase=f"{phase}_after",
+    )
+    if default_profile_pids:
+        try:
+            res = run_nlm(args, timeout_s=timeout)
+        except subprocess.TimeoutExpired:
+            return subprocess.CompletedProcess(["nlm"] + args, 1, "", "NLM auth command timed out")
+        retry_default_profile_pids = _reap_default_chrome_profile_after_auth_command(
+            auth_context,
+            args=args,
+            phase=f"{phase}_after_retry",
+        )
+        if retry_default_profile_pids:
+            log_action(
+                "nlm_auth_failed",
+                {
+                    "component": "nlm_batch",
+                    "status": "default_profile_running",
+                    "phase": f"{phase}_after_retry",
+                    "notebooklm_profile": auth_context.profile,
+                    "expected_email": auth_context.expected_email or None,
+                    "default_chrome_profile": str(DEFAULT_NLM_CHROME_PROFILE_ROOT),
+                    "default_chrome_profile_pids": sorted(retry_default_profile_pids),
+                    "command": ["nlm"] + args,
+                },
+            )
+            message = (
+                f"default NotebookLM chrome-profile is already running: "
+                f"{DEFAULT_NLM_CHROME_PROFILE_ROOT}"
+            )
+            return subprocess.CompletedProcess(["nlm"] + args, 1, res.stdout or "", res.stderr or message)
+    return res
 
 
 def _extract_video_id_from_source_entry(source: object) -> str | None:
@@ -701,14 +871,40 @@ def _ensure_nlm_auth() -> bool:
 
     check_count = _next_nlm_auth_check_count()
     force_every = _get_nlm_auth_force_refresh_every_checks()
-    check = subprocess.run(
-        ["nlm", "login", "--check", *auth_context.login_profile_args], capture_output=True, text=True, timeout=30
+    force_scheduled = force_every > 0 and check_count % force_every == 0
+    if not force_scheduled and nlm_auth_guard.auth_check_cache_hit(auth_context):
+        log_action(
+            "nlm_auth_checked",
+            {
+                "component": "nlm_batch",
+                "status": "cached",
+                "notebooklm_profile": auth_context.profile,
+                "account": auth_context.expected_email or None,
+                "expected_email": auth_context.expected_email or None,
+                "check_count": check_count,
+            },
+        )
+        return True
+    _reap_default_chrome_profile_for_auth(
+        auth_context,
+        args=["login", "--check", *auth_context.login_profile_args],
+        phase="pre_auth",
     )
+    check = _run_guarded_nlm_auth_command(
+        auth_context,
+        ["login", "--check", *auth_context.login_profile_args],
+        timeout=30,
+        phase="auth_check",
+    )
+    if check is None or (
+        check.returncode != 0 and "default NotebookLM chrome-profile" in (check.stderr or "")
+    ):
+        return False
     check_account = _extract_account(check.stdout or "", check.stderr or "")
     expected_email = auth_context.expected_email.strip().lower()
     check_matches_expected = check.returncode == 0 and (not expected_email or check_account == expected_email)
-    force_scheduled = force_every > 0 and check_count % force_every == 0
     if check_matches_expected and not force_scheduled:
+        nlm_auth_guard.auth_check_cache_store(auth_context)
         log_action(
             "nlm_auth_checked",
             {
@@ -759,13 +955,25 @@ def _ensure_nlm_auth() -> bool:
     # duplicate browser login flows at the same time.
     _AUTH_LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
     with fasteners.InterProcessLock(str(_AUTH_LOCK_PATH)):
-        check = subprocess.run(
-            ["nlm", "login", "--check", *auth_context.login_profile_args], capture_output=True, text=True, timeout=30
+        _reap_default_chrome_profile_for_auth(
+            auth_context,
+            args=["login", "--check", *auth_context.login_profile_args],
+            phase="pre_auth_locked",
         )
+        check = _run_guarded_nlm_auth_command(
+            auth_context,
+            ["login", "--check", *auth_context.login_profile_args],
+            timeout=30,
+            phase="auth_check_locked",
+        )
+        if check is None or (
+            check.returncode != 0 and "default NotebookLM chrome-profile" in (check.stderr or "")
+        ):
+            return False
         check_account = _extract_account(check.stdout or "", check.stderr or "")
         check_matches_expected = check.returncode == 0 and (not expected_email or check_account == expected_email)
-        force_scheduled = force_every > 0 and check_count % force_every == 0
         if check_matches_expected and not force_scheduled:
+            nlm_auth_guard.auth_check_cache_store(auth_context)
             log_action(
                 "nlm_auth_checked",
                 {
@@ -816,6 +1024,7 @@ def _ensure_nlm_auth() -> bool:
         login = _refresh_nlm_auth_session(auth_context, timeout_s=120, force_source_refresh=force_scheduled)
         login_elapsed = round(time.perf_counter() - login_started, 3)
         if login:
+            nlm_auth_guard.auth_check_cache_store(auth_context)
             log_action(
                 "nlm_login_completed",
                 {
@@ -866,6 +1075,7 @@ _MIN_TRANSCRIPT_CHARS = 500
 _MAX_SUBBATCH_RETRY_DEPTH = 4
 _ZERO_GROWTH_ADD_RETRY_LIMIT = 1
 _ZERO_GROWTH_ADD_RETRY_DELAY_S = 5.0
+_ZERO_GROWTH_ADD_MAX_SPLIT_DEPTH = 2
 
 # Dynamic throttling: rate limit detection and backoff
 _INITIAL_DELAY = 0.5       # seconds before first retry
@@ -976,34 +1186,47 @@ class NLMBatchIngestor:
 
     def _run_cmd(self, args: List[str], timeout: int = 300) -> subprocess.CompletedProcess:
         tracker = _get_tracker()
+        pre_command_retry_attempted = False
         while True:
             tracker.apply_delay()
             auth_context = _get_nlm_auth_context()
+            cmd_args = nlm_auth_guard.add_profile_args(args, auth_context.profile if auth_context.has_profile else None)
             default_profile_guard = _fail_closed_on_default_chrome_profile(
                 auth_context,
-                args=args,
+                args=cmd_args,
                 phase="pre_auth",
+                allow_pre_auth_recovery=True,
             )
             if default_profile_guard is not None:
                 tracker.record_failure(is_rate_limit=False)
                 return default_profile_guard
             if not _ensure_nlm_auth():
-                return subprocess.CompletedProcess(["nlm"] + args, 1, "", "Auth failed")
-            default_profile_guard = _fail_closed_on_default_chrome_profile(
+                return subprocess.CompletedProcess(["nlm"] + cmd_args, 1, "", "Auth failed")
+            default_profile_pids = _reap_default_chrome_profile_before_command(
                 auth_context,
-                args=args,
+                args=cmd_args,
                 phase="pre_command",
             )
-            if default_profile_guard is not None:
+            if default_profile_pids:
                 tracker.record_failure(is_rate_limit=False)
-                return default_profile_guard
-            res = subprocess.run(["nlm"] + args, capture_output=True, text=True, timeout=timeout)
+                if pre_command_retry_attempted:
+                    return subprocess.CompletedProcess(
+                        ["nlm"] + cmd_args,
+                        1,
+                        "",
+                        f"default NotebookLM chrome-profile is already running: {DEFAULT_NLM_CHROME_PROFILE_ROOT}",
+                    )
+                pre_command_retry_attempted = True
+                continue
+            res = run_nlm(cmd_args, timeout_s=timeout)
             default_profile_guard = _fail_closed_on_default_chrome_profile(
                 auth_context,
-                args=args,
+                args=cmd_args,
                 phase="post_command",
                 stdout=res.stdout or "",
                 stderr=res.stderr or "",
+                allow_post_command_recovery=True,
+                command_succeeded=res.returncode == 0,
             )
             if default_profile_guard is not None:
                 tracker.record_failure(is_rate_limit=False)
@@ -1038,9 +1261,7 @@ class NLMBatchIngestor:
                     tracker.record_failure(is_rate_limit=False)
                     return res
                 if _refresh_nlm_auth_session(auth_context, timeout_s=120):
-                    res = subprocess.run(
-                        ["nlm"] + args, capture_output=True, text=True, timeout=timeout,
-                    )
+                    res = run_nlm(cmd_args, timeout_s=timeout)
                     if res.returncode == 0:
                         tracker.record_success()
                         return res
@@ -1153,6 +1374,7 @@ class NLMBatchIngestor:
         expected_total: int,
         retry_depth: int = 0,
         reset_depth: int = 0,
+        split_depth: int = 0,
         source_profile: Optional[dict[str, object]] = None,
     ) -> List[str]:
         """Add one chunk, recursively splitting on add failures.
@@ -1178,7 +1400,7 @@ class NLMBatchIngestor:
         print(
             f"[NLM-Batch]   Adding sub-batch {subbatch_index} "
             f"({len(batch_ids)} sources, retry_depth={retry_depth}, "
-            f"nb_sources_before={source_count_before})..."
+            f"split_depth={split_depth}, nb_sources_before={source_count_before})..."
         )
         log_action(
             "nlm_batch_subbatch_add_started",
@@ -1188,6 +1410,8 @@ class NLMBatchIngestor:
                 "subbatch_size": len(batch_ids),
                 "expected_total": expected_total,
                 "retry_depth": retry_depth,
+                "reset_depth": reset_depth,
+                "split_depth": split_depth,
                 "source_profile": source_profile,
                 "source_count_before": source_count_before,
                 "started_at_epoch": chunk_started_at_epoch,
@@ -1214,6 +1438,8 @@ class NLMBatchIngestor:
                 "subbatch_size": len(batch_ids),
                 "expected_total": expected_total,
                 "retry_depth": retry_depth,
+                "reset_depth": reset_depth,
+                "split_depth": split_depth,
                 "returncode": res.returncode,
                 "added_count": added_count,
                 "recovered": add_recovered,
@@ -1238,6 +1464,8 @@ class NLMBatchIngestor:
                     "subbatch_index": subbatch_index,
                     "expected_total": expected_total,
                     "retry_depth": retry_depth,
+                    "reset_depth": reset_depth,
+                    "split_depth": split_depth,
                     "source_profile": source_profile,
                     "source_count_before_wait": source_count_after,
                     "timeout_s": DEFAULT_NOTEBOOKLM_SOURCE_MATERIALIZATION_TIMEOUT_S,
@@ -1264,6 +1492,8 @@ class NLMBatchIngestor:
                         "subbatch_index": subbatch_index,
                         "expected_total": expected_total,
                         "retry_depth": retry_depth,
+                        "reset_depth": reset_depth,
+                        "split_depth": split_depth,
                         "source_profile": source_profile,
                         "failure_reason": "materialization_wait_failed",
                         "elapsed_s": wait_elapsed_s,
@@ -1289,16 +1519,18 @@ class NLMBatchIngestor:
                         "subbatch_index": subbatch_index,
                         "expected_total": expected_total,
                         "retry_depth": retry_depth,
+                        "reset_depth": reset_depth,
+                        "split_depth": split_depth,
                         "source_profile": source_profile,
                         "elapsed_s": wait_elapsed_s,
-                    "source_count_after_wait": self._get_current_source_count(),
-                    "source_count_before_wait": source_count_after,
-                    "timeout_s": DEFAULT_NOTEBOOKLM_SOURCE_MATERIALIZATION_TIMEOUT_S,
-                    "started_at_epoch": wait_started_at_epoch,
-                    "completed_at_epoch": wait_completed_at_epoch,
-                    "source_materialization_ready_at_epoch": wait_completed_at_epoch,
-                },
-            )
+                        "source_count_after_wait": self._get_current_source_count(),
+                        "source_count_before_wait": source_count_after,
+                        "timeout_s": DEFAULT_NOTEBOOKLM_SOURCE_MATERIALIZATION_TIMEOUT_S,
+                        "started_at_epoch": wait_started_at_epoch,
+                        "completed_at_epoch": wait_completed_at_epoch,
+                        "source_materialization_ready_at_epoch": wait_completed_at_epoch,
+                    },
+                )
             self._last_materialization_ready_at_epoch = wait_completed_at_epoch
             parsed_source_ids = _extract_source_ids_from_add_stdout(res.stdout)
             if len(parsed_source_ids) == len(batch_ids):
@@ -1314,6 +1546,8 @@ class NLMBatchIngestor:
                         "parsed_source_id_count": len(parsed_source_ids),
                         "expected_source_id_count": len(batch_ids),
                         "retry_depth": retry_depth,
+                        "reset_depth": reset_depth,
+                        "split_depth": split_depth,
                         "source_profile": source_profile,
                     },
                 )
@@ -1341,6 +1575,8 @@ class NLMBatchIngestor:
                     "expected_total": expected_total,
                     "retry_depth": retry_depth,
                     "next_retry_depth": retry_depth + 1,
+                    "reset_depth": reset_depth,
+                    "split_depth": split_depth,
                     "retry_delay_s": retry_delay_s,
                     "returncode": res.returncode,
                     "source_profile": source_profile,
@@ -1362,6 +1598,7 @@ class NLMBatchIngestor:
                 expected_total=expected_total,
                 retry_depth=retry_depth + 1,
                 reset_depth=reset_depth,
+                split_depth=split_depth,
                 source_profile=source_profile,
             )
         if zero_growth_add_failure and reset_depth < _ZERO_GROWTH_ADD_RESET_RETRY_LIMIT:
@@ -1376,6 +1613,7 @@ class NLMBatchIngestor:
                     "retry_depth": retry_depth,
                     "reset_depth": reset_depth,
                     "next_reset_depth": reset_depth + 1,
+                    "split_depth": split_depth,
                     "retry_delay_s": reset_delay_s,
                     "returncode": res.returncode,
                     "source_profile": source_profile,
@@ -1399,8 +1637,91 @@ class NLMBatchIngestor:
                 expected_total=expected_total,
                 retry_depth=0,
                 reset_depth=reset_depth + 1,
+                split_depth=split_depth,
                 source_profile=source_profile,
             )
+        if zero_growth_add_failure and len(batch_ids) > 1:
+            if split_depth >= _ZERO_GROWTH_ADD_MAX_SPLIT_DEPTH:
+                log_action(
+                    "nlm_batch_subbatch_add_split_circuit_opened",
+                    {
+                        "nb_id": self._nb_id,
+                        "subbatch_index": subbatch_index,
+                        "subbatch_size": len(batch_ids),
+                        "expected_total": expected_total,
+                        "retry_depth": retry_depth,
+                        "reset_depth": reset_depth,
+                        "split_depth": split_depth,
+                        "max_split_depth": _ZERO_GROWTH_ADD_MAX_SPLIT_DEPTH,
+                        "returncode": res.returncode,
+                        "failure_reason": self._last_add_failure_reason,
+                        "source_profile": source_profile,
+                        "source_count_before": source_count_before,
+                        "source_count_after": source_count_after,
+                        "stdout": (res.stdout or "")[:200],
+                        "stderr": (res.stderr or "")[:200],
+                    },
+                )
+            else:
+                split_index = max(1, len(batch_ids) // 2)
+                left_batch = batch_ids[:split_index]
+                right_batch = batch_ids[split_index:]
+                if not left_batch or not right_batch:
+                    # Defensive fallback: a non-empty split is required to self-heal.
+                    pass
+                else:
+                    log_action(
+                        "nlm_batch_subbatch_add_split_scheduled",
+                        {
+                            "nb_id": self._nb_id,
+                            "subbatch_index": subbatch_index,
+                            "subbatch_size": len(batch_ids),
+                            "split_index": split_index,
+                            "left_subbatch_size": len(left_batch),
+                            "right_subbatch_size": len(right_batch),
+                            "retry_depth": retry_depth,
+                            "reset_depth": reset_depth,
+                            "split_depth": split_depth,
+                            "next_split_depth": split_depth + 1,
+                            "max_split_depth": _ZERO_GROWTH_ADD_MAX_SPLIT_DEPTH,
+                            "failure_reason": self._last_add_failure_reason,
+                            "source_profile": source_profile,
+                            "stdout": (res.stdout or "")[:200],
+                            "stderr": (res.stderr or "")[:200],
+                        },
+                    )
+                    print(
+                        f"[NLM-Batch]   Sub-batch {subbatch_index} zero-growth add failure; "
+                        f"splitting into {len(left_batch)} and {len(right_batch)} source chunks"
+                    )
+                    left_added = self._add_sources_chunk(
+                        left_batch,
+                        subbatch_index=subbatch_index,
+                        expected_total=source_count_before + len(left_batch),
+                        retry_depth=0,
+                        reset_depth=reset_depth,
+                        split_depth=split_depth + 1,
+                        source_profile=summarize_video_ids(left_batch),
+                    )
+                    right_source_count_before = self._get_current_source_count()
+                    self._current_source_count = right_source_count_before
+                    right_added = self._add_sources_chunk(
+                        right_batch,
+                        subbatch_index=subbatch_index,
+                        expected_total=right_source_count_before + len(right_batch),
+                        retry_depth=0,
+                        reset_depth=reset_depth,
+                        split_depth=split_depth + 1,
+                        source_profile=summarize_video_ids(right_batch),
+                    )
+                    combined_added = list(left_added) + list(right_added)
+                    if len(combined_added) == len(batch_ids):
+                        self._last_add_failure_reason = None
+                        self._last_add_returncode = 0
+                    else:
+                        self._last_add_failure_reason = "source_add_failed"
+                        self._last_add_returncode = 1
+                    return combined_added
         log_action(
             "nlm_batch_subbatch_add_failed",
             {
@@ -1414,8 +1735,8 @@ class NLMBatchIngestor:
                 "source_profile": source_profile,
                 "source_count_before": source_count_before,
                 "source_count_after": source_count_after,
-                "retry_depth": retry_depth,
                 "reset_depth": reset_depth,
+                "split_depth": split_depth,
                 "failure_reason": _classify_subbatch_add_failure(res, materialization_waited=False),
                 "stdout": (res.stdout or "")[:200],
                 "stderr": (res.stderr or "")[:200],
@@ -1682,10 +2003,21 @@ class NLMBatchIngestor:
                 order_fallback_count = 0
                 missing_video_ids = []
         elif missing_video_ids:
-            if title_match_count == 0 and len(source_id_list) == len(batch_ids):
-                source_id_by_video_id = dict(zip(batch_ids, source_id_list))
-                missing_video_ids = []
-                order_fallback_count = len(batch_ids)
+            if len(source_id_list) == len(batch_ids):
+                fallback_video_ids = [vid for vid in batch_ids if vid not in source_id_by_video_id]
+                used_source_ids = {str(source_id).strip() for source_id in source_id_by_video_id.values() if str(source_id or "").strip()}
+                fallback_source_ids = [
+                    source_id
+                    for source_id in source_id_list
+                    if source_id not in used_source_ids
+                ]
+                if len(fallback_source_ids) == len(fallback_video_ids):
+                    for vid, source_id in zip(fallback_video_ids, fallback_source_ids):
+                        source_id_by_video_id[vid] = source_id
+                    missing_video_ids = []
+                    order_fallback_count = len(fallback_video_ids)
+                else:
+                    mapping_failure_reason = "Source mapping failed"
             else:
                 mapping_failure_reason = "Source mapping failed"
         duplicate_source_ids = []

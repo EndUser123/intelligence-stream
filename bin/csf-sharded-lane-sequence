@@ -1,0 +1,15 @@
+#!/usr/bin/env python
+"""Run the guarded sharded lane benchmark sequence."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from csf.sharded_lane_sequence import main
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

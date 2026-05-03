@@ -943,6 +943,39 @@ class TestReusableBatchLogging:
         assert completed["succeeded"] == 1
         assert completed["failed"] == 0
 
+    def test_reusable_batch_syncs_recreated_dead_notebook_id(self):
+        """If add recovery creates a new notebook, reusable state should follow the new id."""
+        batch_ids = ["vid3"]
+
+        with mock.patch("csf.nlm_batch._load_reusable_notebook_id", return_value="nb-existing"):
+            with mock.patch("csf.nlm_batch._save_reusable_notebook_id") as mock_save:
+                with mock.patch("csf.nlm_batch._clear_reusable_notebook_state"):
+                    ingestor = nlm_batch.NLMReusableIngestor()
+                    with mock.patch.object(ingestor, "_ensure_notebook", return_value=(False, "reuse")):
+                        with mock.patch.object(
+                            ingestor._ingestor,
+                            "_add_sources_in_subbatches",
+                            side_effect=lambda ids, subbatch_size: setattr(ingestor._ingestor, "_nb_id", "nb-fresh")
+                            or setattr(ingestor._ingestor, "_last_added_video_ids", list(ids))
+                            or list(ids),
+                        ) as mock_add:
+                            with mock.patch.object(
+                                ingestor._ingestor,
+                                "extract_transcripts",
+                                return_value={"vid3": (True, "text", None)},
+                            ):
+                                with mock.patch.object(ingestor._ingestor, "reset_sources") as mock_reset:
+                                    with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                        results = ingestor.process_batch(batch_ids)
+
+        assert results["vid3"][0] is True
+        assert ingestor._nb_id == "nb-fresh"
+        mock_add.assert_called_once_with(batch_ids, subbatch_size=ingestor._ingestor.batch_size)
+        mock_reset.assert_called_once()
+        mock_save.assert_any_call("nb-fresh")
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_batch_reusable_state_recovered" in log_names
+
     def test_reusable_batch_defers_cleanup_until_cadence_reached(self):
         """Cleanup should be skipped until the configured cadence is reached."""
         batch_ids = ["vid5"]
@@ -1735,8 +1768,8 @@ class TestSubBatchFailureMode:
         assert "nlm_batch_subbatch_add_notebook_reset_scheduled" in log_names
         assert "nlm_batch_subbatch_add_failed" in log_names
 
-    def test_zero_growth_add_failure_splits_and_recovers_after_reset(self):
-        """A multi-source zero-growth add failure should split and recover after the bounded reset fallback."""
+    def test_zero_growth_add_failure_does_not_split_after_reset(self):
+        """A multi-source zero-growth add failure should fail fast after retry/reset, not split."""
         ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
         ingestor._nb_id = "nb-123"
         add_response = type(
@@ -1744,48 +1777,35 @@ class TestSubBatchFailureMode:
             (),
             {"stdout": "", "stderr": "Could not add URL sources", "returncode": 1},
         )()
-        add_succeeded = type(
-            "CompletedProcess",
-            (),
-            {"stdout": "Source ID: s1", "stderr": "", "returncode": 0},
-        )()
 
-        with mock.patch.object(
-            ingestor,
-            "_get_current_source_count",
-            side_effect=[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2],
-        ):
-            with mock.patch.object(
-                ingestor,
-                "_run_cmd",
-                side_effect=[add_response, add_response, add_response, add_succeeded, add_succeeded],
-            ) as mock_run_cmd:
+        with mock.patch.object(ingestor, "_get_current_source_count", return_value=0):
+            with mock.patch.object(ingestor, "_run_cmd", return_value=add_response) as mock_run_cmd:
                 with mock.patch.object(ingestor, "_wait_for_sources_ready", return_value=True) as wait_mock:
                     with mock.patch("csf.nlm_batch.time.sleep") as mock_sleep:
                         with mock.patch.object(ingestor, "_rotate_notebook") as mock_rotate:
                             with mock.patch("csf.nlm_batch.log_action") as mock_log:
                                 result = ingestor._add_sources_chunk(["v1", "v2"], subbatch_index=1, expected_total=2)
 
-        assert result == ["v1", "v2"]
-        assert mock_run_cmd.call_count == 5
+        assert result == []
+        assert mock_run_cmd.call_count == 3
         assert mock_sleep.call_count == 2
         mock_sleep.assert_has_calls([mock.call(5.0), mock.call(5.0)])
         mock_rotate.assert_called_once()
-        assert wait_mock.call_count == 2
-        wait_mock.assert_has_calls(
-            [
-                mock.call(1, timeout=600, source_count_before_wait=0),
-                mock.call(2, timeout=600, source_count_before_wait=2),
-            ]
-        )
+        wait_mock.assert_not_called()
         log_names = [call.args[0] for call in mock_log.call_args_list]
         assert "nlm_batch_subbatch_add_retry_scheduled" in log_names
         assert "nlm_batch_subbatch_add_notebook_reset_scheduled" in log_names
-        assert "nlm_batch_subbatch_add_split_scheduled" in log_names
-        assert "nlm_batch_subbatch_add_failed" not in log_names
+        assert "nlm_batch_subbatch_zero_growth_terminal" in log_names
+        terminal = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_subbatch_zero_growth_terminal")
+        assert terminal["batch_video_id_count"] == 2
+        assert terminal["sample_video_ids"] == ["v1", "v2"]
+        assert len(terminal["batch_video_id_digest"]) == 16
+        assert "nlm_batch_subbatch_add_split_scheduled" not in log_names
+        assert "nlm_batch_subbatch_add_split_circuit_opened" not in log_names
+        assert "nlm_batch_subbatch_add_failed" in log_names
 
-    def test_zero_growth_add_failure_stops_after_two_split_levels(self):
-        """Broad zero-growth add failures should stop after a bounded two-level split tree."""
+    def test_zero_growth_add_failure_stops_without_split_tree(self):
+        """Broad zero-growth add failures should stop after retry/reset without recursive split work."""
         ingestor = nlm_batch.NLMBatchIngestor(batch_size=50)
         ingestor._nb_id = "nb-123"
         add_response = type(
@@ -1806,12 +1826,135 @@ class TestSubBatchFailureMode:
                             )
 
         assert result == []
-        assert mock_run_cmd.call_count == 9
+        assert mock_run_cmd.call_count == 3
         mock_rotate.assert_called_once()
         log_names = [call.args[0] for call in mock_log.call_args_list]
-        assert log_names.count("nlm_batch_subbatch_add_split_scheduled") == 3
-        assert "nlm_batch_subbatch_add_split_circuit_opened" in log_names
+        assert "nlm_batch_subbatch_add_split_scheduled" not in log_names
+        assert "nlm_batch_subbatch_add_split_circuit_opened" not in log_names
+        assert "nlm_batch_subbatch_zero_growth_terminal" in log_names
+        terminal = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_subbatch_zero_growth_terminal")
+        assert terminal["batch_video_id_count"] == 50
+        assert terminal["sample_video_ids"] == ["v0", "v1", "v2", "v3", "v4"]
+        assert len(terminal["batch_video_id_digest"]) == 16
         assert "nlm_batch_subbatch_add_failed" in log_names
+
+    def test_source_count_probe_failure_retries_then_resets_before_final_failure(self):
+        """A failed source-count probe should use the same bounded recovery path as zero-growth."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
+        ingestor._nb_id = "nb-123"
+        add_response = type(
+            "CompletedProcess",
+            (),
+            {"stdout": "", "stderr": "Could not add URL sources", "returncode": 1},
+        )()
+
+        def fake_probe():
+            ingestor._last_source_count_probe_ok = False
+            ingestor._last_source_count_probe_error = {
+                "returncode": 1,
+                "stderr": "source list failed",
+            }
+            return 0
+
+        with mock.patch.object(ingestor, "_get_current_source_count", side_effect=fake_probe):
+            with mock.patch.object(ingestor, "_run_cmd", return_value=add_response) as mock_run_cmd:
+                with mock.patch("csf.nlm_batch.time.sleep") as mock_sleep:
+                    with mock.patch.object(ingestor, "_rotate_notebook") as mock_rotate:
+                        with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                            result = ingestor._add_sources_chunk(["v1", "v2"], subbatch_index=1, expected_total=2)
+
+        assert result == []
+        assert mock_run_cmd.call_count == 3
+        assert mock_sleep.call_count == 2
+        mock_sleep.assert_has_calls([mock.call(5.0), mock.call(5.0)])
+        mock_rotate.assert_called_once()
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_batch_subbatch_add_retry_scheduled" in log_names
+        assert "nlm_batch_subbatch_add_notebook_reset_scheduled" in log_names
+        assert "nlm_batch_subbatch_source_count_probe_terminal" in log_names
+        terminal = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_subbatch_source_count_probe_terminal")
+        assert terminal["batch_video_id_count"] == 2
+        assert terminal["sample_video_ids"] == ["v1", "v2"]
+        assert terminal["source_count_probe_error"]["stderr"] == "source list failed"
+        failed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_subbatch_add_failed")
+        assert failed["failure_reason"] == "source_count_probe_failed"
+        assert failed["source_count_probe_error"]["stderr"] == "source list failed"
+        assert "nlm_batch_subbatch_zero_growth_terminal" not in log_names
+
+    def test_source_count_probe_not_found_recreates_dead_notebook_before_retry(self):
+        """A probe that returns NOT_FOUND should recreate the notebook instead of recycling the dead id."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=1)
+        ingestor._nb_id = "nb-old"
+
+        probe_not_found = type(
+            "CompletedProcess",
+            (),
+            {"returncode": 1, "stdout": json.dumps({"status": "error", "error": "API error (code 5): NOT_FOUND"}), "stderr": ""},
+        )()
+        probe_empty = type(
+            "CompletedProcess",
+            (),
+            {"returncode": 0, "stdout": json.dumps({"sources": []}), "stderr": ""},
+        )()
+        probe_ready = type(
+            "CompletedProcess",
+            (),
+            {"returncode": 0, "stdout": json.dumps({"sources": [{"id": "s1"}]}), "stderr": ""},
+        )()
+        add_failed = type(
+            "CompletedProcess",
+            (),
+            {"stdout": "", "stderr": "Could not add URL sources", "returncode": 1},
+        )()
+        add_succeeded = type(
+            "CompletedProcess",
+            (),
+            {"stdout": "Source ID: s1", "stderr": "", "returncode": 0},
+        )()
+        create_succeeded = type(
+            "CompletedProcess",
+            (),
+            {"stdout": "ID: nb-fresh", "stderr": "", "returncode": 0},
+        )()
+
+        with mock.patch.object(
+            ingestor,
+            "_run_cmd",
+            side_effect=[
+                probe_empty,
+                add_failed,
+                probe_not_found,
+                create_succeeded,
+                probe_empty,
+                add_succeeded,
+                probe_ready,
+                probe_ready,
+            ],
+        ) as mock_run_cmd:
+            with mock.patch.object(ingestor, "_rotate_notebook") as mock_rotate:
+                with mock.patch.object(ingestor, "_wait_for_sources_ready", return_value=True) as wait_mock:
+                    with mock.patch("csf.nlm_batch._clear_reusable_notebook_state") as mock_clear:
+                        with mock.patch("csf.nlm_batch._save_reusable_notebook_id") as mock_save:
+                            with mock.patch("csf.nlm_batch.time.sleep") as mock_sleep:
+                                with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                    result = ingestor._add_sources_chunk(["v1"], subbatch_index=1, expected_total=1)
+
+        assert result == ["v1"]
+        assert ingestor._nb_id == "nb-fresh"
+        mock_clear.assert_called_once()
+        mock_save.assert_called_once_with("nb-fresh")
+        mock_rotate.assert_not_called()
+        mock_sleep.assert_not_called()
+        assert mock_run_cmd.call_count == 8
+        assert mock_run_cmd.call_args_list[3].args[0] == ["notebook", "create", nlm_batch._get_reusable_notebook_title()]
+        wait_mock.assert_called_once_with(1, timeout=600, source_count_before_wait=1)
+
+        log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_batch_dead_notebook_recovery_scheduled" in log_names
+        assert "nlm_batch_dead_notebook_recreated" in log_names
+        assert "nlm_batch_subbatch_add_retry_scheduled" not in log_names
+        assert "nlm_batch_subbatch_add_notebook_reset_scheduled" not in log_names
+        assert "nlm_batch_subbatch_add_failed" not in log_names
 
     def test_zero_growth_add_failure_recovers_after_notebook_reset(self):
         """A zero-growth add failure should recover after the bounded notebook reset fallback."""
@@ -1918,9 +2061,40 @@ class TestNotebookCapRotation:
         """_get_current_source_count should return 0 when the list command fails."""
         ingestor = nlm_batch.NLMBatchIngestor()
         ingestor._nb_id = "nb-123"
-        with mock.patch.object(ingestor, "_run_cmd", return_value=type("CompletedProcess", (), {"returncode": 1, "stdout": "", "stderr": ""})()):
-            count = ingestor._get_current_source_count()
+        mock_response = type(
+            "CompletedProcess",
+            (),
+            {"returncode": 1, "stdout": "partial stdout", "stderr": "source list failed"},
+        )()
+        with mock.patch.object(ingestor, "_run_cmd", return_value=mock_response):
+            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                count = ingestor._get_current_source_count()
         assert count == 0
+        assert ingestor._last_source_count_probe_ok is False
+        assert ingestor._last_source_count_probe_error["returncode"] == 1
+        assert ingestor._last_source_count_probe_error["stderr"] == "source list failed"
+        mock_log.assert_called_once()
+        assert mock_log.call_args.args[0] == "nlm_batch_source_count_probe_failed"
+        assert mock_log.call_args.args[1]["nb_id"] == "nb-123"
+
+    def test_get_current_source_count_logs_parse_failure(self):
+        """Malformed source-list JSON should be distinct from a true empty source list."""
+        ingestor = nlm_batch.NLMBatchIngestor()
+        ingestor._nb_id = "nb-123"
+        mock_response = type(
+            "CompletedProcess",
+            (),
+            {"returncode": 0, "stdout": "{not json", "stderr": ""},
+        )()
+        with mock.patch.object(ingestor, "_run_cmd", return_value=mock_response):
+            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                count = ingestor._get_current_source_count()
+        assert count == 0
+        assert ingestor._last_source_count_probe_ok is False
+        assert ingestor._last_source_count_probe_error["error_type"] == "JSONDecodeError"
+        assert ingestor._last_source_count_probe_error["stdout"] == "{not json"
+        mock_log.assert_called_once()
+        assert mock_log.call_args.args[0] == "nlm_batch_source_count_probe_failed"
 
     def test_get_current_source_count_returns_0_when_no_nb_id(self):
         """_get_current_source_count should return 0 when no notebook is active."""

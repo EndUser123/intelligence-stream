@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import time
+import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -289,10 +290,22 @@ def _find_invalid_lane_artifacts(lane_output_root: Path) -> list[str]:
                 f"{path.relative_to(lane_output_root)}:{lineno}: default_profile_running "
                 f"profile={data.get('notebooklm_profile') or '<unknown>'}"
             )
-        if action == "nlm_batch_subbatch_add_failed" and data.get("failure_reason") == "source_add_failed":
+        if action == "nlm_batch_subbatch_add_failed" and data.get("failure_reason") in {"source_add_failed", "source_count_probe_failed"}:
             findings.append(
-                f"{path.relative_to(lane_output_root)}:{lineno}: source_add_failed "
+                f"{path.relative_to(lane_output_root)}:{lineno}: {data.get('failure_reason')} "
                 f"subbatch_size={data.get('subbatch_size') or '<unknown>'}"
+            )
+        if action == "nlm_batch_subbatch_zero_growth_terminal":
+            findings.append(
+                f"{path.relative_to(lane_output_root)}:{lineno}: zero_growth_source_add "
+                f"subbatch_size={data.get('subbatch_size') or '<unknown>'} "
+                f"sources={data.get('source_count_before') or 0}->{data.get('source_count_after') or 0}"
+            )
+        if action == "nlm_batch_subbatch_source_count_probe_terminal":
+            findings.append(
+                f"{path.relative_to(lane_output_root)}:{lineno}: source_count_probe_failed "
+                f"subbatch_size={data.get('subbatch_size') or '<unknown>'} "
+                f"sources={data.get('source_count_before') or 0}->{data.get('source_count_after') or 0}"
             )
     return findings
 
@@ -302,6 +315,15 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
     tmp_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
     tmp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     os.replace(tmp_path, path)
+
+
+def _tail_text(path: Path, max_chars: int = 2000) -> str:
+    if not path.exists():
+        return ""
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if len(text) <= max_chars:
+        return text
+    return text[-max_chars:]
 
 
 def load_lane_configs(path: Path) -> tuple[LaneConfig, ...]:
@@ -330,6 +352,7 @@ def _lane_env(
         env["YTIS_NLM_BROWSER_PROFILE_DIRECTORY"] = lane.browser_profile_directory
     else:
         env.pop("YTIS_NLM_BROWSER_PROFILE_DIRECTORY", None)
+    env["YTIS_BATCH_STATUS_DB_PATH"] = str(lane_output_root / "batch_status.sqlite")
     if lane.expected_email:
         env["YTIS_NLM_EXPECTED_EMAIL"] = lane.expected_email
     else:
@@ -416,6 +439,7 @@ def _run_lane(
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     aggregate = _aggregate_summary(summary, policy)
     return {
+        "status": "ok",
         "lane": lane.lane,
         "account_class": lane.account_class,
         "workers": lane.workers,
@@ -436,6 +460,41 @@ def _run_lane(
         "benchmark_summary_path": str(summary_path),
         "aggregate": aggregate,
         **aggregate,
+    }
+
+
+def _invalidated_lane_report(
+    *,
+    lane: LaneConfig,
+    output_root: Path,
+    exc: BaseException,
+    traceback_text: str,
+) -> dict[str, Any]:
+    lane_output_root = output_root / lane.lane
+    return {
+        "report_version": 1,
+        "status": "invalidated",
+        "lane": lane.lane,
+        "account_class": lane.account_class,
+        "workers": lane.workers,
+        "notebooklm_profile_prefix": lane.notebooklm_profile_prefix,
+        "notebooklm_profiles": list(lane.notebooklm_profiles),
+        "coordinator_notebooklm_profile": lane.coordinator_profile,
+        "browser_profile_root": str(lane.browser_profile_root),
+        "browser_profile_directory": lane.browser_profile_directory,
+        "worker_state_root": str(lane.worker_state_root),
+        "notebook_prefix": lane.notebook_prefix,
+        "startup_delay_s": lane.startup_delay_s,
+        "output_root": str(lane_output_root),
+        "benchmark_summary_path": str(lane_output_root / "benchmark_summary.json"),
+        "error_type": type(exc).__name__,
+        "error": str(exc),
+        "traceback": traceback_text,
+        "stderr_tail": _tail_text(lane_output_root / "lane.stderr.txt"),
+        "hot_path_success_count_total": 0,
+        "transcript_fallback_success_count_total": 0,
+        "fail_count_total": 0,
+        "processed_count_total": 0,
     }
 
 
@@ -466,6 +525,22 @@ def compute_combined_hot_path_vph(lane_reports: Iterable[dict[str, Any]]) -> dic
     }
 
 
+def _empty_combined_hot_path_vph() -> dict[str, Any]:
+    return {
+        "lane_count": 0,
+        "started_at": 0.0,
+        "finished_at": 0.0,
+        "wall_elapsed_s": 0.0,
+        "hot_path_success_count_total": 0,
+        "transcript_fallback_success_count_total": 0,
+        "fail_count_total": 0,
+        "processed_count_total": 0,
+        "hot_path_videos_per_hour": 0.0,
+        "transcript_fallback_videos_per_hour": 0.0,
+        "processed_per_hour": 0.0,
+    }
+
+
 def run_sharded_lane_series(
     *,
     lanes: Iterable[LaneConfig],
@@ -485,10 +560,10 @@ def run_sharded_lane_series(
     output_root.mkdir(parents=True, exist_ok=True)
     cohort_json.parent.mkdir(parents=True, exist_ok=True)
     report_path = output_root / "sharded_lane_series_summary.json"
-    report_path.unlink(missing_ok=True)
     base_env = os.environ.copy()
 
     lane_reports_by_name: dict[str, dict[str, Any]] = {}
+    failures: list[dict[str, str]] = []
     with ThreadPoolExecutor(max_workers=len(lane_configs)) as executor:
         futures = {
             executor.submit(
@@ -515,11 +590,44 @@ def run_sharded_lane_series(
         }
         for future in as_completed(futures):
             lane = futures[future]
-            lane_reports_by_name[lane.lane] = future.result()
+            try:
+                lane_reports_by_name[lane.lane] = future.result()
+            except Exception as exc:
+                traceback_text = "".join(
+                    traceback.format_exception(type(exc), exc, exc.__traceback__)
+                ).strip()
+                lane_reports_by_name[lane.lane] = _invalidated_lane_report(
+                    lane=lane,
+                    output_root=output_root,
+                    exc=exc,
+                    traceback_text=traceback_text,
+                )
+                failures.append(
+                    {
+                        "lane": lane.lane,
+                        "error_type": type(exc).__name__,
+                        "error": str(exc),
+                        "traceback": traceback_text,
+                        "stderr_tail": _tail_text(output_root / lane.lane / "lane.stderr.txt"),
+                    }
+                )
 
     lane_reports = [lane_reports_by_name[lane.lane] for lane in lane_configs]
-    combined = compute_combined_hot_path_vph(lane_reports)
+    successful_lane_reports = [report for report in lane_reports if report.get("status", "ok") == "ok"]
+    combined = (
+        compute_combined_hot_path_vph(successful_lane_reports)
+        if successful_lane_reports
+        else _empty_combined_hot_path_vph()
+    )
+    status = "ok" if not failures else "invalidated"
     report = {
+        "report_version": 1,
+        "status": status,
+        "invalidated": bool(failures),
+        "attempted_lane_count": len(lane_reports),
+        "successful_lane_count": len(successful_lane_reports),
+        "failure_count": len(failures),
+        "failures": failures,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "metric_contract": "combined_hot_path_videos_per_hour_excludes_whisper",
         "trace_root": str(trace_root),
@@ -582,6 +690,17 @@ def main(argv: list[str] | None = None) -> int:
         )
     )
     print(f"[sharded] summary={report['report_path']}")
+    if report.get("status") != "ok":
+        first_failure = report.get("failures", [{}])[0] if report.get("failures") else {}
+        print(
+            "[sharded] status={status} failures={failures} first_failure={lane}:{error}".format(
+                status=report.get("status"),
+                failures=int(report.get("failure_count") or 0),
+                lane=str(first_failure.get("lane") or ""),
+                error=str(first_failure.get("error") or ""),
+            )
+        )
+        return 1
     return 0
 
 

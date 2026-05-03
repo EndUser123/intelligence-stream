@@ -7,6 +7,7 @@ titles from the CLI list with our input IDs.
 """
 
 import json
+import hashlib
 import logging
 import os
 import subprocess
@@ -72,6 +73,16 @@ _NLM_CONTENT_BELOW_THRESHOLD_STATUS = "nlm_content_below_threshold"
 _LEGACY_NLM_CONTENT_BELOW_THRESHOLD_STATUS = "too_short"
 _ZERO_GROWTH_ADD_RESET_RETRY_LIMIT = 1
 _NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS = 0
+
+
+def _summarize_add_failure_batch_ids(batch_ids: List[str]) -> dict[str, object]:
+    """Return stable, compact identity fields for a failed source-add batch."""
+    digest_input = "\n".join(str(video_id) for video_id in batch_ids).encode("utf-8")
+    return {
+        "batch_video_id_count": len(batch_ids),
+        "sample_video_ids": [str(video_id) for video_id in batch_ids[:5]],
+        "batch_video_id_digest": hashlib.sha256(digest_input).hexdigest()[:16],
+    }
 
 
 def _get_nlm_auth_force_refresh_every_checks() -> int:
@@ -491,6 +502,14 @@ def _should_retry_source_content_fetch(status: str, res: subprocess.CompletedPro
     combined = f"{res.stdout or ''}\n{res.stderr or ''}".upper()
     transient_markers = ("NOT_FOUND", "RATE LIMIT", "TOO MANY REQUESTS", "TEMPORARILY UNAVAILABLE")
     return any(marker in combined for marker in transient_markers)
+
+
+def _source_count_probe_indicates_dead_notebook(probe_error: dict[str, object] | None) -> bool:
+    """Return True when a source-count probe says the notebook no longer exists."""
+    if not probe_error:
+        return False
+    combined = f"{probe_error.get('stdout') or ''}\n{probe_error.get('stderr') or ''}".upper()
+    return "API ERROR (CODE 5): NOT_FOUND" in combined or "NOT_FOUND" in combined
 
 
 def _should_defer_source_content_fetch(ytdlp_probe: dict[str, object], status: str) -> bool:
@@ -1075,7 +1094,6 @@ _MIN_TRANSCRIPT_CHARS = 500
 _MAX_SUBBATCH_RETRY_DEPTH = 4
 _ZERO_GROWTH_ADD_RETRY_LIMIT = 1
 _ZERO_GROWTH_ADD_RETRY_DELAY_S = 5.0
-_ZERO_GROWTH_ADD_MAX_SPLIT_DEPTH = 2
 
 # Dynamic throttling: rate limit detection and backoff
 _INITIAL_DELAY = 0.5       # seconds before first retry
@@ -1183,6 +1201,8 @@ class NLMBatchIngestor:
         self._last_extract_metrics: dict[str, object] | None = None
         self._current_source_count: int = 0
         self._video_ready_epoch_by_id: dict[str, float] = {}
+        self._last_source_count_probe_ok: bool = True
+        self._last_source_count_probe_error: dict[str, object] | None = None
 
     def _run_cmd(self, args: List[str], timeout: int = 300) -> subprocess.CompletedProcess:
         tracker = _get_tracker()
@@ -1374,15 +1394,15 @@ class NLMBatchIngestor:
         expected_total: int,
         retry_depth: int = 0,
         reset_depth: int = 0,
-        split_depth: int = 0,
+        dead_notebook_recreate_depth: int = 0,
         source_profile: Optional[dict[str, object]] = None,
     ) -> List[str]:
-        """Add one chunk, recursively splitting on add failures.
+        """Add one chunk with bounded retry/reset recovery on add failures.
 
-        The NotebookLM CLI occasionally returns a nonzero exit code for a large
-        add batch even though some sources were accepted. Splitting the failing
-        chunk helps isolate transient add failures and narrows any true bad URLs
-        to single-source retries instead of losing the whole 50-source block.
+        Zero-growth add failures are lane-invalidating after one retry and one
+        notebook reset. Splitting is intentionally avoided because an all-zero
+        add normally points at account/profile/service pressure, not a single
+        bad URL.
         """
         if not batch_ids:
             return []
@@ -1397,10 +1417,12 @@ class NLMBatchIngestor:
             source_profile = summarize_video_ids(batch_ids)
         # Log source count before add — this is the diagnostic key for capacity correlation
         source_count_before = self._get_current_source_count()
+        source_count_before_known = bool(self._last_source_count_probe_ok)
+        source_count_before_error = self._last_source_count_probe_error
         print(
             f"[NLM-Batch]   Adding sub-batch {subbatch_index} "
             f"({len(batch_ids)} sources, retry_depth={retry_depth}, "
-            f"split_depth={split_depth}, nb_sources_before={source_count_before})..."
+            f"reset_depth={reset_depth}, nb_sources_before={source_count_before})..."
         )
         log_action(
             "nlm_batch_subbatch_add_started",
@@ -1411,9 +1433,10 @@ class NLMBatchIngestor:
                 "expected_total": expected_total,
                 "retry_depth": retry_depth,
                 "reset_depth": reset_depth,
-                "split_depth": split_depth,
+                "dead_notebook_recreate_depth": dead_notebook_recreate_depth,
                 "source_profile": source_profile,
                 "source_count_before": source_count_before,
+                "source_count_probe_ok_before": source_count_before_known,
                 "started_at_epoch": chunk_started_at_epoch,
             },
         )
@@ -1428,8 +1451,15 @@ class NLMBatchIngestor:
         self._last_add_returncode = res.returncode
         # Probe source count after add — key diagnostic for capacity correlation
         source_count_after = self._get_current_source_count()
-        add_recovered = res.returncode != 0 and source_count_after >= source_count_before + len(batch_ids)
+        source_count_after_known = bool(self._last_source_count_probe_ok)
+        source_count_after_error = self._last_source_count_probe_error
+        add_recovered = (
+            res.returncode != 0
+            and source_count_after_known
+            and source_count_after >= source_count_before + len(batch_ids)
+        )
         added_count = len(batch_ids) if (res.returncode == 0 or add_recovered) else 0
+        count_probe_failed = res.returncode != 0 and (not source_count_before_known or not source_count_after_known)
         log_action(
             "nlm_batch_subbatch_add_completed",
             {
@@ -1439,14 +1469,16 @@ class NLMBatchIngestor:
                 "expected_total": expected_total,
                 "retry_depth": retry_depth,
                 "reset_depth": reset_depth,
-                "split_depth": split_depth,
+                "dead_notebook_recreate_depth": dead_notebook_recreate_depth,
                 "returncode": res.returncode,
                 "added_count": added_count,
                 "recovered": add_recovered,
                 "elapsed_s": add_cmd_elapsed_s,
                 "source_profile": source_profile,
                 "source_count_before": source_count_before,
+                "source_count_probe_ok_before": source_count_before_known,
                 "source_count_after": source_count_after,
+                "source_count_probe_ok_after": source_count_after_known,
                 "failure_reason": self._last_add_failure_reason,
                 "stdout": (res.stdout or "")[:200],
                 "stderr": (res.stderr or "")[:200],
@@ -1465,7 +1497,6 @@ class NLMBatchIngestor:
                     "expected_total": expected_total,
                     "retry_depth": retry_depth,
                     "reset_depth": reset_depth,
-                    "split_depth": split_depth,
                     "source_profile": source_profile,
                     "source_count_before_wait": source_count_after,
                     "timeout_s": DEFAULT_NOTEBOOKLM_SOURCE_MATERIALIZATION_TIMEOUT_S,
@@ -1493,7 +1524,6 @@ class NLMBatchIngestor:
                         "expected_total": expected_total,
                         "retry_depth": retry_depth,
                         "reset_depth": reset_depth,
-                        "split_depth": split_depth,
                         "source_profile": source_profile,
                         "failure_reason": "materialization_wait_failed",
                         "elapsed_s": wait_elapsed_s,
@@ -1520,7 +1550,6 @@ class NLMBatchIngestor:
                         "expected_total": expected_total,
                         "retry_depth": retry_depth,
                         "reset_depth": reset_depth,
-                        "split_depth": split_depth,
                         "source_profile": source_profile,
                         "elapsed_s": wait_elapsed_s,
                         "source_count_after_wait": self._get_current_source_count(),
@@ -1547,7 +1576,6 @@ class NLMBatchIngestor:
                         "expected_source_id_count": len(batch_ids),
                         "retry_depth": retry_depth,
                         "reset_depth": reset_depth,
-                        "split_depth": split_depth,
                         "source_profile": source_profile,
                     },
                 )
@@ -1563,8 +1591,54 @@ class NLMBatchIngestor:
             print(f"[NLM-Batch]   stderr: {res.stderr[:200]}")
 
         self._last_add_failure_reason = _classify_subbatch_add_failure(res, materialization_waited=False)
-        zero_growth_add_failure = res.returncode != 0 and source_count_after == source_count_before
-        if zero_growth_add_failure and reset_depth == 0 and retry_depth < _ZERO_GROWTH_ADD_RETRY_LIMIT:
+        if count_probe_failed:
+            self._last_add_failure_reason = "source_count_probe_failed"
+        zero_growth_add_failure = (
+            res.returncode != 0
+            and source_count_before_known
+            and source_count_after_known
+            and source_count_after == source_count_before
+        )
+        failure_is_probe_or_zero_growth = zero_growth_add_failure or count_probe_failed
+        dead_notebook_probe = count_probe_failed and _source_count_probe_indicates_dead_notebook(source_count_after_error)
+        if dead_notebook_probe and dead_notebook_recreate_depth == 0:
+            log_action(
+                "nlm_batch_dead_notebook_recovery_scheduled",
+                {
+                    "nb_id": self._nb_id,
+                    "subbatch_index": subbatch_index,
+                    "subbatch_size": len(batch_ids),
+                    "expected_total": expected_total,
+                    "retry_depth": retry_depth,
+                    "reset_depth": reset_depth,
+                    "source_profile": source_profile,
+                    "source_count_before": source_count_before,
+                    "source_count_probe_ok_before": source_count_before_known,
+                    "source_count_after": source_count_after,
+                    "source_count_probe_ok_after": source_count_after_known,
+                    "source_count_probe_error": source_count_after_error,
+                    "failure_reason": self._last_add_failure_reason,
+                    "stdout": (res.stdout or "")[:200],
+                    "stderr": (res.stderr or "")[:200],
+                },
+            )
+            print(
+                f"[NLM-Batch]   Sub-batch {subbatch_index} notebook missing; "
+                f"creating a fresh notebook and retrying"
+            )
+            if self._recover_dead_notebook():
+                return self._add_sources_chunk(
+                    batch_ids,
+                    subbatch_index=subbatch_index,
+                    expected_total=expected_total,
+                    retry_depth=0,
+                    reset_depth=0,
+                    dead_notebook_recreate_depth=1,
+                    source_profile=source_profile,
+                )
+            self._last_add_failure_reason = "dead_notebook_recreate_failed"
+            return []
+        if failure_is_probe_or_zero_growth and reset_depth == 0 and retry_depth < _ZERO_GROWTH_ADD_RETRY_LIMIT:
             retry_delay_s = _ZERO_GROWTH_ADD_RETRY_DELAY_S
             log_action(
                 "nlm_batch_subbatch_add_retry_scheduled",
@@ -1576,19 +1650,21 @@ class NLMBatchIngestor:
                     "retry_depth": retry_depth,
                     "next_retry_depth": retry_depth + 1,
                     "reset_depth": reset_depth,
-                    "split_depth": split_depth,
+                    "dead_notebook_recreate_depth": dead_notebook_recreate_depth,
                     "retry_delay_s": retry_delay_s,
                     "returncode": res.returncode,
                     "source_profile": source_profile,
                     "source_count_before": source_count_before,
+                    "source_count_probe_ok_before": source_count_before_known,
                     "source_count_after": source_count_after,
+                    "source_count_probe_ok_after": source_count_after_known,
                     "failure_reason": self._last_add_failure_reason,
                     "stdout": (res.stdout or "")[:200],
                     "stderr": (res.stderr or "")[:200],
                 },
             )
             print(
-                f"[NLM-Batch]   Sub-batch {subbatch_index} zero-growth add failure; "
+                f"[NLM-Batch]   Sub-batch {subbatch_index} zero-growth/probe add failure; "
                 f"retrying in {retry_delay_s:.1f}s (retry_depth={retry_depth})"
             )
             time.sleep(retry_delay_s)
@@ -1598,10 +1674,10 @@ class NLMBatchIngestor:
                 expected_total=expected_total,
                 retry_depth=retry_depth + 1,
                 reset_depth=reset_depth,
-                split_depth=split_depth,
+                dead_notebook_recreate_depth=dead_notebook_recreate_depth,
                 source_profile=source_profile,
             )
-        if zero_growth_add_failure and reset_depth < _ZERO_GROWTH_ADD_RESET_RETRY_LIMIT:
+        if failure_is_probe_or_zero_growth and reset_depth < _ZERO_GROWTH_ADD_RESET_RETRY_LIMIT:
             reset_delay_s = _ZERO_GROWTH_ADD_RETRY_DELAY_S
             log_action(
                 "nlm_batch_subbatch_add_notebook_reset_scheduled",
@@ -1613,19 +1689,21 @@ class NLMBatchIngestor:
                     "retry_depth": retry_depth,
                     "reset_depth": reset_depth,
                     "next_reset_depth": reset_depth + 1,
-                    "split_depth": split_depth,
+                    "dead_notebook_recreate_depth": dead_notebook_recreate_depth,
                     "retry_delay_s": reset_delay_s,
                     "returncode": res.returncode,
                     "source_profile": source_profile,
                     "source_count_before": source_count_before,
+                    "source_count_probe_ok_before": source_count_before_known,
                     "source_count_after": source_count_after,
+                    "source_count_probe_ok_after": source_count_after_known,
                     "failure_reason": self._last_add_failure_reason,
                     "stdout": (res.stdout or "")[:200],
                     "stderr": (res.stderr or "")[:200],
                 },
             )
             print(
-                f"[NLM-Batch]   Sub-batch {subbatch_index} zero-growth add failure; "
+                f"[NLM-Batch]   Sub-batch {subbatch_index} zero-growth/probe add failure; "
                 f"resetting notebook and retrying in {reset_delay_s:.1f}s "
                 f"(retry_depth={retry_depth}, reset_depth={reset_depth})"
             )
@@ -1637,94 +1715,72 @@ class NLMBatchIngestor:
                 expected_total=expected_total,
                 retry_depth=0,
                 reset_depth=reset_depth + 1,
-                split_depth=split_depth,
+                dead_notebook_recreate_depth=dead_notebook_recreate_depth,
                 source_profile=source_profile,
             )
-        if zero_growth_add_failure and len(batch_ids) > 1:
-            if split_depth >= _ZERO_GROWTH_ADD_MAX_SPLIT_DEPTH:
-                log_action(
-                    "nlm_batch_subbatch_add_split_circuit_opened",
-                    {
-                        "nb_id": self._nb_id,
-                        "subbatch_index": subbatch_index,
-                        "subbatch_size": len(batch_ids),
-                        "expected_total": expected_total,
-                        "retry_depth": retry_depth,
-                        "reset_depth": reset_depth,
-                        "split_depth": split_depth,
-                        "max_split_depth": _ZERO_GROWTH_ADD_MAX_SPLIT_DEPTH,
-                        "returncode": res.returncode,
-                        "failure_reason": self._last_add_failure_reason,
-                        "source_profile": source_profile,
-                        "source_count_before": source_count_before,
-                        "source_count_after": source_count_after,
-                        "stdout": (res.stdout or "")[:200],
-                        "stderr": (res.stderr or "")[:200],
-                    },
-                )
-            else:
-                split_index = max(1, len(batch_ids) // 2)
-                left_batch = batch_ids[:split_index]
-                right_batch = batch_ids[split_index:]
-                if not left_batch or not right_batch:
-                    # Defensive fallback: a non-empty split is required to self-heal.
-                    pass
-                else:
-                    log_action(
-                        "nlm_batch_subbatch_add_split_scheduled",
-                        {
-                            "nb_id": self._nb_id,
-                            "subbatch_index": subbatch_index,
-                            "subbatch_size": len(batch_ids),
-                            "split_index": split_index,
-                            "left_subbatch_size": len(left_batch),
-                            "right_subbatch_size": len(right_batch),
-                            "retry_depth": retry_depth,
-                            "reset_depth": reset_depth,
-                            "split_depth": split_depth,
-                            "next_split_depth": split_depth + 1,
-                            "max_split_depth": _ZERO_GROWTH_ADD_MAX_SPLIT_DEPTH,
-                            "failure_reason": self._last_add_failure_reason,
-                            "source_profile": source_profile,
-                            "stdout": (res.stdout or "")[:200],
-                            "stderr": (res.stderr or "")[:200],
-                        },
-                    )
-                    print(
-                        f"[NLM-Batch]   Sub-batch {subbatch_index} zero-growth add failure; "
-                        f"splitting into {len(left_batch)} and {len(right_batch)} source chunks"
-                    )
-                    left_added = self._add_sources_chunk(
-                        left_batch,
-                        subbatch_index=subbatch_index,
-                        expected_total=source_count_before + len(left_batch),
-                        retry_depth=0,
-                        reset_depth=reset_depth,
-                        split_depth=split_depth + 1,
-                        source_profile=summarize_video_ids(left_batch),
-                    )
-                    right_source_count_before = self._get_current_source_count()
-                    self._current_source_count = right_source_count_before
-                    right_added = self._add_sources_chunk(
-                        right_batch,
-                        subbatch_index=subbatch_index,
-                        expected_total=right_source_count_before + len(right_batch),
-                        retry_depth=0,
-                        reset_depth=reset_depth,
-                        split_depth=split_depth + 1,
-                        source_profile=summarize_video_ids(right_batch),
-                    )
-                    combined_added = list(left_added) + list(right_added)
-                    if len(combined_added) == len(batch_ids):
-                        self._last_add_failure_reason = None
-                        self._last_add_returncode = 0
-                    else:
-                        self._last_add_failure_reason = "source_add_failed"
-                        self._last_add_returncode = 1
-                    return combined_added
+        terminal_batch_identity = _summarize_add_failure_batch_ids(batch_ids)
+        source_count_probe_error = (
+            source_count_after_error
+            if not source_count_after_known
+            else source_count_before_error
+        )
+        if zero_growth_add_failure:
+            log_action(
+                "nlm_batch_subbatch_zero_growth_terminal",
+                {
+                    **terminal_batch_identity,
+                    "nb_id": self._nb_id,
+                    "subbatch_index": subbatch_index,
+                    "subbatch_size": len(batch_ids),
+                    "expected_total": expected_total,
+                    "retry_depth": retry_depth,
+                    "reset_depth": reset_depth,
+                    "returncode": res.returncode,
+                    "elapsed_s": add_cmd_elapsed_s,
+                    "source_profile": source_profile,
+                    "source_count_before": source_count_before,
+                    "source_count_probe_ok_before": source_count_before_known,
+                    "source_count_after": source_count_after,
+                    "source_count_probe_ok_after": source_count_after_known,
+                    "source_count_probe_error_before": source_count_before_error,
+                    "source_count_probe_error_after": source_count_after_error,
+                    "source_count_probe_error": source_count_probe_error,
+                    "failure_reason": self._last_add_failure_reason,
+                    "stdout": (res.stdout or "")[:500],
+                    "stderr": (res.stderr or "")[:500],
+                    "dead_notebook_recreate_depth": dead_notebook_recreate_depth,
+                },
+            )
+        elif count_probe_failed:
+            log_action(
+                "nlm_batch_subbatch_source_count_probe_terminal",
+                {
+                    **terminal_batch_identity,
+                    "nb_id": self._nb_id,
+                    "subbatch_index": subbatch_index,
+                    "subbatch_size": len(batch_ids),
+                    "expected_total": expected_total,
+                    "retry_depth": retry_depth,
+                    "reset_depth": reset_depth,
+                    "returncode": res.returncode,
+                    "elapsed_s": add_cmd_elapsed_s,
+                    "source_profile": source_profile,
+                    "source_count_before": source_count_before,
+                    "source_count_probe_ok_before": source_count_before_known,
+                    "source_count_after": source_count_after,
+                    "source_count_probe_ok_after": source_count_after_known,
+                    "source_count_probe_error_before": source_count_before_error,
+                    "source_count_probe_error_after": source_count_after_error,
+                    "source_count_probe_error": source_count_probe_error,
+                    "failure_reason": self._last_add_failure_reason,
+                    "stdout": (res.stdout or "")[:500],
+                    "stderr": (res.stderr or "")[:500],
+                },
+            )
         log_action(
             "nlm_batch_subbatch_add_failed",
             {
+                **terminal_batch_identity,
                 "nb_id": self._nb_id,
                 "subbatch_index": subbatch_index,
                 "subbatch_size": len(batch_ids),
@@ -1734,10 +1790,14 @@ class NLMBatchIngestor:
                 "elapsed_s": add_cmd_elapsed_s,
                 "source_profile": source_profile,
                 "source_count_before": source_count_before,
+                "source_count_probe_ok_before": source_count_before_known,
                 "source_count_after": source_count_after,
+                "source_count_probe_ok_after": source_count_after_known,
+                "source_count_probe_error_before": source_count_before_error,
+                "source_count_probe_error_after": source_count_after_error,
+                "source_count_probe_error": source_count_probe_error,
                 "reset_depth": reset_depth,
-                "split_depth": split_depth,
-                "failure_reason": _classify_subbatch_add_failure(res, materialization_waited=False),
+                "failure_reason": self._last_add_failure_reason,
                 "stdout": (res.stdout or "")[:200],
                 "stderr": (res.stderr or "")[:200],
             },
@@ -2784,18 +2844,68 @@ class NLMBatchIngestor:
 
     def _get_current_source_count(self) -> int:
         """Query the current source count in the active notebook."""
+        self._last_source_count_probe_ok = True
+        self._last_source_count_probe_error = None
         if not self._nb_id:
             return 0
         res = self._run_cmd(["source", "list", self._nb_id, "--json"])
         if res.returncode != 0:
+            self._last_source_count_probe_ok = False
+            auth_context = _get_nlm_auth_context()
+            self._last_source_count_probe_error = {
+                "nb_id": self._nb_id,
+                "returncode": res.returncode,
+                "notebooklm_profile": auth_context.profile,
+                "expected_email": auth_context.expected_email or None,
+                "stdout": (res.stdout or "")[:500],
+                "stderr": (res.stderr or "")[:500],
+            }
+            log_action("nlm_batch_source_count_probe_failed", self._last_source_count_probe_error)
             return 0
         try:
             sources = json.loads(res.stdout)
             if isinstance(sources, dict):
                 sources = sources.get("sources", [])
             return len(sources)
-        except Exception:
+        except Exception as exc:
+            self._last_source_count_probe_ok = False
+            auth_context = _get_nlm_auth_context()
+            self._last_source_count_probe_error = {
+                "nb_id": self._nb_id,
+                "returncode": res.returncode,
+                "notebooklm_profile": auth_context.profile,
+                "expected_email": auth_context.expected_email or None,
+                "error_type": type(exc).__name__,
+                "error": str(exc)[:500],
+                "stdout": (res.stdout or "")[:500],
+                "stderr": (res.stderr or "")[:500],
+            }
+            log_action("nlm_batch_source_count_probe_failed", self._last_source_count_probe_error)
             return 0
+
+    def _recover_dead_notebook(self) -> bool:
+        """Drop stale reusable state and create a fresh notebook."""
+        old_nb_id = self._nb_id
+        _clear_reusable_notebook_state()
+        self._nb_id = None
+        self._current_source_count = 0
+        self._last_source_count_probe_ok = True
+        self._last_source_count_probe_error = None
+        self.create_batch_notebook([])
+        log_action(
+            "nlm_batch_dead_notebook_recreated",
+            {
+                "old_nb_id": old_nb_id,
+                "nb_id": self._nb_id,
+                "created_new_notebook": bool(self._nb_id),
+                "setup_mode": "create" if self._nb_id else "create_failed",
+                "notebooklm_profile": _get_notebooklm_profile(),
+                "state_path": str(_get_reusable_notebook_state_path()),
+            },
+        )
+        if self._nb_id:
+            _save_reusable_notebook_id(self._nb_id)
+        return bool(self._nb_id)
 
     def _rotate_notebook(self) -> None:
         """Recycle the current notebook by clearing sources and keeping the same notebook."""
@@ -3220,6 +3330,19 @@ class NLMReusableIngestor:
                 subbatch_size=self._ingestor.batch_size,
             )
             add_sources_elapsed_s = round(time.monotonic() - add_sources_started_at, 3)
+            if self._ingestor._nb_id and self._ingestor._nb_id != self._nb_id:
+                old_nb_id = self._nb_id
+                self._nb_id = self._ingestor._nb_id
+                _save_reusable_notebook_id(self._nb_id)
+                log_action(
+                    "nlm_batch_reusable_state_recovered",
+                    {
+                        "old_nb_id": old_nb_id,
+                        "nb_id": self._nb_id,
+                        "state_path": str(_get_reusable_notebook_state_path()),
+                        "notebooklm_profile": _get_notebooklm_profile(),
+                    },
+                )
             setup_mode = "reuse_add"
         elif self._ingestor._last_added_video_ids is not None:
             add_sources_elapsed_s = 0.0

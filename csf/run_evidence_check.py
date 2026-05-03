@@ -9,10 +9,11 @@ from pathlib import Path
 
 
 REQUIRED_SUMMARY_NAME = "sharded_lane_series_summary.json"
+EXPECTED_REPORT_VERSION = 1
 FORBIDDEN_MARKERS = (
     "default_profile_running",
     "source_add_failed",
-    "nlm_batch_subbatch_add_split_circuit_opened",
+    "nlm_batch_subbatch_zero_growth_terminal",
 )
 OPTIONAL_REQUIRED_MARKERS = ("nlm_auth_forced_refresh_scheduled",)
 
@@ -75,6 +76,20 @@ def inspect_run_root(run_root: Path, *, require_forced_refresh_marker: bool = Fa
 
     if not summary_path.exists():
         reasons.append(f"missing summary: {summary_path}")
+    else:
+        try:
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            reasons.append(f"summary is not valid JSON: {summary_path}: {exc}")
+        else:
+            report_version = summary.get("report_version")
+            if report_version != EXPECTED_REPORT_VERSION:
+                reasons.append(
+                    f"summary report_version is {report_version!r}; expected {EXPECTED_REPORT_VERSION}: {summary_path}"
+                )
+            summary_status = str(summary.get("status") or "ok")
+            if summary_status != "ok":
+                reasons.append(f"summary status is {summary_status}: {summary_path}")
 
     jsonl_paths = _iter_jsonl_paths(run_root)
     if not jsonl_paths:

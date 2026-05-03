@@ -29,6 +29,7 @@ Each lane must have an isolated namespace for:
 The CLI profile and Chrome profile directory for a lane must represent the same Google account.
 The benchmark now fails closed if a lane profile has no account mapping. For a new lane, set `expected_email`
 in the lane JSON or add the profile to the auth-family map before starting a run.
+Each lane also gets its own `YTIS_BATCH_STATUS_DB_PATH` under the lane output root so the synthetic source seed does not race across concurrent lanes.
 When the worker auth profiles are not prefix-derived, set `notebooklm_profiles` to the exact CLI profile names in worker order.
 For the YT-IS Pro/Free lanes, keep the browser roots lane-specific and persistent:
 
@@ -78,6 +79,7 @@ Save a config like this as `P:/packages/yt-is/.logs/sharded_lane_series/pro_free
 ## Command
 
 Workers are lane-specific in the JSON config.
+Use `python P:/packages/yt-is/bin/csf-sharded-lane-sequence --lane-config <lane-config> --run-root <run-root>` for the guarded sequence. It runs doctor, smoke, evidence check, then soak, writes smoke and soak outputs under `<run-root>/smoke` and `<run-root>/soak` by default, and reads the shared benchmark trace corpus from `P:/packages/yt-is/.logs/worker_count_trials` unless you pass `--trace-root`. The same trace corpus is used for both phases.
 
 ## Dedicated Browser Auth Refresh
 
@@ -89,10 +91,28 @@ For a full repeated-refresh validation workflow, use [`notebooklm-auth-robustnes
 
 Use this order for a new benchmark root:
 
-1. `python P:/packages/yt-is/bin/csf-nlm-worker-auth doctor --lane-config <lane-config> --run-root <run-root>`
-1. Short smoke run with a fresh output root
-1. `python P:/packages/yt-is/bin/csf-run-evidence-check --run-root <run-root>`
+1. `python P:/packages/yt-is/bin/csf-sharded-lane-sequence --lane-config <lane-config> --run-root <run-root>`
+1. If you need the phases manually, run `doctor -> smoke -> evidence check -> soak` in that order and keep the smoke and soak output roots separate.
+1. `csf-run-evidence-check` only passes when the smoke root has a versioned summary with `report_version=1`, `status=ok`, and no forbidden markers.
 1. Long soak only after the doctor, smoke, and evidence check all pass
+
+`csf-sharded-lane-series` always rewrites `<run-root>/sharded_lane_series_summary.json`.
+New summaries are versioned with `report_version=1`.
+If any lane fails or is invalidated, the summary is still durable, but the top-level
+`status` is `invalidated`, `failure_count` is nonzero, and the CLI exits nonzero.
+Do not treat `combined` metrics from an invalidated summary as throughput evidence;
+they are diagnostic only and may include only lanes that reached `status="ok"`.
+
+## Source-Add Failure Policy
+
+Zero-growth NotebookLM source-add failures are not split into smaller chunks. If `nlm source add` returns nonzero and the notebook source count stays unchanged after one retry and one notebook reset, the worker logs `nlm_batch_subbatch_zero_growth_terminal`, then `nlm_batch_subbatch_add_failed` with `failure_reason="source_add_failed"`. The sharded runner and evidence checker treat this as invalid run evidence because the failure points at account/profile/service pressure, not an individual bad URL that smaller chunks are likely to isolate.
+
+## Run-Root Cleanup Policy
+
+- Keep a failed or partial smoke/soak root only until a newer successful root exists for the same hypothesis.
+- Once a successful replacement exists, prune older partial roots so the next run starts from a small, unambiguous evidence set.
+- Never reuse a benchmark root in place for a fresh run. A dirty root is invalid preflight evidence, even if it only contains partial cohort files.
+- For the current source-add smoke series, `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_source_add_smoke_v5` is the clean successful root. The earlier `v1` through `v4` roots are disposable partial attempts and can be removed after their evidence has been captured in the docs or registry.
 
 Preferred worker-profile repair after worker `01` for each account is valid:
 

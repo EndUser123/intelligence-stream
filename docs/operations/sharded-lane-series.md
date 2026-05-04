@@ -2,6 +2,9 @@
 
 Use this benchmark to test whether independent NotebookLM account lanes can exceed the current single-lane sustained hot-path ceiling.
 
+For the next controlled search across 2-lane and 3-lane candidates, use
+[`optimal-throughput-candidate-test-plan.md`](optimal-throughput-candidate-test-plan.md).
+
 ## Current Hypothesis
 
 The best single-lane sustained hot-path result is about `3928` videos/hour on the narrow/captioned cohort with:
@@ -129,6 +132,7 @@ Current auth contract:
 - `csf-nlm-worker-auth doctor` is the fast preflight gate for a benchmark root: it validates the lane config, confirms the run root is empty, and refuses to start a run on dirty evidence.
 - `csf-nlm-worker-auth doctor` also fails closed when a lane profile has no expected-account mapping.
 - `csf-sharded-lane-series` pins `INTELLIGENCE_STREAM_LOG_DIR` into each lane output root so auth markers and lane events stay inside the benchmark evidence tree.
+- The guarded sequence records `post_run_hygiene` in the top-level summary and reaps any lingering default NotebookLM `chrome-profile` after soak; a transient shared-profile intrusion is cleaned up, but a persistent one remains a failure signal.
 - `csf/nlm_batch.py` self-heals cleanup commands if a transient default `chrome-profile` appears after the batch work is already complete, so a stale shared-profile intrusion does not invalidate an otherwise successful run.
 - The second free account lane is defined in [`P:/packages/yt-is/.logs/sharded_lane_series/pro_free_hotmail_lanes.json`](../../.logs/sharded_lane_series/pro_free_hotmail_lanes.json) and uses `ytis-free2-worker-01` through `ytis-free2-worker-04` on `brsthomson@hotmail.com`.
 - The canonical evidence index is [Evidence Index](evidence/README.md); treat full run roots as runtime output, not the source of truth.

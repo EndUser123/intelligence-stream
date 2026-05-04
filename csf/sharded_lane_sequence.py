@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from csf.run_evidence_check import inspect_run_root
+from csf import nlm_auth_guard
 from csf.sharded_lane_series import (
     DEFAULT_BATCH_SIZE,
     DEFAULT_LIMIT,
@@ -16,16 +17,63 @@ from csf.sharded_lane_series import (
     DEFAULT_SOURCE_URL,
     DEFAULT_TRACE_ROOT,
     doctor_lane_setup,
+    _write_json_atomic,
     run_sharded_lane_series,
 )
 
 
 DEFAULT_SMOKE_LIMIT = 50
 DEFAULT_SMOKE_BATCH_SIZE = 25
+SUMMARY_NAME = "sharded_lane_series_summary.json"
 
 
 def _print_sequence_header(step: str, *, root: Path) -> None:
     print(f"[sequence] {step} root={root}")
+
+
+def _write_sequence_summary(
+    *,
+    run_root: Path,
+    smoke_report: dict[str, Any],
+    soak_report: dict[str, Any] | None = None,
+    post_run_hygiene: dict[str, Any] | None = None,
+) -> Path:
+    summary_path = run_root / SUMMARY_NAME
+    summary = dict(soak_report or smoke_report)
+    summary["report_path"] = str(summary_path)
+    summary["sequence_smoke_report_path"] = str(smoke_report["report_path"])
+    if soak_report is not None:
+        summary["sequence_soak_report_path"] = str(soak_report["report_path"])
+    if post_run_hygiene is not None:
+        summary["post_run_hygiene"] = dict(post_run_hygiene)
+    _write_json_atomic(summary_path, summary)
+    return summary_path
+
+
+def _check_post_run_default_profile_hygiene() -> dict[str, Any]:
+    detected_pids = sorted(nlm_auth_guard.default_chrome_profile_pids())
+    if not detected_pids:
+        return {
+            "status": "clean",
+            "detected_count": 0,
+            "reaped_count": 0,
+            "remaining_count": 0,
+            "detected_pids": [],
+            "reaped_pids": [],
+            "remaining_pids": [],
+        }
+    reaped_pids = sorted(nlm_auth_guard.reap_default_chrome_profile())
+    remaining_pids = sorted(nlm_auth_guard.default_chrome_profile_pids())
+    status = "clean" if not remaining_pids else "still_running"
+    return {
+        "status": status,
+        "detected_count": len(detected_pids),
+        "reaped_count": len(reaped_pids),
+        "remaining_count": len(remaining_pids),
+        "detected_pids": detected_pids,
+        "reaped_pids": reaped_pids,
+        "remaining_pids": remaining_pids,
+    }
 
 
 def _run_phase(
@@ -92,6 +140,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     run_root = Path(args.run_root)
+    run_summary_path = run_root / SUMMARY_NAME
+    try:
+        run_summary_path.unlink()
+    except FileNotFoundError:
+        pass
     smoke_output_root = Path(args.smoke_output_root) if args.smoke_output_root else run_root / "smoke"
     soak_output_root = Path(args.soak_output_root) if args.soak_output_root else run_root / "soak"
     base_trace_root = Path(args.trace_root)
@@ -143,6 +196,19 @@ def main(argv: list[str] | None = None) -> int:
         python_executable=args.python_executable,
         reusable_pipeline_mode=args.reusable_pipeline_mode,
     )
+    post_run_hygiene = _check_post_run_default_profile_hygiene()
+    if post_run_hygiene["status"] != "clean":
+        print(
+            "[sequence] WARN: default NotebookLM chrome-profile still running after soak: "
+            f"pids={post_run_hygiene['remaining_pids']}"
+        )
+    sequence_report_path = _write_sequence_summary(
+        run_root=run_root,
+        smoke_report=smoke_report,
+        soak_report=soak_report,
+        post_run_hygiene=post_run_hygiene,
+    )
+    print(f"[sequence] summary={sequence_report_path}")
     print(f"[sequence] soak summary={soak_report['report_path']}")
     if soak_report.get("status") != "ok":
         print(
@@ -153,6 +219,8 @@ def main(argv: list[str] | None = None) -> int:
                 error=str((soak_report.get("failures") or [{}])[0].get("error") or ""),
             )
         )
+        return 1
+    if post_run_hygiene["status"] != "clean":
         return 1
     print("[sequence] status=ok")
     return 0

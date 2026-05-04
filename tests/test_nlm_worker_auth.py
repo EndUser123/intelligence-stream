@@ -220,6 +220,11 @@ def test_expected_email_for_profile_includes_second_free_account():
     assert nlm_worker_auth.expected_email_for_profile("ytis-free2-worker-04") == "brsthomson@hotmail.com"
 
 
+def test_expected_email_for_profile_includes_fifth_workers_for_current_lanes():
+    assert nlm_worker_auth.expected_email_for_profile("ytis-pro-worker-05") == "a.hominidae@gmail.com"
+    assert nlm_worker_auth.expected_email_for_profile("ytis-free1-worker-05") == "troup.hominidae@gmail.com"
+
+
 def test_expected_email_for_profile_falls_back_to_env_for_unmapped_profile(monkeypatch):
     monkeypatch.setenv("YTIS_NLM_EXPECTED_EMAIL", "future.account@example.com")
 
@@ -469,10 +474,12 @@ def test_worker_auth_cli_sync_uses_real_nlm_process_for_force_recovery(tmp_path)
     _write_profile(root, "ytis-pro-worker-02", "a.hominidae@gmail.com", "stale-pro")
     _write_profile(root, "ytis-pro-worker-03", "a.hominidae@gmail.com", "stale-pro")
     _write_profile(root, "ytis-pro-worker-04", "a.hominidae@gmail.com", "stale-pro")
+    _write_profile(root, "ytis-pro-worker-05", "a.hominidae@gmail.com", "stale-pro")
     _write_profile(root, "ytis-free1-worker-01", "troup.hominidae@gmail.com", "renewed-free")
     _write_profile(root, "ytis-free1-worker-02", "troup.hominidae@gmail.com", "stale-free")
     _write_profile(root, "ytis-free1-worker-03", "troup.hominidae@gmail.com", "stale-free")
     _write_profile(root, "ytis-free1-worker-04", "troup.hominidae@gmail.com", "stale-free")
+    _write_profile(root, "ytis-free1-worker-05", "troup.hominidae@gmail.com", "stale-free")
     _write_profile(root, "ytis-free2-worker-01", "brsthomson@hotmail.com", "renewed-free2")
     _write_profile(root, "ytis-free2-worker-02", "brsthomson@hotmail.com", "stale-free2")
     _write_profile(root, "ytis-free2-worker-03", "brsthomson@hotmail.com", "stale-free2")
@@ -515,10 +522,12 @@ def test_worker_auth_cli_sync_uses_real_nlm_process_for_force_recovery(tmp_path)
         "login --check --profile ytis-pro-worker-02",
         "login --check --profile ytis-pro-worker-03",
         "login --check --profile ytis-pro-worker-04",
+        "login --check --profile ytis-pro-worker-05",
         "login --check --profile ytis-free1-worker-01",
         "login --check --profile ytis-free1-worker-02",
         "login --check --profile ytis-free1-worker-03",
         "login --check --profile ytis-free1-worker-04",
+        "login --check --profile ytis-free1-worker-05",
         "login --check --profile ytis-free2-worker-01",
         "login --check --profile ytis-free2-worker-02",
         "login --check --profile ytis-free2-worker-03",
@@ -532,10 +541,12 @@ def test_worker_auth_cli_snapshot_and_restore_round_trip(tmp_path):
     _write_profile(root, "ytis-pro-worker-02", "a.hominidae@gmail.com", "good-pro")
     _write_profile(root, "ytis-pro-worker-03", "a.hominidae@gmail.com", "good-pro")
     _write_profile(root, "ytis-pro-worker-04", "a.hominidae@gmail.com", "good-pro")
+    _write_profile(root, "ytis-pro-worker-05", "a.hominidae@gmail.com", "good-pro")
     _write_profile(root, "ytis-free1-worker-01", "troup.hominidae@gmail.com", "good-free")
     _write_profile(root, "ytis-free1-worker-02", "troup.hominidae@gmail.com", "good-free")
     _write_profile(root, "ytis-free1-worker-03", "troup.hominidae@gmail.com", "good-free")
     _write_profile(root, "ytis-free1-worker-04", "troup.hominidae@gmail.com", "good-free")
+    _write_profile(root, "ytis-free1-worker-05", "troup.hominidae@gmail.com", "good-free")
     _write_profile(root, "ytis-free2-worker-01", "brsthomson@hotmail.com", "good-free2")
     _write_profile(root, "ytis-free2-worker-02", "brsthomson@hotmail.com", "good-free2")
     _write_profile(root, "ytis-free2-worker-03", "brsthomson@hotmail.com", "good-free2")

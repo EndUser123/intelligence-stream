@@ -504,6 +504,15 @@ def _should_retry_source_content_fetch(status: str, res: subprocess.CompletedPro
     return any(marker in combined for marker in transient_markers)
 
 
+def _outcome_mentions_not_found(outcome: dict[str, object]) -> bool:
+    """Return True when a fetch outcome looks like a NotebookLM missing-source storm."""
+    combined = "\n".join(
+        str(outcome.get(key) or "")
+        for key in ("error", "failure_reason", "stdout", "stderr")
+    ).upper()
+    return "NOT_FOUND" in combined
+
+
 def _source_count_probe_indicates_dead_notebook(probe_error: dict[str, object] | None) -> bool:
     """Return True when a source-count probe says the notebook no longer exists."""
     if not probe_error:
@@ -2020,7 +2029,12 @@ class NLMBatchIngestor:
         self._add_sources_in_subbatches(batch_ids, subbatch_size=self.batch_size)
         return self._nb_id
 
-    def extract_transcripts(self, batch_ids: List[str]) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
+    def extract_transcripts(
+        self,
+        batch_ids: List[str],
+        *,
+        _allow_dead_notebook_recovery: bool = True,
+    ) -> Dict[str, Tuple[bool, Optional[str], Optional[str]]]:
         """Extract using high-speed 'source content' method."""
         start = time.time()
         ready_reference_epoch = float(getattr(self, "_last_materialization_ready_at_epoch", 0.0) or 0.0)
@@ -2476,6 +2490,8 @@ class NLMBatchIngestor:
                     "nlm_content_chars": int(last_result["content_length"]),
                     "usable_text_chars": 0,
                     "extraction_outcome": final_status,
+                    "stdout": str(last_result["stdout"])[:200],
+                    "stderr": str(last_result["stderr"])[:200],
                     "youtube_ytdlp_classification": youtube_ytdlp_probe.get("classification"),
                     "youtube_ytdlp_available": youtube_ytdlp_probe.get("available"),
                     "youtube_ytdlp_availability": youtube_ytdlp_probe.get("availability"),
@@ -2568,6 +2584,8 @@ class NLMBatchIngestor:
                 "nlm_content_chars": int(last_result["content_length"]),
                 "usable_text_chars": 0,
                 "extraction_outcome": final_status,
+                "stdout": str(last_result["stdout"])[:200],
+                "stderr": str(last_result["stderr"])[:200],
                 "youtube_ytdlp_classification": youtube_ytdlp_probe.get("classification"),
                 "youtube_ytdlp_available": youtube_ytdlp_probe.get("available"),
                 "youtube_ytdlp_availability": youtube_ytdlp_probe.get("availability"),
@@ -2595,11 +2613,16 @@ class NLMBatchIngestor:
             *,
             pass_name: str,
             allow_retry_queue: bool,
-        ) -> tuple[dict[str, tuple[bool, Optional[str], Optional[str]]], list[tuple[str, str, str]]]:
+        ) -> tuple[
+            dict[str, tuple[bool, Optional[str], Optional[str]]],
+            list[tuple[str, str, str]],
+            dict[str, dict[str, object]],
+        ]:
             round_results: dict[str, tuple[bool, Optional[str], Optional[str]]] = {}
             round_retry_queue: list[tuple[str, str, str]] = []
+            round_outcomes: dict[str, dict[str, object]] = {}
             if not round_items:
-                return round_results, round_retry_queue
+                return round_results, round_retry_queue, round_outcomes
             print(f"[NLM-Batch] Fetching {len(round_items)} sources in parallel ({pass_name})...")
             video_width = max(len(vid) for vid, _ in round_items) if round_items else 0
             with ThreadPoolExecutor(max_workers=10) as executor:
@@ -2607,6 +2630,7 @@ class NLMBatchIngestor:
                 for future in as_completed(futures):
                     outcome = future.result()
                     vid = str(outcome["video_id"])
+                    round_outcomes[vid] = outcome
                     if outcome.get("queued_for_retry"):
                         round_retry_queue.append(
                             (
@@ -2624,7 +2648,7 @@ class NLMBatchIngestor:
                         print(format_result_row(vid, True, f"{len(text)} chars", video_width))
                     else:
                         print(format_result_row(vid, False, str(error) if error is not None else "unknown error", video_width))
-            return round_results, round_retry_queue
+            return round_results, round_retry_queue, round_outcomes
 
         batch_items: list[tuple[str, str]] = []
         for i, vid in enumerate(batch_ids):
@@ -2638,14 +2662,20 @@ class NLMBatchIngestor:
         shared_retry_deferred_count = 0
         shared_retry_recovered_count = 0
         shared_retry_final_failed_count = 0
+        round_outcomes: dict[str, dict[str, object]] = {}
 
         if mapping_failure_reason:
             for vid in batch_ids:
                 results[vid] = (False, None, mapping_failure_reason)
         else:
-            primary_results, retry_queue = _run_fetch_round(batch_items, pass_name="primary", allow_retry_queue=True)
+            primary_results, retry_queue, primary_outcomes = _run_fetch_round(
+                batch_items,
+                pass_name="primary",
+                allow_retry_queue=True,
+            )
             results.update(primary_results)
             retry_queue_deferred_count += len(retry_queue)
+            round_outcomes = dict(primary_outcomes)
 
             if retry_queue and _SOURCE_CONTENT_SHARED_RETRY_POOL_ENABLED:
                 log_action(
@@ -2692,12 +2722,13 @@ class NLMBatchIngestor:
                 )
                 if _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S > 0:
                     time.sleep(_SOURCE_CONTENT_RETRY_QUEUE_DELAY_S)
-                retry_results, retry_queue = _run_fetch_round(
+                retry_results, retry_queue, retry_outcomes = _run_fetch_round(
                     [(vid, source_id) for vid, source_id, _queued_error in retry_queue],
                     pass_name="retry",
                     allow_retry_queue=False,
                 )
                 results.update(retry_results)
+                round_outcomes.update(retry_outcomes)
                 retry_queue_recovered_count = sum(1 for ok, _, _ in retry_results.values() if ok)
                 retry_queue_final_failed_count = len(retry_results) - retry_queue_recovered_count
                 log_action(
@@ -2710,6 +2741,67 @@ class NLMBatchIngestor:
                         "final_failed_count": retry_queue_final_failed_count,
                         "retry_queue_delay_s": _SOURCE_CONTENT_RETRY_QUEUE_DELAY_S,
                         "retry_queue_budget_s": _SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S,
+                        "materialization_ready_at_epoch": ready_reference_epoch,
+                    },
+                )
+
+        failed_not_found_video_ids = [
+            vid
+            for vid in batch_ids
+            if vid in results
+            and not results[vid][0]
+            and _outcome_mentions_not_found(round_outcomes.get(vid, {}))
+        ]
+        if len(failed_not_found_video_ids) >= 2 and _allow_dead_notebook_recovery:
+            log_action(
+                "nlm_batch_source_content_dead_notebook_recovery_scheduled",
+                {
+                    "nb_id": self._nb_id,
+                    **_summarize_add_failure_batch_ids(failed_not_found_video_ids),
+                    "failed_video_id_count": len(failed_not_found_video_ids),
+                    "recovery_reason": "not_found_storm",
+                    "materialization_ready_at_epoch": ready_reference_epoch,
+                },
+            )
+            if self._recover_dead_notebook(failed_not_found_video_ids):
+                recovery_results = self.extract_transcripts(
+                    failed_not_found_video_ids,
+                    _allow_dead_notebook_recovery=False,
+                )
+                recovery_metrics = self.get_last_extract_metrics() or {}
+                for key, value in (recovery_metrics.get("content_fetch_status_counts", {}) or {}).items():
+                    content_fetch_stats["status_counts"][str(key)] = content_fetch_stats["status_counts"].get(str(key), 0) + int(value or 0)
+                content_fetch_stats["ready_age_s_total"] += float(recovery_metrics.get("source_ready_age_s_total", 0) or 0.0)
+                content_fetch_stats["ready_age_s_max"] = max(
+                    content_fetch_stats["ready_age_s_max"],
+                    float(recovery_metrics.get("source_ready_age_s_max", 0) or 0.0),
+                )
+                content_fetch_stats["attempts_total"] += int(recovery_metrics.get("content_fetch_attempts_total", 0) or 0)
+                content_fetch_stats["attempts_max"] = max(
+                    content_fetch_stats["attempts_max"],
+                    int(recovery_metrics.get("content_fetch_attempts_max", 0) or 0),
+                )
+                content_fetch_stats["youtube_ytdlp_elapsed_s_total"] += float(recovery_metrics.get("youtube_ytdlp_elapsed_s_total", 0) or 0.0)
+                content_fetch_stats["youtube_ytdlp_elapsed_s_max"] = max(
+                    content_fetch_stats["youtube_ytdlp_elapsed_s_max"],
+                    float(recovery_metrics.get("youtube_ytdlp_elapsed_s_max", 0) or 0.0),
+                )
+                content_fetch_stats["youtube_ytdlp_elapsed_s_count"] += int(recovery_metrics.get("youtube_ytdlp_elapsed_s_count", 0) or 0)
+                content_fetch_stats["youtube_page_elapsed_s_total"] += float(recovery_metrics.get("youtube_page_elapsed_s_total", 0) or 0.0)
+                content_fetch_stats["youtube_page_elapsed_s_max"] = max(
+                    content_fetch_stats["youtube_page_elapsed_s_max"],
+                    float(recovery_metrics.get("youtube_page_elapsed_s_max", 0) or 0.0),
+                )
+                content_fetch_stats["youtube_page_elapsed_s_count"] += int(recovery_metrics.get("youtube_page_elapsed_s_count", 0) or 0)
+                results.update(recovery_results)
+                log_action(
+                    "nlm_batch_source_content_dead_notebook_recovery_completed",
+                    {
+                        "nb_id": self._nb_id,
+                        **_summarize_add_failure_batch_ids(failed_not_found_video_ids),
+                        "failed_video_id_count": len(failed_not_found_video_ids),
+                        "recovered_video_id_count": sum(1 for vid in failed_not_found_video_ids if recovery_results.get(vid, (False, None, None))[0]),
+                        "recovery_reason": "not_found_storm",
                         "materialization_ready_at_epoch": ready_reference_epoch,
                     },
                 )
@@ -2883,7 +2975,7 @@ class NLMBatchIngestor:
             log_action("nlm_batch_source_count_probe_failed", self._last_source_count_probe_error)
             return 0
 
-    def _recover_dead_notebook(self) -> bool:
+    def _recover_dead_notebook(self, batch_ids: List[str] | None = None) -> bool:
         """Drop stale reusable state and create a fresh notebook."""
         old_nb_id = self._nb_id
         _clear_reusable_notebook_state()
@@ -2891,12 +2983,13 @@ class NLMBatchIngestor:
         self._current_source_count = 0
         self._last_source_count_probe_ok = True
         self._last_source_count_probe_error = None
-        self.create_batch_notebook([])
+        self.create_batch_notebook(list(batch_ids or []))
         log_action(
             "nlm_batch_dead_notebook_recreated",
             {
                 "old_nb_id": old_nb_id,
                 "nb_id": self._nb_id,
+                "recovery_batch_size": len(batch_ids or []),
                 "created_new_notebook": bool(self._nb_id),
                 "setup_mode": "create" if self._nb_id else "create_failed",
                 "notebooklm_profile": _get_notebooklm_profile(),

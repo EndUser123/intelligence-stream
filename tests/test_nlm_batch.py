@@ -2470,6 +2470,108 @@ class TestNotebookCapRotation:
         assert summary["content_fetch_attempts_max"] == 2
         assert summary["content_fetch_attempts_avg"] == 2.0
 
+    def test_extract_transcripts_recovers_batch_not_found_after_dead_notebook_recreate(self):
+        """A batch-level NOT_FOUND storm should recreate the notebook and retry the failed subset once."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
+        ingestor._nb_id = "nb-old"
+        ingestor._last_added_source_ids = ["old-s1", "old-s2"]
+        ingestor._last_added_video_ids = ["vid1", "vid2"]
+        recreate_calls = {"count": 0}
+
+        def fake_run_cmd(cmd, timeout=300):
+            if cmd[:2] == ["source", "list"]:
+                if ingestor._nb_id == "nb-old":
+                    return type(
+                        "CompletedProcess",
+                        (),
+                        {
+                            "returncode": 0,
+                            "stdout": json.dumps(
+                                {
+                                    "sources": [
+                                        {"id": "old-s1", "title": "https://www.youtube.com/watch?v=vid1"},
+                                        {"id": "old-s2", "title": "https://www.youtube.com/watch?v=vid2"},
+                                    ]
+                                }
+                            ),
+                            "stderr": "",
+                        },
+                    )()
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {
+                        "returncode": 0,
+                        "stdout": json.dumps(
+                            {
+                                "sources": [
+                                    {"id": "new-s1", "title": "https://www.youtube.com/watch?v=vid1"},
+                                    {"id": "new-s2", "title": "https://www.youtube.com/watch?v=vid2"},
+                                ]
+                            }
+                        ),
+                        "stderr": "",
+                    },
+                )()
+            if cmd[:2] == ["source", "content"]:
+                source_id = cmd[2]
+                if source_id in {"old-s1", "old-s2"}:
+                    return type(
+                        "CompletedProcess",
+                        (),
+                        {"returncode": 1, "stdout": "", "stderr": "API error (code 5): NOT_FOUND"},
+                    )()
+                if source_id == "new-s1":
+                    return type(
+                        "CompletedProcess",
+                        (),
+                        {"returncode": 0, "stdout": json.dumps({"value": {"content": "A" * 101}}), "stderr": ""},
+                    )()
+                if source_id == "new-s2":
+                    return type(
+                        "CompletedProcess",
+                        (),
+                        {"returncode": 0, "stdout": json.dumps({"value": {"content": "B" * 101}}), "stderr": ""},
+                    )()
+                raise AssertionError(f"unexpected source_id {source_id}")
+            raise AssertionError(f"unexpected command {cmd}")
+
+        def fake_recover_dead_notebook(batch_ids=None):
+            recreate_calls["count"] += 1
+            ingestor._nb_id = "nb-fresh"
+            ingestor._last_added_source_ids = ["new-s1", "new-s2"]
+            return True
+
+        with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_ATTEMPTS", 1):
+            with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S", 0.0):
+                with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
+                    with mock.patch.object(ingestor, "_recover_dead_notebook", side_effect=fake_recover_dead_notebook) as mock_recover:
+                        with mock.patch(
+                            "csf.nlm_batch.inspect_youtube_watch_page_via_ytdlp",
+                            return_value={
+                                "classification": "ok",
+                                "available": True,
+                                "availability": "public",
+                                "live_status": "not_live",
+                                "was_live": False,
+                                "is_live": False,
+                                "title": None,
+                                "error": None,
+                            },
+                        ):
+                            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                results = ingestor.extract_transcripts(["vid1", "vid2"])
+
+        assert results["vid1"][0] is True
+        assert results["vid1"][1] == "A" * 101
+        assert results["vid2"][0] is True
+        assert results["vid2"][1] == "B" * 101
+        assert recreate_calls["count"] == 1
+        mock_recover.assert_called_once_with(["vid1", "vid2"])
+        recovery_log_names = [call.args[0] for call in mock_log.call_args_list]
+        assert "nlm_batch_source_content_dead_notebook_recovery_scheduled" in recovery_log_names
+        assert "nlm_batch_source_content_dead_notebook_recovery_completed" in recovery_log_names
+
     def test_source_content_fetch_honors_retry_budget_cutoff(self):
         """A small wall-clock budget should stop retries before a second attempt."""
         ingestor = nlm_batch.NLMBatchIngestor(batch_size=1)

@@ -38,7 +38,7 @@ class AuthFamily:
 DEFAULT_FAMILIES = (
     AuthFamily(
         source_profile="ytis-pro-worker-01",
-        sibling_profiles=("ytis-pro-worker-02", "ytis-pro-worker-03", "ytis-pro-worker-04"),
+        sibling_profiles=("ytis-pro-worker-02", "ytis-pro-worker-03", "ytis-pro-worker-04", "ytis-pro-worker-05"),
         expected_email="a.hominidae@gmail.com",
         cdp_browser_root=r"P:\.data\yt-is\browser\notebooklm-pro",
         cdp_browser_profile_directory="Profile",
@@ -46,7 +46,7 @@ DEFAULT_FAMILIES = (
     ),
     AuthFamily(
         source_profile="ytis-free1-worker-01",
-        sibling_profiles=("ytis-free1-worker-02", "ytis-free1-worker-03", "ytis-free1-worker-04"),
+        sibling_profiles=("ytis-free1-worker-02", "ytis-free1-worker-03", "ytis-free1-worker-04", "ytis-free1-worker-05"),
         expected_email="troup.hominidae@gmail.com",
         cdp_browser_root=r"P:\.data\yt-is\browser\notebooklm-free",
         cdp_browser_profile_directory="Default",

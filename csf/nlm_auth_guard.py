@@ -11,12 +11,17 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Callable, Iterable
 from urllib.parse import urlparse
+
+import psutil
 
 
 DEFAULT_NLM_CHROME_PROFILE_ROOT = Path.home() / ".notebooklm-mcp-cli" / "chrome-profile"
 _AUTH_CHECK_CACHE_LOCK = threading.Lock()
-_AUTH_CHECK_CACHE: dict[tuple[str, str], float] = {}
+# Maps (profile_lower, email_lower) -> (checked_at, session_established_at)
+# session_established_at is None until first successful login after the checked_at time
+_AUTH_CHECK_CACHE: dict[tuple[str, str], tuple[float, float | None]] = {}
 
 
 @dataclass(frozen=True)
@@ -132,6 +137,76 @@ def chrome_pids_for_root(browser_root: str | Path) -> set[int]:
     return pids
 
 
+def _collect_chrome_process_records() -> list[dict[str, Any]]:
+    if os.name != "nt":
+        return []
+    records: list[dict[str, Any]] = []
+    try:
+        processes = psutil.process_iter(["pid", "name", "cmdline"])
+    except Exception:
+        return records
+    for proc in processes:
+        try:
+            if (proc.info.get("name") or "").strip().lower() != "chrome.exe":
+                continue
+            cmdline = " ".join(
+                str(part).strip()
+                for part in (proc.info.get("cmdline") or [])
+                if str(part).strip()
+            )
+            try:
+                rss_bytes = int(getattr(proc.memory_info(), "rss", 0) or 0)
+            except Exception:
+                rss_bytes = 0
+            records.append({"pid": int(proc.pid), "cmdline": cmdline, "rss_bytes": rss_bytes})
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+        except Exception:
+            continue
+    return records
+
+
+def _sample_browser_health(allowed_browser_roots: Iterable[str | Path]) -> dict[str, Any]:
+    allowed_roots = tuple(
+        sorted(
+            {
+                str(Path(root)).strip()
+                for root in allowed_browser_roots
+                if str(root).strip()
+            }
+        )
+    )
+    default_root = str(DEFAULT_NLM_CHROME_PROFILE_ROOT)
+    allowed_profile_pid_counts_by_root = {root: 0 for root in allowed_roots}
+    default_profile_pids: list[int] = []
+    unexpected_processes: list[dict[str, Any]] = []
+    chrome_process_count = 0
+    chrome_rss_bytes_total = 0
+    for record in _collect_chrome_process_records():
+        chrome_process_count += 1
+        pid = int(record.get("pid") or 0)
+        cmdline = str(record.get("cmdline") or "")
+        rss_bytes = int(record.get("rss_bytes") or 0)
+        chrome_rss_bytes_total += rss_bytes
+        matched_root = next((root for root in allowed_roots if root and root in cmdline), None)
+        if matched_root is not None:
+            allowed_profile_pid_counts_by_root[matched_root] += 1
+            continue
+        if default_root in cmdline:
+            default_profile_pids.append(pid)
+            continue
+        unexpected_processes.append({"pid": pid, "cmdline": cmdline})
+    return {
+        "allowed_browser_roots": list(allowed_roots),
+        "allowed_profile_pid_count": sum(allowed_profile_pid_counts_by_root.values()),
+        "allowed_profile_pid_counts_by_root": allowed_profile_pid_counts_by_root,
+        "chrome_process_count": chrome_process_count,
+        "chrome_rss_bytes_total": chrome_rss_bytes_total,
+        "default_profile_pids": default_profile_pids,
+        "unexpected_processes": unexpected_processes,
+    }
+
+
 def stop_chrome_pids(pids: set[int]) -> None:
     if os.name != "nt" or not pids:
         return
@@ -167,6 +242,119 @@ def reap_default_chrome_profile() -> set[int]:
     return pids
 
 
+def browser_health_gate(
+    allowed_browser_roots: Iterable[str | Path],
+    *,
+    settle_window_s: float = 30.0,
+    sample_interval_s: float = 5.0,
+    clock: Callable[[], float] | None = None,
+    sleeper: Callable[[float], None] | None = None,
+) -> dict[str, Any]:
+    clock = clock or time.monotonic
+    sleeper = sleeper or time.sleep
+    allowed_roots = tuple(
+        sorted(
+            {
+                str(Path(root)).strip()
+                for root in allowed_browser_roots
+                if str(root).strip()
+            }
+        )
+    )
+    start = clock()
+    deadline = start + max(0.0, float(settle_window_s))
+    initial_default_profile_pids = sorted(chrome_pids_for_root(DEFAULT_NLM_CHROME_PROFILE_ROOT))
+    initial_default_profile_reaped_pids: list[int] = []
+    if initial_default_profile_pids:
+        stop_chrome_pids(set(initial_default_profile_pids))
+        initial_default_profile_reaped_pids = list(initial_default_profile_pids)
+
+    detected_default_profile_pids: set[int] = set(initial_default_profile_pids)
+    reaped_default_profile_pids: set[int] = set(initial_default_profile_reaped_pids)
+    unexpected_processes: dict[int, str] = {}
+    sample_count = 0
+    chrome_process_count_max = 0
+    chrome_rss_bytes_max = 0
+
+    while True:
+        sample = _sample_browser_health(allowed_roots)
+        sample_count += 1
+        chrome_process_count_max = max(chrome_process_count_max, int(sample["chrome_process_count"]))
+        chrome_rss_bytes_max = max(chrome_rss_bytes_max, int(sample["chrome_rss_bytes_total"]))
+        default_profile_pids = {int(pid) for pid in sample["default_profile_pids"]}
+        if default_profile_pids:
+            detected_default_profile_pids.update(default_profile_pids)
+            reaped_default_profile_pids.update(default_profile_pids)
+            stop_chrome_pids(default_profile_pids)
+        for process in sample["unexpected_processes"]:
+            pid = int(process.get("pid") or 0)
+            if pid:
+                unexpected_processes[pid] = str(process.get("cmdline") or "")
+        if clock() >= deadline:
+            break
+        sleep_for = min(max(0.0, float(sample_interval_s)), max(0.0, deadline - clock()))
+        if sleep_for > 0:
+            sleeper(sleep_for)
+
+    final_sample = _sample_browser_health(allowed_roots)
+    sample_count += 1
+    chrome_process_count_max = max(chrome_process_count_max, int(final_sample["chrome_process_count"]))
+    chrome_rss_bytes_max = max(chrome_rss_bytes_max, int(final_sample["chrome_rss_bytes_total"]))
+    remaining_default_profile_pids = sorted(int(pid) for pid in final_sample["default_profile_pids"])
+    for process in final_sample["unexpected_processes"]:
+        pid = int(process.get("pid") or 0)
+        if pid:
+            unexpected_processes[pid] = str(process.get("cmdline") or "")
+
+    issues: list[str] = []
+    if unexpected_processes:
+        issues.append(
+            "unexpected Chrome processes detected during browser health settle: "
+            + ", ".join(
+                f"{pid}:{cmdline}" for pid, cmdline in sorted(unexpected_processes.items())[:5]
+            )
+        )
+    if remaining_default_profile_pids:
+        issues.append(
+            "default NotebookLM chrome-profile still present after browser health settle: "
+            f"pids={remaining_default_profile_pids}"
+        )
+
+    if issues:
+        status = "unhealthy"
+    elif reaped_default_profile_pids:
+        status = "recovered_clean"
+    else:
+        status = "clean"
+
+    return {
+        "status": status,
+        "settle_window_s": float(settle_window_s),
+        "sample_interval_s": float(sample_interval_s),
+        "sample_count": sample_count,
+        "elapsed_s": round(clock() - start, 3),
+        "allowed_browser_roots": list(allowed_roots),
+        "initial_default_profile_detected_count": len(initial_default_profile_pids),
+        "initial_default_profile_detected_pids": initial_default_profile_pids,
+        "initial_default_profile_reaped_count": len(initial_default_profile_reaped_pids),
+        "initial_default_profile_reaped_pids": initial_default_profile_reaped_pids,
+        "default_profile_detected_count": len(detected_default_profile_pids),
+        "default_profile_detected_pids": sorted(detected_default_profile_pids),
+        "default_profile_reaped_count": len(reaped_default_profile_pids),
+        "default_profile_reaped_pids": sorted(reaped_default_profile_pids),
+        "default_profile_remaining_count": len(remaining_default_profile_pids),
+        "default_profile_remaining_pids": remaining_default_profile_pids,
+        "unexpected_process_count": len(unexpected_processes),
+        "unexpected_processes": [
+            {"pid": pid, "cmdline": cmdline}
+            for pid, cmdline in sorted(unexpected_processes.items())
+        ],
+        "chrome_process_count_max": chrome_process_count_max,
+        "chrome_rss_bytes_max": chrome_rss_bytes_max,
+        "issues": issues,
+    }
+
+
 def auth_check_cache_ttl_seconds(default: float = 30.0) -> float:
     raw = os.getenv("YTIS_NLM_AUTH_CHECK_CACHE_TTL_SECONDS", "").strip()
     if not raw:
@@ -182,26 +370,36 @@ def auth_check_cache_key(context: NLMAuthContext) -> tuple[str, str]:
     return (context.profile.strip().lower(), context.expected_email.strip().lower())
 
 
-def auth_check_cache_hit(context: NLMAuthContext, *, ttl_s: float | None = None) -> bool:
+def auth_check_cache_hit(context: NLMAuthContext, *, ttl_s: float | None = None) -> tuple[bool, float | None]:
+    """Return (is_hit, session_established_at_or_none)."""
     ttl = auth_check_cache_ttl_seconds() if ttl_s is None else max(0.0, float(ttl_s))
     if ttl <= 0:
-        return False
+        return False, None
     key = auth_check_cache_key(context)
     with _AUTH_CHECK_CACHE_LOCK:
-        checked_at = _AUTH_CHECK_CACHE.get(key)
-    if checked_at is None:
-        return False
-    return (time.monotonic() - checked_at) <= ttl
+        cached = _AUTH_CHECK_CACHE.get(key)
+    if cached is None:
+        return False, None
+    checked_at, session_established_at = cached
+    return (time.monotonic() - checked_at) <= ttl, session_established_at
 
 
-def auth_check_cache_store(context: NLMAuthContext) -> None:
+def auth_check_cache_store(context: NLMAuthContext, *, session_established_at: float | None = None) -> None:
     with _AUTH_CHECK_CACHE_LOCK:
-        _AUTH_CHECK_CACHE[auth_check_cache_key(context)] = time.monotonic()
+        _AUTH_CHECK_CACHE[auth_check_cache_key(context)] = (time.monotonic(), session_established_at)
 
 
-def auth_check_cache_clear(context: NLMAuthContext) -> None:
+def auth_check_cache_session_age(context: NLMAuthContext) -> float | None:
+    """Return session age in seconds, or None if session establishment time is unknown."""
+    key = auth_check_cache_key(context)
     with _AUTH_CHECK_CACHE_LOCK:
-        _AUTH_CHECK_CACHE.pop(auth_check_cache_key(context), None)
+        cached = _AUTH_CHECK_CACHE.get(key)
+    if cached is None:
+        return None
+    _checked_at, session_established_at = cached
+    if session_established_at is None:
+        return None
+    return time.monotonic() - session_established_at
 
 
 def _ps_single_quote(value: str) -> str:

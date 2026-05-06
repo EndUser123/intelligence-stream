@@ -8,6 +8,7 @@ from typing import Any
 
 from csf.run_evidence_check import inspect_run_root
 from csf import nlm_auth_guard
+browser_health_gate = nlm_auth_guard.browser_health_gate
 from csf.sharded_lane_series import (
     DEFAULT_BATCH_SIZE,
     DEFAULT_LIMIT,
@@ -25,6 +26,7 @@ from csf.sharded_lane_series import (
 DEFAULT_SMOKE_LIMIT = 50
 DEFAULT_SMOKE_BATCH_SIZE = 25
 SUMMARY_NAME = "sharded_lane_series_summary.json"
+BROWSER_HEALTH_NAME = "browser_health.json"
 
 
 def _print_sequence_header(step: str, *, root: Path) -> None:
@@ -36,17 +38,29 @@ def _write_sequence_summary(
     run_root: Path,
     smoke_report: dict[str, Any],
     soak_report: dict[str, Any] | None = None,
+    pre_run_browser_health: dict[str, Any] | None = None,
     post_run_hygiene: dict[str, Any] | None = None,
 ) -> Path:
     summary_path = run_root / SUMMARY_NAME
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary = dict(soak_report or smoke_report)
     summary["report_path"] = str(summary_path)
     summary["sequence_smoke_report_path"] = str(smoke_report["report_path"])
     if soak_report is not None:
         summary["sequence_soak_report_path"] = str(soak_report["report_path"])
+    if pre_run_browser_health is not None:
+        summary["pre_run_browser_health"] = dict(pre_run_browser_health)
+        summary["pre_run_browser_health_path"] = str(run_root / BROWSER_HEALTH_NAME)
     if post_run_hygiene is not None:
         summary["post_run_hygiene"] = dict(post_run_hygiene)
     _write_json_atomic(summary_path, summary)
+    return summary_path
+
+
+def _write_browser_health_summary(*, run_root: Path, browser_health: dict[str, Any]) -> Path:
+    summary_path = run_root / BROWSER_HEALTH_NAME
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_json_atomic(summary_path, browser_health)
     return summary_path
 
 
@@ -128,6 +142,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--python-executable", default=None)
     parser.add_argument("--reusable-pipeline-mode", default=DEFAULT_REUSABLE_PIPELINE_MODE)
     parser.add_argument(
+        "--browser-health-window-s",
+        type=float,
+        default=30.0,
+        help="Settle window for the pre-run browser health gate.",
+    )
+    parser.add_argument(
+        "--browser-health-sample-interval-s",
+        type=float,
+        default=5.0,
+        help="Sampling interval for the pre-run browser health gate.",
+    )
+    parser.add_argument(
         "--require-forced-refresh-marker",
         action="store_true",
         help="Require nlm_auth_forced_refresh_scheduled in the smoke evidence check.",
@@ -157,6 +183,27 @@ def main(argv: list[str] | None = None) -> int:
 
     lane_names = ",".join(getattr(lane, "lane", str(lane)) for lane in lanes)
     print(f"[sequence] doctor=ok lanes={lane_names} run_root={run_root}")
+
+    browser_health = browser_health_gate(
+        [lane.browser_profile_root for lane in lanes],
+        settle_window_s=args.browser_health_window_s,
+        sample_interval_s=args.browser_health_sample_interval_s,
+    )
+    run_root.mkdir(parents=True, exist_ok=True)
+    browser_health_path = _write_browser_health_summary(run_root=run_root, browser_health=browser_health)
+    print(
+        "[sequence] browser_health={status} detected_default={detected} unexpected={unexpected} "
+        "summary={summary}".format(
+            status=browser_health["status"],
+            detected=int(browser_health["default_profile_detected_count"]),
+            unexpected=int(browser_health["unexpected_process_count"]),
+            summary=browser_health_path,
+        )
+    )
+    if browser_health["status"] == "unhealthy":
+        for issue in browser_health.get("issues", []):
+            print(f"[sequence] ERROR: {issue}")
+        return 1
 
     smoke_report = _run_phase(
         phase="smoke",
@@ -206,6 +253,7 @@ def main(argv: list[str] | None = None) -> int:
         run_root=run_root,
         smoke_report=smoke_report,
         soak_report=soak_report,
+        pre_run_browser_health=browser_health,
         post_run_hygiene=post_run_hygiene,
     )
     print(f"[sequence] summary={sequence_report_path}")
@@ -220,6 +268,12 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 1
+    if browser_health["status"] != "clean":
+        print(
+            "[sequence] WARN: browser health recovered before smoke: "
+            f"status={browser_health['status']} detected_default={browser_health['default_profile_detected_count']} "
+            f"unexpected={browser_health['unexpected_process_count']}"
+        )
     if post_run_hygiene["status"] != "clean":
         return 1
     print("[sequence] status=ok")

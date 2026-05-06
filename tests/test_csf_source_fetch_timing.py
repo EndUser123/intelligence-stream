@@ -110,6 +110,47 @@ def test_ensure_nlm_auth_noninteractive_uses_force_refresh(monkeypatch):
     ]
 
 
+def test_ensure_nlm_auth_forced_refresh_emits_family_refresh_markers(monkeypatch):
+    """Forced refresh should hit the family refresh path and emit timing markers."""
+    mod = _load_csf_source_module()
+    calls: list[list[str]] = []
+    refresh_calls: list[str] = []
+    sync_calls: list[dict[str, object]] = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        return types.SimpleNamespace(returncode=0, stdout="Account: troup.hominidae@gmail.com\n", stderr="")
+
+    def fake_refresh_source_profile(family, **kwargs):
+        refresh_calls.append(family.source_profile)
+        return True
+
+    def fake_sync_worker_profiles(**kwargs):
+        sync_calls.append(kwargs)
+        return None
+
+    monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-01")
+    monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+    monkeypatch.setenv("YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS", "1")
+    monkeypatch.setattr(mod.nlm_auth_guard, "run_nlm", fake_run)
+    monkeypatch.setattr(mod, "refresh_source_profile", fake_refresh_source_profile)
+    monkeypatch.setattr(mod, "sync_worker_profiles", fake_sync_worker_profiles)
+
+    with mock.patch.object(mod, "log_action") as mock_log:
+        assert mod._ensure_nlm_auth() is True
+
+    assert calls == [
+        ["login", "--check", "--profile", "ytis-free1-worker-01"],
+        ["login", "--check", "--profile", "ytis-free1-worker-01"],
+    ]
+    assert refresh_calls == ["ytis-free1-worker-01"]
+    assert sync_calls and sync_calls[0]["families"][0].source_profile == "ytis-free1-worker-01"
+    log_names = [call.args[0] for call in mock_log.call_args_list]
+    assert "nlm_auth_forced_refresh_scheduled" in log_names
+    assert "nlm_family_refresh_started" in log_names
+    assert "nlm_family_refresh_completed" in log_names
+
+
 def test_ensure_nlm_auth_reaps_default_profile_before_check_and_continues(monkeypatch):
     """A transient default chrome-profile before auth check should be reaped and retried, not abort the run."""
     mod = _load_csf_source_module()

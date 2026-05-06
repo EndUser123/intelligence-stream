@@ -344,6 +344,12 @@ def _lane_env(
     *,
     lane_output_root: Path,
 ) -> dict[str, str]:
+    # Defense-in-depth: strip vars that would contaminate per-run auth behavior.
+    # The current run01/run02/run03 auth-regression diagnosis is still evidence-gated,
+    # but stripping known stress knobs prevents accidental cross-run inheritance.
+    _AMBUSH_VARS = {"YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS"}
+    for var in _AMBUSH_VARS:
+        base_env = {k: v for k, v in base_env.items() if k != var}
     env = dict(base_env)
     env["NOTEBOOKLM_PROFILE"] = lane.coordinator_profile
     env["INTELLIGENCE_STREAM_LOG_DIR"] = str(lane_output_root / "logs")
@@ -395,6 +401,7 @@ def _run_lane(
     started_at = time.monotonic()
     if lane.startup_delay_s > 0:
         time.sleep(lane.startup_delay_s)
+    _stop_default_chrome_profile_if_running(stage=f"lane_start_{lane.lane}")
     command = build_fallback_benchmark_command(
         python_executable=python_executable or sys.executable,
         fallback_benchmark_script=FALLBACK_BENCHMARK_SCRIPT,

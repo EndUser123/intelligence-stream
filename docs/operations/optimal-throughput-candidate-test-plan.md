@@ -42,6 +42,7 @@ Use these rules for every candidate:
 - Use fresh, empty run roots for every run.
 - Keep dedicated browser roots per lane.
 - Run doctor before smoke.
+- Run the browser health gate after doctor and before smoke; record `browser_health.json` and treat persistent shared default-profile churn as a stop signal.
 - Run smoke before soak.
 - Run evidence check before any long soak.
 - Require the final top-level summary.
@@ -172,6 +173,23 @@ python P:/packages/yt-is/bin/csf-sharded-lane-sequence `
   --run-root P:/packages/yt-is/.logs/sharded_lane_series/optimal_search_2lane_5w_v1
 ```
 
+Observed result:
+
+- Artifact: `P:/packages/yt-is/.logs/sharded_lane_series/optimal_search_2lane_5w_v1/sharded_lane_series_summary.json`
+- Status: `ok`
+- Combined hot-path VPH: `3239.04`
+- Result mix: `792` hot-path successes, `8` failures, `800` processed
+- Interpretation: completed cleanly, but it did not beat the current `3+3` 2-lane leader, so it is a negative branch.
+
+Floor test result:
+
+- Artifact: `P:/packages/yt-is/.logs/sharded_lane_series/optimal_search_2lane_2w_v1/sharded_lane_series_summary.json`
+- Status: `ok`
+- Combined hot-path VPH: `2815.36`
+- Result mix: `793` hot-path successes, `7` failures, `800` processed
+- Post-run hygiene: `clean`
+- Interpretation: this is the actual 2+2 floor test. It completed cleanly, but it was below the `3+3` leader and below the `2+5` branch.
+
 ### Candidate E: Three Lanes, Low Pressure Fallback
 
 Purpose: isolate whether 3 lanes are useful only at lower per-account pressure.
@@ -184,6 +202,15 @@ Purpose: isolate whether 3 lanes are useful only at lower per-account pressure.
 - Fresh root example: `P:/packages/yt-is/.logs/sharded_lane_series/optimal_search_3lane_2w_v1`
 
 Only run this if Candidate B or C has promising throughput but shows profile pressure, source-add churn, or NotebookLM recovery storms.
+
+Observed result:
+
+- Artifact: `P:/packages/yt-is/.logs/sharded_lane_series/optimal_search_3lane_2w_v1/sharded_lane_series_summary.json`
+- Status: `ok`
+- Combined hot-path VPH: `2665.18`
+- Result mix: `1143` hot-path successes, `7` failures, `1150` processed
+- Post-run hygiene: `clean`
+- Interpretation: the low-pressure 3-lane fallback completed cleanly, but it was below both the `3+3` 2-lane leader and the `2+5` branch.
 
 ## Promotion Rules
 
@@ -223,11 +250,39 @@ Winner:
 - Highest median combined hot-path VPH among candidates that pass every safety gate.
 - If the highest median has much higher variance or repeated recovery storms, choose the lower-variance candidate unless the VPH gap is large enough to matter operationally.
 
+## Current Lock-In
+
+Based on the valid repeated runs available now:
+
+- `3+3` is the current best observed 2-lane shape at `4123.28`.
+- `3+3` is not fully locked in yet because it still needs repeated fresh-root full soaks.
+- The fresh repeat `sweep_phase3_2lane_3w_run02` came in at `2953.82`, so the current `3+3` window is still noisy and needs more than one repeat before being called stable.
+- `2lane_4w` is the current repeated 4-worker control, not the overall winner.
+- The valid `2lane_4w` control runs are `4213.19`, `3573.61`, and `3227.63`, for a median of `3573.61`.
+- All three `2lane_4w` control runs were `status="ok"` with `post_run_hygiene.status="clean"`.
+- `3lane_4w` is not the winner despite a single high spike.
+- Its valid runs are `4481.37`, `2290.88`, and `1466.83`, for a median of `2290.88`.
+- One `3lane_4w` repeat invalidated, so treat that shape as a diagnostic branch rather than the promoted winner.
+- The run04 repeat came in at `2398.89`, which confirms the low `3+3` window was not just a one-off; the sustained `3+3` ceiling is still not locked.
+- Operationally, keep `3+3` as a diagnostic branch and use `2lane_4w` as the current repeated control until the reauth question is resolved.
+
+## Next Agent Run Packet
+
+Purpose: keep the next LLM from rerunning `run04` and make it inspect the missing session-age signal instead.
+
+Next useful investigation:
+
+- Inspect where `session_age_s` is supposed to be emitted in the auth path.
+- Compare the current emission code in `csf/nlm_batch.py` and `bin/csf-source` against the run04 soak JSONL files.
+- If `session_age_s` is written to a different artifact, update the counter script before any warm-auth A/B run.
+- Do not rerun `sweep_phase3_2lane_3w_run04`.
+
 ## Post-Run Analysis
 
 After every candidate run:
 
 ```powershell
+python P:/packages/yt-is/bin/csf-sharded-lane-summary --run-root <run-root>
 python P:/packages/yt-is/bin/csf-run-evidence-check --run-root <run-root>/smoke
 python P:/packages/yt-is/bin/csf-run-failure-analyzer --run-root <run-root>
 ```

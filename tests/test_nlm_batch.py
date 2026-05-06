@@ -177,38 +177,30 @@ class TestAuthAutoLogin:
         assert ["login", "--force"] in called
 
     def test_ensure_nlm_auth_uses_family_sync_for_known_profile_refresh(self, monkeypatch):
-        """Known worker auth refresh must stay inside the active account family."""
-        import subprocess
+        """Known worker auth refresh must use the family source profile path."""
 
         monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-pro-worker-03")
         monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
-        called = []
+        refresh_calls = []
         sync_calls = []
-        repaired = False
 
-        def mock_run(cmd, **kwargs):
-            called.append(cmd)
-            if cmd == ["login", "--check", "--profile", "ytis-pro-worker-03"] and repaired:
-                return subprocess.CompletedProcess(cmd, 0, "Account: a.hominidae@gmail.com\n", "")
-            return subprocess.CompletedProcess(cmd, 1, "", "Auth expired")
+        def mock_refresh_source_profile(family, **kwargs):
+            refresh_calls.append(family.source_profile)
+            return True
 
         def mock_sync_worker_profiles(**kwargs):
-            nonlocal repaired
             sync_calls.append(kwargs)
-            repaired = True
             return None
 
-        with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=mock_sync_worker_profiles):
-            with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
-                result = nlm_batch._ensure_nlm_auth()
+        with mock.patch("csf.nlm_batch.refresh_source_profile", side_effect=mock_refresh_source_profile):
+            with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=mock_sync_worker_profiles):
+                with mock.patch("csf.nlm_batch.run_nlm", side_effect=AssertionError("family auth should not use bare login --check")):
+                    result = nlm_batch._ensure_nlm_auth()
 
         assert result is True
-        assert called == [
-            ["login", "--check", "--profile", "ytis-pro-worker-03"],
-            ["login", "--check", "--profile", "ytis-pro-worker-03"],
-            ["login", "--check", "--profile", "ytis-pro-worker-03"],
-        ]
-        assert sync_calls
+        assert refresh_calls == ["ytis-pro-worker-01"]
+        assert sync_calls and sync_calls[0]["families"][0].source_profile == "ytis-pro-worker-01"
+        assert sync_calls[0]["source_session_checker"]("ytis-pro-worker-01") is True
 
     def test_ensure_nlm_auth_noninteractive_without_profile_fails_closed(self, monkeypatch):
         """Noninteractive benchmark workers must not launch default-profile login flows."""
@@ -232,82 +224,58 @@ class TestAuthAutoLogin:
         assert "nlm_auth_failed" in log_names
 
     def test_ensure_nlm_auth_repairs_wrong_account_session_with_family_sync(self, monkeypatch):
-        """Wrong-account known workers should repair via account-family sync, not raw force login."""
-        import subprocess
+        """Known worker auth refresh should stay on the family source path even for stale sessions."""
 
         monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-pro-worker-02")
         monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
-        called = []
+        refresh_calls = []
         sync_calls = []
-        repaired = False
 
-        def mock_run(cmd, **kwargs):
-            called.append(cmd)
-            if cmd == ["login", "--check", "--profile", "ytis-pro-worker-02"] and not repaired:
-                return subprocess.CompletedProcess(cmd, 0, "Account: troup.hominidae@gmail.com\n", "")
-            if cmd == ["login", "--check", "--profile", "ytis-pro-worker-02"]:
-                return subprocess.CompletedProcess(cmd, 0, "Account: a.hominidae@gmail.com\n", "")
-            return subprocess.CompletedProcess(cmd, 1, "", "unexpected command")
+        def mock_refresh_source_profile(family, **kwargs):
+            refresh_calls.append(family.source_profile)
+            return True
 
         def mock_sync_worker_profiles(**kwargs):
-            nonlocal repaired
             sync_calls.append(kwargs)
-            repaired = True
             return None
 
-        with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=mock_sync_worker_profiles):
-            with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
-                result = nlm_batch._ensure_nlm_auth()
+        with mock.patch("csf.nlm_batch.refresh_source_profile", side_effect=mock_refresh_source_profile):
+            with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=mock_sync_worker_profiles):
+                with mock.patch("csf.nlm_batch.run_nlm", side_effect=AssertionError("family auth should not use bare login --check")):
+                    result = nlm_batch._ensure_nlm_auth()
 
         assert result is True
-        assert called == [
-            ["login", "--check", "--profile", "ytis-pro-worker-02"],
-            ["login", "--check", "--profile", "ytis-pro-worker-02"],
-            ["login", "--check", "--profile", "ytis-pro-worker-02"],
-        ]
-        assert sync_calls
+        assert refresh_calls == ["ytis-pro-worker-01"]
+        assert sync_calls and sync_calls[0]["families"][0].source_profile == "ytis-pro-worker-01"
 
     def test_ensure_nlm_auth_fails_closed_when_family_sync_cannot_repair_wrong_account(self, monkeypatch):
-        """Failed account-family repair must not fall back to profile-mutating raw force login."""
-        import subprocess
+        """A failed family refresh must fail closed without falling back to bare auth checks."""
 
         monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-02")
         monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
-        called = []
+        refresh_calls = []
 
-        def mock_run(cmd, **kwargs):
-            called.append(cmd)
-            if cmd == ["login", "--check", "--profile", "ytis-free1-worker-02"]:
-                return subprocess.CompletedProcess(cmd, 0, "Account: a.hominidae@gmail.com\n", "")
-            return subprocess.CompletedProcess(cmd, 1, "", "unexpected command")
+        def mock_refresh_source_profile(family, **kwargs):
+            refresh_calls.append(family.source_profile)
+            return False
 
-        with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=RuntimeError("repair failed")):
-            with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
-                result = nlm_batch._ensure_nlm_auth()
+        with mock.patch("csf.nlm_batch.refresh_source_profile", side_effect=mock_refresh_source_profile):
+            with mock.patch("csf.nlm_batch.sync_worker_profiles") as mock_sync:
+                with mock.patch("csf.nlm_batch.run_nlm", side_effect=AssertionError("family auth should not use bare login --check")):
+                    result = nlm_batch._ensure_nlm_auth()
 
         assert result is False
-        assert called == [
-            ["login", "--check", "--profile", "ytis-free1-worker-02"],
-            ["login", "--check", "--profile", "ytis-free1-worker-02"],
-        ]
-        assert ["login", "--force", "--profile", "ytis-free1-worker-02"] not in called
+        assert refresh_calls == ["ytis-free1-worker-01"]
+        mock_sync.assert_not_called()
 
     def test_ensure_nlm_auth_uses_family_refresh_for_forced_refresh_schedule(self, monkeypatch):
-        """Forced refresh for known workers must use the dedicated account-family source profile."""
-        import subprocess
+        """Forced refresh for mapped workers must still go through the family source profile."""
 
         monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-04")
         monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
         monkeypatch.setenv("YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS", "1")
-        called = []
         source_refresh_calls = []
         sync_calls = []
-
-        def mock_run(cmd, **kwargs):
-            called.append(cmd)
-            if cmd == ["login", "--check", "--profile", "ytis-free1-worker-04"]:
-                return subprocess.CompletedProcess(cmd, 0, "Account: troup.hominidae@gmail.com\n", "")
-            return subprocess.CompletedProcess(cmd, 1, "", "unexpected command")
 
         def mock_refresh_source_profile(family, **kwargs):
             source_refresh_calls.append(family.source_profile)
@@ -319,43 +287,34 @@ class TestAuthAutoLogin:
 
         with mock.patch("csf.nlm_batch.refresh_source_profile", side_effect=mock_refresh_source_profile):
             with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=mock_sync_worker_profiles):
-                with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
+                with mock.patch("csf.nlm_batch.run_nlm", side_effect=AssertionError("family auth should not use bare login --check")):
                     result = nlm_batch._ensure_nlm_auth()
 
         assert result is True
-        assert called == [
-            ["login", "--check", "--profile", "ytis-free1-worker-04"],
-            ["login", "--check", "--profile", "ytis-free1-worker-04"],
-            ["login", "--check", "--profile", "ytis-free1-worker-04"],
-        ]
         assert source_refresh_calls == ["ytis-free1-worker-01"]
-        assert sync_calls
-        assert ["login", "--force", "--profile", "ytis-free1-worker-04"] not in called
+        assert sync_calls and sync_calls[0]["families"][0].source_profile == "ytis-free1-worker-01"
+        assert sync_calls[0]["source_session_checker"]("ytis-free1-worker-01") is True
 
-    def test_ensure_nlm_auth_fails_closed_when_source_profile_guard_rejects_default_chrome(self, monkeypatch):
-        """Forced refresh must stop when the source-profile guard reports default chrome-profile usage."""
-        import subprocess
+    def test_ensure_nlm_auth_family_refresh_fails_closed_when_source_refresh_rejects_default_chrome(self, monkeypatch):
+        """A family refresh must fail closed if the dedicated source path refuses to recover."""
 
         monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-pro-worker-02")
         monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
         monkeypatch.setenv("YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS", "1")
-        called = []
+        refresh_calls = []
 
-        def mock_run(cmd, **kwargs):
-            called.append(cmd)
-            if cmd == ["login", "--check", "--profile", "ytis-pro-worker-02"]:
-                return subprocess.CompletedProcess(cmd, 0, "Account: a.hominidae@gmail.com\n", "")
-            return subprocess.CompletedProcess(cmd, 1, "", "unexpected command")
+        def mock_refresh_source_profile(family, **kwargs):
+            refresh_calls.append(family.source_profile)
+            return False
 
-        with mock.patch("csf.nlm_batch.refresh_source_profile", return_value=False):
-            with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
-                result = nlm_batch._ensure_nlm_auth()
+        with mock.patch("csf.nlm_batch.refresh_source_profile", side_effect=mock_refresh_source_profile):
+            with mock.patch("csf.nlm_batch.sync_worker_profiles") as mock_sync:
+                with mock.patch("csf.nlm_batch.run_nlm", side_effect=AssertionError("family auth should not use bare login --check")):
+                    result = nlm_batch._ensure_nlm_auth()
 
         assert result is False
-        assert called == [
-            ["login", "--check", "--profile", "ytis-pro-worker-02"],
-            ["login", "--check", "--profile", "ytis-pro-worker-02"],
-        ]
+        assert refresh_calls == ["ytis-pro-worker-01"]
+        mock_sync.assert_not_called()
 
     def test_ensure_nlm_auth_unknown_profile_still_uses_profile_pinned_force(self, monkeypatch):
         """Profiles outside known account families keep the profile-pinned nlm force fallback."""
@@ -466,42 +425,42 @@ class TestAuthAutoLogin:
         assert "nlm_auth_checked" in log_names
 
     def test_run_cmd_auth_error_refresh_uses_active_profile(self, monkeypatch):
-        """Commands that expire mid-flight must refresh the active profile, not default auth."""
-        import subprocess
+        """Commands that expire mid-flight must refresh the mapped family source profile."""
 
         monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-04")
         monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
         ingestor = nlm_batch.NLMBatchIngestor()
         called = []
+        refresh_calls = []
         sync_calls = []
-        repaired = False
 
         def mock_run(cmd, **kwargs):
             called.append(cmd)
             if cmd == ["source", "list", "nb-1", "--json", "--profile", "ytis-free1-worker-04"] and len(called) == 1:
-                return subprocess.CompletedProcess(cmd, 1, "", "Authentication Error")
-            if cmd == ["login", "--check", "--profile", "ytis-free1-worker-04"] and repaired:
-                return subprocess.CompletedProcess(cmd, 0, "Account: troup.hominidae@gmail.com\n", "")
-            return subprocess.CompletedProcess(cmd, 0, "[]", "")
+                return type("CompletedProcess", (), {"stdout": "", "stderr": "Authentication Error", "returncode": 1})()
+            return type("CompletedProcess", (), {"stdout": "[]", "stderr": "", "returncode": 0})()
+
+        def mock_refresh_source_profile(family, **kwargs):
+            refresh_calls.append(family.source_profile)
+            return True
 
         def mock_sync_worker_profiles(**kwargs):
-            nonlocal repaired
             sync_calls.append(kwargs)
-            repaired = True
             return None
 
         with mock.patch("csf.nlm_batch._ensure_nlm_auth", return_value=True):
             with mock.patch("csf.nlm_batch._default_chrome_profile_pids", return_value=set()):
-                with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=mock_sync_worker_profiles):
-                    with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
-                        result = ingestor._run_cmd(["source", "list", "nb-1", "--json"])
+                with mock.patch("csf.nlm_batch.refresh_source_profile", side_effect=mock_refresh_source_profile):
+                    with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=mock_sync_worker_profiles):
+                        with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
+                            result = ingestor._run_cmd(["source", "list", "nb-1", "--json"])
 
         assert result.returncode == 0
         assert called == [
             ["source", "list", "nb-1", "--json", "--profile", "ytis-free1-worker-04"],
-            ["login", "--check", "--profile", "ytis-free1-worker-04"],
             ["source", "list", "nb-1", "--json", "--profile", "ytis-free1-worker-04"],
         ]
+        assert refresh_calls == ["ytis-free1-worker-01"]
         assert sync_calls
 
     def test_run_cmd_profile_pins_source_and_notebook_commands(self, monkeypatch):
@@ -738,85 +697,114 @@ class TestAuthAutoLogin:
         assert "nlm_auth_recovered" in log_names
         assert "nlm_auth_failed" not in log_names
 
-    def test_ensure_nlm_auth_fails_closed_when_login_check_spawns_default_profile(self, monkeypatch):
-        """A profile-pinned auth check must fail closed if upstream recovery opens the default profile."""
-        import subprocess
+    def test_ensure_nlm_auth_reaps_default_profile_before_family_refresh_and_continues(self, monkeypatch):
+        """Mapped worker auth should reap the shared default profile before refreshing the family source."""
 
         monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-03")
         monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
         stop_calls = []
-        called = []
+        refresh_calls = []
+        sync_calls = []
 
-        def mock_run(cmd, **kwargs):
-            called.append(cmd)
-            return subprocess.CompletedProcess(cmd, 0, "Account: troup.hominidae@gmail.com\n", "")
+        def mock_refresh_source_profile(family, **kwargs):
+            refresh_calls.append(family.source_profile)
+            return True
 
-        with mock.patch("csf.nlm_batch._default_chrome_profile_pids", side_effect=[set(), {24680}, {24680}]):
+        def mock_sync_worker_profiles(**kwargs):
+            sync_calls.append(kwargs)
+            return None
+
+        with mock.patch("csf.nlm_batch._default_chrome_profile_pids", return_value={24680}):
             with mock.patch("csf.nlm_batch._stop_chrome_pids", side_effect=lambda pids: stop_calls.append(set(pids))):
-                with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
+                with mock.patch("csf.nlm_batch.refresh_source_profile", side_effect=mock_refresh_source_profile):
+                    with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=mock_sync_worker_profiles):
+                        with mock.patch("csf.nlm_batch.run_nlm", side_effect=AssertionError("family auth should not use bare login --check")):
+                            result = nlm_batch._ensure_nlm_auth()
+
+        assert result is True
+        assert stop_calls == [{24680}]
+        assert refresh_calls == ["ytis-free1-worker-01"]
+        assert sync_calls and sync_calls[0]["families"][0].source_profile == "ytis-free1-worker-01"
+        assert sync_calls[0]["source_session_checker"]("ytis-free1-worker-01") is True
+
+    def test_ensure_nlm_auth_family_refresh_fails_closed_when_source_refresh_fails(self, monkeypatch):
+        """Family-backed auth should fail closed if the dedicated source refresh cannot recover."""
+
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-02")
+        monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+        refresh_calls = []
+
+        def mock_refresh_source_profile(family, **kwargs):
+            refresh_calls.append(family.source_profile)
+            return False
+
+        with mock.patch("csf.nlm_batch.refresh_source_profile", side_effect=mock_refresh_source_profile):
+            with mock.patch("csf.nlm_batch.sync_worker_profiles") as mock_sync:
+                with mock.patch("csf.nlm_batch.run_nlm", side_effect=AssertionError("family auth should not use bare login --check")):
                     result = nlm_batch._ensure_nlm_auth()
 
         assert result is False
-        assert called == [
-            ["login", "--check", "--profile", "ytis-free1-worker-03"],
-            ["login", "--check", "--profile", "ytis-free1-worker-03"],
-        ]
-        assert stop_calls == [{24680}, {24680}]
+        assert refresh_calls == ["ytis-free1-worker-01"]
+        mock_sync.assert_not_called()
 
-    def test_ensure_nlm_auth_retries_once_when_login_check_spawns_default_profile_and_recovers(self, monkeypatch):
-        """A transient default profile during auth check should be reaped and retried once."""
-        import subprocess
+    def test_ensure_nlm_auth_family_refresh_uses_source_profile_and_forced_refresh_schedule(self, monkeypatch):
+        """Forced family refresh should use the dedicated source profile path, not worker-profile check/login."""
 
-        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-03")
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-04")
         monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
-        stop_calls = []
-        called = []
+        monkeypatch.setenv("YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS", "1")
+        refresh_calls = []
+        sync_calls = []
 
-        def mock_run(cmd, **kwargs):
-            called.append(cmd)
-            return subprocess.CompletedProcess(cmd, 0, "Account: troup.hominidae@gmail.com\n", "")
+        def mock_refresh_source_profile(family, **kwargs):
+            refresh_calls.append(family.source_profile)
+            return True
 
-        with mock.patch("csf.nlm_batch._default_chrome_profile_pids", side_effect=[set(), {24680}, set()]):
-            with mock.patch("csf.nlm_batch._stop_chrome_pids", side_effect=lambda pids: stop_calls.append(set(pids))):
-                with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
-                    with mock.patch("csf.nlm_batch.log_action") as mock_log:
+        def mock_sync_worker_profiles(**kwargs):
+            sync_calls.append(kwargs)
+            return None
+
+        with mock.patch("csf.nlm_batch.refresh_source_profile", side_effect=mock_refresh_source_profile):
+            with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=mock_sync_worker_profiles):
+                with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                    with mock.patch("csf.nlm_batch.run_nlm", side_effect=AssertionError("family auth should not use bare login --check")):
                         result = nlm_batch._ensure_nlm_auth()
 
         assert result is True
-        assert called == [
-            ["login", "--check", "--profile", "ytis-free1-worker-03"],
-            ["login", "--check", "--profile", "ytis-free1-worker-03"],
-        ]
-        assert stop_calls == [{24680}]
+        assert refresh_calls == ["ytis-free1-worker-01"]
+        assert sync_calls and sync_calls[0]["families"][0].source_profile == "ytis-free1-worker-01"
         log_names = [call.args[0] for call in mock_log.call_args_list]
-        assert "nlm_auth_recovered" in log_names
-        assert "nlm_auth_failed" not in log_names
+        assert "nlm_auth_forced_refresh_scheduled" in log_names
 
-    def test_ensure_nlm_auth_reaps_default_profile_before_check_and_continues(self, monkeypatch):
-        """A transient default profile should be reaped before auth and the active profile should continue."""
-        import subprocess
+    def test_ensure_nlm_auth_logs_family_refresh_timing_markers(self, monkeypatch):
+        """Family auth refresh should emit dedicated timing markers for startup probes."""
 
-        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-03")
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-04")
         monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
-        stop_calls = []
-        called = []
+        refresh_calls = []
+        sync_calls = []
 
-        def mock_run(cmd, **kwargs):
-            called.append(cmd)
-            return subprocess.CompletedProcess(cmd, 0, "Account: troup.hominidae@gmail.com\n", "")
+        def mock_refresh_source_profile(family, **kwargs):
+            refresh_calls.append(family.source_profile)
+            return True
 
-        with mock.patch("csf.nlm_batch._default_chrome_profile_pids", side_effect=[{24680}, set(), set()]):
-            with mock.patch("csf.nlm_batch._stop_chrome_pids", side_effect=lambda pids: stop_calls.append(set(pids))):
-                with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
-                    with mock.patch("csf.nlm_batch.log_action") as mock_log:
-                        result = nlm_batch._ensure_nlm_auth()
+        def mock_sync_worker_profiles(**kwargs):
+            sync_calls.append(kwargs)
+            return None
+
+        with mock.patch("csf.nlm_batch._default_chrome_profile_pids", return_value=set()):
+            with mock.patch("csf.nlm_batch.refresh_source_profile", side_effect=mock_refresh_source_profile):
+                with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=mock_sync_worker_profiles):
+                    with mock.patch("csf.nlm_batch.run_nlm", side_effect=AssertionError("family auth should not use bare login --check")):
+                        with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                            result = nlm_batch._ensure_nlm_auth()
 
         assert result is True
-        assert called == [["login", "--check", "--profile", "ytis-free1-worker-03"]]
-        assert stop_calls == [{24680}]
+        assert refresh_calls == ["ytis-free1-worker-01"]
+        assert sync_calls and sync_calls[0]["families"][0].source_profile == "ytis-free1-worker-01"
         log_names = [call.args[0] for call in mock_log.call_args_list]
-        assert "nlm_auth_recovered" in log_names
-        assert "nlm_auth_failed" not in log_names
+        assert "nlm_family_refresh_started" in log_names
+        assert "nlm_family_refresh_completed" in log_names
 
 
 class TestReusableBatchLogging:

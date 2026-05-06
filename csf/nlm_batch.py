@@ -137,20 +137,11 @@ def _refresh_nlm_auth_session(
     expected_email = auth_context.expected_email.strip().lower()
     family = _auth_family_for_profile(auth_context.profile) if expected_email else None
     if family is not None:
-        try:
-            if force_source_refresh and not refresh_source_profile(family, timeout_s=timeout_s):
-                return False
-            sync_worker_profiles(families=(family,), backup=False)
-        except (FileNotFoundError, RuntimeError, ValueError):
-            return False
-        try:
-            check = run_nlm(
-                ["login", "--check", *auth_context.login_profile_args],
-                timeout_s=30,
-            )
-        except subprocess.TimeoutExpired:
-            return False
-        return check.returncode == 0 and _session_matches_expected_account(check, expected_email)
+        return _refresh_family_nlm_auth_session(
+            auth_context,
+            family,
+            timeout_s=timeout_s,
+        )
 
     try:
         login = run_nlm(
@@ -164,6 +155,58 @@ def _refresh_nlm_auth_session(
     if not expected_email:
         return True
     return _extract_account(login.stdout or "", login.stderr or "") == expected_email
+
+
+def _refresh_family_nlm_auth_session(
+    auth_context: _NLMAuthContext,
+    family,
+    *,
+    timeout_s: float = 120.0,
+    check_count: int | None = None,
+) -> bool:
+    """Refresh a mapped worker family through the canonical source profile path."""
+    started = time.perf_counter()
+    log_action(
+        "nlm_family_refresh_started",
+        {
+            "component": "nlm_batch",
+            "notebooklm_profile": auth_context.profile,
+            "source_profile": family.source_profile,
+            "expected_email": auth_context.expected_email or None,
+            "check_count": check_count,
+        },
+    )
+    outcome = "failed"
+    try:
+        _reap_default_chrome_profile_for_auth(
+            auth_context,
+            args=["login", "--force", "--profile", family.source_profile],
+            phase="pre_auth_family",
+        )
+        if not refresh_source_profile(family, timeout_s=timeout_s):
+            return False
+        sync_worker_profiles(
+            families=(family,),
+            backup=False,
+            source_session_checker=lambda _profile: True,
+        )
+        outcome = "ok"
+        return True
+    except (FileNotFoundError, RuntimeError, ValueError):
+        return False
+    finally:
+        log_action(
+            "nlm_family_refresh_completed",
+            {
+                "component": "nlm_batch",
+                "status": outcome,
+                "elapsed_s": round(time.perf_counter() - started, 3),
+                "notebooklm_profile": auth_context.profile,
+                "source_profile": family.source_profile,
+                "expected_email": auth_context.expected_email or None,
+                "check_count": check_count,
+            },
+        )
 
 
 _NLM_AUTH_CHECK_COUNT = 0
@@ -878,9 +921,11 @@ def cleanup_stale_worker_notebooks(*, delete: bool = False) -> tuple[int, int]:
 def _ensure_nlm_auth() -> bool:
     """Verify nlm CLI auth is valid, auto-recover if expired.
 
-    Runs 'nlm login --check' (30s timeout). On failure, calls a profile-pinned
-    'nlm login --force' (120s timeout) to auto-re-authenticate.
-    Returns True if auth is valid or was just refreshed.
+    Known worker-family profiles refresh through the canonical source-profile
+    path so the probe never opens the shared default NotebookLM chrome-profile.
+    Unknown profiles still use the profile-pinned `nlm login --check` and
+    `nlm login --force` fallback. Returns True if auth is valid or was just
+    refreshed.
     """
     import subprocess
 
@@ -900,7 +945,8 @@ def _ensure_nlm_auth() -> bool:
     check_count = _next_nlm_auth_check_count()
     force_every = _get_nlm_auth_force_refresh_every_checks()
     force_scheduled = force_every > 0 and check_count % force_every == 0
-    if not force_scheduled and nlm_auth_guard.auth_check_cache_hit(auth_context):
+    if not force_scheduled and nlm_auth_guard.auth_check_cache_hit(auth_context)[0]:
+        session_age_s = nlm_auth_guard.auth_check_cache_session_age(auth_context)
         log_action(
             "nlm_auth_checked",
             {
@@ -910,9 +956,100 @@ def _ensure_nlm_auth() -> bool:
                 "account": auth_context.expected_email or None,
                 "expected_email": auth_context.expected_email or None,
                 "check_count": check_count,
+                "session_age_s": round(session_age_s, 3) if session_age_s is not None else None,
             },
         )
         return True
+    expected_email = auth_context.expected_email.strip().lower()
+    family = _auth_family_for_profile(auth_context.profile) if expected_email else None
+    if family is not None:
+        if force_scheduled:
+            log_action(
+                "nlm_auth_forced_refresh_scheduled",
+                {
+                    "component": "nlm_batch",
+                    "notebooklm_profile": auth_context.profile,
+                    "expected_email": expected_email or None,
+                    "check_count": check_count,
+                },
+            )
+
+        # Family-backed auth probes refresh the canonical source profile instead of
+        # opening the mapped worker profile's default NotebookLM chrome-profile.
+        _AUTH_LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with fasteners.InterProcessLock(str(_AUTH_LOCK_PATH)):
+            login_started = time.perf_counter()
+            log_action(
+                "nlm_login_started",
+                {
+                    "component": "nlm_batch",
+                    "mode": "family_refresh",
+                    "status": "started",
+                    "notebooklm_profile": auth_context.profile,
+                    "source_profile": family.source_profile,
+                    "check_count": check_count,
+                },
+            )
+            login = _refresh_family_nlm_auth_session(
+                auth_context,
+                family,
+                timeout_s=120,
+                check_count=check_count,
+            )
+            login_elapsed = round(time.perf_counter() - login_started, 3)
+            session_established_at = round(time.monotonic(), 3)
+            if login:
+                nlm_auth_guard.auth_check_cache_store(auth_context, session_established_at=session_established_at)
+                log_action(
+                    "nlm_login_completed",
+                    {
+                        "component": "nlm_batch",
+                        "mode": "family_refresh",
+                        "status": "ok",
+                        "elapsed_s": login_elapsed,
+                        "notebooklm_profile": auth_context.profile,
+                        "source_profile": family.source_profile,
+                        "check_count": check_count,
+                        "session_established_at": session_established_at,
+                    },
+                )
+                log_action(
+                    "nlm_auth_refreshed",
+                    {
+                        "component": "nlm_batch",
+                        "status": "ok",
+                        "notebooklm_profile": auth_context.profile,
+                        "source_profile": family.source_profile,
+                        "check_count": check_count,
+                        "session_established_at": session_established_at,
+                    },
+                )
+                return True
+            log_action(
+                "nlm_login_failed",
+                {
+                    "component": "nlm_batch",
+                    "mode": "family_refresh",
+                    "status": "failed",
+                    "elapsed_s": login_elapsed,
+                    "returncode": 1,
+                    "notebooklm_profile": auth_context.profile,
+                    "source_profile": family.source_profile,
+                    "check_count": check_count,
+                },
+            )
+            log_action(
+                "nlm_auth_failed",
+                {
+                    "component": "nlm_batch",
+                    "status": "refresh_failed",
+                    "notebooklm_profile": auth_context.profile,
+                    "source_profile": family.source_profile,
+                    "check_count": check_count,
+                },
+            )
+            return False
+
     _reap_default_chrome_profile_for_auth(
         auth_context,
         args=["login", "--check", *auth_context.login_profile_args],
@@ -929,7 +1066,6 @@ def _ensure_nlm_auth() -> bool:
     ):
         return False
     check_account = _extract_account(check.stdout or "", check.stderr or "")
-    expected_email = auth_context.expected_email.strip().lower()
     check_matches_expected = check.returncode == 0 and (not expected_email or check_account == expected_email)
     if check_matches_expected and not force_scheduled:
         nlm_auth_guard.auth_check_cache_store(auth_context)
@@ -942,6 +1078,7 @@ def _ensure_nlm_auth() -> bool:
                 "account": check_account or None,
                 "expected_email": expected_email or None,
                 "check_count": check_count,
+                "session_age_s": None,
             },
         )
         return True
@@ -1011,6 +1148,7 @@ def _ensure_nlm_auth() -> bool:
                     "account": check_account or None,
                     "expected_email": expected_email or None,
                     "check_count": check_count,
+                    "session_age_s": None,
                 },
             )
             return True
@@ -1051,8 +1189,9 @@ def _ensure_nlm_auth() -> bool:
         )
         login = _refresh_nlm_auth_session(auth_context, timeout_s=120, force_source_refresh=force_scheduled)
         login_elapsed = round(time.perf_counter() - login_started, 3)
+        session_established_at = round(time.monotonic(), 3)
         if login:
-            nlm_auth_guard.auth_check_cache_store(auth_context)
+            nlm_auth_guard.auth_check_cache_store(auth_context, session_established_at=session_established_at)
             log_action(
                 "nlm_login_completed",
                 {
@@ -1062,6 +1201,7 @@ def _ensure_nlm_auth() -> bool:
                     "elapsed_s": login_elapsed,
                     "notebooklm_profile": auth_context.profile,
                     "check_count": check_count,
+                    "session_established_at": session_established_at,
                 },
             )
             log_action(
@@ -1071,6 +1211,7 @@ def _ensure_nlm_auth() -> bool:
                     "status": "ok",
                     "notebooklm_profile": auth_context.profile,
                     "check_count": check_count,
+                    "session_established_at": session_established_at,
                 },
             )
             return True

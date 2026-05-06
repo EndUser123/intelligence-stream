@@ -32,6 +32,32 @@ def _lanes(tmp_path: Path) -> tuple[LaneConfig, ...]:
     )
 
 
+def _clean_browser_health_report() -> dict[str, object]:
+    return {
+        "status": "clean",
+        "settle_window_s": 30.0,
+        "sample_interval_s": 5.0,
+        "sample_count": 2,
+        "elapsed_s": 0.0,
+        "allowed_browser_roots": [r"P:\.data\yt-is\browser\notebooklm-pro"],
+        "initial_default_profile_detected_count": 0,
+        "initial_default_profile_detected_pids": [],
+        "initial_default_profile_reaped_count": 0,
+        "initial_default_profile_reaped_pids": [],
+        "default_profile_detected_count": 0,
+        "default_profile_detected_pids": [],
+        "default_profile_reaped_count": 0,
+        "default_profile_reaped_pids": [],
+        "default_profile_remaining_count": 0,
+        "default_profile_remaining_pids": [],
+        "unexpected_process_count": 0,
+        "unexpected_processes": [],
+        "chrome_process_count_max": 0,
+        "chrome_rss_bytes_max": 0,
+        "issues": [],
+    }
+
+
 def test_main_runs_doctor_smoke_evidence_soak_in_order(tmp_path, monkeypatch):
     calls: list[str] = []
     run_root = tmp_path / "run"
@@ -54,6 +80,11 @@ def test_main_runs_doctor_smoke_evidence_soak_in_order(tmp_path, monkeypatch):
             "reaped_pids": [],
             "remaining_pids": [],
         },
+    )
+    monkeypatch.setattr(
+        mod,
+        "browser_health_gate",
+        lambda *args, **kwargs: calls.append("browser_health") or _clean_browser_health_report(),
     )
 
     def fake_run_sharded_lane_series(*, output_root, trace_root, limit, batch_size, **kwargs):
@@ -96,16 +127,19 @@ def test_main_runs_doctor_smoke_evidence_soak_in_order(tmp_path, monkeypatch):
         "5",
         "--smoke-batch-size",
         "2",
-    ])
+    ]) 
 
     assert result == 0
-    assert calls == ["doctor", "smoke", "evidence", "soak"]
+    assert calls == ["doctor", "browser_health", "smoke", "evidence", "soak"]
+    assert (run_root / "browser_health.json").exists()
     persisted = json.loads(stale_report.read_text(encoding="utf-8"))
     assert persisted["report_path"] == str(stale_report)
     assert persisted["sequence_smoke_report_path"] == str(smoke_output_root / "sharded_lane_series_summary.json")
     assert persisted["sequence_soak_report_path"] == str(soak_output_root / "sharded_lane_series_summary.json")
     assert persisted["status"] == "ok"
     assert persisted["post_run_hygiene"]["status"] == "clean"
+    assert persisted["pre_run_browser_health"]["status"] == "clean"
+    assert persisted["pre_run_browser_health_path"] == str(run_root / "browser_health.json")
 
 
 def test_main_stops_before_soak_when_evidence_fails(tmp_path, monkeypatch):
@@ -125,6 +159,11 @@ def test_main_stops_before_soak_when_evidence_fails(tmp_path, monkeypatch):
             "reaped_pids": [],
             "remaining_pids": [],
         },
+    )
+    monkeypatch.setattr(
+        mod,
+        "browser_health_gate",
+        lambda *args, **kwargs: calls.append("browser_health") or _clean_browser_health_report(),
     )
 
     def fake_run_sharded_lane_series(*, output_root, **kwargs):
@@ -154,10 +193,10 @@ def test_main_stops_before_soak_when_evidence_fails(tmp_path, monkeypatch):
         str(_lane_config(tmp_path)),
         "--run-root",
         str(tmp_path / "run"),
-    ])
+    ]) 
 
     assert result == 1
-    assert calls == ["doctor", "smoke", "evidence"]
+    assert calls == ["doctor", "browser_health", "smoke", "evidence"]
 
 
 def test_main_rewrites_run_root_summary_on_invalidated_soak(tmp_path, monkeypatch):
@@ -182,6 +221,11 @@ def test_main_rewrites_run_root_summary_on_invalidated_soak(tmp_path, monkeypatc
             "reaped_pids": [],
             "remaining_pids": [],
         },
+    )
+    monkeypatch.setattr(
+        mod,
+        "browser_health_gate",
+        lambda *args, **kwargs: calls.append("browser_health") or _clean_browser_health_report(),
     )
 
     def fake_run_sharded_lane_series(*, output_root, **kwargs):
@@ -218,7 +262,7 @@ def test_main_rewrites_run_root_summary_on_invalidated_soak(tmp_path, monkeypatc
     ])
 
     assert result == 1
-    assert calls == ["doctor", "smoke", "evidence", "soak"]
+    assert calls == ["doctor", "browser_health", "smoke", "evidence", "soak"]
     persisted = json.loads(stale_report.read_text(encoding="utf-8"))
     assert persisted["report_path"] == str(stale_report)
     assert persisted["status"] == "invalidated"
@@ -273,6 +317,59 @@ def test_main_records_post_run_hygiene_and_fails_when_default_profile_persists(t
             "remaining_pids": [1234],
         },
     )
+    monkeypatch.setattr(
+        mod,
+        "browser_health_gate",
+        lambda *args, **kwargs: calls.append("browser_health") or _clean_browser_health_report(),
+    )
+
+    result = mod.main([
+        "--lane-config",
+        str(_lane_config(tmp_path)),
+        "--run-root",
+        str(run_root),
+    ]) 
+
+    assert result == 1
+    assert calls == ["doctor", "browser_health", "smoke", "evidence", "soak"]
+    persisted = json.loads(stale_report.read_text(encoding="utf-8"))
+    assert persisted["post_run_hygiene"]["status"] == "still_running"
+    assert persisted["post_run_hygiene"]["remaining_pids"] == [1234]
+
+
+def test_main_stops_before_smoke_when_browser_health_is_unhealthy(tmp_path, monkeypatch):
+    calls: list[str] = []
+    run_root = tmp_path / "run"
+
+    monkeypatch.setattr(mod, "doctor_lane_setup", lambda *args, **kwargs: calls.append("doctor") or _lanes(tmp_path))
+    monkeypatch.setattr(
+        mod,
+        "browser_health_gate",
+        lambda *args, **kwargs: calls.append("browser_health")
+        or {
+            "status": "unhealthy",
+            "settle_window_s": 30.0,
+            "sample_interval_s": 5.0,
+            "sample_count": 2,
+            "elapsed_s": 0.0,
+            "allowed_browser_roots": [r"P:\.data\yt-is\browser\notebooklm-pro"],
+            "initial_default_profile_detected_count": 1,
+            "initial_default_profile_detected_pids": [4321],
+            "initial_default_profile_reaped_count": 1,
+            "initial_default_profile_reaped_pids": [4321],
+            "default_profile_detected_count": 1,
+            "default_profile_detected_pids": [4321],
+            "default_profile_reaped_count": 1,
+            "default_profile_reaped_pids": [4321],
+            "default_profile_remaining_count": 1,
+            "default_profile_remaining_pids": [4321],
+            "unexpected_process_count": 1,
+            "unexpected_processes": [{"pid": 9999, "cmdline": "chrome.exe --user-data-dir=C:\\Temp"}],
+            "chrome_process_count_max": 2,
+            "chrome_rss_bytes_max": 1024,
+            "issues": ["unexpected Chrome processes detected during browser health settle: 9999:chrome.exe --user-data-dir=C:\\Temp"],
+        },
+    )
 
     result = mod.main([
         "--lane-config",
@@ -282,7 +379,5 @@ def test_main_records_post_run_hygiene_and_fails_when_default_profile_persists(t
     ])
 
     assert result == 1
-    assert calls == ["doctor", "smoke", "evidence", "soak"]
-    persisted = json.loads(stale_report.read_text(encoding="utf-8"))
-    assert persisted["post_run_hygiene"]["status"] == "still_running"
-    assert persisted["post_run_hygiene"]["remaining_pids"] == [1234]
+    assert calls == ["doctor", "browser_health"]
+    assert (run_root / "browser_health.json").exists()

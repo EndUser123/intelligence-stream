@@ -53,6 +53,8 @@ from pathlib import Path
 # Multi-terminal lock directory for sync operations
 _LOCK_DIR = Path("P:/.data/yt-is/locks")
 _LOCK_DIR.mkdir(parents=True, exist_ok=True)
+_NLM_AUTH_CHECK_COUNT = 0
+_NLM_AUTH_CHECK_COUNT_LOCK = threading.Lock()
 
 # Add csf to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -315,6 +317,24 @@ def _get_nlm_login_profile_args() -> list[str]:
     return nlm_auth_guard.get_login_profile_args(profile)
 
 
+def _get_nlm_auth_force_refresh_every_checks() -> int:
+    raw = os.getenv("YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS", "").strip()
+    if not raw:
+        return 0
+    try:
+        value = int(raw)
+    except ValueError:
+        return 0
+    return value if value > 0 else 0
+
+
+def _next_nlm_auth_check_count() -> int:
+    global _NLM_AUTH_CHECK_COUNT
+    with _NLM_AUTH_CHECK_COUNT_LOCK:
+        _NLM_AUTH_CHECK_COUNT += 1
+        return _NLM_AUTH_CHECK_COUNT
+
+
 def _is_nlm_auth_noninteractive() -> bool:
     """Return whether auth checks must avoid browser/passkey prompts."""
     return nlm_auth_guard.is_nlm_auth_noninteractive()
@@ -352,6 +372,9 @@ def _ensure_nlm_auth() -> bool:
     login_profile_args = _get_nlm_login_profile_args()
     profile = os.getenv("NOTEBOOKLM_PROFILE", "").strip()
     expected_email = expected_email_for_profile(profile).lower()
+    check_count = _next_nlm_auth_check_count()
+    force_every = _get_nlm_auth_force_refresh_every_checks()
+    force_scheduled = force_every > 0 and check_count % force_every == 0
     if _is_nlm_auth_noninteractive() and not profile:
         print("[source] FATAL: noninteractive NLM auth requires NOTEBOOKLM_PROFILE.", file=sys.stderr)
         sys.exit(1)
@@ -364,26 +387,73 @@ def _ensure_nlm_auth() -> bool:
         print("[source] FATAL: NLM auth check opened the default chrome-profile.", file=sys.stderr)
         sys.exit(1)
     account = _extract_nlm_account(login_check.stdout or "", login_check.stderr or "")
-    if login_check.returncode == 0 and (not expected_email or account == expected_email):
+    if login_check.returncode == 0 and (not expected_email or account == expected_email) and not force_scheduled:
         return True
     if login_check.returncode == 0 and expected_email and account and account != expected_email:
         print(
             f"[source] NLM auth profile {profile} is mapped to {account}, expected {expected_email}.",
             file=sys.stderr,
         )
+    if force_scheduled:
+        log_action(
+            "nlm_auth_forced_refresh_scheduled",
+            {
+                "component": "source",
+                "notebooklm_profile": profile,
+                "expected_email": expected_email or None,
+                "check_count": check_count,
+            },
+        )
     force_arg = "--force" if _is_nlm_auth_noninteractive() else ""
     mode = "force" if force_arg else "interactive"
     print(f"[source] NLM auth expired, re-authenticating with nlm login ({mode})...", file=sys.stderr)
     family = family_for_profile(profile)
     if family is not None and _is_nlm_auth_noninteractive():
-        if not refresh_source_profile(family, timeout_s=120):
-            print("[source] FATAL: dedicated NLM source-profile refresh failed.", file=sys.stderr)
-            sys.exit(1)
+        refresh_started = time.perf_counter()
+        session_established_at = round(time.monotonic(), 3)
+        log_action(
+            "nlm_family_refresh_started",
+            {
+                "component": "source",
+                "notebooklm_profile": profile,
+                "source_profile": family.source_profile,
+                "expected_email": expected_email or None,
+                "check_count": check_count,
+            },
+        )
         try:
+            if not refresh_source_profile(family, timeout_s=120):
+                print("[source] FATAL: dedicated NLM source-profile refresh failed.", file=sys.stderr)
+                raise RuntimeError("dedicated NLM source-profile refresh failed")
             sync_worker_profiles(families=(family,), backup=True)
         except Exception as exc:
             print(f"[source] FATAL: worker auth profile sync failed: {exc}", file=sys.stderr)
+            log_action(
+                "nlm_family_refresh_completed",
+                {
+                    "component": "source",
+                    "status": "failed",
+                    "elapsed_s": round(time.perf_counter() - refresh_started, 3),
+                    "notebooklm_profile": profile,
+                    "source_profile": family.source_profile,
+                    "expected_email": expected_email or None,
+                    "check_count": check_count,
+                },
+            )
             sys.exit(1)
+        log_action(
+            "nlm_family_refresh_completed",
+            {
+                "component": "source",
+                "status": "ok",
+                "elapsed_s": round(time.perf_counter() - refresh_started, 3),
+                "notebooklm_profile": profile,
+                "source_profile": family.source_profile,
+                "expected_email": expected_email or None,
+                "check_count": check_count,
+                "session_established_at": session_established_at,
+            },
+        )
     else:
         login_cmd = ["login", *([force_arg] if force_arg else []), *login_profile_args]
         login_res = nlm_auth_guard.run_nlm(login_cmd, timeout_s=120)

@@ -267,3 +267,21 @@ def test_load_or_build_cohort_manifest_shape_uses_live_trace_cases(tmp_path):
         "whisper-recover-002",
         "whisper-recover-003",
     ]
+
+
+def test_emit_progress_event_appends_jsonl_records(tmp_path):
+    mod = _load_benchmark_module()
+    progress_path = tmp_path / "benchmark_progress.jsonl"
+
+    mod._emit_progress_event(progress_path, "benchmark_started", {"batch_count": 0})
+    mod._emit_progress_event(progress_path, "benchmark_batch_started", {"batch_index": 1})
+
+    lines = progress_path.read_text(encoding="utf-8").splitlines()
+
+    assert len(lines) == 2
+    first = json.loads(lines[0])
+    second = json.loads(lines[1])
+    assert first["action"] == "benchmark_started"
+    assert first["data"] == {"batch_count": 0}
+    assert second["action"] == "benchmark_batch_started"
+    assert second["data"] == {"batch_index": 1}

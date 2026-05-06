@@ -617,6 +617,83 @@ def test_run_sharded_lane_series_preserves_previous_summary_if_write_fails(tmp_p
     assert json.loads(stale_report.read_text(encoding="utf-8")) == {"stale": True}
 
 
+def test_run_lane_stops_default_profile_before_launching(tmp_path, monkeypatch):
+    import csf.sharded_lane_series as mod
+
+    lane = LaneConfig(
+        lane="free",
+        account_class="free",
+        workers=1,
+        notebooklm_profile_prefix="ytis-free1-worker",
+        notebooklm_profiles=("ytis-free1-worker-01",),
+        browser_profile_root=Path("P:/.data/yt-is/browser/notebooklm-free"),
+        worker_state_root=tmp_path / "free" / "worker_states",
+        notebook_prefix="benchmark-shard-free",
+    )
+    calls: list[str] = []
+    lane_root = tmp_path / "out" / "free"
+    lane_root.mkdir(parents=True, exist_ok=True)
+
+    def fake_build_command(**kwargs):
+        return ["fake-benchmark"]
+
+    def fake_stop_default_profile(*, stage):
+        calls.append(stage)
+        return False
+
+    def fake_run(cmd, **kwargs):
+        calls.append("run")
+        (lane_root / "benchmark_summary.json").write_text(
+            json.dumps(
+                {
+                    "batches": [
+                        {
+                            "policies": [
+                                {
+                                    "policy": DEFAULT_POLICY,
+                                    "results": [
+                                        {
+                                            "success_count": 1,
+                                            "fail_count": 0,
+                                            "processed_count": 1,
+                                            "hot_path_success_count": 1,
+                                            "transcript_fallback_success_count": 0,
+                                            "elapsed_s": 1.0,
+                                        }
+                                    ],
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr(mod, "build_fallback_benchmark_command", fake_build_command)
+    monkeypatch.setattr(mod, "_stop_default_chrome_profile_if_running", fake_stop_default_profile)
+    monkeypatch.setattr(mod.subprocess, "run", fake_run)
+
+    report = mod._run_lane(
+        lane=lane,
+        trace_root=tmp_path / "trace",
+        output_root=tmp_path / "out",
+        cohort_json=tmp_path / "out" / "cohort.json",
+        source_url="https://www.youtube.com/channel/UCYTISFALLBACKBMK",
+        policy=DEFAULT_POLICY,
+        limit=1,
+        batch_size=1,
+        manifest_json=Path("P:/packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
+        python_executable=None,
+        reusable_pipeline_mode="serial",
+        env={},
+    )
+
+    assert report["status"] == "ok"
+    assert calls == ["lane_start_free", "run", "lane_complete_free"]
+
+
 def test_run_lane_rejects_default_profile_contaminated_logs(tmp_path, monkeypatch):
     """A lane that observed the shared default profile must not be accepted as a benchmark result."""
     import csf.sharded_lane_series as mod

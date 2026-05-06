@@ -131,9 +131,12 @@ Current auth contract:
 - When a source worker profile is expired or mapped to the wrong account, `csf-nlm-worker-auth sync` uses the configured root-specific CDP refresh path by default and fails closed if that path cannot recover the account mapping.
 - `csf-nlm-worker-auth doctor` is the fast preflight gate for a benchmark root: it validates the lane config, confirms the run root is empty, and refuses to start a run on dirty evidence.
 - `csf-nlm-worker-auth doctor` also fails closed when a lane profile has no expected-account mapping.
+- `csf-sharded-lane-sequence` runs an objective pre-run browser health gate after doctor and before smoke. It writes `<run-root>/browser_health.json`, reaps transient shared default NotebookLM Chrome profile leaks once, and records the result in the top-level summary as `pre_run_browser_health`.
+- Each lane also reaps a transient shared default NotebookLM Chrome profile again at lane start, right before the benchmark command launches, so a leak that appears after preflight cannot poison the lane.
 - `csf-sharded-lane-series` pins `INTELLIGENCE_STREAM_LOG_DIR` into each lane output root so auth markers and lane events stay inside the benchmark evidence tree.
 - The guarded sequence records `post_run_hygiene` in the top-level summary and reaps any lingering default NotebookLM `chrome-profile` after soak; a transient shared-profile intrusion is cleaned up, but a persistent one remains a failure signal.
 - `csf/nlm_batch.py` self-heals cleanup commands if a transient default `chrome-profile` appears after the batch work is already complete, so a stale shared-profile intrusion does not invalidate an otherwise successful run.
+- The live `csf-source` fetch helper now emits `nlm_auth_forced_refresh_scheduled` plus `nlm_family_refresh_started` / `nlm_family_refresh_completed` when `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS` forces a family refresh, and a 25-item direct probe on `ytis-pro-worker-01` measured `nlm_family_refresh_completed.elapsed_s=10.616`.
 - The second free account lane is defined in [`P:/packages/yt-is/.logs/sharded_lane_series/pro_free_hotmail_lanes.json`](../../.logs/sharded_lane_series/pro_free_hotmail_lanes.json) and uses `ytis-free2-worker-01` through `ytis-free2-worker-04` on `brsthomson@hotmail.com`.
 - The canonical evidence index is [Evidence Index](evidence/README.md); treat full run roots as runtime output, not the source of truth.
 - The auth family map in `csf/nlm_worker_auth.py` is still the primary source of truth. If you add a 4th family, update that file first, then mirror the new lane into the lane JSON, tests, and this doc. If the lane exists before the code map is extended, set `expected_email` in the lane JSON so doctor/preflight can still validate it.
@@ -334,7 +337,7 @@ Current state as of 2026-04-30:
 - The add-path fix now treats a nonzero `nlm source add` return as recovered success when the notebook source count reaches the full batch size.
 - The fresh `pro_free_source_map_v3` rerun improved to `3850.52` combined hot-path VPH, but the remaining gap is now concentrated in transient add failures rather than content fetch.
 - The attempted `pro_free_source_map_v4` rerun is invalid and has no summary. It exposed an unprofiled auth-refresh path that opened the default NotebookLM Chrome account chooser.
-- `csf/nlm_batch.py` now pins `nlm login --check` and `nlm login --force` to `NOTEBOOKLM_PROFILE` when present, and `YTIS_NLM_AUTH_NONINTERACTIVE=1` fails closed if a profile is missing.
+- `csf/nlm_batch.py` now routes mapped worker-family auth refresh through the family source profile path, emits dedicated `nlm_family_refresh_started` / `nlm_family_refresh_completed` timing markers for that branch, keeps the unknown-profile `nlm login --check`/`--force` fallback pinned to `NOTEBOOKLM_PROFILE`, and still fails closed if a noninteractive profile is missing.
 - The fresh `pro_free_source_map_v5` rerun completed cleanly with no unprofiled auth browser activity, but it still falls below the `pro_free_source_map_v1` best:
   - combined hot-path VPH: `3930.79`
   - hot-path successes/failures: `638/162`
@@ -399,6 +402,50 @@ Corrected follow-up stagger test:
 - The prior `PERMISSION_DENIED` profile race did not recur.
 - The cleanup-race `NOT_FOUND` materialization timeout from the invalid `pro_free_staggered_60s_v2` run did not recur.
 - Remaining failures include counted Free `source_add_failed` and content-fetch `NOT_FOUND` cases, which are included in the `74` failures.
+
+## 3+3 Three-Sample Status (2026-05-05)
+
+### Instrumented Diagnosis
+
+**Evidence status**: the scheduled force-refresh path was not observed in run02/run03. The
+`nlm_login_started` and `nlm_family_refresh_started` events are present in run02/run03, but
+`nlm_auth_forced_refresh_scheduled=0` in all three `3+3` samples. That rules out the observed
+scheduled force-refresh path, but it does not prove NotebookLM TTL because the old logs do not
+contain session-age evidence.
+
+| Run | Comb VPH | Pro idle (s) | Pro add (s) | Pro logins | Auth checked | Source fetch mean/max |
+|---|---|---|---|---|---|---|
+| `sweep_phase3_2lane_3w_run01` | 4123.28 | 0.5 | 590.0 | 0 | 564 | — |
+| `sweep_phase3_2lane_3w_run02` | 2953.82 | 242.4 | 689.7 | 70 (Pro), 81 (Free) | 498 | — |
+| `sweep_phase3_2lane_3w_run03` | 2384.21 | 294.0 | 597.9 | 87 (Pro), 94 (Free) | 467 | 14.8s / 229.8s |
+| `sweep_phase3_2lane_3w_run04` | 2398.89 | 500.0 | 555.4 | 106 (Pro), 105 (Free) | 531 | — |
+| `pro_free_source_map_v1` | 5572.04 | 37.9 | 396.0 | 0 | 1121 | 5.9s / 16.0s |
+
+**Leading hypothesis**: session/reauth timing drives the lower run02/run03 VPH. NotebookLM TTL is
+plausible, but not confirmed until a fresh run captures `session_age_s` or equivalent timing evidence.
+
+Each login can block the source materialization polling loop when it overlaps active polling, adding
+idle time: 242s (run02 Pro), 294s (run03 Pro), 432s (run03 Free). Login count alone is not sufficient
+because run02 Free had many logins but no measured idle wait.
+
+Source fetch slowdown (run03: mean 14.8s, max 229.8s vs v1: mean 5.9s, max 16.0s) is correlated with
+the slower run, but causal direction remains part of the diagnostic.
+
+**Next test**: follow [Run04 Session Reauth Diagnostic Test Plan](run04-session-reauth-diagnostic-test-plan.md).
+Run04 must be unmitigated: no warm-auth, no lane-width changes, and no source-add changes.
+Warm-auth is a later A/B mitigation only if run04 supports the session-age hypothesis.
+
+### Three-Sample Interpretation
+
+| Run | VPH | Success/Fail | Hygiene | Auth state |
+|---|---|---|---|---|
+| `sweep_phase3_2lane_3w_run01` | 4123.28 | 795/5 | clean | 0 logins observed |
+| `sweep_phase3_2lane_3w_run02` | 2953.82 | 792/8 | clean | many family-refresh logins; forced-refresh scheduled path not observed |
+| `sweep_phase3_2lane_3w_run03` | 2384.21 | 797/3 | clean | many family-refresh logins; forced-refresh scheduled path not observed |
+
+**Current interpretation**: `run01` is still the best observed clean `3+3` sample, but the sustained
+`3+3` ceiling is not locked. Run04 repeated the low window at `2398.89` VPH and did not surface
+`session_age_s`, so the TTL/session-age hypothesis remains unproven rather than confirmed.
 
 ## Success Criteria
 

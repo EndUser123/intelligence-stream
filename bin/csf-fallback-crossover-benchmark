@@ -36,6 +36,7 @@ DEFAULT_SOURCE_URL = "https://www.youtube.com/channel/UCYTISFALLBACKBMK"
 DEFAULT_WORKERS = 2
 DEFAULT_COHORT_SHAPE = "trace"
 DEFAULT_MANIFEST_FAMILIES = "routing,whisper_admission,fallback_recovery,hot_path_control"
+PROGRESS_NAME = "benchmark_progress.jsonl"
 
 
 POLICY_ENV: dict[str, dict[str, str]] = {
@@ -321,6 +322,27 @@ def _reset_synthetic_source_state(source_url: str, items: list[dict[str, Any]]) 
     _seed_synthetic_source(source_url, items)
 
 
+def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(payload, sort_keys=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(line)
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _emit_progress_event(progress_path: Path, action: str, data: dict[str, Any]) -> None:
+    _append_jsonl(
+        progress_path,
+        {
+            "action": action,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "data": data,
+        },
+    )
+
+
 def _run_policy(
     *,
     policy_name: str,
@@ -474,17 +496,53 @@ def main(argv: list[str] | None = None) -> int:
     policies = _parse_policy_list(args.policy)
 
     args.output_root.mkdir(parents=True, exist_ok=True)
+    progress_path = args.output_root / PROGRESS_NAME
+    try:
+        progress_path.unlink()
+    except FileNotFoundError:
+        pass
+    _emit_progress_event(
+        progress_path,
+        "benchmark_started",
+        {
+            "cohort_json": str(args.cohort_json),
+            "cohort_shape": args.cohort_shape,
+            "sample_label": sample_label,
+            "workers": args.workers,
+            "limit": len(items),
+            "batch_size": args.batch_size,
+            "policy": args.policy,
+        },
+    )
     batch_results: list[dict[str, Any]] = []
     fallback_exercised = False
     for batch_index, start in enumerate(range(0, len(items), args.batch_size), start=1):
         batch_items = items[start : start + args.batch_size]
         if not batch_items:
             continue
+        _emit_progress_event(
+            progress_path,
+            "benchmark_batch_started",
+            {
+                "batch_index": batch_index,
+                "batch_size": len(batch_items),
+                "processed_items": start,
+            },
+        )
         print(f"[benchmark] Running batch {batch_index} size={len(batch_items)}")
         _seed_synthetic_source(args.source_url, batch_items)
         policy_results: list[dict[str, Any]] = []
         for policy_name in policies:
             _reset_synthetic_source_state(args.source_url, batch_items)
+            _emit_progress_event(
+                progress_path,
+                "benchmark_policy_started",
+                {
+                    "batch_index": batch_index,
+                    "policy": policy_name,
+                    "batch_size": len(batch_items),
+                },
+            )
             print(f"[benchmark] Running policy: {policy_name}")
             sweep_summary = _run_policy(
                 policy_name=policy_name,
@@ -499,6 +557,19 @@ def main(argv: list[str] | None = None) -> int:
                 preserve_worker_state_root=args.preserve_worker_state_root,
             )
             row = (sweep_summary.get("results", []) or [{}])[0]
+            _emit_progress_event(
+                progress_path,
+                "benchmark_policy_completed",
+                {
+                    "batch_index": batch_index,
+                    "policy": policy_name,
+                    "sweep_dir": sweep_summary.get("sweep_dir"),
+                    "success_count": int(row.get("success_count", 0) or 0),
+                    "fail_count": int(row.get("fail_count", 0) or 0),
+                    "videos_per_hour": float(row.get("videos_per_hour", 0) or 0),
+                    "fallback_recovered_count": int(row.get("transcript_fallback_success_count", 0) or 0),
+                },
+            )
             policy_results.append(
                 {
                     "policy": policy_name,
@@ -515,7 +586,16 @@ def main(argv: list[str] | None = None) -> int:
                 "batch_size": len(batch_items),
                 "items": batch_items,
                 "policies": policy_results,
-            }
+                }
+            )
+        _emit_progress_event(
+            progress_path,
+            "benchmark_batch_completed",
+            {
+                "batch_index": batch_index,
+                "policy_count": len(policy_results),
+                "fallback_exercised": any(result["fallback_processed_count"] > 0 for result in policy_results),
+            },
         )
         if any(result["fallback_processed_count"] > 0 for result in policy_results):
             fallback_exercised = True
@@ -537,6 +617,15 @@ def main(argv: list[str] | None = None) -> int:
     }
     report_path = args.output_root / "benchmark_summary.json"
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    _emit_progress_event(
+        progress_path,
+        "benchmark_completed",
+        {
+            "report_path": str(report_path),
+            "fallback_exercised": fallback_exercised,
+            "batch_count": len(batch_results),
+        },
+    )
 
     print(f"[benchmark] Wrote cohort: {args.cohort_json}")
     print(f"[benchmark] Wrote summary: {report_path}")

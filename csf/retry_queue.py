@@ -22,7 +22,7 @@ from typing import Optional
 _VIDEO_ID_PATTERN = __import__("re").compile(r"^[a-zA-Z0-9_-]{11}$")
 
 # Separate DB from transcript cache — isolation blast radius (LOGIC-002)
-_DEFAULT_SHARED_DB_PATH: Path = Path("P:/.data/yt-is/retry_queue.sqlite")
+_DEFAULT_SHARED_DB_PATH: Path = Path("P:\\.data/yt-is/retry_queue.sqlite")
 _SHARED_DB_PATH: Path = _DEFAULT_SHARED_DB_PATH
 
 

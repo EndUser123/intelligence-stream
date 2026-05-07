@@ -20,16 +20,16 @@
 
 ## Files
 
-- Modify: `P:/packages/yt-is/csf/nlm_worker_auth.py`
-- Modify: `P:/packages/yt-is/tests/test_nlm_worker_auth.py`
-- Modify: `P:/packages/yt-is/docs/operations/notebooklm-auth-robustness-test-plan.md`
-- Optional cleanup after verification: `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_stress_v1`
+- Modify: `P:\\packages/yt-is/csf/nlm_worker_auth.py`
+- Modify: `P:\\packages/yt-is/tests/test_nlm_worker_auth.py`
+- Modify: `P:\\packages/yt-is/docs/operations/notebooklm-auth-robustness-test-plan.md`
+- Optional cleanup after verification: `P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_stress_v1`
 
 ## Task 1: Add A Default Chrome Profile Process Guard
 
 **Files:**
-- Modify: `P:/packages/yt-is/csf/nlm_worker_auth.py`
-- Test: `P:/packages/yt-is/tests/test_nlm_worker_auth.py`
+- Modify: `P:\\packages/yt-is/csf/nlm_worker_auth.py`
+- Test: `P:\\packages/yt-is/tests/test_nlm_worker_auth.py`
 
 - [ ] **Step 1: Add failing tests**
 
@@ -93,9 +93,9 @@ def test_refresh_source_profile_refuses_existing_default_chrome_profile_in_nonin
 Run:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:PYTHONPATH = 'P:\\packages\yt-is'
 $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
-pytest P:/packages/yt-is/tests/test_nlm_worker_auth.py -q -k "default_chrome_profile"
+pytest P:\\packages/yt-is/tests/test_nlm_worker_auth.py -q -k "default_chrome_profile"
 ```
 
 Expected before implementation: both tests fail because `_chrome_pids_for_root` and `_stop_chrome_pids` do not exist.
@@ -204,9 +204,9 @@ Immediately after the `subprocess.run(_nlm_command(...))` block and before compu
 Run:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:PYTHONPATH = 'P:\\packages\yt-is'
 $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
-pytest P:/packages/yt-is/tests/test_nlm_worker_auth.py -q -k "refresh_source_profile or default_chrome_profile"
+pytest P:\\packages/yt-is/tests/test_nlm_worker_auth.py -q -k "refresh_source_profile or default_chrome_profile"
 ```
 
 Expected: all selected tests pass.
@@ -214,7 +214,7 @@ Expected: all selected tests pass.
 ## Task 2: Prove `nlm_batch` Fails Closed When The Guard Trips
 
 **Files:**
-- Modify: `P:/packages/yt-is/tests/test_nlm_batch.py`
+- Modify: `P:\\packages/yt-is/tests/test_nlm_batch.py`
 
 - [ ] **Step 1: Add the failing test**
 
@@ -252,9 +252,9 @@ def test_ensure_nlm_auth_forced_refresh_fails_when_source_profile_guard_rejects_
 Run:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:PYTHONPATH = 'P:\\packages\yt-is'
 $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
-pytest P:/packages/yt-is/tests/test_nlm_batch.py -q -k "forced_refresh_fails"
+pytest P:\\packages/yt-is/tests/test_nlm_batch.py -q -k "forced_refresh_fails"
 ```
 
 Expected: pass after Task 1, because `_refresh_nlm_auth_session()` already returns `False` when `refresh_source_profile()` returns `False`.
@@ -262,7 +262,7 @@ Expected: pass after Task 1, because `_refresh_nlm_auth_session()` already retur
 ## Task 3: Add Operational Guardrails To The Runbook
 
 **Files:**
-- Modify: `P:/packages/yt-is/docs/operations/notebooklm-auth-robustness-test-plan.md`
+- Modify: `P:\\packages/yt-is/docs/operations/notebooklm-auth-robustness-test-plan.md`
 
 - [ ] **Step 1: Patch the CLI update note**
 
@@ -310,10 +310,10 @@ Expected: no `csf-sharded-lane-series`, no unprofiled `nlm login --force`, and n
 Run:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:PYTHONPATH = 'P:\\packages\yt-is'
 $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
-pytest P:/packages/yt-is/tests/test_nlm_worker_auth.py P:/packages/yt-is/tests/test_nlm_batch.py -q -k "auth or refresh_source_profile or default_chrome_profile"
-python -m py_compile P:/packages/yt-is/csf/nlm_worker_auth.py P:/packages/yt-is/csf/nlm_batch.py P:/packages/yt-is/tests/test_nlm_worker_auth.py P:/packages/yt-is/tests/test_nlm_batch.py
+pytest P:\\packages/yt-is/tests/test_nlm_worker_auth.py P:\\packages/yt-is/tests/test_nlm_batch.py -q -k "auth or refresh_source_profile or default_chrome_profile"
+python -m py_compile P:\\packages/yt-is/csf/nlm_worker_auth.py P:\\packages/yt-is/csf/nlm_batch.py P:\\packages/yt-is/tests/test_nlm_worker_auth.py P:\\packages/yt-is/tests/test_nlm_batch.py
 ```
 
 Expected: selected tests pass and `py_compile` exits `0`.
@@ -323,8 +323,8 @@ Expected: selected tests pass and `py_compile` exits `0`.
 Run:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
-python P:/packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+$env:PYTHONPATH = 'P:\\packages\yt-is'
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
 ```
 
 Expected: exits `0` and prints `synced worker auth profiles`.
@@ -339,13 +339,13 @@ Expected: exits `0` and prints `synced worker auth profiles`.
 Verify the absolute path first:
 
 ```powershell
-Resolve-Path P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_stress_v1
+Resolve-Path P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_stress_v1
 ```
 
-If the resolved path is exactly under `P:\packages\yt-is\.logs\sharded_lane_series`, remove it:
+If the resolved path is exactly under `$CLAUDE_PLUGIN_ROOT/.logs\sharded_lane_series`, remove it:
 
 ```powershell
-Remove-Item -LiteralPath P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_stress_v1 -Recurse -Force
+Remove-Item -LiteralPath P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_stress_v1 -Recurse -Force
 ```
 
 - [ ] **Step 2: Run the drill**
@@ -353,13 +353,13 @@ Remove-Item -LiteralPath P:/packages/yt-is/.logs/sharded_lane_series/pro_free_au
 Run:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:PYTHONPATH = 'P:\\packages\yt-is'
 $env:YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS = '1'
-python P:/packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
-python P:/packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
-  --output-root P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_stress_v2 `
-  --cohort-json P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_stress_v2/cohort.json `
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+python P:\\packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_stress_v2 `
+  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_stress_v2/cohort.json `
   --limit 1 `
   --batch-size 1 `
   --reusable-pipeline-mode serial
@@ -371,7 +371,7 @@ Remove-Item Env:\YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS
 Run:
 
 ```powershell
-rg -n "nlm_auth_forced_refresh_scheduled|nlm_login_started|nlm_login_completed|nlm_auth_refreshed|nlm_auth_failed|chrome-profile" P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_stress_v2
+rg -n "nlm_auth_forced_refresh_scheduled|nlm_login_started|nlm_login_completed|nlm_auth_refreshed|nlm_auth_failed|chrome-profile" P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_stress_v2
 ```
 
 Expected:
@@ -388,7 +388,7 @@ Expected:
 
 - [ ] **Step 1: Run the short smoke with cadence 5**
 
-Run the Phase 4 command in `P:/packages/yt-is/docs/operations/notebooklm-auth-robustness-test-plan.md`, using a fresh root such as `pro_free_auth_forced_smoke_v2`.
+Run the Phase 4 command in `P:\\packages/yt-is/docs/operations/notebooklm-auth-robustness-test-plan.md`, using a fresh root such as `pro_free_auth_forced_smoke_v2`.
 
 - [ ] **Step 2: Promote to long soak only if the smoke is clean**
 

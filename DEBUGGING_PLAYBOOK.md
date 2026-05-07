@@ -44,7 +44,7 @@ Use this when working on the NotebookLM / transcript pipeline.
 
 ## Session Start
 
-1. Read [HANDOFF.md](P:/packages/yt-is/HANDOFF.md).
-2. Read [CODEX_MEMORY.md](P:/packages/yt-is/CODEX_MEMORY.md).
+1. Read [HANDOFF.md](P:\\packages/yt-is/HANDOFF.md).
+2. Read [CODEX_MEMORY.md](P:\\packages/yt-is/CODEX_MEMORY.md).
 3. Run focused verification before restarting a canary.
 4. Use the stopped-canary assumption unless you confirm a live process.

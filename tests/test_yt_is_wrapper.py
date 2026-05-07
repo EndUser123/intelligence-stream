@@ -10,7 +10,7 @@ from unittest import mock
 
 def _load_yt_is_module():
     """Load the extensionless bin/yt-is script as a module."""
-    path = Path(r"P:\packages\yt-is\bin\yt-is")
+    path = Path(r"$CLAUDE_PLUGIN_ROOT/bin\yt-is")
     loader = SourceFileLoader("yt_is_wrapper_test", str(path))
     spec = spec_from_loader(loader.name, loader)
     if spec is None or spec.loader is None:

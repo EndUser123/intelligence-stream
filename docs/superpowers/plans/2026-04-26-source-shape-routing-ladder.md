@@ -13,8 +13,8 @@
 ### Task 1: Add a routing toggle to `csf-source`
 
 **Files:**
-- Modify: `P:/packages/yt-is/bin/csf-source`
-- Test: `P:/packages/yt-is/tests/test_csf_source_fetch_timing.py`
+- Modify: `P:\\packages/yt-is/bin/csf-source`
+- Test: `P:\\packages/yt-is/tests/test_csf_source_fetch_timing.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -59,7 +59,7 @@ def test_cmd_fetch_routes_no_captions_to_transcript_fallback_when_enabled():
 
 - [ ] **Step 2: Run the test and confirm it fails**
 
-Run: `python -m pytest P:\packages\yt-is\tests\test_csf_source_fetch_timing.py -k no_captions_to_fallback -q`
+Run: `python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_csf_source_fetch_timing.py -k no_captions_to_fallback -q`
 Expected: fail because the env flag and route log field do not exist yet.
 
 - [ ] **Step 3: Implement the routing switch**
@@ -107,22 +107,22 @@ def _classify_pending_entry(entry: dict[str, object | None]) -> tuple[str, str |
 
 - [ ] **Step 4: Run the test again and confirm it passes**
 
-Run: `python -m pytest P:\packages\yt-is\tests\test_csf_source_fetch_timing.py -k no_captions_to_fallback -q`
+Run: `python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_csf_source_fetch_timing.py -k no_captions_to_fallback -q`
 Expected: pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add P:/packages/yt-is/bin/csf-source P:/packages/yt-is/tests/test_csf_source_fetch_timing.py
+git add P:\\packages/yt-is/bin/csf-source P:\\packages/yt-is/tests/test_csf_source_fetch_timing.py
 git commit -m "feat: add no-caption routing switch"
 ```
 
 ### Task 2: Add the route-split ladder scenario
 
 **Files:**
-- Modify: `P:/packages/yt-is/csf/load_ladder.py`
-- Modify: `P:/packages/yt-is/bin/csf-load-ladder`
-- Test: `P:/packages/yt-is/tests/test_load_ladder.py`
+- Modify: `P:\\packages/yt-is/csf/load_ladder.py`
+- Modify: `P:\\packages/yt-is/bin/csf-load-ladder`
+- Test: `P:\\packages/yt-is/tests/test_load_ladder.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -134,16 +134,16 @@ def test_default_load_ladder_scenarios_include_no_caption_route_split():
 def test_build_fallback_benchmark_command_keeps_worker_state_override():
     command = build_fallback_benchmark_command(
         python_executable="python",
-        fallback_benchmark_script=Path("P:/packages/yt-is/bin/csf-fallback-crossover-benchmark"),
-        trace_root=Path("P:/packages/yt-is/.logs/worker_count_trials"),
-        cohort_json=Path("P:/packages/yt-is/.logs/load_ladder_benchmark/cohort.json"),
-        output_root=Path("P:/packages/yt-is/.logs/load_ladder_benchmark/route_test"),
+        fallback_benchmark_script=Path("P:\\packages/yt-is/bin/csf-fallback-crossover-benchmark"),
+        trace_root=Path("P:\\packages/yt-is/.logs/worker_count_trials"),
+        cohort_json=Path("P:\\packages/yt-is/.logs/load_ladder_benchmark/cohort.json"),
+        output_root=Path("P:\\packages/yt-is/.logs/load_ladder_benchmark/route_test"),
         source_url="https://www.youtube.com/channel/UCYTISFALLBACKBMK",
         workers=2,
         limit=10,
         batch_size=10,
         policy="notebooklm_only_30s",
-        worker_state_root=Path("P:/packages/yt-is/.logs/load_ladder_benchmark/worker_states"),
+        worker_state_root=Path("P:\\packages/yt-is/.logs/load_ladder_benchmark/worker_states"),
         preserve_worker_state_root=False,
     )
     assert "--worker-state-root" in command
@@ -151,7 +151,7 @@ def test_build_fallback_benchmark_command_keeps_worker_state_override():
 
 - [ ] **Step 2: Run the test and confirm it fails**
 
-Run: `python -m pytest P:\packages\yt-is\tests\test_load_ladder.py -q`
+Run: `python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_load_ladder.py -q`
 Expected: fail because the route scenario is not present yet.
 
 - [ ] **Step 3: Implement the route scenario**
@@ -168,26 +168,26 @@ Keep the existing baseline scenario as the comparison point.
 
 - [ ] **Step 4: Run the test again and confirm it passes**
 
-Run: `python -m pytest P:\packages\yt-is\tests\test_load_ladder.py -q`
+Run: `python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_load_ladder.py -q`
 Expected: pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add P:/packages/yt-is/csf/load_ladder.py P:/packages/yt-is/bin/csf-load-ladder P:/packages/yt-is/tests/test_load_ladder.py
+git add P:\\packages/yt-is/csf/load_ladder.py P:\\packages/yt-is/bin/csf-load-ladder P:\\packages/yt-is/tests/test_load_ladder.py
 git commit -m "feat: add no-caption routing benchmark scenario"
 ```
 
 ### Task 3: Run the route benchmark and inspect the summary
 
 **Files:**
-- Use: `P:/packages/yt-is/bin/csf-load-ladder`
-- Inspect: `P:/packages/yt-is/.logs/load_ladder_benchmark/benchmark_summary.json`
+- Use: `P:\\packages/yt-is/bin/csf-load-ladder`
+- Inspect: `P:\\packages/yt-is/.logs/load_ladder_benchmark/benchmark_summary.json`
 
 - [ ] **Step 1: Dry-run the ladder**
 
 Run:
-`python P:/packages/yt-is/bin/csf-load-ladder --dry-run --limit 10 --workers 2 --scenarios baseline,route_no_captions_to_fallback`
+`python P:\\packages/yt-is/bin/csf-load-ladder --dry-run --limit 10 --workers 2 --scenarios baseline,route_no_captions_to_fallback`
 
 Expected:
 - One baseline command.
@@ -196,7 +196,7 @@ Expected:
 - [ ] **Step 2: Run the real benchmark**
 
 Run:
-`python P:/packages/yt-is/bin/csf-load-ladder --limit 10 --workers 2 --scenarios baseline,route_no_captions_to_fallback`
+`python P:\\packages/yt-is/bin/csf-load-ladder --limit 10 --workers 2 --scenarios baseline,route_no_captions_to_fallback`
 
 Expected:
 - Two scenario directories under `.logs/load_ladder_benchmark/`.

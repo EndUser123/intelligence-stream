@@ -13,10 +13,10 @@
 ### Task 1: Add env-controlled stagger knobs
 
 **Files:**
-- Modify: `P:/packages/yt-is/csf/nlm_config.py`
-- Modify: `P:/packages/yt-is/csf/transcript.py`
-- Modify: `P:/packages/yt-is/csf/batch.py`
-- Test: `P:/packages/yt-is/tests/test_nlm_config.py`
+- Modify: `P:\\packages/yt-is/csf/nlm_config.py`
+- Modify: `P:\\packages/yt-is/csf/transcript.py`
+- Modify: `P:\\packages/yt-is/csf/batch.py`
+- Test: `P:\\packages/yt-is/tests/test_nlm_config.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -24,7 +24,7 @@ Add a config test that proves `get_nlm_config()` reads `YTIS_TRANSCRIPT_WORKER_J
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `python -m pytest P:\packages\yt-is\tests\test_nlm_config.py -q`
+Run: `python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_config.py -q`
 
 Expected: FAIL because the new jitter fields do not exist yet.
 
@@ -42,24 +42,24 @@ Wire the transcript and batch round-robin sleep calls to those config values ins
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `python -m pytest P:\packages\yt-is\tests\test_nlm_config.py -q`
+Run: `python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_config.py -q`
 
 Expected: PASS with the new jitter fields and no regression in existing config defaults.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add P:/packages/yt-is/csf/nlm_config.py P:/packages/yt-is/csf/transcript.py P:/packages/yt-is/csf/batch.py P:/packages/yt-is/tests/test_nlm_config.py
+git add P:\\packages/yt-is/csf/nlm_config.py P:\\packages/yt-is/csf/transcript.py P:\\packages/yt-is/csf/batch.py P:\\packages/yt-is/tests/test_nlm_config.py
 git commit -m "feat: make worker jitter configurable for stagger tests"
 ```
 
 ### Task 2: Add a load-ladder benchmark runner
 
 **Files:**
-- Create: `P:/packages/yt-is/bin/csf-load-ladder`
-- Create: `P:/packages/yt-is/csf/load_ladder.py`
-- Modify: `P:/packages/yt-is/bin/csf-fallback-crossover-benchmark`
-- Test: `P:/packages/yt-is/tests/test_load_ladder.py`
+- Create: `P:\\packages/yt-is/bin/csf-load-ladder`
+- Create: `P:\\packages/yt-is/csf/load_ladder.py`
+- Modify: `P:\\packages/yt-is/bin/csf-fallback-crossover-benchmark`
+- Test: `P:\\packages/yt-is/tests/test_load_ladder.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -80,7 +80,7 @@ The test should also verify that each scenario includes:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `python -m pytest P:\packages\yt-is\tests\test_load_ladder.py -q`
+Run: `python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_load_ladder.py -q`
 
 Expected: FAIL because the ladder helper and runner do not exist yet.
 
@@ -97,22 +97,22 @@ The routing-split follow-up should stay out of this phase until we have a cohort
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `python -m pytest P:\packages\yt-is\tests\test_load_ladder.py -q`
+Run: `python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_load_ladder.py -q`
 
 Expected: PASS with stable scenario ordering and env merge behavior.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add P:/packages/yt-is/bin/csf-load-ladder P:/packages/yt-is/csf/load_ladder.py P:/packages/yt-is/tests/test_load_ladder.py
+git add P:\\packages/yt-is/bin/csf-load-ladder P:\\packages/yt-is/csf/load_ladder.py P:\\packages/yt-is/tests/test_load_ladder.py
 git commit -m "feat: add notebooklm benchmark load ladder"
 ```
 
 ### Task 3: Document the new benchmark sequence
 
 **Files:**
-- Modify: `P:/packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
-- Modify: `P:/packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md`
+- Modify: `P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
+- Modify: `P:\\packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md`
 
 - [ ] **Step 1: Update the run sheet**
 
@@ -136,27 +136,27 @@ Add the new CLI invocation and the exact artifacts the next agent should inspect
 - [ ] **Step 3: Commit**
 
 ```bash
-git add P:/packages/yt-is/docs/operations/worker-count-trial-run-sheet.md P:/packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md
+git add P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md P:\\packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md
 git commit -m "docs: add notebooklm benchmark load ladder"
 ```
 
 ### Task 4: Validate the ladder end-to-end
 
 **Files:**
-- Test: `P:/packages/yt-is/tests/test_nlm_config.py`
-- Test: `P:/packages/yt-is/tests/test_load_ladder.py`
+- Test: `P:\\packages/yt-is/tests/test_nlm_config.py`
+- Test: `P:\\packages/yt-is/tests/test_load_ladder.py`
 
 - [ ] **Step 1: Run the focused unit tests**
 
 Run:
-`python -m pytest P:\packages\yt-is\tests\test_nlm_config.py P:\packages\yt-is\tests\test_load_ladder.py -q`
+`python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_config.py $CLAUDE_PLUGIN_ROOT/tests\test_load_ladder.py -q`
 
 Expected: PASS.
 
 - [ ] **Step 2: Run a dry benchmark on the current no-caption cohort**
 
 Run:
-`python P:\packages\yt-is\bin\csf-load-ladder --limit 10 --workers 2`
+`python $CLAUDE_PLUGIN_ROOT/bin\csf-load-ladder --limit 10 --workers 2`
 
 Expected: per-scenario summaries for the first 10-item cohort slice, with the retry-only policy still showing the current no-caption failure pattern and the stagger/reuse/fullness comparisons writing clean artifacts.
 

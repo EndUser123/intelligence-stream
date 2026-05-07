@@ -10,14 +10,14 @@ Explain why `pro_free_source_map_v1` reached `5572.04` combined hot-path VPH whi
 
 Known high-water mark:
 
-- Artifact: `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/sharded_lane_series_summary.json`
+- Artifact: `P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/sharded_lane_series_summary.json`
 - Shape: Pro + Free, 4 workers per lane, batch size 200, limit 400 per lane, serial reusable pipeline
 - Combined hot-path VPH: `5572.04`
 - Result mix: `796` hot-path successes, `4` failures, `800` processed
 
 Current reproduced leader:
 
-- Artifact: `P:/packages/yt-is/.logs/sharded_lane_series/sweep_phase3_2lane_3w_run01/sharded_lane_series_summary.json`
+- Artifact: `P:\\packages/yt-is/.logs/sharded_lane_series/sweep_phase3_2lane_3w_run01/sharded_lane_series_summary.json`
 - Shape: Pro + Free, 3 workers per lane
 - Combined hot-path VPH: `4123.28`
 - Result mix: `795` hot-path successes, `5` failures, `800` processed
@@ -54,6 +54,7 @@ The first-round comparison did not reproduce the historical high-water mark:
 - After adding the lane-start cleanup barrier, the rerun still reaped the same `12` default Chrome processes at preflight, but the soak completed cleanly with no lingering default-profile hygiene issue and combined hot-path VPH improved to `2078.43` on the 50-item smoke/soak probe.
 - A fresh full-size clean-start probe with the family-refresh timing markers completed ok at combined hot-path VPH `1603.13`; preflight and post-run hygiene were clean, but the auth cache stayed warm so the new `nlm_family_refresh_*` markers did not fire in that run.
 - A smaller direct `csf-source fetch` probe on `ytis-pro-worker-01` with `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS=1` did hit the live family-refresh path and logged `nlm_family_refresh_completed.elapsed_s=10.616`, which proves the timing hook on the real fetch helper; the probe still completed the 25-item fetch in `60.621s`, so the auth cost is real but not enough by itself to explain the historical `5572.04` gap.
+- The later `sweep_phase3_2lane_3w_run05` auth-check cache TTL A/B finished cleanly but negatively at `1958.94` combined hot-path VPH. Compared with the run04 comparator, run05 had higher `add_elapsed_s_total`, higher `worker_idle_wait_s_total`, and a worse `source_ready_age_s_avg`, while `session_age_s` stayed in the `0-30s` band. That pushes the remaining gap even further toward source-add/readiness/setup timing and away from auth TTL as the main limiter.
 
 ## Working Hypotheses
 
@@ -90,7 +91,7 @@ Record, per run:
 Suggested command skeleton:
 
 ```powershell
-cd P:/packages/yt-is
+cd P:\\packages/yt-is
 $runs = @(
   "pro_free_source_map_v1",
   "pro_free_source_map_v7_rerun",
@@ -99,7 +100,7 @@ $runs = @(
   "optimal_search_2lane_5w_v1"
 )
 foreach ($run in $runs) {
-  $summary = "P:/packages/yt-is/.logs/sharded_lane_series/$run/sharded_lane_series_summary.json"
+  $summary = "P:\\packages/yt-is/.logs/sharded_lane_series/$run/sharded_lane_series_summary.json"
   if (Test-Path $summary) {
     $j = Get-Content -Raw $summary | ConvertFrom-Json
     [pscustomobject]@{
@@ -144,26 +145,26 @@ Run these back to back in the same session, with fresh roots:
 Commands:
 
 ```powershell
-cd P:/packages/yt-is
-python P:/packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
-  --output-root P:/packages/yt-is/.logs/sharded_lane_series/repro_v1_raw_current_run01 `
-  --cohort-json P:/packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/cohort.json `
+cd P:\\packages/yt-is
+python P:\\packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/repro_v1_raw_current_run01 `
+  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/cohort.json `
   --limit 400 `
   --batch-size 200 `
   --reusable-pipeline-mode serial
 
-python P:/packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1_frozen_lanes.json `
-  --output-root P:/packages/yt-is/.logs/sharded_lane_series/repro_v1_raw_frozen_run01 `
-  --cohort-json P:/packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/cohort.json `
+python P:\\packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1_frozen_lanes.json `
+  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/repro_v1_raw_frozen_run01 `
+  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/cohort.json `
   --limit 400 `
   --batch-size 200 `
   --reusable-pipeline-mode serial
 
-python P:/packages/yt-is/bin/csf-sharded-lane-sequence `
-  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
-  --run-root P:/packages/yt-is/.logs/sharded_lane_series/repro_v1_guarded_current_run01
+python P:\\packages/yt-is/bin/csf-sharded-lane-sequence `
+  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --run-root P:\\packages/yt-is/.logs/sharded_lane_series/repro_v1_guarded_current_run01
 ```
 
 Exit criteria:
@@ -184,23 +185,36 @@ Run these only after Phase 1/2 identify the slow stage:
 - Single-lane Pro and Free calibration if both lanes slow down together.
 - Content-fetch probe if `command_failed` or `nlm_content_below_threshold` changes materially.
 
+Current stage signal:
+
+- `repro_v1_startup_probe_run01` showed the startup/setup path is expensive even on a clean start: combined hot-path VPH `922.3`, `worker_idle_wait_s_total=241.507`, `cleanup_elapsed_s_total=46.614`, and `source_ready_age_s_avg=11.421`.
+- `repro_v2_startup_probe_run01` improved the same clean-start family to combined hot-path VPH `1183.53`, but still only on a 50-item probe with `worker_idle_wait_s_total=213.679` and `source_ready_age_s_avg=11.175`.
+- `repro_v3_startup_probe_run01` scaled back to combined hot-path VPH `1603.13` on a full-size clean-start probe, with `add_elapsed_s_total=737.121`, `cleanup_elapsed_s_total=101.102`, `worker_idle_wait_s_total=339.463`, and `source_ready_age_s_avg=62.639`.
+- The later `sweep_phase3_2lane_3w_run05` auth-check cache TTL A/B also stayed slow at `1958.94` combined hot-path VPH and increased `add_elapsed_s_total`, `worker_idle_wait_s_total`, and `source_ready_age_s_avg` versus the `run04` comparator.
+- The single-lane calibration runs split the cohort: Pro-only completed at `1980.19` combined hot-path VPH with `505.369` add time, `102.566` cleanup time, `243.778` worker idle wait, and `27.671` source-ready age average; Free-only completed at `3361.75` combined hot-path VPH with `581.27` add time, `116.913` cleanup time, `0.0` worker idle wait, and `22.865` source-ready age average. That makes Pro the slower lane on this branch and points the next investigation at Pro startup/setup/auth cleanup behavior rather than a symmetric lane-width issue.
+- The per-worker traces in `repro_v1_pro_only_4w_run01` and `repro_v1_free_only_4w_run01` sharpened that further: Pro showed nonzero lane-wide idle wait and one worker with a much larger `extract_elapsed_s_total` (`124.53` versus Free's `62.649` on the comparable worker), while Free stayed at `0.0` idle wait.
+- The same-window follow-up pair `sweep_p2_pro_only_startup_extract_run01` and `sweep_p2_free_only_startup_extract_run01` kept the same pattern but removed the idle-wait delta: Pro improved to combined hot-path VPH `2396.42` and Free to `2721.6`, both clean with `398/2/400`, and the Pro workers still carried the higher extract totals. That moves the remaining gap toward the Pro startup/setup/extract path rather than auth TTL or lane count.
+- Taken together, these probes keep the highest-ROI follow-on in the startup/setup and source-readiness path, with extract now the sharper Pro-side substage to isolate.
+
 Commands:
 
 ```powershell
-cd P:/packages/yt-is
-python P:/packages/yt-is/bin/csf-sharded-lane-sequence `
-  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/pro_only_lanes.json `
-  --run-root P:/packages/yt-is/.logs/sharded_lane_series/repro_v1_pro_only_4w_run01
+cd P:\\packages/yt-is
+python P:\\packages/yt-is/bin/csf-sharded-lane-sequence `
+  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_only_lanes.json `
+  --run-root P:\\packages/yt-is/.logs/sharded_lane_series/repro_v1_pro_only_4w_run01
 
-python P:/packages/yt-is/bin/csf-sharded-lane-sequence `
-  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/free_only_lanes.json `
-  --run-root P:/packages/yt-is/.logs/sharded_lane_series/repro_v1_free_only_4w_run01
+python P:\\packages/yt-is/bin/csf-sharded-lane-sequence `
+  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/free_only_lanes.json `
+  --run-root P:\\packages/yt-is/.logs/sharded_lane_series/repro_v1_free_only_4w_run01
 ```
 
 Exit criteria:
 
 - If single-lane rates are also low, the issue is likely account/backend/local condition, not lane contention.
 - If single-lane rates are high but combined rates are low, focus on concurrent startup, browser contention, and NotebookLM account-lane contention.
+- If Pro-only is materially slower than Free-only, isolate the Pro startup/setup/auth cleanup path before widening the matrix again.
+- If Pro-only is materially slower than Free-only and the worker logs show extract skew, isolate the Pro startup/setup/extract path before widening the matrix again.
 
 ## Phase 4: Decide Operational Setting
 
@@ -217,9 +231,9 @@ Current bake-off note:
 
 Document:
 
-- Update `P:/packages/yt-is/docs/operations/test-registry.md`.
-- Update `P:/packages/yt-is/docs/operations/sharded-lane-series.md`.
-- If a new run becomes the leader, update `P:/packages/yt-is/docs/operations/optimal-throughput-candidate-test-plan.md`.
+- Update `P:\\packages/yt-is/docs/operations/test-registry.md`.
+- Update `P:\\packages/yt-is/docs/operations/sharded-lane-series.md`.
+- If a new run becomes the leader, update `P:\\packages/yt-is/docs/operations/optimal-throughput-candidate-test-plan.md`.
 
 ## Stop Conditions
 

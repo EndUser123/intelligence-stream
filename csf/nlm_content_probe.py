@@ -18,7 +18,7 @@ from csf.youtube_page_inspector import inspect_youtube_watch_page_via_ytdlp
 
 _NLM_CONTENT_READY_THRESHOLD = 100
 _DEFAULT_RETRY_DELAYS_S = (0, 30, 60, 120)
-_DEFAULT_OUTPUT_ROOT = Path("P:/packages/yt-is/.logs/nlm_content_probe")
+_DEFAULT_OUTPUT_ROOT = Path("P:\\packages/yt-is/.logs/nlm_content_probe")
 
 
 def _parse_source_ids(stdout: str) -> list[str]:

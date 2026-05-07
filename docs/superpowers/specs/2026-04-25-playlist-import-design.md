@@ -17,7 +17,7 @@ We need a design that:
 1. Add a `watchlater` import path alongside the existing watch-history import path.
 2. Use `yt-dlp` with authenticated cookies to read both watch history and Watch Later playlists.
 3. Persist append-only import records with both run-level and item-level detail.
-4. Keep the live channel allowlist and blocklist in `P:/.data/yt-is/batch_status.sqlite`.
+4. Keep the live channel allowlist and blocklist in `P:\\.data/yt-is/batch_status.sqlite`.
 5. Protect the live channel-state DB with backup and staging/promotion commands, similar to transcripts.
 6. Make it possible to rebuild the live channel inventory from durable import records.
 
@@ -26,7 +26,7 @@ We need a design that:
 - Replacing the existing YouTube API based channel validation flow.
 - Tracking arbitrary YouTube URLs as the primary source of truth.
 - Storing playlist state as JSON blobs only.
-- Moving the live channel-state tables back into `P:/packages/yt-is`.
+- Moving the live channel-state tables back into `P:\\packages/yt-is`.
 - Changing the transcript fetch pipeline or NotebookLM throughput policy.
 
 ## Current State
@@ -36,7 +36,7 @@ We need a design that:
 - `csf-source history` already imports channels from `https://www.youtube.com/feed/history`.
 - The history import uses `yt-dlp` plus YouTube Data API calls to resolve channel IDs and filter channels.
 - The live channel allow/block state is stored in:
-  - `P:/.data/yt-is/batch_status.sqlite`
+  - `P:\\.data/yt-is/batch_status.sqlite`
   - `channel_metadata`
   - `channel_blocklist`
 
@@ -61,7 +61,7 @@ This log is the durable audit trail.
 
 ### Derived live state
 
-Maintain live tables separately in `P:/.data/yt-is/batch_status.sqlite`:
+Maintain live tables separately in `P:\\.data/yt-is/batch_status.sqlite`:
 
 - `channel_metadata`
 - `channel_blocklist`
@@ -82,7 +82,7 @@ Protect the live channel-state DB with the same workflow used for transcripts:
 
 Use a separate SQLite DB under the live data root, for example:
 
-- `P:/.data/yt-is/playlists.sqlite`
+- `P:\\.data/yt-is/playlists.sqlite`
 
 Suggested tables:
 
@@ -140,7 +140,7 @@ Primary key can be `(run_id, item_id)` or `(run_id, video_id, playlist_position)
 
 Keep the live operational tables in:
 
-- `P:/.data/yt-is/batch_status.sqlite`
+- `P:\\.data/yt-is/batch_status.sqlite`
 
 Use the existing tables:
 
@@ -207,15 +207,15 @@ If the live channel-state DB needs to be restored:
 
 Before any risky sync or blocklist change:
 
-- run `python P:/packages/yt-is/bin/csf-backup-channel-state`
+- run `python P:\\packages/yt-is/bin/csf-backup-channel-state`
 
 This snapshots:
 
-- `P:/.data/yt-is/batch_status.sqlite`
+- `P:\\.data/yt-is/batch_status.sqlite`
 
 into:
 
-- `P:/.data/yt-is/backups/`
+- `P:\\.data/yt-is/backups/`
 
 ### Staging and promotion
 
@@ -223,7 +223,7 @@ For staged channel-state work:
 
 1. point `YTIS_BATCH_STATUS_DB_PATH` at a staging SQLite DB
 2. run `yt-is sync` or the import command against that staging DB
-3. promote with `python P:/packages/yt-is/bin/csf-promote-channel-state`
+3. promote with `python P:\\packages/yt-is/bin/csf-promote-channel-state`
 
 The promote command must be blocking and fail-closed:
 
@@ -257,7 +257,7 @@ The design is successful if:
 
 - watch history and Watch Later can both be imported
 - the raw import history is append-only and auditable
-- the current allow/block lists remain protected under `P:/.data/yt-is`
+- the current allow/block lists remain protected under `P:\\.data/yt-is`
 - live state can be backed up and promoted safely
 - the workflow supports rebuilds without depending on mutable package-local state
 

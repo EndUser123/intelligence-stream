@@ -29,13 +29,13 @@ If you are staging a future lane before `DEFAULT_FAMILIES` has been updated, kee
 
 ## Files To Update
 
-- `P:/packages/yt-is/csf/nlm_worker_auth.py`
-- `P:/packages/yt-is/.logs/sharded_lane_series/<new_lane_set>.json`
-- `P:/packages/yt-is/tests/test_nlm_worker_auth.py`
-- `P:/packages/yt-is/tests/test_sharded_lane_series.py`
-- `P:/packages/yt-is/docs/operations/sharded-lane-series.md`
-- `P:/packages/yt-is/docs/operations/notebooklm-auth-robustness-test-plan.md`
-- `P:/packages/yt-is/docs/operations/test-registry.md` if the new lane is used in a benchmark result
+- `P:\\packages/yt-is/csf/nlm_worker_auth.py`
+- `P:\\packages/yt-is/.logs/sharded_lane_series/<new_lane_set>.json`
+- `P:\\packages/yt-is/tests/test_nlm_worker_auth.py`
+- `P:\\packages/yt-is/tests/test_sharded_lane_series.py`
+- `P:\\packages/yt-is/docs/operations/sharded-lane-series.md`
+- `P:\\packages/yt-is/docs/operations/notebooklm-auth-robustness-test-plan.md`
+- `P:\\packages/yt-is/docs/operations/test-registry.md` if the new lane is used in a benchmark result
 
 ## Recommended Extension Order
 
@@ -62,7 +62,7 @@ AuthFamily(
         "ytis-free3-worker-04",
     ),
     expected_email="new.account@example.com",
-    cdp_browser_root=r"P:\.data\yt-is\browser\notebooklm-free-3",
+    cdp_browser_root=r"P:\\.data\yt-is\browser\notebooklm-free-3",
     cdp_browser_profile_directory="Default",
     cdp_port=18873,
 ),
@@ -86,9 +86,9 @@ Example:
     "ytis-free3-worker-03",
     "ytis-free3-worker-04"
   ],
-  "browser_profile_root": "P:/.data/yt-is/browser/notebooklm-free-3",
+  "browser_profile_root": "P:\\.data/yt-is/browser/notebooklm-free-3",
   "browser_profile_directory": "Default",
-  "worker_state_root": "P:/packages/yt-is/.logs/sharded_lane_series/new_account_free/worker_states",
+  "worker_state_root": "P:\\packages/yt-is/.logs/sharded_lane_series/new_account_free/worker_states",
   "notebook_prefix": "benchmark-shard-new-account-free"
 }
 ```
@@ -98,7 +98,7 @@ Example:
 Use the dedicated browser root and CDP port for the new lane. Do not reuse the default NotebookLM Chrome session.
 
 ```powershell
-$root = 'P:\.data\yt-is\browser\notebooklm-free-3'
+$root = 'P:\\.data\yt-is\browser\notebooklm-free-3'
 $port = 18873
 $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
 
@@ -127,7 +127,7 @@ Expected result:
 After worker `01` is valid, copy it to the sibling profiles with:
 
 ```powershell
-python P:/packages/yt-is/bin/csf-nlm-worker-auth sync
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth sync
 ```
 
 Expected result:
@@ -176,7 +176,7 @@ Minimum coverage:
 Run the focused checks:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:PYTHONPATH = 'P:\\packages\yt-is'
 $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
 pytest tests/test_nlm_worker_auth.py tests/test_sharded_lane_series.py -q
 python -m py_compile csf/nlm_worker_auth.py csf/sharded_lane_series.py tests/test_nlm_worker_auth.py tests/test_sharded_lane_series.py

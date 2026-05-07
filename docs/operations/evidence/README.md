@@ -10,8 +10,8 @@ This folder holds the durable, human-readable evidence index for auth and throug
 - Do not reuse a previous root name for new evidence.
 - If a run is only useful as a marker drill, capture the smallest proof artifact and stop there.
 - Keep NotebookLM auth profile snapshots under the profile root as operational recovery data, not benchmark evidence.
-- Validate a completed run root with `python P:/packages/yt-is/bin/csf-run-evidence-check --run-root <path>` before promoting it to canonical evidence.
-- If a run is invalidated or suspicious, summarize it with `python P:/packages/yt-is/bin/csf-run-failure-analyzer --run-root <path>` before deciding whether the issue is auth, content, or wrapper-level.
+- Validate a completed run root with `python P:\\packages/yt-is/bin/csf-run-evidence-check --run-root <path>` before promoting it to canonical evidence.
+- If a run is invalidated or suspicious, summarize it with `python P:\\packages/yt-is/bin/csf-run-failure-analyzer --run-root <path>` before deciding whether the issue is auth, content, or wrapper-level.
 - The guarded sharded sequence also records `post_run_hygiene` in the top-level summary and reaps any lingering default NotebookLM `chrome-profile` after soak so a transient shared-profile intrusion does not masquerade as lane state.
 - The evidence checker reads structured JSONL event fields for `default_profile_running`, `source_add_failed`, `nlm_batch_subbatch_add_split_circuit_opened`, and `nlm_auth_forced_refresh_scheduled`. Do not rely on string fragments in free-form text as proof.
 

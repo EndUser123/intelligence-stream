@@ -176,7 +176,7 @@ def main() -> None:
     # Load .env for potential environment variables
     from dotenv import load_dotenv
 
-    load_dotenv("P:/.env")
+    load_dotenv("P:\\.env")
 
     storage = _get_batch_status_storage()
     conn = storage._get_conn()

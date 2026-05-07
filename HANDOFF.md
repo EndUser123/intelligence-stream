@@ -5,18 +5,18 @@ Last updated: 2026-04-25
 ## Current state
 
 - The current worker run is stopped.
-- The current worker-owned notebook status and throughput conclusions are summarized in [docs/operations/worker-owned-notebooks-handoff.md](P:/packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md).
-- The benchmark run sheet is [docs/operations/worker-count-trial-run-sheet.md](P:/packages/yt-is/docs/operations/worker-count-trial-run-sheet.md).
+- The current worker-owned notebook status and throughput conclusions are summarized in [docs/operations/worker-owned-notebooks-handoff.md](P:\\packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md).
+- The benchmark run sheet is [docs/operations/worker-count-trial-run-sheet.md](P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md).
 - The routing split was changed so:
   - terminal/unavailable/private/deleted items stay sticky-skipped
   - live / live_stream / premiere items go to `transcript_fallback`
   - captioned and `no_captions` items go back to `notebooklm`
-- We added a durable note at `P:/packages/yt-is/CODEX_MEMORY.md` and linked it from `README.md`.
+- We added a durable note at `P:\\packages/yt-is/CODEX_MEMORY.md` and linked it from `README.md`.
 - Whisper empty-output messages now say when the model thinks the audio was likely music or silence.
 - The fallback tail now reaches Whisper for `yt-dlp = ok` videos with no captions:
   - audio download now includes `--js-runtimes node` when `node` is available
   - this solves the YouTube `n` challenge on the fallback path
-  - successful fallback transcripts are cached in `P:/.data/yt-is/transcripts.sqlite`
+  - successful fallback transcripts are cached in `P:\\.data/yt-is/transcripts.sqlite`
 - Verified live example:
   - `zgf2d8gsy70`
   - source: `whisper`
@@ -31,25 +31,25 @@ Last updated: 2026-04-25
 
 ## Files that matter
 
-- `P:/packages/yt-is/csf/nlm_config.py`
+- `P:\\packages/yt-is/csf/nlm_config.py`
   - NotebookLM batch size, source cap, materialization timeout, and auth policy defaults
-- `P:/packages/yt-is/csf/nlm_batch.py`
+- `P:\\packages/yt-is/csf/nlm_batch.py`
   - worker-owned notebook rotation and source-add subbatch sizing
-- `P:/packages/yt-is/bin/csf-source`
+- `P:\\packages/yt-is/bin/csf-source`
   - preflight routing split
   - logging for fallback / NotebookLM counts
   - worker-run orchestration
-- `P:/packages/yt-is/csf/transcript.py`
+- `P:\\packages/yt-is/csf/transcript.py`
   - oEmbed probe
   - direct_api classification
   - Whisper empty-result classification
   - negative-cache persistence
-- `P:/packages/yt-is/csf/batch_status.py`
+- `P:\\packages/yt-is/csf/batch_status.py`
   - transcript cache / negative cache / status persistence
   - `mark_failed(..., source=...)` fix
-- `P:/packages/yt-is/tests/test_csf_source_fetch_timing.py`
+- `P:\\packages/yt-is/tests/test_csf_source_fetch_timing.py`
   - routing regression tests
-- `P:/packages/yt-is/tests/test_transcript.py`
+- `P:\\packages/yt-is/tests/test_transcript.py`
   - direct_api and Whisper regression tests
 
 ## What we learned
@@ -63,28 +63,28 @@ Last updated: 2026-04-25
 ## Validation status
 
 - `python -m py_compile` passed on the touched files.
-- `P:/packages/yt-is/tests/test_csf_source_fetch_timing.py` passed.
-- `P:/packages/yt-is/tests/test_transcript.py` passed.
+- `P:\\packages/yt-is/tests/test_csf_source_fetch_timing.py` passed.
+- `P:\\packages/yt-is/tests/test_transcript.py` passed.
 - The latest focused split tests passed.
 - The fallback tail was validated live against `zgf2d8gsy70` and produced a saved Whisper transcript in `transcripts.sqlite`.
-- Before any risky sweep or cleanup, run `python P:/packages/yt-is/bin/csf-backup-transcripts` to snapshot `P:/.data/yt-is/transcripts.sqlite` into `P:/.data/yt-is/backups/`.
-- If you want to stage a long run before promoting it, point `YTIS_TRANSCRIPT_CACHE_DB_PATH` at `P:/.data/yt-is/transcripts-staging.sqlite`, run the backlog against that staging DB, then promote with `python P:/packages/yt-is/bin/csf-promote-transcripts`. The promote step is blocking and fail-closed: it refuses missing source DBs, empty staging DBs, and source/destination collisions.
-- Before any tracked-channel sync or blocklist change, run `python P:/packages/yt-is/bin/csf-backup-channel-state` to snapshot `P:/.data/yt-is/batch_status.sqlite` into `P:/.data/yt-is/backups/`.
-- If you want to stage channel inventory changes before promoting them, point `YTIS_BATCH_STATUS_DB_PATH` at `P:/.data/yt-is/batch-status-staging.sqlite`, run `yt-is sync` against that staging DB, then promote with `python P:/packages/yt-is/bin/csf-promote-channel-state`. The promote step is blocking and fail-closed: it refuses missing source DBs, empty staging DBs, and source/destination collisions.
-- If you need to backfill legacy URL-keyed rows to the new canonical identity contract, run `python P:/packages/yt-is/bin/csf-migrate-channel-ids`. That command snapshots live state first and then fills `channel_id` plus canonical display URLs in `batch_status.sqlite`.
-- The current indicative channel filtering rubric is documented in `P:/packages/yt-is/docs/operations/channel-filtering-rubric.md`. Treat it as a review guide, not a frozen policy.
+- Before any risky sweep or cleanup, run `python P:\\packages/yt-is/bin/csf-backup-transcripts` to snapshot `P:\\.data/yt-is/transcripts.sqlite` into `P:\\.data/yt-is/backups/`.
+- If you want to stage a long run before promoting it, point `YTIS_TRANSCRIPT_CACHE_DB_PATH` at `P:\\.data/yt-is/transcripts-staging.sqlite`, run the backlog against that staging DB, then promote with `python P:\\packages/yt-is/bin/csf-promote-transcripts`. The promote step is blocking and fail-closed: it refuses missing source DBs, empty staging DBs, and source/destination collisions.
+- Before any tracked-channel sync or blocklist change, run `python P:\\packages/yt-is/bin/csf-backup-channel-state` to snapshot `P:\\.data/yt-is/batch_status.sqlite` into `P:\\.data/yt-is/backups/`.
+- If you want to stage channel inventory changes before promoting them, point `YTIS_BATCH_STATUS_DB_PATH` at `P:\\.data/yt-is/batch-status-staging.sqlite`, run `yt-is sync` against that staging DB, then promote with `python P:\\packages/yt-is/bin/csf-promote-channel-state`. The promote step is blocking and fail-closed: it refuses missing source DBs, empty staging DBs, and source/destination collisions.
+- If you need to backfill legacy URL-keyed rows to the new canonical identity contract, run `python P:\\packages/yt-is/bin/csf-migrate-channel-ids`. That command snapshots live state first and then fills `channel_id` plus canonical display URLs in `batch_status.sqlite`.
+- The current indicative channel filtering rubric is documented in `P:\\packages/yt-is/docs/operations/channel-filtering-rubric.md`. Treat it as a review guide, not a frozen policy.
 
 ## Next action for the new session
 
-1. Restart a worker run from `P:/packages/yt-is` with:
+1. Restart a worker run from `P:\\packages/yt-is` with:
    - `python bin/csf-source fetch --workers 4`
-2. Watch the trace file under `P:/packages/yt-is/.logs/term_*.jsonl`.
+2. Watch the trace file under `P:\\packages/yt-is/.logs/term_*.jsonl`.
 3. Check whether the `notebooklm` lane now absorbs most `no_captions` items again.
 4. Compare:
    - NotebookLM successes
    - transcript-fallback successes
    - negative-cache growth
-   - cache row growth in `P:/.data/yt-is/transcripts.sqlite`
+   - cache row growth in `P:\\.data/yt-is/transcripts.sqlite`
 5. Re-run the current failing cohort if you want to move more backlog through the now-fixed Whisper tail.
 
 ## Useful reminders
@@ -92,9 +92,9 @@ Last updated: 2026-04-25
 - A large number of `oembed unavailable: HTTP 404` items should now be skipped cheaply and cached negatively.
 - `active_workers: 0` in transcript-fallback logs is expected; that lane is not the industrial NotebookLM worker pool.
 - If the next worker run looks slow again, first check whether `no_captions` is still going to the wrong lane before changing batch size or retry tuning.
-- The current NotebookLM worker notebook capacity note is at [docs/operations/nlm-canary-capacity-note.md](P:/packages/yt-is/docs/operations/nlm-canary-capacity-note.md).
+- The current NotebookLM worker notebook capacity note is at [docs/operations/nlm-canary-capacity-note.md](P:\\packages/yt-is/docs/operations/nlm-canary-capacity-note.md).
 ## Debugging / Logging Rules That Matter
-- Quick pointer: [DEBUGGING_PLAYBOOK.md](P:/packages/yt-is/DEBUGGING_PLAYBOOK.md)
+- Quick pointer: [DEBUGGING_PLAYBOOK.md](P:\\packages/yt-is/DEBUGGING_PLAYBOOK.md)
 - Do not trust the JSONL trace alone. Several important warnings surfaced only in live stderr/stdout.
 - When threading a new field through a wrapper, verify the callee signature before assuming it works. The `mark_failed(..., source=...)` bug was exactly this failure mode.
 - Treat the worker result file as the source of truth for completed work. Stdout summaries can be stale or incomplete.
@@ -113,19 +113,19 @@ Last updated: 2026-04-25
 
 ## Session Bootstrap
 - Read these first:
-  - [HANDOFF.md](P:/packages/yt-is/HANDOFF.md)
-  - [CODEX_MEMORY.md](P:/packages/yt-is/CODEX_MEMORY.md)
-  - [DEBUGGING_PLAYBOOK.md](P:/packages/yt-is/DEBUGGING_PLAYBOOK.md)
-- If you are touching NotebookLM throughput, check `P:/packages/yt-is/csf/nlm_config.py` first for the shared NotebookLM defaults before grepping for magic numbers.
+  - [HANDOFF.md](P:\\packages/yt-is/HANDOFF.md)
+  - [CODEX_MEMORY.md](P:\\packages/yt-is/CODEX_MEMORY.md)
+  - [DEBUGGING_PLAYBOOK.md](P:\\packages/yt-is/DEBUGGING_PLAYBOOK.md)
+- If you are touching NotebookLM throughput, check `P:\\packages/yt-is/csf/nlm_config.py` first for the shared NotebookLM defaults before grepping for magic numbers.
 - Key files:
-  - [bin/csf-source](P:/packages/yt-is/bin/csf-source)
-  - [csf/transcript.py](P:/packages/yt-is/csf/transcript.py)
-  - [csf/batch_status.py](P:/packages/yt-is/csf/batch_status.py)
-  - [csf/batch_scheduler.py](P:/packages/yt-is/csf/batch_scheduler.py)
+  - [bin/csf-source](P:\\packages/yt-is/bin/csf-source)
+  - [csf/transcript.py](P:\\packages/yt-is/csf/transcript.py)
+  - [csf/batch_status.py](P:\\packages/yt-is/csf/batch_status.py)
+  - [csf/batch_scheduler.py](P:\\packages/yt-is/csf/batch_scheduler.py)
 - Fast verification:
-  - `python -m py_compile P:\packages\yt-is\bin\csf-source P:\packages\yt-is\csf\transcript.py P:\packages\yt-is\csf\batch_status.py P:\packages\yt-is\csf\batch_scheduler.py`
-  - `PYTHONPATH=P:\packages\yt-is python -m pytest P:\packages\yt-is\tests\test_transcript.py -q`
-  - `PYTHONPATH=P:\packages\yt-is python -m pytest P:\packages\yt-is\tests\test_csf_source_fetch_timing.py -q`
+  - `python -m py_compile $CLAUDE_PLUGIN_ROOT/bin\csf-source $CLAUDE_PLUGIN_ROOT/csf\transcript.py $CLAUDE_PLUGIN_ROOT/csf\batch_status.py $CLAUDE_PLUGIN_ROOT/csf\batch_scheduler.py`
+  - `PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_transcript.py -q`
+  - `PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_csf_source_fetch_timing.py -q`
 - Current intended worker run:
-  - `python P:\packages\yt-is\bin\csf-source fetch --workers <n>`
+  - `python $CLAUDE_PLUGIN_ROOT/bin\csf-source fetch --workers <n>`
   - Worker notebook reuse is per worker; the benchmark sweep still continues through `8` workers.

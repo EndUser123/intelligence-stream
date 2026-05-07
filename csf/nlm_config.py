@@ -31,9 +31,9 @@ class NLMConfig:
     auth_cooldown: float = 300.0
     browser_profile_mode: str = "persistent"
     browser_profile_name: str = "notebooklm"
-    browser_profile_seed_root: str = "P:/.data/yt-is/notebooklm-browser-session"
+    browser_profile_seed_root: str = "P:\\.data/yt-is/notebooklm-browser-session"
     nlm_browser_mode: str = "persistent"
-    nlm_browser_profile_root: str = r"P:\.data\yt-is\browser\notebooklm"
+    nlm_browser_profile_root: str = r"P:\\.data\yt-is\browser\notebooklm"
     nlm_browser_profile_directory: str = ""
     nlm_browser_executable: str = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
     nlm_browser_channel: str = "chrome"
@@ -82,16 +82,16 @@ def get_nlm_config() -> NLMConfig:
                 or "notebooklm",
                 browser_profile_seed_root=os.environ.get(
                     "YTIS_NLM_BROWSER_PROFILE_SEED_ROOT",
-                    "P:/.data/yt-is/notebooklm-browser-session",
+                    "P:\\.data/yt-is/notebooklm-browser-session",
                 ).strip()
-                or "P:/.data/yt-is/notebooklm-browser-session",
+                or "P:\\.data/yt-is/notebooklm-browser-session",
                 nlm_browser_mode=os.environ.get("YTIS_NLM_BROWSER_MODE", "persistent").strip().lower()
                 or "persistent",
                 nlm_browser_profile_root=os.environ.get(
                     "YTIS_NLM_BROWSER_PROFILE_ROOT",
-                    r"P:\.data\yt-is\browser\notebooklm",
+                    r"P:\\.data\yt-is\browser\notebooklm",
                 ).strip()
-                or r"P:\.data\yt-is\browser\notebooklm",
+                or r"P:\\.data\yt-is\browser\notebooklm",
                 nlm_browser_profile_directory=os.environ.get(
                     "YTIS_NLM_BROWSER_PROFILE_DIRECTORY",
                     "",

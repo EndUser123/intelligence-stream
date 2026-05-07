@@ -27,6 +27,9 @@ youtube_cookies.txt
 # Logs
 *.log
 logs/
+.logs/batch_size_series/
+.logs/batch_size_series_v3/
+.claude-state/
 
 # Curated auth benchmark evidence is added explicitly when needed.
 # Ignore new sharded lane trees by default so bulk run roots do not get staged.

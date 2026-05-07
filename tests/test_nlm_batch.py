@@ -11,9 +11,11 @@ from csf import nlm_batch, nlm_config
 @pytest.fixture(autouse=True)
 def _clear_nlm_auth_cache():
     """Auth cache should not leak across test cases."""
+    nlm_batch._NLM_AUTH_RUNTIME_CONFIG_LOGGED = False
     with nlm_batch.nlm_auth_guard._AUTH_CHECK_CACHE_LOCK:
         nlm_batch.nlm_auth_guard._AUTH_CHECK_CACHE.clear()
     yield
+    nlm_batch._NLM_AUTH_RUNTIME_CONFIG_LOGGED = False
     with nlm_batch.nlm_auth_guard._AUTH_CHECK_CACHE_LOCK:
         nlm_batch.nlm_auth_guard._AUTH_CHECK_CACHE.clear()
 
@@ -124,6 +126,7 @@ class TestAuthAutoLogin:
     def _no_real_default_profile_probe(self, monkeypatch):
         """Auth unit tests should not query or close real Chrome processes unless a test opts in."""
         monkeypatch.setattr(nlm_batch, "_default_chrome_profile_pids", lambda: set())
+        monkeypatch.setattr(nlm_batch, "_NLM_AUTH_RUNTIME_CONFIG_LOGGED", False)
         with nlm_batch.nlm_auth_guard._AUTH_CHECK_CACHE_LOCK:
             nlm_batch.nlm_auth_guard._AUTH_CHECK_CACHE.clear()
         yield
@@ -1244,10 +1247,10 @@ class TestReusableNotebookEnvironmentOverrides:
         """YTIS_NLM_OWNER_STATE_PATH should override the default state file."""
         monkeypatch.setenv(
             "YTIS_NLM_OWNER_STATE_PATH",
-            "P:/.data/yt-is/dev-workers/worker-01.json",
+            "P:\\.data/yt-is/dev-workers/worker-01.json",
         )
         assert nlm_batch._get_reusable_notebook_state_path() == nlm_batch.Path(
-            "P:/.data/yt-is/dev-workers/worker-01.json"
+            "P:\\.data/yt-is/dev-workers/worker-01.json"
         )
 
     def test_title_override_is_used(self, monkeypatch):
@@ -1294,9 +1297,38 @@ class TestReusableNotebookEnvironmentOverrides:
             with mock.patch("csf.nlm_batch.log_action") as mock_log:
                 result = nlm_batch._ensure_nlm_auth()
         assert result is True
-        mock_log.assert_called_once()
-        assert mock_log.call_args.args[0] == "nlm_auth_checked"
-        assert mock_log.call_args.args[1]["component"] == "nlm_batch"
+        assert [call.args[0] for call in mock_log.call_args_list] == [
+            "nlm_auth_runtime_config_snapshot",
+            "nlm_auth_checked",
+        ]
+        assert mock_log.call_args_list[0].args[1]["component"] == "nlm_batch"
+
+    def test_ensure_nlm_auth_logs_worker_side_runtime_config(self, monkeypatch):
+        """The worker process should log the resolved auth config it actually sees."""
+        import subprocess
+
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "custom-worker-12")
+        monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+        monkeypatch.setenv("YTIS_NLM_AUTH_CHECK_CACHE_TTL_SECONDS", "120")
+
+        def mock_run(cmd, **kwargs):
+            return subprocess.CompletedProcess(cmd, 0, "", "Auth valid")
+
+        with mock.patch("csf.nlm_batch.run_nlm", side_effect=mock_run):
+            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                result = nlm_batch._ensure_nlm_auth()
+
+        assert result is True
+        assert [call.args[0] for call in mock_log.call_args_list] == [
+            "nlm_auth_runtime_config_snapshot",
+            "nlm_auth_checked",
+        ]
+        snapshot = mock_log.call_args_list[0].args[1]
+        assert snapshot["notebooklm_profile"] == "custom-worker-12"
+        assert snapshot["env_auth_check_cache_ttl_raw"] == "120"
+        assert snapshot["resolved_auth_check_cache_ttl_s"] == 120.0
+        assert snapshot["resolved_auth_check_interval_s"] == 60.0
+        assert snapshot["resolved_auth_cooldown_s"] == 300.0
 
     def test_ensure_nlm_auth_logs_login_attempt_and_refresh(self):
         """A forced auth refresh should emit login timing markers."""
@@ -1314,6 +1346,7 @@ class TestReusableNotebookEnvironmentOverrides:
                 result = nlm_batch._ensure_nlm_auth()
         assert result is True
         assert [c.args[0] for c in mock_log.call_args_list] == [
+            "nlm_auth_runtime_config_snapshot",
             "nlm_auth_failed",
             "nlm_login_started",
             "nlm_login_completed",

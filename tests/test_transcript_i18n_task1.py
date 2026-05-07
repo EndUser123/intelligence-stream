@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
+sys.path.insert(0, str(Path(r"P:\\\packages\\yt-is").absolute()))
 
 from csf.transcript import LanguageConfig, TranscriptResult
 

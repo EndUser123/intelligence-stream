@@ -37,8 +37,8 @@ def test_normalize_channel_url_repairs_missing_slash_handle_form():
 
 Run:
 ```powershell
-python -m pytest P:\packages\yt-is\tests\test_source_enumerator.py -q
-python -m pytest P:\packages\yt-is\tests\test_batch_status.py -q
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_source_enumerator.py -q
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_batch_status.py -q
 ```
 
 Expected:
@@ -81,8 +81,8 @@ Also update `batch_status._normalize_channel_url()` so every write/read path rep
 
 Run:
 ```powershell
-python -m pytest P:\packages\yt-is\tests\test_source_enumerator.py -q
-python -m pytest P:\packages\yt-is\tests\test_batch_status.py -q
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_source_enumerator.py -q
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_batch_status.py -q
 ```
 
 Expected:
@@ -92,7 +92,7 @@ Expected:
 - [ ] **Step 5: Commit the helper layer**
 
 ```powershell
-git add P:\packages\yt-is\csf\channel_identity.py P:\packages\yt-is\csf\batch_status.py P:\packages\yt-is\csf\source_enumerator.py P:\packages\yt-is\tests\test_source_enumerator.py P:\packages\yt-is\tests\test_batch_status.py
+git add $CLAUDE_PLUGIN_ROOT/csf\channel_identity.py $CLAUDE_PLUGIN_ROOT/csf\batch_status.py $CLAUDE_PLUGIN_ROOT/csf\source_enumerator.py $CLAUDE_PLUGIN_ROOT/tests\test_source_enumerator.py $CLAUDE_PLUGIN_ROOT/tests\test_batch_status.py
 git commit -m "feat: add canonical channel identity helper"
 ```
 
@@ -152,7 +152,7 @@ def test_channel_id_migration_preserves_block_and_metadata(tmp_path):
 
 Run:
 ```powershell
-python -m pytest P:\packages\yt-is\tests\test_batch_status.py -q -k migration
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_batch_status.py -q -k migration
 ```
 
 Expected:
@@ -182,7 +182,7 @@ ALTER TABLE channel_metadata_v2 RENAME TO channel_metadata;
 
 Run:
 ```powershell
-python -m pytest P:\packages\yt-is\tests\test_batch_status.py -q
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_batch_status.py -q
 ```
 
 Expected:
@@ -193,7 +193,7 @@ Expected:
 - [ ] **Step 5: Commit the schema cutover**
 
 ```powershell
-git add P:\packages\yt-is\csf\batch_status.py P:\packages\yt-is\tests\test_batch_status.py
+git add $CLAUDE_PLUGIN_ROOT/csf\batch_status.py $CLAUDE_PLUGIN_ROOT/tests\test_batch_status.py
 git commit -m "feat: migrate channel state to channel id"
 ```
 
@@ -216,12 +216,12 @@ def test_add_same_channel_via_handle_and_uc_creates_one_row(tmp_path, monkeypatc
     env = os.environ.copy()
     env["YTIS_BATCH_STATUS_DB_PATH"] = str(tmp_path / "live.sqlite")
     subprocess.run(
-        ["python", "P:/packages/yt-is/bin/csf-source", "add", "https://www.youtube.com/@RyanRumsey"],
+        ["python", "P:\\packages/yt-is/bin/csf-source", "add", "https://www.youtube.com/@RyanRumsey"],
         check=True,
         env=env,
     )
     subprocess.run(
-        ["python", "P:/packages/yt-is/bin/csf-source", "add", "https://www.youtube.com/channel/UCZ5zIdFEqD_u9EohzswYI3Q"],
+        ["python", "P:\\packages/yt-is/bin/csf-source", "add", "https://www.youtube.com/channel/UCZ5zIdFEqD_u9EohzswYI3Q"],
         check=True,
         env=env,
     )
@@ -237,8 +237,8 @@ def test_add_same_channel_via_handle_and_uc_creates_one_row(tmp_path, monkeypatc
 
 Run:
 ```powershell
-python -m pytest P:\packages\yt-is\tests\test_playlist_imports.py -q
-python -m pytest P:\packages\yt-is\tests\test_yt_is_wrapper.py -q
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_playlist_imports.py -q
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_yt_is_wrapper.py -q
 ```
 
 Expected:
@@ -273,8 +273,8 @@ set_channel_metadata(
 
 Run:
 ```powershell
-python -m pytest P:\packages\yt-is\tests\test_playlist_imports.py -q
-python -m pytest P:\packages\yt-is\tests\test_yt_is_wrapper.py -q
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_playlist_imports.py -q
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_yt_is_wrapper.py -q
 ```
 
 Expected:
@@ -284,7 +284,7 @@ Expected:
 - [ ] **Step 5: Commit the writer updates**
 
 ```powershell
-git add P:\packages\yt-is\bin\csf-source P:\packages\yt-is\csf\playlist_imports.py P:\packages\yt-is\bin\yt-is P:\packages\yt-is\extract_channels.py P:\packages\yt-is\scripts\backfill_channel_metadata.py P:\packages\yt-is\csf\csf_nlm_ingest.py P:\packages\yt-is\tests\test_playlist_imports.py P:\packages\yt-is\tests\test_yt_is_wrapper.py
+git add $CLAUDE_PLUGIN_ROOT/bin\csf-source $CLAUDE_PLUGIN_ROOT/csf\playlist_imports.py $CLAUDE_PLUGIN_ROOT/bin\yt-is $CLAUDE_PLUGIN_ROOT/extract_channels.py $CLAUDE_PLUGIN_ROOT/scripts\backfill_channel_metadata.py $CLAUDE_PLUGIN_ROOT/csf\csf_nlm_ingest.py $CLAUDE_PLUGIN_ROOT/tests\test_playlist_imports.py $CLAUDE_PLUGIN_ROOT/tests\test_yt_is_wrapper.py
 git commit -m "feat: resolve channel ids before storing channel state"
 ```
 
@@ -302,7 +302,7 @@ git commit -m "feat: resolve channel ids before storing channel state"
 ```python
 def test_migrate_channel_ids_cli_backups_and_migrates(tmp_path):
     ...
-    result = subprocess.run(["python", "P:/packages/yt-is/bin/csf-migrate-channel-ids"], check=True)
+    result = subprocess.run(["python", "P:\\packages/yt-is/bin/csf-migrate-channel-ids"], check=True)
     backups = list((tmp_path / "backups").glob("*.sqlite"))
     assert backups
     conn = sqlite3.connect(live_db)
@@ -317,7 +317,7 @@ def test_migrate_channel_ids_cli_backups_and_migrates(tmp_path):
 
 Run:
 ```powershell
-python -m pytest P:\packages\yt-is\tests\test_batch_status.py -q -k migrate
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_batch_status.py -q -k migrate
 ```
 
 Expected:
@@ -337,8 +337,8 @@ The CLI should:
 Verify:
 
 ```powershell
-python -m pytest P:\packages\yt-is\tests\test_batch_status.py -q
-python -m pytest P:\packages\yt-is\tests\test_playlist_imports.py -q
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_batch_status.py -q
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_playlist_imports.py -q
 ```
 
 And confirm via direct SQL that:
@@ -350,7 +350,7 @@ And confirm via direct SQL that:
 - [ ] **Step 5: Commit the migration command and doc updates**
 
 ```powershell
-git add P:\packages\yt-is\bin\csf-migrate-channel-ids P:\packages\yt-is\HANDOFF.md P:\packages\yt-is\docs\operations\worker-count-trial-run-sheet.md P:\packages\yt-is\docs\operations\worker-owned-notebooks-handoff.md P:\packages\yt-is\skills\yt-nlm\SKILL.md
+git add $CLAUDE_PLUGIN_ROOT/bin\csf-migrate-channel-ids $CLAUDE_PLUGIN_ROOT/HANDOFF.md $CLAUDE_PLUGIN_ROOT/docs\operations\worker-count-trial-run-sheet.md $CLAUDE_PLUGIN_ROOT/docs\operations\worker-owned-notebooks-handoff.md $CLAUDE_PLUGIN_ROOT/skills\yt-nlm\SKILL.md
 git commit -m "feat: add channel id cutover command"
 ```
 

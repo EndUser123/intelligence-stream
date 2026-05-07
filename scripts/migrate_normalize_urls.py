@@ -7,7 +7,7 @@ Removes /channel/ prefix from @handle URLs for consistency.
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path("P:/.data/yt-is/batch_status/batch_status.sqlite")
+DB_PATH = Path("P:\\.data/yt-is/batch_status/batch_status.sqlite")
 
 print(f"Migrating: {DB_PATH}")
 

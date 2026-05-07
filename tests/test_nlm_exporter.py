@@ -9,11 +9,13 @@ Tests cover:
 - nlm_export_state table integration
 """
 
+import pytest
+import subprocess
 import sys
 from pathlib import Path
 from unittest import mock
 
-sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
+sys.path.insert(0, str(Path(r"P:\\\packages\\yt-is").absolute()))
 
 from csf.nlm_exporter import (
     build_composites,
@@ -232,17 +234,40 @@ def test_export_composite_re_export_on_hash_mismatch(tmp_path):
     with (
         mock.patch("csf.nlm_exporter._DEFAULT_EXPORTS_DIR", tmp_path / "exports"),
         mock.patch("csf.batch_status._DEFAULT_DB_PATH", tmp_path / "bs.db"),
-        mock.patch("subprocess.run") as mock_run,
-        mock.patch("shutil.which", return_value="/bin/nlm"),
         mock.patch("pathlib.Path.mkdir"),
     ):
-        mock_run.return_value = mock.MagicMock(returncode=0, stdout="Source added: new_src")
-        with mock.patch("pathlib.Path.write_text"):
-            with mock.patch("pathlib.Path.rename"):
-                # Call while holding lock — result intentionally unchecked (mocked)
-                _ = export_composite(doc)
+        # Patch both add_profile_args and run_nlm to verify the profile-pinning flow
+        captured_add_calls: list = []
+        captured_run_calls: list = []
 
-    # Should not return old nlm_source_id (re-export attempted)
+        def fake_add_profile_args(args):
+            captured_add_calls.append(list(args))
+            # Simulate adding --profile (this is what add_profile_args does when env var is set)
+            return [*args, "--profile", "test-worker"]
+
+        def fake_run_nlm(args, *, timeout_s, env=None):
+            captured_run_calls.append(list(args))
+            return subprocess.CompletedProcess(args, 0, stdout="Source added: new_src")
+
+        with (
+            mock.patch("pathlib.Path.write_text"),
+            mock.patch("pathlib.Path.rename"),
+            mock.patch("csf.nlm_exporter.nlm_auth_guard.add_profile_args", side_effect=fake_add_profile_args),
+            mock.patch("csf.nlm_exporter.nlm_auth_guard.run_nlm", side_effect=fake_run_nlm),
+        ):
+            result = export_composite(doc)
+
+        # Verify add_profile_args was called with the nlm command
+        assert len(captured_add_calls) == 1, f"Expected 1 add_profile_args call, got {len(captured_add_calls)}"
+        add_args = captured_add_calls[0]
+        assert add_args[0] == "source", f"first arg should be 'source', got: {add_args}"
+        assert add_args[1] == "add", f"second arg should be 'add', got: {add_args}"
+        assert add_args[2] == "nb", f"notebook_id should be 'nb', got: {add_args}"
+
+        # Verify run_nlm was called with --profile injected
+        assert len(captured_run_calls) == 1, f"Expected 1 run_nlm call, got {len(captured_run_calls)}"
+        run_args = captured_run_calls[0]
+        assert "--profile" in run_args, f"nlm CLI call must include --profile, got: {run_args}"
 
 
 # =============================================================================
@@ -267,14 +292,14 @@ def test_export_composite_cleans_up_tmp_on_failure(tmp_path):
 
     with (
         mock.patch("csf.nlm_exporter._DEFAULT_EXPORTS_DIR", exports_dir),
-        mock.patch("subprocess.run") as mock_run,
-        mock.patch("shutil.which", return_value="/bin/nlm"),
     ):
         # Simulate nlm CLI failure
-        mock_run.return_value = mock.MagicMock(returncode=1, stdout="", stderr="API error")
-        tmp_file.write_text("content")
+        def fake_run_nlm(args, *, timeout_s, env=None):
+            return subprocess.CompletedProcess(args, 1, stdout="", stderr="API error")
 
-        result = export_composite(doc)
+        with mock.patch("csf.nlm_exporter.nlm_auth_guard.run_nlm", side_effect=fake_run_nlm):
+            tmp_file.write_text("content")
+            result = export_composite(doc)
 
         assert result is None
         assert not tmp_file.exists()  # .tmp should be cleaned up
@@ -300,21 +325,23 @@ def test_export_composite_no_tmp_file_after_success(tmp_path):
     rename_called = []
 
     def mock_rename(_self, dst):
-        rename_called.append(True)
+        rename_called.append(dst)
         final_file.write_text(tmp_file.read_text())
 
     with (
         mock.patch("csf.nlm_exporter._DEFAULT_EXPORTS_DIR", exports_dir),
         mock.patch("csf.batch_status._DEFAULT_DB_PATH", tmp_path / "bs.db"),
-        mock.patch("subprocess.run") as mock_run,
-        mock.patch("shutil.which", return_value="/bin/nlm"),
         mock.patch("pathlib.Path.write_text"),
         mock.patch("pathlib.Path.rename", mock_rename),
     ):
-        mock_run.return_value = mock.MagicMock(returncode=0, stdout="Source added: src_abc")
-        _ = export_composite(doc)
+        def fake_run_nlm(args, *, timeout_s, env=None):
+            return subprocess.CompletedProcess(args, 0, stdout="Source added: src_abc")
 
-    assert len(rename_called) > 0
+        with mock.patch("csf.nlm_exporter.nlm_auth_guard.run_nlm", side_effect=fake_run_nlm):
+            _ = export_composite(doc)
+
+    assert len(rename_called) == 1, f"Expected 1 rename call, got {len(rename_called)}"
+    assert rename_called[0] == final_file, f"rename called with {rename_called[0]}, expected {final_file}"
 
 
 # =============================================================================
@@ -508,5 +535,29 @@ def test_video_without_video_id_skipped():
     assert "v2" not in docs[0].video_ids  # v2 was skipped (id=None)
 
 
-import pytest  # noqa: E402 (needed for pytest.raises)
+# =============================================================================
+# _parse_nlm_output coverage
+# =============================================================================
 
+
+@pytest.mark.parametrize(
+    "stdout,expected",
+    [
+        ("Source added: abc123", "abc123"),
+        ("Source added:  abc123", "abc123"),  # extra space
+        ('{"source_id": "xyz789"}', "xyz789"),
+        ('{"id": "abc"}', "abc"),
+        ('{"source_id": "preferred", "id": "fallback"}', "preferred"),
+        ("plain_id_12345", "plain_id_12345"),
+        ("", None),
+        ("garbage without ids", None),
+        ("Source created abc", None),  # only "Source added:" is matched, not "Source created:"
+        ("Source added: src-def456", "src-def456"),
+        ('{"other": "data"}', None),
+    ],
+)
+def test_parse_nlm_output(stdout, expected):
+    """_parse_nlm_output covers JSON, 'Source added:' prefix, and bare ID strategies."""
+    from csf.nlm_exporter import _parse_nlm_output
+
+    assert _parse_nlm_output(stdout) == expected

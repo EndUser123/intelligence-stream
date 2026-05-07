@@ -18,8 +18,10 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from csf import nlm_auth_guard
+
 # Default exports directory
-_DEFAULT_EXPORTS_DIR = Path("P:/.data/yt-is/nlm_exports")
+_DEFAULT_EXPORTS_DIR = Path("P:\\.data/yt-is/nlm_exports")
 
 # Hard limits (NotebookLM constraints)
 _MAX_WORDS_PER_COMPOSITE = 500_000
@@ -253,19 +255,11 @@ def export_composite(
         # Step 1: atomic write to .tmp
         tmp_path.write_text(doc.content, encoding="utf-8")
 
-        # Step 2: call nlm CLI
-        nlm_path = shutil.which("nlm")
-        if not nlm_path:
-            logger.error("nlm CLI not found in PATH — cannot export composite %s", doc.composite_id)
-            return None
-
-        cmd = [nlm_path, "source", "add", doc.notebook_id, "--text", str(tmp_path)]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
+        # Step 2: call nlm CLI via profile-aware runner
+        cmd_args = nlm_auth_guard.add_profile_args([
+            "source", "add", doc.notebook_id, "--text", str(tmp_path)
+        ])
+        result = nlm_auth_guard.run_nlm(cmd_args, timeout_s=300.0)
 
         if result.returncode != 0:
             logger.error(
@@ -278,6 +272,14 @@ def export_composite(
 
         # Extract source_id from stdout (format: "Source added: <id>" or JSON)
         source_id = _parse_nlm_output(result.stdout) or nlm_source_id
+        if source_id is None:
+            logger.error(
+                "Failed to parse nlm source_id from stdout for %s: %r",
+                doc.composite_id,
+                result.stdout[:500],
+            )
+            _cleanup_tmp(tmp_path)
+            return None
 
         # Step 3: rename .tmp → .txt AND upsert nlm_export_state
         tmp_path.rename(final_path)

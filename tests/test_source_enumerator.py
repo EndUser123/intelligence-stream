@@ -6,7 +6,7 @@ Verifies: YouTube Data API v3 enumeration, RSS fallback, channel/playlist parsin
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
+sys.path.insert(0, str(Path(r"P:\\\packages\\yt-is").absolute()))
 
 from csf.source_enumerator import (
     parse_channel_url,

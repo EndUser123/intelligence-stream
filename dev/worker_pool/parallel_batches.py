@@ -93,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Dispatch isolated NotebookLM worker batches in parallel.")
     parser.add_argument("--input", required=True, type=Path, help="JSON list of batches; each batch is a list of video IDs")
     parser.add_argument("--workers", type=int, default=2, help="Maximum parallel workers")
-    parser.add_argument("--state-root", type=Path, default=Path("P:/.data/yt-is/dev-workers"))
+    parser.add_argument("--state-root", type=Path, default=Path("P:\\.data/yt-is/dev-workers"))
     parser.add_argument("--notebook-prefix", default="yt-is-worker")
     args = parser.parse_args(argv)
 

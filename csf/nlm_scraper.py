@@ -21,6 +21,7 @@ import json
 import subprocess
 import shutil
 import uuid
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 
@@ -93,6 +94,9 @@ class NLMIndustrialScraper:
         self._profile_session_id = f"{os.getpid()}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
         self._last_materialization_ready_at_epoch: float = 0.0
         self._last_vid_order: list[str] = []
+        self._selected_browser_profile_root: str = ""
+        self._selected_browser_profile_directory: str = ""
+        self._selected_browser_seeded_from: str = ""
 
     @staticmethod
     def _looks_like_request_access(text: str) -> bool:
@@ -218,6 +222,12 @@ class NLMIndustrialScraper:
                     "current_url": current_url[:300],
                     "title": title[:200],
                     "snapshot": snapshot[:500],
+                    "selected_browser_profile_root": self._selected_browser_profile_root,
+                    "selected_browser_profile_directory": self._selected_browser_profile_directory,
+                    "selected_browser_seeded_from": self._selected_browser_seeded_from,
+                    "cli_notebooklm_profile": os.getenv("NOTEBOOKLM_PROFILE", "").strip(),
+                    "config_browser_profile_root": str(getattr(self.browser_cfg, "nlm_browser_profile_root", "")),
+                    "config_browser_profile_directory": str(getattr(self.browser_cfg, "nlm_browser_profile_directory", "")),
                     "status": "request_access",
                 },
             )
@@ -380,7 +390,7 @@ class NLMIndustrialScraper:
         browser_profile_root = Path(
             getattr(self.browser_cfg, "nlm_browser_profile_root", "")
             or getattr(self.browser_cfg, "browser_profile_seed_root", "")
-            or r"P:\packages\yt-is\.browser\notebooklm"
+            or r"$CLAUDE_PLUGIN_ROOT/.browser\notebooklm"
         )
         profile_directory = str(getattr(self.browser_cfg, "nlm_browser_profile_directory", "") or "").strip()
         if profile_directory:
@@ -447,6 +457,9 @@ class NLMIndustrialScraper:
         else:
             chrome_profile_base = self._selenium_profile_session_root("chrome")
             seeded = self._seed_browser_profile_if_needed(chrome_source_base, chrome_profile_base)
+        self._selected_browser_profile_root = str(chrome_profile_base)
+        self._selected_browser_profile_directory = profile_name
+        self._selected_browser_seeded_from = str(chrome_source_base)
         log_action(
             "selenium_profile_selected",
             {
@@ -457,6 +470,7 @@ class NLMIndustrialScraper:
                 "persistent": self._selenium_profile_is_persistent(),
                 "seeded": seeded,
                 "profile_session_id": self._profile_session_id,
+                "cli_notebooklm_profile": os.getenv("NOTEBOOKLM_PROFILE", "").strip(),
             },
         )
 
@@ -558,11 +572,7 @@ class NLMIndustrialScraper:
 
     def _list_source_ids_process(self, notebook_id: str) -> subprocess.CompletedProcess[str]:
         """Run `nlm source list` and return the completed process."""
-        return subprocess.run(
-            ["nlm", "source", "list", notebook_id, "--json"],
-            capture_output=True,
-            text=True,
-        )
+        return self._run_nlm(["source", "list", notebook_id, "--json"], timeout=30)
 
     def _wait_for_transcript_ready(self, timeout: float = 20.0) -> Optional[str]:
         """Poll for transcript content to load after clicking a source.
@@ -2375,6 +2385,14 @@ def main():
         default=600.0,
         help="Timeout for readiness probes when --readiness-matrix is enabled",
     )
+    parser.add_argument(
+        "--browser-profile-root",
+        help="Override the NotebookLM browser profile root used for Selenium seeding",
+    )
+    parser.add_argument(
+        "--browser-profile-directory",
+        help="Override the NotebookLM browser profile directory used for Selenium seeding",
+    )
     args = parser.parse_args()
 
     video_ids: List[str] = []
@@ -2384,8 +2402,17 @@ def main():
         print("Error: --video-ids is required")
         sys.exit(1)
 
+    browser_cfg = get_nlm_config()
+    if args.browser_profile_root or args.browser_profile_directory:
+        browser_cfg = replace(
+            browser_cfg,
+            nlm_browser_profile_root=args.browser_profile_root or browser_cfg.nlm_browser_profile_root,
+            nlm_browser_profile_directory=args.browser_profile_directory or browser_cfg.nlm_browser_profile_directory,
+        )
+
     scraper = NLMIndustrialScraper(
         headless=not args.no_headless,
+        browser_cfg=browser_cfg,
         readiness_matrix=args.readiness_matrix,
         readiness_probe_interval_s=args.readiness_probe_interval_s,
         readiness_probe_timeout_s=args.readiness_probe_timeout_s,

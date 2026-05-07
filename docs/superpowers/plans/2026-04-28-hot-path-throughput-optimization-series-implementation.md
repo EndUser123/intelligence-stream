@@ -12,16 +12,16 @@
 
 ## File Structure
 
-- Modify: `P:/packages/yt-is/csf/breadth_series.py`
+- Modify: `P:\\packages/yt-is/csf/breadth_series.py`
   - add reusable pipeline mode support to benchmark command execution and aggregation
-- Modify: `P:/packages/yt-is/tests/test_breadth_series.py`
+- Modify: `P:\\packages/yt-is/tests/test_breadth_series.py`
   - cover serial vs double-buffered comparison metadata
-- Modify: `P:/packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
+- Modify: `P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
   - record completed phase results
-- Modify: `P:/packages/yt-is/docs/operations/test-registry.md`
+- Modify: `P:\\packages/yt-is/docs/operations/test-registry.md`
   - mark phase outcomes as `proven`, `negative`, or `pending`
 
-No direct Phase 1 change is expected in `P:/packages/yt-is/csf/load_ladder.py` or `P:/packages/yt-is/bin/csf-fallback-crossover-benchmark`; the pipeline-mode comparison is owned by `csf/breadth_series.py`.
+No direct Phase 1 change is expected in `P:\\packages/yt-is/csf/load_ladder.py` or `P:\\packages/yt-is/bin/csf-fallback-crossover-benchmark`; the pipeline-mode comparison is owned by `csf/breadth_series.py`.
 
 Do not modify Whisper admission behavior as part of this plan. Do not count Whisper recovery in sustained throughput.
 
@@ -30,8 +30,8 @@ Do not modify Whisper admission behavior as part of this plan. Do not count Whis
 ## Task 1: Add pipeline-mode support to the benchmark series
 
 **Files:**
-- Modify: `P:/packages/yt-is/csf/breadth_series.py`
-- Test: `P:/packages/yt-is/tests/test_breadth_series.py`
+- Modify: `P:\\packages/yt-is/csf/breadth_series.py`
+- Test: `P:\\packages/yt-is/tests/test_breadth_series.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -80,7 +80,7 @@ def test_breadth_series_records_reusable_pipeline_mode(monkeypatch, tmp_path):
 Run:
 
 ```powershell
-python -m pytest P:\packages\yt-is\tests\test_breadth_series.py -q -k pipeline_mode
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_breadth_series.py -q -k pipeline_mode
 ```
 
 Expected: fails because `run_breadth_series()` does not accept or record `reusable_pipeline_mode`.
@@ -104,7 +104,7 @@ Pass it into the benchmark subprocess environment using `YTIS_REUSABLE_PIPELINE_
 Run:
 
 ```powershell
-python -m pytest P:\packages\yt-is\tests\test_breadth_series.py -q -k pipeline_mode
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_breadth_series.py -q -k pipeline_mode
 ```
 
 Expected: pass.
@@ -114,8 +114,8 @@ Expected: pass.
 ## Task 2: Preserve pipeline env through benchmark command execution
 
 **Files:**
-- Modify: `P:/packages/yt-is/csf/breadth_series.py`
-- Test: `P:/packages/yt-is/tests/test_breadth_series.py`
+- Modify: `P:\\packages/yt-is/csf/breadth_series.py`
+- Test: `P:\\packages/yt-is/tests/test_breadth_series.py`
 
 - [ ] **Step 1: Write the failing env propagation test**
 
@@ -173,7 +173,7 @@ def test_run_benchmark_sets_double_buffered_env(monkeypatch, tmp_path):
 Run:
 
 ```powershell
-python -m pytest P:\packages\yt-is\tests\test_breadth_series.py -q -k double_buffered_env
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_breadth_series.py -q -k double_buffered_env
 ```
 
 Expected: fails until `_run_benchmark()` sets the env.
@@ -196,8 +196,8 @@ proc = subprocess.run(command, cwd=str(REPO_ROOT), env=env, check=False)
 Run:
 
 ```powershell
-python -m pytest P:\packages\yt-is\tests\test_breadth_series.py -q
-python -m py_compile P:\packages\yt-is\csf\breadth_series.py
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_breadth_series.py -q
+python -m py_compile $CLAUDE_PLUGIN_ROOT/csf\breadth_series.py
 ```
 
 Expected: pass.
@@ -207,8 +207,8 @@ Expected: pass.
 ## Task 3: Add the serial-vs-double-buffered comparison runner
 
 **Files:**
-- Modify: `P:/packages/yt-is/csf/breadth_series.py`
-- Test: `P:/packages/yt-is/tests/test_breadth_series.py`
+- Modify: `P:\\packages/yt-is/csf/breadth_series.py`
+- Test: `P:\\packages/yt-is/tests/test_breadth_series.py`
 
 - [ ] **Step 1: Write the failing comparison test**
 
@@ -254,7 +254,7 @@ def test_pipeline_mode_comparison_runs_serial_and_double_buffered(monkeypatch, t
 Run:
 
 ```powershell
-python -m pytest P:\packages\yt-is\tests\test_breadth_series.py -q -k pipeline_mode_comparison
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_breadth_series.py -q -k pipeline_mode_comparison
 ```
 
 Expected: fails because the helper does not exist.
@@ -285,7 +285,7 @@ The helper should return:
 Run:
 
 ```powershell
-python -m pytest P:\packages\yt-is\tests\test_breadth_series.py -q -k "pipeline_mode"
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_breadth_series.py -q -k "pipeline_mode"
 ```
 
 Expected: pass.
@@ -295,16 +295,16 @@ Expected: pass.
 ## Task 4: Add CLI support for the comparison
 
 **Files:**
-- Modify: `P:/packages/yt-is/csf/breadth_series.py`
-- Modify: `P:/packages/yt-is/bin/csf-breadth-series`
-- Test: `P:/packages/yt-is/tests/test_breadth_series.py`
+- Modify: `P:\\packages/yt-is/csf/breadth_series.py`
+- Modify: `P:\\packages/yt-is/bin/csf-breadth-series`
+- Test: `P:\\packages/yt-is/tests/test_breadth_series.py`
 
 - [ ] **Step 1: Add CLI parser coverage**
 
 Add a test for parsing:
 
 ```powershell
-python P:\packages\yt-is\bin\csf-breadth-series --comparison pipeline-mode --pipeline-modes serial,double_buffered --workers 4 --batch-size 200
+python $CLAUDE_PLUGIN_ROOT/bin\csf-breadth-series --comparison pipeline-mode --pipeline-modes serial,double_buffered --workers 4 --batch-size 200
 ```
 
 The test should assert that `main()` dispatches to `run_pipeline_mode_comparison(...)` with:
@@ -317,7 +317,7 @@ The test should assert that `main()` dispatches to `run_pipeline_mode_comparison
 Run:
 
 ```powershell
-python -m pytest P:\packages\yt-is\tests\test_breadth_series.py -q -k comparison_cli
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_breadth_series.py -q -k comparison_cli
 ```
 
 Expected: fails because the CLI switch does not exist.
@@ -335,7 +335,7 @@ When `--comparison pipeline-mode`, call `run_pipeline_mode_comparison(...)`.
 Run:
 
 ```powershell
-python P:\packages\yt-is\bin\csf-breadth-series --help
+python $CLAUDE_PLUGIN_ROOT/bin\csf-breadth-series --help
 ```
 
 Expected: help text includes `--comparison` and `--pipeline-modes`.
@@ -345,18 +345,18 @@ Expected: help text includes `--comparison` and `--pipeline-modes`.
 ## Task 5: Run Phase 1 live validation
 
 **Files:**
-- Output: `P:/packages/yt-is/.logs/pipeline_mode_comparison_v1/pipeline_mode_comparison_summary.json`
+- Output: `P:\\packages/yt-is/.logs/pipeline_mode_comparison_v1/pipeline_mode_comparison_summary.json`
 
 - [ ] **Step 1: Run the comparison**
 
 Run:
 
 ```powershell
-python P:\packages\yt-is\bin\csf-breadth-series `
+python $CLAUDE_PLUGIN_ROOT/bin\csf-breadth-series `
   --comparison pipeline-mode `
   --pipeline-modes serial,double_buffered `
-  --trace-root P:\packages\yt-is\.logs\worker_count_trials `
-  --output-root P:\packages\yt-is\.logs\pipeline_mode_comparison_v1 `
+  --trace-root $CLAUDE_PLUGIN_ROOT/.logs\worker_count_trials `
+  --output-root $CLAUDE_PLUGIN_ROOT/.logs\pipeline_mode_comparison_v1 `
   --workers 4 `
   --batch-size 200 `
   --limit 400
@@ -372,7 +372,7 @@ Expected:
 Run:
 
 ```powershell
-Get-Content P:\packages\yt-is\.logs\pipeline_mode_comparison_v1\pipeline_mode_comparison_summary.json -Raw
+Get-Content $CLAUDE_PLUGIN_ROOT/.logs\pipeline_mode_comparison_v1\pipeline_mode_comparison_summary.json -Raw
 ```
 
 Record:
@@ -395,8 +395,8 @@ Decision:
 ## Task 6: Document Phase 1 result
 
 **Files:**
-- Modify: `P:/packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
-- Modify: `P:/packages/yt-is/docs/operations/test-registry.md`
+- Modify: `P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
+- Modify: `P:\\packages/yt-is/docs/operations/test-registry.md`
 
 - [ ] **Step 1: Update the run sheet**
 
@@ -405,7 +405,7 @@ Add a section under the throughput conclusions:
 ```markdown
 ### Pipeline Mode Comparison
 
-- Artifact: `P:/packages/yt-is/.logs/pipeline_mode_comparison_v1/pipeline_mode_comparison_summary.json`
+- Artifact: `P:\\packages/yt-is/.logs/pipeline_mode_comparison_v1/pipeline_mode_comparison_summary.json`
 - Control: serial reusable path, `4` workers, `--batch-size 200`, narrow/captioned cohort
 - Candidate: double-buffered reusable path
 - Hot-path vph excludes Whisper recovery.
@@ -440,7 +440,7 @@ If the run does not complete:
 Run:
 
 ```powershell
-rg -n "pipeline_mode_comparison_v1|double-buffered" P:\packages\yt-is\docs\operations
+rg -n "pipeline_mode_comparison_v1|double-buffered" $CLAUDE_PLUGIN_ROOT/docs\operations
 ```
 
 Expected:
@@ -452,8 +452,8 @@ Expected:
 
 **Files:**
 - Modify only after Phase 1 shows source-add failures:
-  - `P:/packages/yt-is/csf/nlm_batch.py`
-  - `P:/packages/yt-is/dev/worker_pool/worker_main.py`
+  - `P:\\packages/yt-is/csf/nlm_batch.py`
+  - `P:\\packages/yt-is/dev/worker_pool/worker_main.py`
   - relevant tests
 
 - [ ] **Step 1: Identify the failure signature**
@@ -463,7 +463,7 @@ Inspect the Phase 1 worker stderr/stdout and summary rows.
 Run:
 
 ```powershell
-rg -n "source_add_failed|NotebookSourceMaterializationTimeout|command_failed|Request access|auth" P:\packages\yt-is\.logs\pipeline_mode_comparison_v1
+rg -n "source_add_failed|NotebookSourceMaterializationTimeout|command_failed|Request access|auth" $CLAUDE_PLUGIN_ROOT/.logs\pipeline_mode_comparison_v1
 ```
 
 - [ ] **Step 2: Write a failing regression test for the exact failure**
@@ -489,7 +489,7 @@ Disallowed changes:
 Use a new output root:
 
 ```powershell
-P:\packages\yt-is\.logs\pipeline_mode_comparison_v2
+$CLAUDE_PLUGIN_ROOT/.logs\pipeline_mode_comparison_v2
 ```
 
 Apply the same decision rule as Task 5.
@@ -512,26 +512,26 @@ Do not implement those in this plan. They change the operating model enough to n
 - [ ] Unit tests pass:
 
 ```powershell
-python -m pytest P:\packages\yt-is\tests\test_breadth_series.py -q
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_breadth_series.py -q
 ```
 
 - [ ] Existing double-buffered worker tests still pass:
 
 ```powershell
-python -m pytest P:\packages\yt-is\tests\test_dev_worker_pool.py -q
-python -m pytest P:\packages\yt-is\tests\test_nlm_batch.py -q -k double_buffered
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_dev_worker_pool.py -q
+python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_batch.py -q -k double_buffered
 ```
 
 - [ ] Modified files compile:
 
 ```powershell
-python -m py_compile P:\packages\yt-is\csf\breadth_series.py P:\packages\yt-is\dev\worker_pool\worker_main.py P:\packages\yt-is\csf\nlm_batch.py
+python -m py_compile $CLAUDE_PLUGIN_ROOT/csf\breadth_series.py $CLAUDE_PLUGIN_ROOT/dev\worker_pool\worker_main.py $CLAUDE_PLUGIN_ROOT/csf\nlm_batch.py
 ```
 
 - [ ] Live Phase 1 comparison writes:
 
 ```powershell
-P:\packages\yt-is\.logs\pipeline_mode_comparison_v1\pipeline_mode_comparison_summary.json
+$CLAUDE_PLUGIN_ROOT/.logs\pipeline_mode_comparison_v1\pipeline_mode_comparison_summary.json
 ```
 
 - [ ] Docs record the result and decision.
@@ -542,7 +542,7 @@ P:\packages\yt-is\.logs\pipeline_mode_comparison_v1\pipeline_mode_comparison_sum
 
 The double-buffered worker path already has a smoke result:
 
-- `P:/packages/yt-is/.logs/double_buffered_smoke4/result.json`
+- `P:\\packages/yt-is/.logs/double_buffered_smoke4/result.json`
 - `pipeline_strategy = double_buffered_reusable`
 - `stage_swap_count_total = 1`
 - `staging_overlap_elapsed_s_total = 173.56`

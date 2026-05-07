@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from unittest import mock
 
-_ROOT = Path(r"P:\\packages\\yt-is")
+_ROOT = Path(r"P:\\\packages\\yt-is")
 sys.path.insert(0, str(_ROOT))
 
 from csf.batch import BatchConfig, analyze_videos_parallel  # noqa: E402

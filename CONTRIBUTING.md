@@ -8,8 +8,8 @@ git clone <repo-url>
 cd yt-is
 
 # Create skill junctions (Windows)
-New-Item -ItemType Junction -Path "P:\.claude\skills\yt-is-analyze" -Target "P:\\packages\\yt-is\skills\analyze"
-New-Item -ItemType Junction -Path "P:\.claude\skills\yt-is-ingest" -Target "P:\\packages\\yt-is\skills\ingest"
+New-Item -ItemType Junction -Path "$CLAUDE_ROOT/skills\yt-is-analyze" -Target "P:\\\packages\\yt-is\skills\analyze"
+New-Item -ItemType Junction -Path "$CLAUDE_ROOT/skills\yt-is-ingest" -Target "P:\\\packages\\yt-is\skills\ingest"
 ```
 
 ## Running Tests

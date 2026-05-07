@@ -36,13 +36,13 @@ from csf.youtube_page_inspector import inspect_youtube_watch_page, inspect_youtu
 run_nlm = nlm_auth_guard.run_nlm
 
 
-_DEFAULT_OWNER_NOTEBOOK_STATE_PATH = Path("P:/.data/yt-is/owner_nlm_notebook.json")
+_DEFAULT_OWNER_NOTEBOOK_STATE_PATH = Path("P:\\.data/yt-is/owner_nlm_notebook.json")
 _DEFAULT_OWNER_NOTEBOOK_TITLE = "yt-is-worker-01"
-_DEFAULT_INDUSTRIAL_WORKER_STATE_ROOT = Path("P:/.data/yt-is/industrial-worker-states")
+_DEFAULT_INDUSTRIAL_WORKER_STATE_ROOT = Path("P:\\.data/yt-is/industrial-worker-states")
 _DEFAULT_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX = "yt-is-worker"
 _LEGACY_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX = "yt-is::industrial::worker"
 _DEFAULT_NOTEBOOKLM_PROFILE = "default"
-_AUTH_LOCK_PATH = Path("P:/.data/yt-is/locks/nlm-auth.lock")
+_AUTH_LOCK_PATH = Path("P:\\.data/yt-is/locks/nlm-auth.lock")
 DEFAULT_NLM_CHROME_PROFILE_ROOT = nlm_auth_guard.DEFAULT_NLM_CHROME_PROFILE_ROOT
 
 _NLM_CONFIG = get_nlm_config()
@@ -73,6 +73,8 @@ _NLM_CONTENT_BELOW_THRESHOLD_STATUS = "nlm_content_below_threshold"
 _LEGACY_NLM_CONTENT_BELOW_THRESHOLD_STATUS = "too_short"
 _ZERO_GROWTH_ADD_RESET_RETRY_LIMIT = 1
 _NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS = 0
+_NLM_AUTH_RUNTIME_CONFIG_LOGGED = False
+_NLM_AUTH_RUNTIME_CONFIG_LOCK = threading.Lock()
 
 
 def _summarize_add_failure_batch_ids(batch_ids: List[str]) -> dict[str, object]:
@@ -94,6 +96,32 @@ def _get_nlm_auth_force_refresh_every_checks() -> int:
     except ValueError:
         return 0
     return value if value > 0 else 0
+
+
+def _log_nlm_auth_runtime_config_once(auth_context) -> None:
+    """Emit the resolved auth config once per worker process."""
+    global _NLM_AUTH_RUNTIME_CONFIG_LOGGED
+
+    if _NLM_AUTH_RUNTIME_CONFIG_LOGGED:
+        return
+
+    payload = {
+        "component": "nlm_batch",
+        "notebooklm_profile": auth_context.profile,
+        "account": auth_context.expected_email or None,
+        "env_auth_check_cache_ttl_raw": os.getenv("YTIS_NLM_AUTH_CHECK_CACHE_TTL_SECONDS") or None,
+        "resolved_auth_check_cache_ttl_s": nlm_auth_guard.auth_check_cache_ttl_seconds(),
+        "resolved_auth_check_interval_s": _NLM_CONFIG.auth_check_interval,
+        "resolved_auth_cooldown_s": _NLM_CONFIG.auth_cooldown,
+        "resolved_auth_force_refresh_every_checks": _get_nlm_auth_force_refresh_every_checks(),
+    }
+
+    with _NLM_AUTH_RUNTIME_CONFIG_LOCK:
+        if _NLM_AUTH_RUNTIME_CONFIG_LOGGED:
+            return
+        _NLM_AUTH_RUNTIME_CONFIG_LOGGED = True
+
+    log_action("nlm_auth_runtime_config_snapshot", payload)
 
 
 def _next_nlm_auth_check_count() -> int:
@@ -609,7 +637,7 @@ def _clear_reusable_notebook_state() -> None:
         for state_path in {
             _get_owner_notebook_state_path(),
             _DEFAULT_OWNER_NOTEBOOK_STATE_PATH,
-            Path("P:/.data/yt-is/reusable_nlm_notebook.json"),
+            Path("P:\\.data/yt-is/reusable_nlm_notebook.json"),
         }:
             if state_path.exists():
                 state_path.unlink()
@@ -931,6 +959,7 @@ def _ensure_nlm_auth() -> bool:
 
     auth_context = _get_nlm_auth_context()
     if auth_context.should_fail_closed:
+        _log_nlm_auth_runtime_config_once(auth_context)
         log_action(
             "nlm_auth_failed",
             {
@@ -942,6 +971,7 @@ def _ensure_nlm_auth() -> bool:
         )
         return False
 
+    _log_nlm_auth_runtime_config_once(auth_context)
     check_count = _next_nlm_auth_check_count()
     force_every = _get_nlm_auth_force_refresh_every_checks()
     force_scheduled = force_every > 0 and check_count % force_every == 0

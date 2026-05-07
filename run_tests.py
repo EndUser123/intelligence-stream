@@ -4,7 +4,7 @@ import subprocess
 import sys
 import os
 
-os.chdir("P:/packages/yt-is")
+os.chdir("P:\\packages/yt-is")
 
 test_files = [
     "tests/test_orchestrator.py",
@@ -21,7 +21,7 @@ cmd = [sys.executable, "-m", "pytest"] + test_files + ["-v", "--tb=short"]
 
 result = subprocess.run(cmd, capture_output=True, text=True)
 
-with open("P:/packages/yt-is/test_all7.txt", "w", encoding="utf-8") as f:
+with open("P:\\packages/yt-is/test_all7.txt", "w", encoding="utf-8") as f:
     f.write("STDOUT:\n")
     f.write(result.stdout)
     f.write("\nSTDERR:\n")

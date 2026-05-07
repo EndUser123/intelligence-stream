@@ -23,16 +23,16 @@ Standard run order: `doctor` on the lane config and run root, then a short smoke
 
 ## Read First
 
-- `P:/packages/yt-is/docs/operations/sharded-lane-series.md`
-- `P:/packages/yt-is/docs/operations/notebooklm-auth-family-extension.md`
-- `P:/packages/yt-is/docs/operations/hot-path-throughput-next-test-plan.md`
-- `P:/packages/yt-is/docs/operations/notebooklm-auth-rerun-recipe.md`
-- `P:/packages/yt-is/docs/operations/notebooklm-auth-pre-mortem.md`
-- `P:/packages/yt-is/docs/operations/test-registry.md`
-- `P:/packages/yt-is/csf/nlm_worker_auth.py`
-- `P:/packages/yt-is/csf/nlm_batch.py`
-- `P:/packages/yt-is/tests/test_nlm_worker_auth.py`
-- `P:/packages/yt-is/tests/test_nlm_batch.py`
+- `P:\\packages/yt-is/docs/operations/sharded-lane-series.md`
+- `P:\\packages/yt-is/docs/operations/notebooklm-auth-family-extension.md`
+- `P:\\packages/yt-is/docs/operations/hot-path-throughput-next-test-plan.md`
+- `P:\\packages/yt-is/docs/operations/notebooklm-auth-rerun-recipe.md`
+- `P:\\packages/yt-is/docs/operations/notebooklm-auth-pre-mortem.md`
+- `P:\\packages/yt-is/docs/operations/test-registry.md`
+- `P:\\packages/yt-is/csf/nlm_worker_auth.py`
+- `P:\\packages/yt-is/csf/nlm_batch.py`
+- `P:\\packages/yt-is/tests/test_nlm_worker_auth.py`
+- `P:\\packages/yt-is/tests/test_nlm_batch.py`
 
 ## Current Auth Contract
 
@@ -109,10 +109,10 @@ Stop immediately and mark the run invalid if any of these occur:
 
 ## Phase 1: Static And Unit Gates
 
-Run from `P:/packages/yt-is`.
+Run from `P:\\packages/yt-is`.
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:PYTHONPATH = 'P:\\packages\yt-is'
 $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
 pytest tests/test_nlm_worker_auth.py tests/test_sharded_lane_series.py -q
 pytest tests/test_nlm_batch.py tests/test_sharded_lane_series.py -q
@@ -131,9 +131,9 @@ If this fails, fix the account-aware auth helper before continuing.
 Run the live sync without creating another backup:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
-python P:/packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
-python P:/packages/yt-is/bin/csf-nlm-worker-auth snapshot
+$env:PYTHONPATH = 'P:\\packages\yt-is'
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth snapshot
 ```
 
 Then verify each profile explicitly:
@@ -161,9 +161,9 @@ If `sync` fails because Google needs passkey/browser approval, refresh only the 
 If a `worker-01` profile is corrupt, restore before opening another manual login:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
-python P:/packages/yt-is/bin/csf-nlm-worker-auth restore
-python P:/packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+$env:PYTHONPATH = 'P:\\packages\yt-is'
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth restore
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
 ```
 
 Use `--snapshot <path>` only when you intentionally want a specific older verified snapshot. The restore command validates the snapshot manifest against the configured expected accounts before copying credentials.
@@ -174,8 +174,8 @@ Purpose: make the long soak prove multiple refreshes. Do not skip this phase unl
 
 Implementation target:
 
-- Modify: `P:/packages/yt-is/csf/nlm_batch.py`
-- Test: `P:/packages/yt-is/tests/test_nlm_batch.py`
+- Modify: `P:\\packages/yt-is/csf/nlm_batch.py`
+- Test: `P:\\packages/yt-is/tests/test_nlm_batch.py`
 
 Required behavior:
 
@@ -189,7 +189,7 @@ Required behavior:
 Minimum tests:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:PYTHONPATH = 'P:\\packages\yt-is'
 $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
 pytest tests/test_nlm_batch.py -q -k "auth_context or auth_refresh"
 ```
@@ -211,13 +211,13 @@ Expected before continuing:
 Run a small benchmark with forced refresh enabled before the long soak, but do not use the most aggressive cadence unless you are specifically debugging auth churn.
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:PYTHONPATH = 'P:\\packages\yt-is'
 $env:YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS = '5'
-python P:/packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
-python P:/packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
-  --output-root P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_forced_smoke_v1 `
-  --cohort-json P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_forced_smoke_v1/cohort.json `
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+python P:\\packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_forced_smoke_v1 `
+  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_forced_smoke_v1/cohort.json `
   --limit 50 `
   --batch-size 50 `
   --reusable-pipeline-mode serial
@@ -241,7 +241,7 @@ Pass criteria:
 - Any `nlm login --force` command is profile-pinned.
 - No default NotebookLM Chrome profile appears.
 - If `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS=1` is used, the run must either emit `nlm_auth_forced_refresh_scheduled` with no default `chrome-profile` process or fail closed before any default-profile Chrome mutation becomes evidence.
-- Post-run `python P:/packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync` still passes.
+- Post-run `python P:\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync` still passes.
 
 Observed stress run:
 
@@ -252,7 +252,7 @@ Observed stress run:
 
 Marker and guard drills:
 
-- `pro_free_auth_marker_v4` wrote `P:\packages\yt-is\.logs\sharded_lane_series\pro_free_auth_marker_v4\logs\term_ad61538d.jsonl`.
+- `pro_free_auth_marker_v4` wrote `$CLAUDE_PLUGIN_ROOT/.logs\sharded_lane_series\pro_free_auth_marker_v4\logs\term_ad61538d.jsonl`.
 - That JSONL contains `nlm_auth_forced_refresh_scheduled`, `nlm_login_started`, `nlm_login_completed`, and `nlm_auth_refreshed` for `ytis-pro-worker-01`.
 - The guard drill returned `check_exit=1` and `remaining_default_profile_processes=0` after starting a shared default-profile Chrome tree.
 
@@ -267,13 +267,13 @@ Do not enter this phase immediately after a source-add circuit-breaker patch. Fi
 This is the next benchmark-shaped run after `pro_free_auth_soak_v1_run08` was invalidated. It keeps forced refresh cadence at `5`, but lowers the source-add window so failures are easier to classify before investing in another soak.
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:PYTHONPATH = 'P:\\packages\yt-is'
 $env:YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS = '5'
-python P:/packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
-python P:/packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
-  --output-root P:/packages/yt-is/.logs/sharded_lane_series/pro_free_source_add_smoke_v1 `
-  --cohort-json P:/packages/yt-is/.logs/sharded_lane_series/pro_free_source_add_smoke_v1/cohort.json `
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+python P:\\packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_add_smoke_v1 `
+  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_add_smoke_v1/cohort.json `
   --limit 20 `
   --batch-size 10 `
   --reusable-pipeline-mode serial
@@ -293,21 +293,21 @@ If you need forced refreshes during the soak, start with `YTIS_NLM_AUTH_FORCE_RE
 
 Use fresh output roots:
 
-- `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run01`
-- `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run02`
-- `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run03`
+- `P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run01`
+- `P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run02`
+- `P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run03`
 - Continue until elapsed wall time is greater than `75` minutes.
 
 Command template:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:PYTHONPATH = 'P:\\packages\yt-is'
 $env:YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS = '5'
-python P:/packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
-python P:/packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
-  --output-root P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run01 `
-  --cohort-json P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run01/cohort.json `
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+python P:\\packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run01 `
+  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run01/cohort.json `
   --limit 400 `
   --batch-size 200 `
   --reusable-pipeline-mode serial
@@ -337,7 +337,7 @@ Get-CimInstance Win32_Process |
 After each run:
 
 ```powershell
-python P:/packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
 ```
 
 Pass criteria:
@@ -360,7 +360,7 @@ Extract summary data for each run:
 import json
 from pathlib import Path
 
-roots = sorted(Path("P:/packages/yt-is/.logs/sharded_lane_series").glob("pro_free_auth_soak_v1_run*/sharded_lane_series_summary.json"))
+roots = sorted(Path("P:\\packages/yt-is/.logs/sharded_lane_series").glob("pro_free_auth_soak_v1_run*/sharded_lane_series_summary.json"))
 for path in roots:
     summary = json.loads(path.read_text())
     print(json.dumps({
@@ -386,15 +386,15 @@ for path in roots:
 Search for auth events:
 
 ```powershell
-rg -n "nlm_auth|nlm_login|login --force|Account:|PERMISSION_DENIED|chrome-profile" P:/packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run*
+rg -n "nlm_auth|nlm_login|login --force|Account:|PERMISSION_DENIED|chrome-profile" P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run*
 ```
 
 ## Documentation Requirements
 
 After the test:
 
-- Add a row to `P:/packages/yt-is/docs/operations/test-registry.md`.
-- Update `P:/packages/yt-is/docs/operations/sharded-lane-series.md` if the auth contract changes.
+- Add a row to `P:\\packages/yt-is/docs/operations/test-registry.md`.
+- Update `P:\\packages/yt-is/docs/operations/sharded-lane-series.md` if the auth contract changes.
 - If the run is invalid, say exactly which stop condition triggered.
 - If no refresh event occurred, mark the result as endurance-only, not re-auth proof.
 

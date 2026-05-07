@@ -2,7 +2,7 @@
 """Backfill channel metadata (description, published_at, country) for existing channels.
 
 Usage:
-    python3 P:/packages/yt-is/scripts/backfill_channel_metadata.py [--batch=100]
+    python3 P:\\packages/yt-is/scripts/backfill_channel_metadata.py [--batch=100]
 """
 
 import os
@@ -11,7 +11,7 @@ import sys
 # Set the new key 3 BEFORE importing the module (it caches keys on first call)
 os.environ["YT_API_KEY_3"] = "AIzaSyAIpCVh8oamSk8-637T08ru0P4mNwv-VL0"
 
-sys.path.insert(0, "P:/packages/yt-is")
+sys.path.insert(0, "P:\\packages/yt-is")
 
 # Force reload with fresh key state
 import csf.source_enumerator as se
@@ -21,7 +21,7 @@ se._key_state = {}
 from csf.source_enumerator import get_upload_playlist_id, parse_channel_url
 from csf.batch_status import upsert_channel
 
-DB = "P:/.data/yt-is/batch_status.sqlite"
+DB = "P:\\.data/yt-is/batch_status.sqlite"
 
 import sqlite3
 conn = sqlite3.connect(DB)

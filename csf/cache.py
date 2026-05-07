@@ -20,7 +20,7 @@ _VIDEO_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{11}$")
 
 # Shared transcript cache DB (all terminals share the same pool)
 # Stored in .data alongside other CSF runtime data
-_DEFAULT_SHARED_DB_PATH = Path("P:/.data/yt-is/transcripts.sqlite")
+_DEFAULT_SHARED_DB_PATH = Path("P:\\.data/yt-is/transcripts.sqlite")
 # Backward-compatible alias for callers that import the constant directly.
 _SHARED_DB_PATH = _DEFAULT_SHARED_DB_PATH
 

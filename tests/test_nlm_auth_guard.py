@@ -31,9 +31,9 @@ def test_add_profile_args_leaves_login_commands_unpinned(monkeypatch):
 
 def _browser_health_sample(*, default_pids=None, unexpected=None, chrome_process_count=0, chrome_rss_bytes_total=0):
     return {
-        "allowed_browser_roots": [r"P:\.data\yt-is\browser\notebooklm-pro"],
+        "allowed_browser_roots": [r"P:\\.data\yt-is\browser\notebooklm-pro"],
         "allowed_profile_pid_count": 0,
-        "allowed_profile_pid_counts_by_root": {r"P:\.data\yt-is\browser\notebooklm-pro": 0},
+        "allowed_profile_pid_counts_by_root": {r"P:\\.data\yt-is\browser\notebooklm-pro": 0},
         "chrome_process_count": chrome_process_count,
         "chrome_rss_bytes_total": chrome_rss_bytes_total,
         "default_profile_pids": list(default_pids or []),
@@ -51,7 +51,7 @@ def test_browser_health_gate_passes_when_environment_is_clean(monkeypatch):
     )
 
     report = nlm_auth_guard.browser_health_gate(
-        [Path(r"P:\.data\yt-is\browser\notebooklm-pro")],
+        [Path(r"P:\\.data\yt-is\browser\notebooklm-pro")],
         settle_window_s=0.0,
         sample_interval_s=0.0,
         clock=lambda: 0.0,
@@ -76,7 +76,7 @@ def test_browser_health_gate_marks_recovered_clean_after_default_profile_cleanup
     )
 
     report = nlm_auth_guard.browser_health_gate(
-        [Path(r"P:\.data\yt-is\browser\notebooklm-pro")],
+        [Path(r"P:\\.data\yt-is\browser\notebooklm-pro")],
         settle_window_s=0.0,
         sample_interval_s=0.0,
         clock=lambda: 0.0,
@@ -104,7 +104,7 @@ def test_browser_health_gate_is_unhealthy_for_unexpected_chrome(monkeypatch):
     )
 
     report = nlm_auth_guard.browser_health_gate(
-        [Path(r"P:\.data\yt-is\browser\notebooklm-pro")],
+        [Path(r"P:\\.data\yt-is\browser\notebooklm-pro")],
         settle_window_s=0.0,
         sample_interval_s=0.0,
         clock=lambda: 0.0,

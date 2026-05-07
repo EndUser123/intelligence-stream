@@ -64,7 +64,7 @@ with open(hist_path, 'r', encoding='utf-8', errors='ignore') as f:
 
 # Remove already-tracked channels
 import sqlite3
-bconn = sqlite3.connect('P:/.data/yt-is/batch_status.sqlite')
+bconn = sqlite3.connect('P:\\.data/yt-is/batch_status.sqlite')
 bc = bconn.cursor()
 bc.execute('SELECT channel_url FROM channel_metadata')
 existing = set(row[0] for row in bc.fetchall())
@@ -111,7 +111,7 @@ def resolve_via_glm(handle: str) -> str | None:
             [sys.executable, '-m', 'search_research.cli', query, '--mode', 'glm',
              '--max-results', '3'],
             capture_output=True, text=True, timeout=60,
-            cwd='P:/packages/search-research'
+            cwd='P:\\packages/search-research'
         )
         if result.returncode != 0:
             return None

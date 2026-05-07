@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
-_DEFAULT_POOL_DB_PATH = Path("P:/.data/yt-is/nlm_shared_retry_pool.sqlite")
+_DEFAULT_POOL_DB_PATH = Path("P:\\.data/yt-is/nlm_shared_retry_pool.sqlite")
 _POOL_DB_PATH = _DEFAULT_POOL_DB_PATH
 _POOL_LOCK = threading.Lock()
 _POOL_INITIALIZED = False

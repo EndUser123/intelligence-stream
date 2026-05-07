@@ -7,7 +7,7 @@ Verifies: CLI call count tracking, free-only mode switch, threshold enforcement.
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
+sys.path.insert(0, str(Path(r"P:\\\packages\\yt-is").absolute()))
 
 from csf.quota_tracker import (
     _DEFAULT_DAILY_QUOTA,
@@ -21,7 +21,7 @@ from csf.quota_tracker import (
 )
 
 # Shared DB path for testing
-_TEST_DB_PATH = Path("P:/.data/yt-is/quota/test_quota.sqlite")
+_TEST_DB_PATH = Path("P:\\.data/yt-is/quota/test_quota.sqlite")
 
 
 class TestQuotaTracking:

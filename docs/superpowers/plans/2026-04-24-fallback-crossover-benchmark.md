@@ -13,25 +13,25 @@
 ### Task 1: Freeze the evaluation cohort from a real trace
 
 **Files:**
-- Inspect: `P:/packages/yt-is/.logs/worker_count_trials/20260424_180601/sweep_summary.json`
-- Inspect: `P:/packages/yt-is/.logs/worker_count_trials/20260424_180601/workers_02/logs/term_*.jsonl`
-- Create: `P:/packages/yt-is/.logs/fallback_crossover_benchmark/`
-- Create: `P:/packages/yt-is/.logs/fallback_crossover_benchmark/cohort.json`
+- Inspect: `P:\\packages/yt-is/.logs/worker_count_trials/20260424_180601/sweep_summary.json`
+- Inspect: `P:\\packages/yt-is/.logs/worker_count_trials/20260424_180601/workers_02/logs/term_*.jsonl`
+- Create: `P:\\packages/yt-is/.logs/fallback_crossover_benchmark/`
+- Create: `P:\\packages/yt-is/.logs/fallback_crossover_benchmark/cohort.json`
 
 - [ ] **Step 1: Export the residual `yt-dlp=ok` failures**
 
 Run:
 ```powershell
-$runDir = "P:\packages\yt-is\.logs\worker_count_trials\20260424_180601"
-$cohortDir = "P:\packages\yt-is\.logs\fallback_crossover_benchmark"
+$runDir = "$CLAUDE_PLUGIN_ROOT/.logs\worker_count_trials\20260424_180601"
+$cohortDir = "$CLAUDE_PLUGIN_ROOT/.logs\fallback_crossover_benchmark"
 New-Item -ItemType Directory -Force -Path $cohortDir | Out-Null
 
 python - <<'PY'
 import json
 from pathlib import Path
 
-run_dir = Path(r"P:\packages\yt-is\.logs\worker_count_trials\20260424_180601")
-cohort_dir = Path(r"P:\packages\yt-is\.logs\fallback_crossover_benchmark")
+run_dir = Path(r"$CLAUDE_PLUGIN_ROOT/.logs\worker_count_trials\20260424_180601")
+cohort_dir = Path(r"$CLAUDE_PLUGIN_ROOT/.logs\fallback_crossover_benchmark")
 items = []
 for path in run_dir.rglob("term_*.jsonl"):
     with path.open("r", encoding="utf-8") as fh:
@@ -79,7 +79,7 @@ Expected:
 
 Run:
 ```powershell
-Get-Content P:\packages\yt-is\.logs\fallback_crossover_benchmark\cohort.json | ConvertFrom-Json | Select-Object -ExpandProperty items | Measure-Object
+Get-Content $CLAUDE_PLUGIN_ROOT/.logs\fallback_crossover_benchmark\cohort.json | ConvertFrom-Json | Select-Object -ExpandProperty items | Measure-Object
 ```
 
 Expected:
@@ -91,10 +91,10 @@ Expected:
 ### Task 2: Run the NotebookLM-only baseline on the frozen cohort
 
 **Files:**
-- Inspect: `P:/packages/yt-is/csf/nlm_config.py`
-- Inspect: `P:/packages/yt-is/bin/csf-source`
-- Create: `P:/packages/yt-is/.logs/fallback_crossover_benchmark/notebooklm_only/`
-- Create: `P:/packages/yt-is/.logs/fallback_crossover_benchmark/notebooklm_only/sweep_summary.json`
+- Inspect: `P:\\packages/yt-is/csf/nlm_config.py`
+- Inspect: `P:\\packages/yt-is/bin/csf-source`
+- Create: `P:\\packages/yt-is/.logs/fallback_crossover_benchmark/notebooklm_only/`
+- Create: `P:\\packages/yt-is/.logs/fallback_crossover_benchmark/notebooklm_only/sweep_summary.json`
 
 - [ ] **Step 1: Set the NotebookLM wait policy**
 
@@ -116,8 +116,8 @@ Expected:
 
 Run:
 ```powershell
-$env:PYTHONPATH = "P:\packages\yt-is"
-python P:\packages\yt-is\bin\csf-worker-count-sweep --workers 2 --limit 80
+$env:PYTHONPATH = "P:\\packages\yt-is"
+python $CLAUDE_PLUGIN_ROOT/bin\csf-worker-count-sweep --workers 2 --limit 80
 ```
 
 Expected:
@@ -147,10 +147,10 @@ Expected:
 ### Task 3: Run the NotebookLM-plus-fallback variant on the same frozen cohort
 
 **Files:**
-- Inspect: `P:/packages/yt-is/bin/csf-source`
-- Inspect: `P:/packages/yt-is/csf/nlm_batch.py`
-- Create: `P:/packages/yt-is/.logs/fallback_crossover_benchmark/notebooklm_plus_fallback/`
-- Create: `P:/packages/yt-is/.logs/fallback_crossover_benchmark/notebooklm_plus_fallback/sweep_summary.json`
+- Inspect: `P:\\packages/yt-is/bin/csf-source`
+- Inspect: `P:\\packages/yt-is/csf/nlm_batch.py`
+- Create: `P:\\packages/yt-is/.logs/fallback_crossover_benchmark/notebooklm_plus_fallback/`
+- Create: `P:\\packages/yt-is/.logs/fallback_crossover_benchmark/notebooklm_plus_fallback/sweep_summary.json`
 
 - [ ] **Step 1: Keep the NotebookLM retry window fixed**
 
@@ -182,8 +182,8 @@ Expected:
 
 Run:
 ```powershell
-$env:PYTHONPATH = "P:\packages\yt-is"
-python P:\packages\yt-is\bin\csf-worker-count-sweep --workers 2 --limit 80
+$env:PYTHONPATH = "P:\\packages\yt-is"
+python $CLAUDE_PLUGIN_ROOT/bin\csf-worker-count-sweep --workers 2 --limit 80
 ```
 
 Expected:
@@ -206,10 +206,10 @@ Expected:
 ### Task 4: Compare the two policies and choose the crossover point
 
 **Files:**
-- Inspect: `P:/packages/yt-is/.logs/fallback_crossover_benchmark/notebooklm_only/sweep_summary.json`
-- Inspect: `P:/packages/yt-is/.logs/fallback_crossover_benchmark/notebooklm_plus_fallback/sweep_summary.json`
-- Update: `P:/packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
-- Update: `P:/packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md`
+- Inspect: `P:\\packages/yt-is/.logs/fallback_crossover_benchmark/notebooklm_only/sweep_summary.json`
+- Inspect: `P:\\packages/yt-is/.logs/fallback_crossover_benchmark/notebooklm_plus_fallback/sweep_summary.json`
+- Update: `P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
+- Update: `P:\\packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md`
 
 - [ ] **Step 1: Compare success-only throughput**
 
@@ -253,9 +253,9 @@ Expected:
 ### Task 5: Document the final benchmark result
 
 **Files:**
-- Modify: `P:/packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
-- Modify: `P:/packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md`
-- Optional: `P:/packages/yt-is/docs/superpowers/plans/2026-04-24-fallback-crossover-benchmark.md`
+- Modify: `P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
+- Modify: `P:\\packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md`
+- Optional: `P:\\packages/yt-is/docs/superpowers/plans/2026-04-24-fallback-crossover-benchmark.md`
 
 - [ ] **Step 1: Write the result in plain language**
 
@@ -304,5 +304,5 @@ Expected:
 - `YTIS_NLM_SOURCE_CONTENT_SHARED_RETRY_POOL_ENABLED`
 - `YTIS_TRANSCRIPT_FALLBACK_WORKERS`
 - `YTIS_TRANSCRIPT_FALLBACK_MIN_START_INTERVAL_S`
-- `python P:\packages\yt-is\bin\csf-worker-count-sweep --workers 2 --limit 80`
+- `python $CLAUDE_PLUGIN_ROOT/bin\csf-worker-count-sweep --workers 2 --limit 80`
 

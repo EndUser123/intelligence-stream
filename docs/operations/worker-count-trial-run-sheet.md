@@ -32,7 +32,7 @@ Exit criteria:
 
 Execution checklist:
 1. Reconfirm CLI auth with `nlm login --check`.
-2. Bootstrap the persistent browser profile with `python P:\packages\yt-is\bin\nlm-playwright --bootstrap-auth`.
+2. Bootstrap the persistent browser profile with `python $CLAUDE_PLUGIN_ROOT/bin\nlm-playwright --bootstrap-auth`.
 3. Run the eight-URL readiness matrix once to verify the DOM/browser path is still healthy.
 4. Run the worker-count sweep on the same sample family with the candidate set:
    - `1`
@@ -233,7 +233,7 @@ The following results were collected after the plan was written and should be tr
 - The fallback tail now reaches Whisper for `yt-dlp = ok` videos with no captions:
   - audio download includes `--js-runtimes node` when `node` is available
   - Whisper now runs on the downloaded audio instead of stopping at the audio stage
-  - successful transcripts are saved to `P:/.data/yt-is/transcripts.sqlite`
+  - successful transcripts are saved to `P:\\.data/yt-is/transcripts.sqlite`
 - Multi-worker preflight now deletes stale worker notebooks by id before dispatch:
   - active notebook ids from the current worker state root are preserved
   - the cleanup call is no longer audit-only
@@ -299,7 +299,7 @@ Sample set:
 
 Pass criteria:
 - The tail items return `source = whisper` or an equally successful fallback source.
-- The transcript text is written to `P:/.data/yt-is/transcripts.sqlite`.
+- The transcript text is written to `P:\\.data/yt-is/transcripts.sqlite`.
 - The audio stage no longer fails first because of the YouTube challenge.
 
 ### C. Cache idempotency
@@ -374,7 +374,7 @@ Only do step 5 after the earlier checks are clean.
 Before any DOM readiness work:
 
 1. Run `nlm login --check` for the CLI profile.
-2. Bootstrap the persistent browser profile with `python P:\packages\yt-is\bin\nlm-playwright --bootstrap-auth`.
+2. Bootstrap the persistent browser profile with `python $CLAUDE_PLUGIN_ROOT/bin\nlm-playwright --bootstrap-auth`.
 3. Confirm NotebookLM loads without `Request access`.
 4. Only then run the readiness matrix.
 5. If the immediate goal is backlog progress, also rerun the current failing cohort so the now-fixed Whisper tail can save transcripts.
@@ -419,7 +419,7 @@ Run the worker-count sweep in this order:
 Run the sweep with the dedicated helper:
 
 ```powershell
-P:\packages\yt-is\bin\csf-worker-count-sweep --workers 1,2,3,4,5,6,7,8 --limit 400
+$CLAUDE_PLUGIN_ROOT/bin\csf-worker-count-sweep --workers 1,2,3,4,5,6,7,8 --limit 400
 ```
 
 Use `--output-root` if you want the artifacts somewhere other than `.logs/worker_count_trials`.
@@ -579,8 +579,26 @@ Known-good controls from the same batch:
 Run the scraper in readiness-matrix mode with the same eight URLs every time:
 
 ```powershell
-python P:\packages\yt-is\csf\nlm_scraper.py --readiness-matrix --video-ids KvC7ct1UVBs,cbfnFt9lLV4,mzKV2BoSPvs,XA-dIgErCi8,tduRayavmJI,a7HW4SicO5M,pMTpWGA64aM,opRhPRMOFYs
+python $CLAUDE_PLUGIN_ROOT/csf\nlm_scraper.py --readiness-matrix --video-ids KvC7ct1UVBs,cbfnFt9lLV4,mzKV2BoSPvs,XA-dIgErCi8,tduRayavmJI,a7HW4SicO5M,pMTpWGA64aM,opRhPRMOFYs
 ```
+
+Observed on 2026-05-06:
+
+- The generic browser root `P:\\.data\yt-is\browser\notebooklm` was not authenticated enough for the DOM scrape and returned `browser auth unavailable`.
+- The readiness matrix did succeed when pointed at the dedicated Pro browser root instead:
+
+```powershell
+$env:YTIS_NLM_BROWSER_PROFILE_ROOT = 'P:\\.data\yt-is\browser\notebooklm-pro'
+$env:YTIS_NLM_BROWSER_PROFILE_DIRECTORY = 'Profile'
+python $CLAUDE_PLUGIN_ROOT/csf\nlm_scraper.py --readiness-matrix --video-ids KvC7ct1UVBs,cbfnFt9lLV4,mzKV2BoSPvs,XA-dIgErCi8,tduRayavmJI,a7HW4SicO5M,pMTpWGA64aM,opRhPRMOFYs
+Remove-Item Env:\YTIS_NLM_BROWSER_PROFILE_ROOT
+Remove-Item Env:\YTIS_NLM_BROWSER_PROFILE_DIRECTORY
+```
+
+That produced `8/8` successes and let the DOM and CLI readiness signals be compared on the same URLs.
+- The dedicated Free browser root needs the matching CLI profile as well. With `NOTEBOOKLM_PROFILE=ytis-free1-worker-01`, browser auth cleared but the batch then stalled on `PERMISSION_DENIED` during staging source materialization, so the current Free-root probe is not yet a clean readiness comparison.
+- The log sink for that Free-root failure was `P:\\packages/yt-is/.logs/readiness_matrix_free_profile_probe/term_28ed0f5c.jsonl`, which captures the access-request and permission-denied split clearly.
+- Root cause: `csf/nlm_scraper.py` was calling `nlm source list` through a raw `subprocess.run(...)` path that bypassed the profile-aware helper. After switching `_list_source_ids_process()` to the shared runner, the same Free-root readiness matrix completed `8/8` successfully with `NOTEBOOKLM_PROFILE=ytis-free1-worker-01`.
 
 ### What it logs
 
@@ -615,7 +633,7 @@ Use this successful run as the current reference point for the eight-URL readine
 
 | Metric | Value |
 |---|---:|
-| Run output | `P:\packages\yt-is\.logs\readiness_trials\latest_matrix_run_3.txt` |
+| Run output | `$CLAUDE_PLUGIN_ROOT/.logs\readiness_trials\latest_matrix_run_3.txt` |
 | Shell wall time | `121.867s` |
 | In-process matrix span | `99.094s` |
 | Sources | `8/8 succeeded` |
@@ -638,20 +656,20 @@ Use this order so the next passes build on the known-good baseline instead of ju
 ## Backup Step
 
 - Before any sweep or cleanup that could touch transcript state, run:
-  - `python P:/packages/yt-is/bin/csf-backup-transcripts`
-- This snapshots `P:/.data/yt-is/transcripts.sqlite` into `P:/.data/yt-is/backups/`.
+  - `python P:\\packages/yt-is/bin/csf-backup-transcripts`
+- This snapshots `P:\\.data/yt-is/transcripts.sqlite` into `P:\\.data/yt-is/backups/`.
 - Treat this as normal preflight, not an optional extra.
-- For staged backlog runs, set `YTIS_TRANSCRIPT_CACHE_DB_PATH=P:/.data/yt-is/transcripts-staging.sqlite`, run the batch, then promote the results with `python P:/packages/yt-is/bin/csf-promote-transcripts`. The promote command is blocking and fail-closed, so it will stop on a missing source DB, an empty staging DB, or a source/destination path collision.
-- Before any tracked-channel sync or blocklist change, run `python P:/packages/yt-is/bin/csf-backup-channel-state`.
-- This snapshots `P:/.data/yt-is/batch_status.sqlite` into `P:/.data/yt-is/backups/`.
-- For staged channel-state changes, set `YTIS_BATCH_STATUS_DB_PATH=P:/.data/yt-is/batch-status-staging.sqlite`, run `yt-is sync` against that staging DB, then promote the results with `python P:/packages/yt-is/bin/csf-promote-channel-state`. The promote command is blocking and fail-closed, so it will stop on a missing source DB, an empty staging DB, or a source/destination path collision.
+- For staged backlog runs, set `YTIS_TRANSCRIPT_CACHE_DB_PATH=P:\\.data/yt-is/transcripts-staging.sqlite`, run the batch, then promote the results with `python P:\\packages/yt-is/bin/csf-promote-transcripts`. The promote command is blocking and fail-closed, so it will stop on a missing source DB, an empty staging DB, or a source/destination path collision.
+- Before any tracked-channel sync or blocklist change, run `python P:\\packages/yt-is/bin/csf-backup-channel-state`.
+- This snapshots `P:\\.data/yt-is/batch_status.sqlite` into `P:\\.data/yt-is/backups/`.
+- For staged channel-state changes, set `YTIS_BATCH_STATUS_DB_PATH=P:\\.data/yt-is/batch-status-staging.sqlite`, run `yt-is sync` against that staging DB, then promote the results with `python P:\\packages/yt-is/bin/csf-promote-channel-state`. The promote command is blocking and fail-closed, so it will stop on a missing source DB, an empty staging DB, or a source/destination path collision.
 
 ## Evidence Sources
 
-- `P:/packages/yt-is/.logs/term_*.jsonl`
+- `P:\\packages/yt-is/.logs/term_*.jsonl`
 - worker result file for the run
-- `P:/.data/yt-is/transcripts.sqlite`
-- `P:/packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md`
+- `P:\\.data/yt-is/transcripts.sqlite`
+- `P:\\packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md`
 
 ## Notes
 

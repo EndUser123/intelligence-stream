@@ -326,6 +326,10 @@ def _tail_text(path: Path, max_chars: int = 2000) -> str:
     return text[-max_chars:]
 
 
+def _write_lane_process_snapshot(path: Path, payload: dict[str, Any]) -> None:
+    _write_json_atomic(path, payload)
+
+
 def load_lane_configs(path: Path) -> tuple[LaneConfig, ...]:
     """Load and validate lane configs from JSON."""
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -398,6 +402,9 @@ def _run_lane(
     lane_output_root = output_root / lane.lane
     lane_output_root.mkdir(parents=True, exist_ok=True)
     lane_cohort_json = cohort_json.parent / f"{cohort_json.stem}.{lane.lane}{cohort_json.suffix}"
+    lane_stdout_path = lane_output_root / "lane.stdout.txt"
+    lane_stderr_path = lane_output_root / "lane.stderr.txt"
+    lane_process_path = lane_output_root / "lane_process.json"
     started_at = time.monotonic()
     if lane.startup_delay_s > 0:
         time.sleep(lane.startup_delay_s)
@@ -420,21 +427,80 @@ def _run_lane(
         worker_state_root=lane.worker_state_root,
         preserve_worker_state_root=False,
     )
-    proc = subprocess.run(
-        command,
-        cwd=str(REPO_ROOT),
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    process_snapshot: dict[str, Any] = {
+        "lane": lane.lane,
+        "command": command,
+        "cwd": str(REPO_ROOT),
+        "output_root": str(lane_output_root),
+        "started_at": round(started_at, 3),
+        "status": "starting",
+        "pid": None,
+        "returncode": None,
+    }
+    _write_lane_process_snapshot(lane_process_path, process_snapshot)
+    proc: subprocess.Popen[str] | None = None
+    returncode: int | None = None
+    try:
+        with lane_stdout_path.open("w", encoding="utf-8", newline="\n") as stdout_handle, lane_stderr_path.open(
+            "w",
+            encoding="utf-8",
+            newline="\n",
+        ) as stderr_handle:
+            try:
+                proc = subprocess.Popen(
+                    command,
+                    cwd=str(REPO_ROOT),
+                    env=env,
+                    stdout=stdout_handle,
+                    stderr=stderr_handle,
+                    text=True,
+                )
+            except BaseException as exc:
+                process_snapshot.update(
+                    {
+                        "status": "launch_failed",
+                        "error_type": type(exc).__name__,
+                        "error": str(exc),
+                        "finished_at": round(time.monotonic(), 3),
+                    }
+                )
+                _write_lane_process_snapshot(lane_process_path, process_snapshot)
+                raise
+            process_snapshot.update({"status": "running", "pid": proc.pid})
+            _write_lane_process_snapshot(lane_process_path, process_snapshot)
+            try:
+                returncode = proc.wait()
+            except BaseException as exc:
+                process_snapshot.update(
+                    {
+                        "status": "wait_failed",
+                        "error_type": type(exc).__name__,
+                        "error": str(exc),
+                        "finished_at": round(time.monotonic(), 3),
+                        "pid": proc.pid,
+                    }
+                )
+                _write_lane_process_snapshot(lane_process_path, process_snapshot)
+                raise
+            finally:
+                stdout_handle.flush()
+                stderr_handle.flush()
+    finally:
+        _stop_default_chrome_profile_if_running(stage=f"lane_complete_{lane.lane}")
     finished_at = time.monotonic()
-    _stop_default_chrome_profile_if_running(stage=f"lane_complete_{lane.lane}")
-    (lane_output_root / "lane.stdout.txt").write_text(proc.stdout or "", encoding="utf-8")
-    (lane_output_root / "lane.stderr.txt").write_text(proc.stderr or "", encoding="utf-8")
+    process_snapshot.update(
+        {
+            "status": "completed" if returncode == 0 else "failed",
+            "returncode": returncode,
+            "finished_at": round(finished_at, 3),
+            "wall_elapsed_s": round(finished_at - started_at, 3),
+            "pid": proc.pid if proc is not None else process_snapshot.get("pid"),
+        }
+    )
+    _write_lane_process_snapshot(lane_process_path, process_snapshot)
     summary_path = lane_output_root / "benchmark_summary.json"
-    if proc.returncode != 0:
-        raise RuntimeError(f"lane {lane.lane} failed with returncode={proc.returncode}")
+    if returncode != 0:
+        raise RuntimeError(f"lane {lane.lane} failed with returncode={returncode}")
     if not summary_path.exists():
         raise RuntimeError(f"lane {lane.lane} missing benchmark summary: {summary_path}")
     invalid_artifacts = _find_invalid_lane_artifacts(lane_output_root)
@@ -464,6 +530,9 @@ def _run_lane(
         "returncode": proc.returncode,
         "command": command,
         "output_root": str(lane_output_root),
+        "stdout_path": str(lane_stdout_path),
+        "stderr_path": str(lane_stderr_path),
+        "lane_process_path": str(lane_process_path),
         "benchmark_summary_path": str(summary_path),
         "aggregate": aggregate,
         **aggregate,
@@ -493,6 +562,9 @@ def _invalidated_lane_report(
         "notebook_prefix": lane.notebook_prefix,
         "startup_delay_s": lane.startup_delay_s,
         "output_root": str(lane_output_root),
+        "stdout_path": str(lane_output_root / "lane.stdout.txt"),
+        "stderr_path": str(lane_output_root / "lane.stderr.txt"),
+        "lane_process_path": str(lane_output_root / "lane_process.json"),
         "benchmark_summary_path": str(lane_output_root / "benchmark_summary.json"),
         "error_type": type(exc).__name__,
         "error": str(exc),

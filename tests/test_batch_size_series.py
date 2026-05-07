@@ -74,7 +74,7 @@ def test_run_batch_size_series_chooses_best_batch_size(tmp_path, monkeypatch):
         limit=400,
         batch_sizes=(100, 200, 400),
         tier=tier,
-        manifest_json=Path("P:/packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
+        manifest_json=Path("P:\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
     )
 
     assert [call["batch_size"] for call in calls] == [100, 200, 400]

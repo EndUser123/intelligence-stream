@@ -6,7 +6,7 @@ Verifies: channel_metadata table creation, set_channel_metadata, get_channel_met
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
+sys.path.insert(0, str(Path(r"P:\\\packages\\yt-is").absolute()))
 
 from csf.batch_status import (
     set_channel_metadata,
@@ -18,7 +18,7 @@ from csf.batch_status import (
 
 # Shared DB path for testing
 _TEST_DB_PATH = Path(
-    "P:/.data/yt-is/batch_status/test_channel_metadata.sqlite"
+    "P:\\.data/yt-is/batch_status/test_channel_metadata.sqlite"
 )
 
 
@@ -98,7 +98,7 @@ class TestChannelMetadataTable:
         """Table is created automatically on first set_channel_metadata call."""
         # Use a fresh DB path that doesn't exist yet
         fresh_db_path = Path(
-            "P:/.data/yt-is/batch_status/test_fresh_channel_metadata.sqlite"
+            "P:\\.data/yt-is/batch_status/test_fresh_channel_metadata.sqlite"
         )
         # Clean up if exists
         if fresh_db_path.exists():

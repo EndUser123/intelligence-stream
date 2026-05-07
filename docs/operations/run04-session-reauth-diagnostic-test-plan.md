@@ -15,13 +15,14 @@ Proven from existing JSONL logs:
 
 Not proven yet:
 
-- NotebookLM session TTL is not proven. It is the leading hypothesis.
+- NotebookLM session TTL is not proven.
+- The auth-check cache TTL is now the leading hypothesis because the measured `session_age_s` band in run04 matches the default 30s cache TTL in `csf/nlm_auth_guard.py`.
 - Warm-auth is not proven. It is a candidate mitigation for a later A/B test.
 - `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS` parent-shell contamination is not proven for run02/run03. The scheduled force-refresh path was not observed.
 
 ## Run04 Outcome
 
-Run04 completed cleanly, but it did not prove the leading hypothesis.
+Run04 completed cleanly, and it moved the diagnosis away from NotebookLM TTL toward the local auth-check cache TTL.
 
 - `status="ok"`
 - `hygiene="clean"`
@@ -32,13 +33,14 @@ Run04 completed cleanly, but it did not prove the leading hypothesis.
 - idle wait: `721.360s`
 - `nlm_auth_forced_refresh_scheduled=0` in both lanes
 - `nlm_login_started=106` on Pro, `105` on Free
-- `session_age_event_count=0` on both lanes
+- `session_age_event_count=531` on Pro, `519` on Free
+- `session_age_s` ranged from `0.032` to `29.630` on Pro and `0.005` to `29.979` on Free, with medians of about `15s`
 
 Interpretation:
 
-- The run matched the decision-table row "High logins, forced scheduled `0`, but session ages are scattered or absent".
-- TTL/session-age is still not proven because the new instrumentation did not surface `session_age_s`.
-- The next useful investigation is why the session-age signal was absent in soak logs, not a warm-auth A/B run yet.
+- The run matched the decision-table row "High logins, forced scheduled `0`, session-age events present, and login/session ages cluster tightly".
+- The `session_age_s` band is capped near the default 30s auth-check cache TTL, so the next useful investigation is whether raising `YTIS_NLM_AUTH_CHECK_CACHE_TTL_SECONDS` improves throughput.
+- Warm-auth is now a later follow-up, not the next diagnostic step.
 
 ## Hard Rules
 
@@ -51,10 +53,10 @@ Interpretation:
 
 ## Files To Read First
 
-- `P:/packages/yt-is/docs/operations/run04-session-reauth-diagnostic-test-plan.md`
-- `P:/packages/yt-is/docs/operations/sharded-lane-series.md`
-- `P:/packages/yt-is/docs/operations/test-registry.md`
-- `P:/packages/yt-is/.logs/sharded_lane_series/sweep_phase3_2lane_3w_run03/DIAGNOSTIC.md`
+- `P:\\packages/yt-is/docs/operations/run04-session-reauth-diagnostic-test-plan.md`
+- `P:\\packages/yt-is/docs/operations/sharded-lane-series.md`
+- `P:\\packages/yt-is/docs/operations/test-registry.md`
+- `P:\\packages/yt-is/.logs/sharded_lane_series/sweep_phase3_2lane_3w_run03/DIAGNOSTIC.md`
 
 Treat `DIAGNOSTIC.md` as historical analysis with known overclaims, not as authority.
 
@@ -63,11 +65,11 @@ Treat `DIAGNOSTIC.md` as historical analysis with known overclaims, not as autho
 Run this from PowerShell:
 
 ```powershell
-cd P:/packages/yt-is
+cd P:\\packages/yt-is
 
 $RunId = "sweep_phase3_2lane_3w_run04"
-$RunRoot = "P:/packages/yt-is/.logs/sharded_lane_series/$RunId"
-$LaunchRoot = "P:/packages/yt-is/.logs/sharded_lane_series_launcher_logs/$RunId"
+$RunRoot = "P:\\packages/yt-is/.logs/sharded_lane_series/$RunId"
+$LaunchRoot = "P:\\packages/yt-is/.logs/sharded_lane_series_launcher_logs/$RunId"
 
 if (Test-Path $RunRoot) {
     throw "Run root already exists: $RunRoot. Pick the next unused suffix and update this plan before running."
@@ -94,7 +96,7 @@ Get-Content "$LaunchRoot/env_snapshot.json"
 Expected:
 
 - `Test-Path` does not throw.
-- `env_snapshot.json` exists under `P:/packages/yt-is/.logs/sharded_lane_series_launcher_logs/sweep_phase3_2lane_3w_run04/`.
+- `env_snapshot.json` exists under `P:\\packages/yt-is/.logs/sharded_lane_series_launcher_logs/sweep_phase3_2lane_3w_run04/`.
 - `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS` is `null` or empty in the snapshot.
 
 ## Task 2: Verify Code Before Launch
@@ -104,7 +106,7 @@ Run:
 ```powershell
 python -m pytest tests/test_nlm_auth_guard.py tests/test_nlm_batch.py tests/test_csf_source_fetch_timing.py tests/test_sharded_lane_series.py tests/test_sharded_lane_sequence.py tests/test_sharded_lane_summary.py tests/test_fallback_crossover_benchmark.py -q
 python -m py_compile csf/nlm_auth_guard.py csf/nlm_batch.py csf/sharded_lane_series.py csf/sharded_lane_sequence.py csf/sharded_lane_summary.py bin/csf-source bin/csf-sharded-lane-sequence bin/csf-sharded-lane-summary bin/csf-fallback-crossover-benchmark
-python P:/packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
 ```
 
 Expected:
@@ -120,14 +122,14 @@ If this fails, do not run the benchmark. Report the failing command.
 Run:
 
 ```powershell
-cd P:/packages/yt-is
+cd P:\\packages/yt-is
 
 $RunId = "sweep_phase3_2lane_3w_run04"
-$RunRoot = "P:/packages/yt-is/.logs/sharded_lane_series/$RunId"
-$LaunchRoot = "P:/packages/yt-is/.logs/sharded_lane_series_launcher_logs/$RunId"
+$RunRoot = "P:\\packages/yt-is/.logs/sharded_lane_series/$RunId"
+$LaunchRoot = "P:\\packages/yt-is/.logs/sharded_lane_series_launcher_logs/$RunId"
 
-python P:/packages/yt-is/bin/csf-sharded-lane-sequence `
-  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/tmp_pro_free_3w.json `
+python P:\\packages/yt-is/bin/csf-sharded-lane-sequence `
+  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/tmp_pro_free_3w.json `
   --run-root $RunRoot `
   2>&1 | Tee-Object -FilePath "$LaunchRoot/sequence.output.txt"
 
@@ -140,14 +142,14 @@ Expected:
 
 - Smoke completes first.
 - Soak completes after smoke.
-- Top-level summary is written to `P:/packages/yt-is/.logs/sharded_lane_series/sweep_phase3_2lane_3w_run04/sharded_lane_series_summary.json`.
+- Top-level summary is written to `P:\\packages/yt-is/.logs/sharded_lane_series/sweep_phase3_2lane_3w_run04/sharded_lane_series_summary.json`.
 
 ## Task 4: Monitor Progress Without Guessing
 
 In a second PowerShell terminal, run:
 
 ```powershell
-$RunRoot = "P:/packages/yt-is/.logs/sharded_lane_series/sweep_phase3_2lane_3w_run04"
+$RunRoot = "P:\\packages/yt-is/.logs/sharded_lane_series/sweep_phase3_2lane_3w_run04"
 Get-ChildItem -Path $RunRoot -Recurse -Filter benchmark_progress.jsonl -ErrorAction SilentlyContinue | Select-Object FullName,Length,LastWriteTime
 Get-ChildItem -Path $RunRoot -Recurse -Filter sharded_lane_series_summary.json -ErrorAction SilentlyContinue | Select-Object FullName,Length,LastWriteTime
 ```
@@ -165,12 +167,12 @@ Do not report final VPH until the top-level `sharded_lane_series_summary.json` e
 Run:
 
 ```powershell
-$RunRoot = "P:/packages/yt-is/.logs/sharded_lane_series/sweep_phase3_2lane_3w_run04"
+$RunRoot = "P:\\packages/yt-is/.logs/sharded_lane_series/sweep_phase3_2lane_3w_run04"
 
-python P:/packages/yt-is/bin/csf-sharded-lane-summary --run-root $RunRoot
-python P:/packages/yt-is/bin/csf-run-evidence-check --run-root "$RunRoot/smoke"
-python P:/packages/yt-is/bin/csf-run-evidence-check --run-root "$RunRoot/soak"
-python P:/packages/yt-is/bin/csf-run-failure-analyzer --run-root $RunRoot
+python P:\\packages/yt-is/bin/csf-sharded-lane-summary --run-root $RunRoot
+python P:\\packages/yt-is/bin/csf-run-evidence-check --run-root "$RunRoot/smoke"
+python P:\\packages/yt-is/bin/csf-run-evidence-check --run-root "$RunRoot/soak"
+python P:\\packages/yt-is/bin/csf-run-failure-analyzer --run-root $RunRoot
 ```
 
 Expected:
@@ -188,7 +190,7 @@ Run this exact script:
 import json
 import pathlib
 
-run_root = pathlib.Path("P:/packages/yt-is/.logs/sharded_lane_series/sweep_phase3_2lane_3w_run04")
+run_root = pathlib.Path("P:\\packages/yt-is/.logs/sharded_lane_series/sweep_phase3_2lane_3w_run04")
 for lane_dir in sorted((run_root / "soak").iterdir()):
     if not lane_dir.is_dir() or lane_dir.name.startswith("cohort."):
         continue
@@ -270,9 +272,9 @@ Definitions:
 
 Update these files only after the run finishes:
 
-- `P:/packages/yt-is/docs/operations/test-registry.md`
-- `P:/packages/yt-is/docs/operations/sharded-lane-series.md`
-- `P:/packages/yt-is/docs/operations/optimal-throughput-candidate-test-plan.md`
+- `P:\\packages/yt-is/docs/operations/test-registry.md`
+- `P:\\packages/yt-is/docs/operations/sharded-lane-series.md`
+- `P:\\packages/yt-is/docs/operations/optimal-throughput-candidate-test-plan.md`
 
 Required wording discipline:
 

@@ -6,9 +6,9 @@
 
 Find whether `yt-is` can exceed the current best proven sustained hot-path throughput:
 
-- Latest best artifact: `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/sharded_lane_series_summary.json`
+- Latest best artifact: `P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/sharded_lane_series_summary.json`
 - Latest best combined hot-path VPH: `5572.04`
-- Prior control artifact: `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_v2/sharded_lane_series_summary.json`
+- Prior control artifact: `P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_v2/sharded_lane_series_summary.json`
 - Prior control combined hot-path VPH: `4148.71`
 - Current best shape: Pro+Free lanes, no startup stagger, `4` workers per lane, `--limit 400` per lane, `--batch-size 200`, serial reusable pipeline
 - Metric contract: use `combined.hot_path_videos_per_hour` from `sharded_lane_series_summary.json`; do not include Whisper fallback throughput
@@ -18,10 +18,10 @@ Find whether `yt-is` can exceed the current best proven sustained hot-path throu
 
 Before running anything, read:
 
-- `P:/packages/yt-is/docs/operations/test-registry.md`
-- `P:/packages/yt-is/docs/operations/sharded-lane-series.md`
-- `P:/packages/yt-is/docs/operations/notebooklm-auth-family-extension.md`
-- `P:/packages/yt-is/docs/superpowers/specs/2026-04-28-hot-path-throughput-optimization-series-design.md`
+- `P:\\packages/yt-is/docs/operations/test-registry.md`
+- `P:\\packages/yt-is/docs/operations/sharded-lane-series.md`
+- `P:\\packages/yt-is/docs/operations/notebooklm-auth-family-extension.md`
+- `P:\\packages/yt-is/docs/superpowers/specs/2026-04-28-hot-path-throughput-optimization-series-design.md`
 
 These files record what has already been proven, what was negative, and how the dedicated Pro and Free browser roots must be authenticated.
 
@@ -29,7 +29,7 @@ These files record what has already been proven, what was negative, and how the 
 
 What has been actioned:
 
-- Worker-profile auth repair was implemented through `python P:/packages/yt-is/bin/csf-nlm-worker-auth sync`.
+- Worker-profile auth repair was implemented through `python P:\\packages/yt-is/bin/csf-nlm-worker-auth sync`.
 - The sync command validates `ytis-pro-worker-01` as `a.hominidae@gmail.com`, `ytis-free1-worker-01` as `troup.hominidae@gmail.com`, and `ytis-free2-worker-01` as `brsthomson@hotmail.com`, parses `nlm login --check` account output, repairs worker `01` through the dedicated Pro/Free/Free2 CDP root when needed, backs up sibling worker profiles, copies account-family credentials to workers `02`-`04`, and account-checks all twelve worker profiles.
 - Bounded whole-batch source-add retry was implemented and covered by focused tests.
 - The zero-growth add failure path now has its own bounded retry and regression coverage. The live `pro_free_source_map_v5` rerun showed that the fallback was still needed for remaining Free lane zero-growth `source_add_failed` cases, and the notebook-reset fallback has now been implemented and rerun as `pro_free_source_map_v6`.
@@ -50,7 +50,7 @@ What has been actioned:
   - New status: `nlm_content_below_threshold`
   - New diagnostic fields: `extraction_outcome`, `nlm_content_chars`, `usable_text_chars`
   - Legacy `too_short` remains only as a retry/defer compatibility input for old traces.
-- A targeted isolated probe of representative benchmark `command_failed` videos (`j6lOJPRvuzc`, `MXAvtEHyl0A`, and `u2hmsms-alg`) came back `ready` in fresh notebooks, so the benchmark failures look transient or harness-sensitive rather than content-specific. Artifacts: `P:/packages/yt-is/.logs/nlm_content_probe/residual_pro_v1/20260430T002429Z/probe_summary.json` and `P:/packages/yt-is/.logs/nlm_content_probe/residual_free_v1/20260430T002429Z/probe_summary.json`.
+- A targeted isolated probe of representative benchmark `command_failed` videos (`j6lOJPRvuzc`, `MXAvtEHyl0A`, and `u2hmsms-alg`) came back `ready` in fresh notebooks, so the benchmark failures look transient or harness-sensitive rather than content-specific. Artifacts: `P:\\packages/yt-is/.logs/nlm_content_probe/residual_pro_v1/20260430T002429Z/probe_summary.json` and `P:\\packages/yt-is/.logs/nlm_content_probe/residual_free_v1/20260430T002429Z/probe_summary.json`.
 - Phase 2 JSON corpus scan did not find literal `NOT_FOUND`, `source_add_failed`, or `source_id` strings in `pro_free_staggered_60s_v3/**/*.json`.
 - Worker `stdout.txt` artifacts did show duplicate failed source IDs mapped to multiple video IDs. The bad `pro_free_post_retry_v3` run had `48` duplicate failed source IDs across `111` failed fetch lines.
 
@@ -70,7 +70,7 @@ Current interpretation:
 
 ## Non-Negotiable Controls
 
-- Run from `P:/packages/yt-is`.
+- Run from `P:\\packages/yt-is`.
 - Keep the control comparison against `pro_free_v2`, not against the slower `pro_free_staggered_60s_v3`.
 - Keep no-stagger Pro+Free as the default benchmark shape unless this plan explicitly says to test a stagger variant.
 - Keep `--batch-size 200`; it has already beaten nearby and larger batch sizes for this workload.
@@ -78,8 +78,8 @@ Current interpretation:
 - Keep profile-pinned NotebookLM commands. Do not use `nlm login switch` in concurrent worker code.
 - For any new root, run `doctor` first, then the smoke, then `csf-run-evidence-check`, then the long soak.
 - Keep dedicated Chrome roots:
-  - Pro: `P:/.data/yt-is/browser/notebooklm-pro`
-  - Free: `P:/.data/yt-is/browser/notebooklm-free`
+  - Pro: `P:\\.data/yt-is/browser/notebooklm-pro`
+  - Free: `P:\\.data/yt-is/browser/notebooklm-free`
 - Keep account mapping:
   - Pro: `a.hominidae@gmail.com`
   - Free: `troup.hominidae@gmail.com`
@@ -126,7 +126,7 @@ The sharded runner now also performs this as a mandatory preflight. If a profile
 - [ ] Run the existing focused regression tests before changing code.
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:PYTHONPATH = 'P:\\packages\yt-is'
 pytest tests/test_nlm_batch.py -q
 python -m py_compile csf/nlm_batch.py tests/test_nlm_batch.py bin/csf-source
 ```
@@ -138,8 +138,8 @@ Expected: tests pass and compile succeeds. If this fails before new edits, stop 
 Use this suite before and after the next code change:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
-python P:/packages/yt-is/bin/csf-nlm-worker-auth sync
+$env:PYTHONPATH = 'P:\\packages\yt-is'
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth sync
 pytest tests/test_nlm_batch.py tests/test_nlm_config.py tests/test_sharded_lane_series.py tests/test_nlm_worker_auth.py -q
 python -m py_compile csf/nlm_batch.py csf/nlm_config.py csf/nlm_worker_auth.py tests/test_nlm_batch.py tests/test_nlm_config.py tests/test_nlm_worker_auth.py bin/csf-source bin/csf-nlm-worker-auth
 ```
@@ -161,8 +161,8 @@ Last verified results:
 Run this before the next full benchmark whenever any worker profile has expired:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
-python P:/packages/yt-is/bin/csf-nlm-worker-auth sync
+$env:PYTHONPATH = 'P:\\packages\yt-is'
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth sync
 foreach ($profile in @(
   'ytis-pro-worker-01', 'ytis-pro-worker-02', 'ytis-pro-worker-03', 'ytis-pro-worker-04',
   'ytis-free1-worker-01', 'ytis-free1-worker-02', 'ytis-free1-worker-03', 'ytis-free1-worker-04'
@@ -204,8 +204,8 @@ Purpose: recover transient whole-batch `source_add_failed` events without hiding
 
 Known evidence: `pro_free_staggered_60s_v3` still had a counted Free lane `source_add_failed` where a 50-video subbatch failed quickly with zero added sources. That is a correctness and throughput opportunity.
 
-- [ ] Inspect the current source-add path in `P:/packages/yt-is/csf/nlm_batch.py`.
-- [ ] Add or update focused tests in `P:/packages/yt-is/tests/test_nlm_batch.py` for:
+- [ ] Inspect the current source-add path in `P:\\packages/yt-is/csf/nlm_batch.py`.
+- [ ] Add or update focused tests in `P:\\packages/yt-is/tests/test_nlm_batch.py` for:
   - transient source-add command failure retries once and then succeeds
   - permanent source-add command failure stops after the configured retry limit
   - retry logs include attempt count and worker profile
@@ -218,7 +218,7 @@ Known evidence: `pro_free_staggered_60s_v3` still had a counted Free lane `sourc
 Run:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:PYTHONPATH = 'P:\\packages\yt-is'
 pytest tests/test_nlm_batch.py -q
 python -m py_compile csf/nlm_batch.py tests/test_nlm_batch.py bin/csf-source
 ```
@@ -255,7 +255,7 @@ Select-String -Path '.logs/sharded_lane_series/pro_free_staggered_60s_v3/**/*.js
 Run:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
+$env:PYTHONPATH = 'P:\\packages\yt-is'
 pytest tests/test_nlm_batch.py -q
 python -m py_compile csf/nlm_batch.py tests/test_nlm_batch.py bin/csf-source
 ```
@@ -277,7 +277,7 @@ Phase 2 evidence update:
 
 ```powershell
 rg -n "Fetch failed for|Source ID:|source_id_title_match_count|source_id_order_fallback_count" `
-  P:/packages/yt-is/.logs/sharded_lane_series/pro_free_post_retry_v3 `
+  P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_post_retry_v3 `
   -g "stdout.txt" -g "*.jsonl"
 ```
 
@@ -292,11 +292,11 @@ Purpose: prove whether the fixes beat the current best under the same benchmark 
 Use a new output root. Do not overwrite prior evidence.
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
-python P:/packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
-  --output-root P:/packages/yt-is/.logs/sharded_lane_series/pro_free_post_retry_v1 `
-  --cohort-json P:/packages/yt-is/.logs/sharded_lane_series/pro_free_post_retry_v1/cohort.json `
+$env:PYTHONPATH = 'P:\\packages\yt-is'
+python P:\\packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_post_retry_v1 `
+  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_post_retry_v1/cohort.json `
   --limit 400 `
   --batch-size 200 `
   --reusable-pipeline-mode serial
@@ -309,7 +309,7 @@ Extract summary:
 import json
 from pathlib import Path
 
-path = Path("P:/packages/yt-is/.logs/sharded_lane_series/pro_free_post_retry_v1/sharded_lane_series_summary.json")
+path = Path("P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_post_retry_v1/sharded_lane_series_summary.json")
 summary = json.loads(path.read_text())
 print(json.dumps({
     "artifact": str(path),
@@ -374,7 +374,7 @@ Test shape:
 
 - Use the same Pro+Free no-stagger control.
 - Use the same `--limit 400`, `--batch-size 200`, and serial pipeline.
-- Use a new output root such as `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_cleanup_opt_v1`.
+- Use a new output root such as `P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_cleanup_opt_v1`.
 - Compare against both `pro_free_v2` and the Phase 3 post-retry result.
 
 Pass criteria:
@@ -425,8 +425,8 @@ Required setup:
 Recommended live probe:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
-python P:/packages/yt-is/bin/csf-nlm-worker-auth sync
+$env:PYTHONPATH = 'P:\\packages\yt-is'
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth sync
 
 # Build the smallest possible source-content probe around these two IDs.
 # If no dedicated probe command exists yet, implement one rather than running
@@ -482,8 +482,8 @@ Stop criteria:
 
 After each full benchmark:
 
-- [ ] Add a row to `P:/packages/yt-is/docs/operations/test-registry.md`.
-- [ ] Update `P:/packages/yt-is/docs/operations/sharded-lane-series.md` if the recommended method, current best, auth contract, or caveats change.
+- [ ] Add a row to `P:\\packages/yt-is/docs/operations/test-registry.md`.
+- [ ] Update `P:\\packages/yt-is/docs/operations/sharded-lane-series.md` if the recommended method, current best, auth contract, or caveats change.
 - [ ] Include the exact artifact path.
 - [ ] Include combined hot-path VPH.
 - [ ] Include success, failure, processed count, and wall time.
@@ -494,6 +494,9 @@ After each full benchmark:
 ## Recommended Next Action
 
 Source-add retry, worker auth sync, auth auto-renew regression tests, source ID mapping hardening, the zero-growth add retry, notebook-reset fallback for zero-growth add failures, profile-pinned `nlm_batch` auth refresh, and the `nlm_content_below_threshold` metric rename are now implemented. The fresh source-map reruns did not improve on the current best: `pro_free_source_map_v2` regressed to `2917.93` combined hot-path VPH with the Pro lane dominated by `source_add_failed`; `pro_free_source_map_v3` improved materially to `3850.52` but still trailed the best; `pro_free_source_map_v5` completed cleanly but still showed Free lane `source_add_failed`; and `pro_free_source_map_v6` after the notebook-reset fallback was negative at `1837.24`. Phase 5 has now been executed: `juXI9QbzzgM` is stable sparse content and representative benchmark `command_failed` cases were recoverable in isolated probes, so those failures are treated as transient/harness-sensitive rather than content-specific. A fresh isolated 50-source add on Pro succeeded, and a repeated reusable Pro run succeeded twice, so the remaining open issue is now narrowed to transient NotebookLM add flakiness under the benchmark run shape rather than a deterministic add bug. The root cause for the Pro regression is now understood: `nlm source add` can return nonzero even when the notebook source count reaches the full batch size, and the batch ingestor now treats that as recovered success instead of a hard failure. `pro_free_source_map_v1` remains the best sustained Pro+Free result. Cleanup-cost optimization was attempted next, but `pro_free_cleanup_opt_v2` stayed negative, so the cleanup path was rolled back and no documented phase remains to rerun without a new hypothesis.
+
+The completed `sweep_phase3_2lane_3w_run05` auth-check cache TTL A/B is now also negative evidence. It finished cleanly at `1958.94` combined hot-path VPH, with `132` Pro logins, `128` Free logins, `session_age_s` still in the `0-30s` band, and higher `add_elapsed_s_total`, `worker_idle_wait_s_total`, and `source_ready_age_s_avg` than the `run04` comparator. That makes auth-check cache TTL a dead branch for this cohort and shifts the next investigation toward source-add/readiness/setup cost, startup/setup overhead, or another non-TTL limiter.
+The later single-lane calibration pair sharpened the same point: Pro-only stayed at `1980.19` combined hot-path VPH with `worker_idle_wait_s_total=243.778`, while Free-only reached `3361.75` with `worker_idle_wait_s_total=0.0`. The per-worker traces show the Pro lane also paid a much larger `extract_elapsed_s_total` on at least one worker, so the next useful probe is the Pro startup/setup -> extract path, not another auth TTL or lane-count repeat.
 
 ## Phase 6: Source-Map Rerun After Profile-Pinned Auth Fix
 
@@ -511,11 +514,11 @@ Preflight:
 Run exactly one fresh source-map rerun under a new output root:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
-python P:/packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
-  --output-root P:/packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v5 `
-  --cohort-json P:/packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v5/cohort.json `
+$env:PYTHONPATH = 'P:\\packages\yt-is'
+python P:\\packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v5 `
+  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v5/cohort.json `
   --limit 400 `
   --batch-size 200 `
   --reusable-pipeline-mode serial
@@ -543,7 +546,7 @@ Extract the result:
 import json
 from pathlib import Path
 
-path = Path("P:/packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v5/sharded_lane_series_summary.json")
+path = Path("P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v5/sharded_lane_series_summary.json")
 summary = json.loads(path.read_text())
 print(json.dumps({
     "artifact": str(path),
@@ -601,8 +604,8 @@ Current evidence:
 
 Implementation target:
 
-- Primary file: `P:/packages/yt-is/csf/nlm_batch.py`
-- Primary tests: `P:/packages/yt-is/tests/test_nlm_batch.py`
+- Primary file: `P:\\packages/yt-is/csf/nlm_batch.py`
+- Primary tests: `P:\\packages/yt-is/tests/test_nlm_batch.py`
 - Existing code points:
   - `_add_sources_chunk(...)` contains the current zero-growth add retry.
   - `_ZERO_GROWTH_ADD_RETRY_LIMIT` and `_ZERO_GROWTH_ADD_RETRY_DELAY_S` control the first retry.
@@ -647,21 +650,21 @@ Required tests:
 Run after implementation:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
-python -m pytest P:/packages/yt-is/tests/test_nlm_batch.py -q -k "zero_growth_add_failure or notebook_reset or source_id or auth_context"
-python -m pytest P:/packages/yt-is/tests/test_nlm_batch.py -q
-python -m py_compile P:/packages/yt-is/csf/nlm_batch.py P:/packages/yt-is/tests/test_nlm_batch.py P:/packages/yt-is/bin/csf-source
+$env:PYTHONPATH = 'P:\\packages\yt-is'
+python -m pytest P:\\packages/yt-is/tests/test_nlm_batch.py -q -k "zero_growth_add_failure or notebook_reset or source_id or auth_context"
+python -m pytest P:\\packages/yt-is/tests/test_nlm_batch.py -q
+python -m py_compile P:\\packages/yt-is/csf/nlm_batch.py P:\\packages/yt-is/tests/test_nlm_batch.py P:\\packages/yt-is/bin/csf-source
 ```
 
 Then run exactly one full source-map benchmark under a new output root:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
-python P:/packages/yt-is/bin/csf-nlm-worker-auth sync
-python P:/packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
-  --output-root P:/packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v6 `
-  --cohort-json P:/packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v6/cohort.json `
+$env:PYTHONPATH = 'P:\\packages\yt-is'
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth sync
+python P:\\packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v6 `
+  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v6/cohort.json `
   --limit 400 `
   --batch-size 200 `
   --reusable-pipeline-mode serial

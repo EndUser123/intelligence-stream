@@ -16,7 +16,7 @@ import pytest
 
 def _load_csf_source_module():
     """Load the extensionless bin/csf-source script as a module."""
-    path = Path(r"P:\packages\yt-is\bin\csf-source")
+    path = Path(r"$CLAUDE_PLUGIN_ROOT/bin\csf-source")
     loader = SourceFileLoader("csf_source_timing_test", str(path))
     spec = spec_from_loader(loader.name, loader)
     if spec is None or spec.loader is None:
@@ -968,7 +968,7 @@ def test_load_worker_summary_falls_back_when_result_file_missing():
     """Worker summary parsing should fall back to stdout when the result file is missing."""
     mod = _load_csf_source_module()
     summary = mod._load_worker_summary(
-        Path(r"P:\packages\yt-is\tests\missing-worker-result.json"),
+        Path(r"$CLAUDE_PLUGIN_ROOT/tests\missing-worker-result.json"),
         '{"worker_id":"worker-02","succeeded":7,"failed":2,"status":"ok"}',
     )
 
@@ -1432,7 +1432,7 @@ def test_cmd_fetch_logs_worker_prewarm_summary_before_dispatch(tmp_path):
                         "batch_elapsed_s_total": 25.75,
                         "status": "ok",
                         "returncode": 0,
-                        "state_path": "P:/.data/yt-is/industrial-worker-states/worker-01.json",
+                        "state_path": "P:\\.data/yt-is/industrial-worker-states/worker-01.json",
                         "notebook_title": "yt-is-worker-01",
                     }
                 ),

@@ -7,7 +7,7 @@ from csf.benchmark_manifest import load_benchmark_manifest
 
 
 def test_load_manifest_filters_live_trace_cases_only():
-    manifest = load_benchmark_manifest(Path("P:/packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"))
+    manifest = load_benchmark_manifest(Path("P:\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"))
     live_ids = [case.case_id for case in manifest.cases_for_benchmark()]
     assert "whisper-skip-music-001" in live_ids
     assert "whisper-recover-001" in live_ids
@@ -15,7 +15,7 @@ def test_load_manifest_filters_live_trace_cases_only():
 
 
 def test_load_manifest_filters_live_trace_cases_by_family():
-    manifest = load_benchmark_manifest(Path("P:/packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"))
+    manifest = load_benchmark_manifest(Path("P:\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"))
     live_ids = [case.case_id for case in manifest.cases_for_benchmark(("whisper_admission", "fallback_recovery"))]
     assert live_ids == [
         "whisper-skip-music-001",

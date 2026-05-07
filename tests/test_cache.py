@@ -11,7 +11,7 @@ from unittest import mock
 import pytest
 
 # Ensure the package is importable
-sys.path.insert(0, str(Path(r"P:\\packages\\yt-is").absolute()))
+sys.path.insert(0, str(Path(r"P:\\\packages\\yt-is").absolute()))
 
 import csf.cache as cache
 from csf.cache import (
@@ -156,10 +156,10 @@ class TestCacheBackup:
             assert table_exists, "transcript_cache table should exist after query"
 
     def test_shared_database_uses_live_data_root(self):
-        """Transcript cache should live under the shared P:/.data tree."""
+        """Transcript cache should live under the shared P:\\.data tree."""
         with mock.patch.dict(os.environ, {"YTIS_TRANSCRIPT_CACHE_DB_PATH": ""}, clear=False):
             db_path = cache.get_shared_db_path()
-        assert str(db_path).startswith("P:\\.data\\yt-is") or str(db_path).startswith("P:/.data/yt-is")
+        assert str(db_path).startswith("P:\\\.data\\yt-is") or str(db_path).startswith("P:\\.data/yt-is")
 
 
 class TestCachePromotion:

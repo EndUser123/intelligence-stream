@@ -143,12 +143,12 @@ All data is stored in `batch_status.sqlite`:
 
 ## Files
 
-- `P:/packages/yt-is/bin/yt-is` — CLI entry point (wrapper)
-- `P:/packages/yt-is/bin/csf-source` — Backend implementation (YouTube source management CLI)
+- `P:\\packages/yt-is/bin/yt-is` — CLI entry point (wrapper)
+- `P:\\packages/yt-is/bin/csf-source` — Backend implementation (YouTube source management CLI)
   - Prefer `python bin/csf-source ...` when launching from a shell inside the repo so you do not depend on PATH.
   - **Rename note**: If `csf-source` is renamed, update `required_first_command_patterns` (line 19) and all `csf-source` command references in this SKILL.md. Search for `csf-source` to find all occurrences.
-- `P:/packages/yt-is/csf/source_enumerator.py` — RSS + API enumeration
-- `P:/packages/yt-is/csf/batch_status.py` — SQLite storage
+- `P:\\packages/yt-is/csf/source_enumerator.py` — RSS + API enumeration
+- `P:\\packages/yt-is/csf/batch_status.py` — SQLite storage
 
 ## Requirements
 

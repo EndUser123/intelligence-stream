@@ -36,8 +36,8 @@ Each lane also gets its own `YTIS_BATCH_STATUS_DB_PATH` under the lane output ro
 When the worker auth profiles are not prefix-derived, set `notebooklm_profiles` to the exact CLI profile names in worker order.
 For the YT-IS Pro/Free lanes, keep the browser roots lane-specific and persistent:
 
-- Pro root: `P:/.data/yt-is/browser/notebooklm-pro`
-- Free root: `P:/.data/yt-is/browser/notebooklm-free`
+- Pro root: `P:\\.data/yt-is/browser/notebooklm-pro`
+- Free root: `P:\\.data/yt-is/browser/notebooklm-free`
 
 For the current Pro/Free/Free2 run, the account mapping is:
 
@@ -50,7 +50,7 @@ If the new lane is not yet part of `DEFAULT_FAMILIES`, set `expected_email` in t
 
 ## Example Config
 
-Save a config like this as `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json` after confirming which Chrome profile directory is Pro vs Free:
+Save a config like this as `P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json` after confirming which Chrome profile directory is Pro vs Free:
 
 ```json
 [
@@ -60,9 +60,9 @@ Save a config like this as `P:/packages/yt-is/.logs/sharded_lane_series/pro_free
     "workers": 4,
     "notebooklm_profile_prefix": "ytis-pro-worker",
     "notebooklm_profiles": ["ytis-pro-worker-01", "ytis-pro-worker-02", "ytis-pro-worker-03", "ytis-pro-worker-04"],
-    "browser_profile_root": "P:/.data/yt-is/browser/notebooklm-pro",
+    "browser_profile_root": "P:\\.data/yt-is/browser/notebooklm-pro",
     "browser_profile_directory": "Profile",
-    "worker_state_root": "P:/packages/yt-is/.logs/sharded_lane_series/a_hominidae_pro/worker_states",
+    "worker_state_root": "P:\\packages/yt-is/.logs/sharded_lane_series/a_hominidae_pro/worker_states",
     "notebook_prefix": "benchmark-shard-a-hominidae-pro"
   },
   {
@@ -71,9 +71,9 @@ Save a config like this as `P:/packages/yt-is/.logs/sharded_lane_series/pro_free
     "workers": 4,
     "notebooklm_profile_prefix": "ytis-free1-worker",
     "notebooklm_profiles": ["ytis-free1-worker-01", "ytis-free1-worker-02", "ytis-free1-worker-03", "ytis-free1-worker-04"],
-    "browser_profile_root": "P:/.data/yt-is/browser/notebooklm-free",
+    "browser_profile_root": "P:\\.data/yt-is/browser/notebooklm-free",
     "browser_profile_directory": "Default",
-    "worker_state_root": "P:/packages/yt-is/.logs/sharded_lane_series/troup_hominidae_free/worker_states",
+    "worker_state_root": "P:\\packages/yt-is/.logs/sharded_lane_series/troup_hominidae_free/worker_states",
     "notebook_prefix": "benchmark-shard-troup-hominidae-free"
   }
 ]
@@ -82,7 +82,7 @@ Save a config like this as `P:/packages/yt-is/.logs/sharded_lane_series/pro_free
 ## Command
 
 Workers are lane-specific in the JSON config.
-Use `python P:/packages/yt-is/bin/csf-sharded-lane-sequence --lane-config <lane-config> --run-root <run-root>` for the guarded sequence. It runs doctor, smoke, evidence check, then soak, writes smoke and soak outputs under `<run-root>/smoke` and `<run-root>/soak` by default, and reads the shared benchmark trace corpus from `P:/packages/yt-is/.logs/worker_count_trials` unless you pass `--trace-root`. The same trace corpus is used for both phases.
+Use `python P:\\packages/yt-is/bin/csf-sharded-lane-sequence --lane-config <lane-config> --run-root <run-root>` for the guarded sequence. It runs doctor, smoke, evidence check, then soak, writes smoke and soak outputs under `<run-root>/smoke` and `<run-root>/soak` by default, and reads the shared benchmark trace corpus from `P:\\packages/yt-is/.logs/worker_count_trials` unless you pass `--trace-root`. The same trace corpus is used for both phases.
 
 ## Dedicated Browser Auth Refresh
 
@@ -94,7 +94,7 @@ For a full repeated-refresh validation workflow, use [`notebooklm-auth-robustnes
 
 Use this order for a new benchmark root:
 
-1. `python P:/packages/yt-is/bin/csf-sharded-lane-sequence --lane-config <lane-config> --run-root <run-root>`
+1. `python P:\\packages/yt-is/bin/csf-sharded-lane-sequence --lane-config <lane-config> --run-root <run-root>`
 1. If you need the phases manually, run `doctor -> smoke -> evidence check -> soak` in that order and keep the smoke and soak output roots separate.
 1. `csf-run-evidence-check` only passes when the smoke root has a versioned summary with `report_version=1`, `status=ok`, and no forbidden markers.
 1. Long soak only after the doctor, smoke, and evidence check all pass
@@ -115,12 +115,12 @@ Zero-growth NotebookLM source-add failures are not split into smaller chunks. If
 - Keep a failed or partial smoke/soak root only until a newer successful root exists for the same hypothesis.
 - Once a successful replacement exists, prune older partial roots so the next run starts from a small, unambiguous evidence set.
 - Never reuse a benchmark root in place for a fresh run. A dirty root is invalid preflight evidence, even if it only contains partial cohort files.
-- For the current source-add smoke series, `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_source_add_smoke_v5` is the clean successful root. The earlier `v1` through `v4` roots are disposable partial attempts and can be removed after their evidence has been captured in the docs or registry.
+- For the current source-add smoke series, `P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_add_smoke_v5` is the clean successful root. The earlier `v1` through `v4` roots are disposable partial attempts and can be removed after their evidence has been captured in the docs or registry.
 
 Preferred worker-profile repair after worker `01` for each account is valid:
 
 ```powershell
-python P:/packages/yt-is/bin/csf-nlm-worker-auth sync
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth sync
 ```
 
 This command validates that `ytis-pro-worker-01` is `a.hominidae@gmail.com`, `ytis-free1-worker-01` is `troup.hominidae@gmail.com`, and `ytis-free2-worker-01` is `brsthomson@hotmail.com`, parses the account reported by `nlm login --check`, repairs worker `01` through the dedicated Pro/Free/Free2 CDP root when needed, backs up workers `02`-`04`, copies the refreshed worker `01` credentials to sibling profiles in the same account family, then account-checks all twelve worker profiles.
@@ -137,14 +137,14 @@ Current auth contract:
 - The guarded sequence records `post_run_hygiene` in the top-level summary and reaps any lingering default NotebookLM `chrome-profile` after soak; a transient shared-profile intrusion is cleaned up, but a persistent one remains a failure signal.
 - `csf/nlm_batch.py` self-heals cleanup commands if a transient default `chrome-profile` appears after the batch work is already complete, so a stale shared-profile intrusion does not invalidate an otherwise successful run.
 - The live `csf-source` fetch helper now emits `nlm_auth_forced_refresh_scheduled` plus `nlm_family_refresh_started` / `nlm_family_refresh_completed` when `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS` forces a family refresh, and a 25-item direct probe on `ytis-pro-worker-01` measured `nlm_family_refresh_completed.elapsed_s=10.616`.
-- The second free account lane is defined in [`P:/packages/yt-is/.logs/sharded_lane_series/pro_free_hotmail_lanes.json`](../../.logs/sharded_lane_series/pro_free_hotmail_lanes.json) and uses `ytis-free2-worker-01` through `ytis-free2-worker-04` on `brsthomson@hotmail.com`.
+- The second free account lane is defined in [`P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_hotmail_lanes.json`](../../.logs/sharded_lane_series/pro_free_hotmail_lanes.json) and uses `ytis-free2-worker-01` through `ytis-free2-worker-04` on `brsthomson@hotmail.com`.
 - The canonical evidence index is [Evidence Index](evidence/README.md); treat full run roots as runtime output, not the source of truth.
 - The auth family map in `csf/nlm_worker_auth.py` is still the primary source of truth. If you add a 4th family, update that file first, then mirror the new lane into the lane JSON, tests, and this doc. If the lane exists before the code map is extended, set `expected_email` in the lane JSON so doctor/preflight can still validate it.
 - `csf-sharded-lane-series` preflights every lane profile before launching Pro/Free lanes and gives `nlm login --force --profile <profile>` one bounded recovery attempt for expired profiles.
 - Benchmark subprocesses run with `YTIS_NLM_AUTH_NONINTERACTIVE=1`, so `csf-source` uses `nlm login --force` instead of plain interactive `nlm login` if auth expires mid-run.
 - `YTIS_NLM_EXPECTED_EMAIL` can be used as an explicit fallback for future lane profiles that are not yet part of the hard-coded auth-family map, but the preferred contract is still to set `expected_email` in the lane JSON or extend `DEFAULT_FAMILIES`.
 - `YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS` is a stress knob, not a default throughput setting. Use `1` only when the goal is to force browser churn on every auth probe. For routine validation or soak runs, prefer a higher cadence such as `5`, or leave the knob unset entirely if auth churn is not the thing being tested.
-- If automatic CDP renewal fails for `ytis-free1-worker-01` or `ytis-pro-worker-01`, refresh only that worker `01` profile through the manual dedicated CDP root below, then rerun `python P:/packages/yt-is/bin/csf-nlm-worker-auth sync`.
+- If automatic CDP renewal fails for `ytis-free1-worker-01` or `ytis-pro-worker-01`, refresh only that worker `01` profile through the manual dedicated CDP root below, then rerun `python P:\\packages/yt-is/bin/csf-nlm-worker-auth sync`.
 - For a failure-mode map before long auth-heavy runs, see [NotebookLM Auth Pre-Mortem](notebooklm-auth-pre-mortem.md).
 - Zero-growth `source_add_failed` now has a bounded notebook-reset fallback in `csf/nlm_batch.py`; the `pro_free_source_map_v6` rerun showed that it reduces the failure class but still does not beat the current best sustained `pro_free_source_map_v1` result.
 - Cleanup-cost optimization was attempted with a bulk source-delete path, but `pro_free_cleanup_opt_v2` was negative and the prior chunked cleanup path was restored.
@@ -152,7 +152,7 @@ Current auth contract:
 Pro lane refresh:
 
 ```powershell
-$proRoot = 'P:\.data\yt-is\browser\notebooklm-pro'
+$proRoot = 'P:\\.data\yt-is\browser\notebooklm-pro'
 $proPort = 18870
 $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
 
@@ -191,7 +191,7 @@ foreach ($name in @('ytis-pro-worker-02','ytis-pro-worker-03','ytis-pro-worker-0
 Free lane refresh:
 
 ```powershell
-$freeRoot = 'P:\.data\yt-is\browser\notebooklm-free'
+$freeRoot = 'P:\\.data\yt-is\browser\notebooklm-free'
 $freePort = 18871
 $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
 
@@ -247,10 +247,10 @@ Do not start the sharded benchmark unless every profile in `notebooklm_profiles`
 Important: `nlm login --check --profile ...` only proves the stored credentials are valid. The batch worker must also pin every NotebookLM command with `--profile <worker-profile>` before it runs `nlm notebook ...` or `nlm source ...`. Do not use `nlm login switch` in the concurrent worker path; it mutates process-global CLI state and can make one worker add sources under one account, then poll `source list` under another account, producing `PERMISSION_DENIED`.
 
 ```powershell
-python P:/packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
-  --output-root P:/packages/yt-is/.logs/sharded_lane_series/pro_free_v1 `
-  --cohort-json P:/packages/yt-is/.logs/sharded_lane_series/pro_free_v1/cohort.json `
+python P:\\packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_v1 `
+  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_v1/cohort.json `
   --limit 400 `
   --batch-size 200 `
   --reusable-pipeline-mode serial
@@ -261,11 +261,11 @@ python P:/packages/yt-is/bin/csf-sharded-lane-series `
 Use this run to validate that the Free route works by itself after auth refresh:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
-python P:/packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/free_only_lanes.json `
-  --output-root P:/packages/yt-is/.logs/sharded_lane_series/free_only_v1 `
-  --cohort-json P:/packages/yt-is/.logs/sharded_lane_series/free_only_v1/cohort.json `
+$env:PYTHONPATH = 'P:\\packages\yt-is'
+python P:\\packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/free_only_lanes.json `
+  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/free_only_v1 `
+  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/free_only_v1/cohort.json `
   --limit 400 `
   --batch-size 200 `
   --reusable-pipeline-mode serial
@@ -273,8 +273,8 @@ python P:/packages/yt-is/bin/csf-sharded-lane-series `
 
 Latest validation result:
 
-- artifact: `P:/packages/yt-is/.logs/sharded_lane_series/free_only_v1/sharded_lane_series_summary.json`
-- account route: `troup.hominidae@gmail.com` through `P:/.data/yt-is/browser/notebooklm-free`
+- artifact: `P:\\packages/yt-is/.logs/sharded_lane_series/free_only_v1/sharded_lane_series_summary.json`
+- account route: `troup.hominidae@gmail.com` through `P:\\.data/yt-is/browser/notebooklm-free`
 - hot-path VPH: `2841.46`
 - hot-path successes: `348`
 - failures: `52`
@@ -287,11 +287,11 @@ Latest validation result:
 Use the same command after both lanes validate to measure the combined ceiling with the dedicated Pro and Free browser roots:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
-python P:/packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:/packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
-  --output-root P:/packages/yt-is/.logs/sharded_lane_series/pro_free_v2 `
-  --cohort-json P:/packages/yt-is/.logs/sharded_lane_series/pro_free_v2/cohort.json `
+$env:PYTHONPATH = 'P:\\packages\yt-is'
+python P:\\packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_v2 `
+  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_v2/cohort.json `
   --limit 400 `
   --batch-size 200 `
   --reusable-pipeline-mode serial
@@ -299,9 +299,9 @@ python P:/packages/yt-is/bin/csf-sharded-lane-series `
 
 Latest combined validation result:
 
-- artifact: `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v3/sharded_lane_series_summary.json`
-- Pro route: `a.hominidae@gmail.com` through `P:/.data/yt-is/browser/notebooklm-pro`
-- Free route: `troup.hominidae@gmail.com` through `P:/.data/yt-is/browser/notebooklm-free`
+- artifact: `P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v3/sharded_lane_series_summary.json`
+- Pro route: `a.hominidae@gmail.com` through `P:\\.data/yt-is/browser/notebooklm-pro`
+- Free route: `troup.hominidae@gmail.com` through `P:\\.data/yt-is/browser/notebooklm-free`
 - combined hot-path VPH: `3850.52`
 - combined hot-path successes: `614`
 - combined failures: `186`
@@ -323,11 +323,11 @@ The attempted `pro_free_source_map_v4` follow-up is invalid. It was interrupted 
 
 Current state as of 2026-04-30:
 
-- Worker auth repair is scripted. Prefer `python P:/packages/yt-is/bin/csf-nlm-worker-auth sync`; it now account-checks `nlm login --check` output and uses root-specific CDP refresh for worker `01` recovery before copying credentials to sibling workers.
+- Worker auth repair is scripted. Prefer `python P:\\packages/yt-is/bin/csf-nlm-worker-auth sync`; it now account-checks `nlm login --check` output and uses root-specific CDP refresh for worker `01` recovery before copying credentials to sibling workers.
 - Latest best sustained Pro+Free control is `pro_free_source_map_v1` at `5572.04` combined hot-path VPH.
 - The earlier `pro_free_post_retry_v2` control at `4407.40` is now superseded by the source-map run.
 - The later `pro_free_post_retry_v3` recheck is negative at `1982.17` combined hot-path VPH and should not replace the best method.
-- Source ID mapping hardening in `P:/packages/yt-is/csf/nlm_batch.py` is now implemented and covered by focused tests.
+- Source ID mapping hardening in `P:\\packages/yt-is/csf/nlm_batch.py` is now implemented and covered by focused tests.
 - `nlm source add --wait` stdout should still be treated as the canonical add-order mapping for submitted video IDs.
 - The duplicate-source-ID guard before content fetch is now validated live by `pro_free_source_map_v1`; keep it in place because duplicate source IDs mapped to multiple video IDs showed up in worker stdout from the bad `v3` run.
 - The follow-up `pro_free_source_map_v2` rerun regressed to `2917.93` combined hot-path VPH with `397/403`; Pro `source_add_failed` dominated while Free only showed one `command_failed`.
@@ -352,8 +352,8 @@ Current state as of 2026-04-30:
 Required verification before another full benchmark:
 
 ```powershell
-$env:PYTHONPATH = 'P:\packages\yt-is'
-python P:/packages/yt-is/bin/csf-nlm-worker-auth sync
+$env:PYTHONPATH = 'P:\\packages\yt-is'
+python P:\\packages/yt-is/bin/csf-nlm-worker-auth sync
 pytest tests/test_nlm_batch.py tests/test_nlm_scraper.py tests/test_nlm_config.py tests/test_sharded_lane_series.py tests/test_nlm_worker_auth.py tests/test_worker_count_sweep.py tests/test_fallback_crossover_benchmark.py -q
 python -m py_compile csf/nlm_batch.py csf/nlm_scraper.py csf/nlm_config.py csf/nlm_worker_auth.py tests/test_nlm_batch.py tests/test_nlm_scraper.py tests/test_nlm_config.py tests/test_nlm_worker_auth.py bin/csf-source bin/csf-nlm-worker-auth
 ```
@@ -390,7 +390,7 @@ Follow-up stagger test:
 
 Corrected follow-up stagger test:
 - `pro_free_staggered_60s_v3` used the same `60s` Free lane startup delay after profile pinning and the cleanup-race guard.
-- artifact: `P:/packages/yt-is/.logs/sharded_lane_series/pro_free_staggered_60s_v3/sharded_lane_series_summary.json`
+- artifact: `P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_staggered_60s_v3/sharded_lane_series_summary.json`
 - combined hot-path VPH: `3626.67`
 - Pro lane hot-path VPH: `3287.39`
 - Free lane hot-path VPH: `1789.83`
@@ -409,9 +409,10 @@ Corrected follow-up stagger test:
 
 **Evidence status**: the scheduled force-refresh path was not observed in run02/run03. The
 `nlm_login_started` and `nlm_family_refresh_started` events are present in run02/run03, but
-`nlm_auth_forced_refresh_scheduled=0` in all three `3+3` samples. That rules out the observed
-scheduled force-refresh path, but it does not prove NotebookLM TTL because the old logs do not
-contain session-age evidence.
+`nlm_auth_forced_refresh_scheduled=0` in all three `3+3` samples. Run04 then showed
+`session_age_s` values capped near `30s`, which matches the default auth-check cache TTL in
+`csf/nlm_auth_guard.py` and shifts the leading hypothesis away from NotebookLM TTL and toward the
+local auth-check cache cadence.
 
 | Run | Comb VPH | Pro idle (s) | Pro add (s) | Pro logins | Auth checked | Source fetch mean/max |
 |---|---|---|---|---|---|---|
@@ -421,19 +422,23 @@ contain session-age evidence.
 | `sweep_phase3_2lane_3w_run04` | 2398.89 | 500.0 | 555.4 | 106 (Pro), 105 (Free) | 531 | — |
 | `pro_free_source_map_v1` | 5572.04 | 37.9 | 396.0 | 0 | 1121 | 5.9s / 16.0s |
 
-**Leading hypothesis**: session/reauth timing drives the lower run02/run03 VPH. NotebookLM TTL is
-plausible, but not confirmed until a fresh run captures `session_age_s` or equivalent timing evidence.
+**Leading hypothesis**: the local auth-check cache TTL drives the lower run02/run03/run04 VPH.
+NotebookLM TTL is still possible, but run04's `session_age_s` band (roughly `0s` to `30s`) is a
+better match for the default `YTIS_NLM_AUTH_CHECK_CACHE_TTL_SECONDS=30` knob than for a NotebookLM
+session expiry window.
 
 Each login can block the source materialization polling loop when it overlaps active polling, adding
-idle time: 242s (run02 Pro), 294s (run03 Pro), 432s (run03 Free). Login count alone is not sufficient
-because run02 Free had many logins but no measured idle wait.
+idle time: 242s (run02 Pro), 294s (run03 Pro), 432s (run03 Free), 500s (run04 Pro), and 221s
+(run04 Free). Login count alone is not sufficient because run02 Free had many logins but no measured
+idle wait.
 
 Source fetch slowdown (run03: mean 14.8s, max 229.8s vs v1: mean 5.9s, max 16.0s) is correlated with
 the slower run, but causal direction remains part of the diagnostic.
 
-**Next test**: follow [Run04 Session Reauth Diagnostic Test Plan](run04-session-reauth-diagnostic-test-plan.md).
-Run04 must be unmitigated: no warm-auth, no lane-width changes, and no source-add changes.
-Warm-auth is a later A/B mitigation only if run04 supports the session-age hypothesis.
+**Run05 result**: the cache-TTL A/B finished cleanly but negatively. It did not improve throughput,
+so the next step is not another TTL-only rerun.
+Warm-auth is still not justified by this evidence; move to source-add/readiness/setup cost or another
+non-TTL limiter instead.
 
 ### Three-Sample Interpretation
 
@@ -442,10 +447,18 @@ Warm-auth is a later A/B mitigation only if run04 supports the session-age hypot
 | `sweep_phase3_2lane_3w_run01` | 4123.28 | 795/5 | clean | 0 logins observed |
 | `sweep_phase3_2lane_3w_run02` | 2953.82 | 792/8 | clean | many family-refresh logins; forced-refresh scheduled path not observed |
 | `sweep_phase3_2lane_3w_run03` | 2384.21 | 797/3 | clean | many family-refresh logins; forced-refresh scheduled path not observed |
+| `sweep_phase3_2lane_3w_run04` | 2398.89 | 791/9 | clean | many family-refresh logins; `session_age_s` observed in the `0-30s` band, matching default auth-check cache TTL |
 
 **Current interpretation**: `run01` is still the best observed clean `3+3` sample, but the sustained
-`3+3` ceiling is not locked. Run04 repeated the low window at `2398.89` VPH and did not surface
-`session_age_s`, so the TTL/session-age hypothesis remains unproven rather than confirmed.
+`3+3` ceiling is not locked. Run04 repeated the low window at `2398.89` VPH and showed the auth
+cache age band capped near `30s`, so the next question is whether extending
+`YTIS_NLM_AUTH_CHECK_CACHE_TTL_SECONDS` raises throughput.
+
+Run05 answered that question negatively. With `YTIS_NLM_AUTH_CHECK_CACHE_TTL_SECONDS=120`,
+`sweep_phase3_2lane_3w_run05` completed cleanly at `1958.94`, but it did not improve throughput;
+it increased login churn to `132` Pro and `128` Free logins, kept `nlm_auth_forced_refresh_scheduled=0`,
+and still recorded `session_age_s` in the `0-30s` band. That makes the cache-TTL hypothesis a
+negative result for this cohort.
 
 ## Success Criteria
 

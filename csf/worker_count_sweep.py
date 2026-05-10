@@ -54,8 +54,24 @@ class TrialArtifact:
         return int(self.fetch_completed.get("processed_count", 0) or 0)
 
     @property
+    def throughput_elapsed_s(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = self.fetch_completed.get("throughput_elapsed_s")
+        if value is None:
+            value = self.fetch_completed.get("elapsed_s")
+        if value is None:
+            value = self.fetch_completed.get("total_elapsed_s")
+        if value is None:
+            value = self.elapsed_s
+        cleanup_elapsed_s = float(totals.get("cleanup_elapsed_s_total") or self.fetch_completed.get("cleanup_elapsed_s", 0) or 0.0)
+        try:
+            return round(max(float(value or 0.0) - cleanup_elapsed_s, 0.0), 3)
+        except Exception:
+            return 0.0
+
+    @property
     def videos_per_hour(self) -> float:
-        elapsed = float(self.fetch_completed.get("elapsed_s", 0) or 0.0)
+        elapsed = self.throughput_elapsed_s
         if elapsed <= 0:
             return 0.0
         return round(self.hot_path_success_count / elapsed * 3600.0, 2)
@@ -74,14 +90,14 @@ class TrialArtifact:
 
     @property
     def transcript_fallback_videos_per_hour(self) -> float:
-        elapsed = float(self.fetch_completed.get("elapsed_s", 0) or 0.0)
+        elapsed = self.throughput_elapsed_s
         if elapsed <= 0:
             return 0.0
         return round(self.transcript_fallback_success_count / elapsed * 3600.0, 2)
 
     @property
     def processed_per_hour(self) -> float:
-        elapsed = float(self.fetch_completed.get("elapsed_s", 0) or 0.0)
+        elapsed = self.throughput_elapsed_s
         if elapsed <= 0:
             return 0.0
         return round(self.processed_count / elapsed * 3600.0, 2)
@@ -335,7 +351,8 @@ class TrialArtifact:
 
     def to_row(self) -> dict[str, Any]:
         payload = asdict(self)
-        elapsed_s = float(self.fetch_completed.get("elapsed_s", self.elapsed_s) or self.elapsed_s)
+        wall_elapsed_s = float(self.fetch_completed.get("total_elapsed_s", self.fetch_completed.get("elapsed_s", self.elapsed_s)) or self.elapsed_s)
+        elapsed_s = self.throughput_elapsed_s
         totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
         startup_prepare_total_elapsed_s = float(
             totals.get("startup_prepare_total_elapsed_s_total")
@@ -352,7 +369,9 @@ class TrialArtifact:
         payload.update(
             {
                 "elapsed_s": round(elapsed_s, 3),
-                "process_elapsed_s": round(self.elapsed_s, 3),
+                "process_elapsed_s": round(wall_elapsed_s, 3),
+                "wall_elapsed_s": round(wall_elapsed_s, 3),
+                "throughput_elapsed_s": round(elapsed_s, 3),
                 "success_count": self.success_count,
                 "fail_count": self.fail_count,
                 "skip_count": self.skip_count,

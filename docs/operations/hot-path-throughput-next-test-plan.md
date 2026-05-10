@@ -76,6 +76,23 @@ Current interpretation:
 - The auth TTL 120 A/B `idle_wait_validation_auth_ttl120_run02` was also a negative branch: combined hot-path VPH fell to `988.48`, idle wait rose to `1126.331s`, and `source_ready_age_s_avg` rose to `124.626s` even though Pro `cache_expired` auth refreshes dropped from `312` to `231`. That makes TTL 120 a dead branch for this cohort.
 - The tighter `YTIS_NLM_SOURCE_AGE_CLIFF_S=150` follow-up `idle_wait_validation_run04` was a hard negative: combined hot-path VPH fell to `257.95`, success/fail dropped to `180/20`, and worker idle wait exploded to `3402.45s`. The worker logs show `cache_expired` auth refreshes ballooned to `1206` versus `30` `cache_miss` events, so this threshold is too aggressive for the current cohort and should not be used as the default branch.
 - Age-guard observability is live in the same run: `nlm_batch_subbatch_age_guard_rotation_requested` and `nlm_batch_notebook_recycled` appeared in the worker logs, so the guard path is now observable and functioning.
+- The `clean_3plus3_pressure_run02` rerun with `--batch-size 100` completed only as a partial benchmark and did not become a new ceiling:
+  - Combined hot-path VPH `814.6`, `700/100`, `700` processed, `status=partial`
+  - Pro `248/102`, `worker_idle_wait_s_total=1820.633`, `source_ready_age_s_max=697.106s`
+  - Free `349/1`, `worker_idle_wait_s_total=1776.019`, `source_ready_age_s_max=501.54s`
+  - The final Pro failure was `NOT_FOUND` after retry, with `source_id_validated_after_not_found=null`; the Free lane was the slower lane overall and dominated the combined result
+- The isolated Free-only 3-worker rerun completed as a negative branch at `free_only_retest_current_profile_run01`:
+  - Combined hot-path VPH `1608.92`, `395/5`, `400` processed
+  - `worker_idle_wait_s_total=30.591`, `source_ready_age_s_max=221.47s`
+  - This is still well below the historical Free-only 3-worker leader, so it does not justify more geometry tuning on the Free lane
+- The current Free regression is concentrated in startup and add cost, not browser-root cleanup or notebook creation:
+  - `startup_notebook_create_elapsed_s_total=0.0` in both batches, so notebook creation is not the limiter
+  - lane stderr does not show `closed default NotebookLM chrome-profile`, so browser-root cleanup is not the dominant signal here
+  - current batch logs show `nlm_worker_notebook_cleanup_started` followed by deletion of `3-4` stale worker notebooks before work begins, and `startup_notebook_check_elapsed_s_total` / `startup_prepare_cleanup_elapsed_s_total` are both higher than the historical Free leader
+- Next investigation should focus on worker-state hygiene and the notebook-check/add path: compare the shared `worker_states` lifecycle against the historical Free leader, then decide whether a fresh worker-state root or stricter preflight pruning is warranted before any more lane geometry work.
+- The fresh worker-state-root control `free_only_fresh_state_control_run01` completed at `2825.29` combined hot-path VPH with `400/0/400` across two 200-item batches. Batch 1 was `2236.72` VPH and batch 2 was `3782.61` VPH. Both batches used clean per-run worker states and did not show stale-worker cleanup. That is now the strongest evidence that worker-state hygiene is the lever, not lane geometry.
+- Throughput accounting is now split from cleanup accounting: benchmark summaries publish `throughput_wall_elapsed_s` separately from full `wall_elapsed_s`, and the combined VPH uses the cleanup-free span. Treat any cleanup timing as hygiene cost, not sustained throughput.
+- The sharded lane runner now defaults to a fresh per-run worker-state root under `<run-root>/<lane>/worker_states`, with `--preserve-worker-state-root` retained only for explicit reuse experiments. The next best investigation is to rerun the canonical lane-series comparison on the same cohort with that default in place. Do not spend more time on the stale Free-only rerun shape unless the worker-state path changes again.
 
 ## Non-Negotiable Controls
 
@@ -755,6 +772,7 @@ Current evidence:
 - `highest_vph_attribution_probe_run02` showed the source-list probe is useful on the first `NOT_FOUND`, but repeated validation becomes a throughput drag under storm conditions.
 - `highest_vph_not_found_probe_cap_sequence_run01` confirmed the bounded probe cap helps, but the remaining gap is still source-readiness / age behavior, not more probe volume.
 - `small_subbatch_source_readiness_run01` improved the same 2-lane shape further to `1998.83` combined hot-path VPH with `batch-size 100`, with Pro `source_ready_age_s_max=225.028s` and Free `source_ready_age_s_max=195.392s`.
+- `small_subbatch_source_readiness_run02` regressed to `1549.75` combined hot-path VPH with `batch-size 150`, with Pro `source_ready_age_s_max=416.751s` and Free `source_ready_age_s_max=438.977s`.
 - `pro_free_source_map_v1` remains the historical best sustained control, so any bounded probe must be measured against that baseline, not against a single diagnostic sample.
 
 Implementation target:
@@ -780,6 +798,8 @@ Current evidence:
 - `highest_vph_not_found_probe_cap_sequence_run01` improved the 400-item sequence shape to `1204.97` combined hot-path VPH with the bounded probe cap in place.
 - The same run still showed the Free lane crossing `source_ready_age_s_max=1026.949s` in batch 2, with `command_failed=40`, so the age cliff is still not under control.
 - The Pro lane recovered much better than the uncapped attribution run, which means the probe cap is a keep, not a new variable to reopen.
+- `small_subbatch_source_readiness_run02` and `small_subbatch_source_readiness_run03` both finished as partial lanes (`processed_count_total=700`), so they are not clean full-load negatives even though they were recorded as `status=ok`.
+- `small_subbatch_source_readiness_run01` remains the only clean full-load subbatch result in this branch.
 
 Implementation target:
 
@@ -809,8 +829,10 @@ python P:\\packages\\yt-is\\bin\\csf-sharded-lane-sequence `
 
 Decision gates:
 
-- If both lanes keep `source_ready_age_s_max` below about `220s` and combined hot-path VPH improves over `1204.97`, keep the smaller subbatch geometry and test `batch-size 150` as the next refinement.
-- `small_subbatch_source_readiness_run01` met the age gate in aggregate and improved throughput, so the next refinement is `batch-size 150` on the same capped sequence shape.
+- If the lane summary can finish `ok` while `processed_count_total` is below the configured `limit`, fix the validity gate first and stop using those runs as clean negatives.
+- If the current summary gate is fixed, rerun a clean `3+3` pressure comparison before pursuing more subbatch tuning.
+- If the clean `3+3` rerun still trails `highest_vph_agecap_400_run01`, move to earlier notebook rotation or an age-trigger refinement rather than expanding subbatch size further.
+- `small_subbatch_source_readiness_run01` remains the only clean full-load subbatch result in this branch, so do not treat `run02` or `run03` as evidence against the subbatch effect until the validity gate is fixed.
 - If `source_ready_age_s_max` still crosses the cliff or `command_failed` rises materially, the workload still needs earlier notebook rotation rather than more diagnostic probing.
 - If `worker_idle_wait_s_total` remains high while `content_fetch_command_elapsed_s_total` does not fall, test readiness polling interval and NotebookLM CLI boundary overhead next.
 - If `source_list_probe_elapsed_s_total` grows back above the current capped sequence run, stop and tighten the probe cap further before changing anything else.
@@ -820,17 +842,3 @@ Do not:
 - Do not widen the source-age cliff.
 - Do not change auth TTL in the same run.
 - Do not switch captioned items to `yt-dlp` first without a same-shape A/B.
-
-### Next Rerun
-
-```powershell
-$env:PYTHONPATH = 'P:\\packages\\yt-is'
-python P:\\packages\\yt-is\\bin\\csf-sharded-lane-sequence `
-  --lane-config P:\\packages\\yt-is\\.logs\\sharded_lane_series\\pro_free_lanes.json `
-  --run-root P:\\packages\\yt-is\\.logs\\sharded_lane_series\\small_subbatch_source_readiness_run02 `
-  --smoke-limit 400 `
-  --smoke-batch-size 150 `
-  --soak-limit 400 `
-  --soak-batch-size 150 `
-  --reusable-pipeline-mode serial
-```

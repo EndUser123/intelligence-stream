@@ -792,6 +792,11 @@ def _get_worker_notebook_prefixes() -> tuple[str, ...]:
     return tuple(prefixes)
 
 
+def _is_safe_worker_notebook_prefix(prefix: str) -> bool:
+    prefix = prefix.strip()
+    return prefix.startswith(_DEFAULT_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX) or prefix.startswith(_LEGACY_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX)
+
+
 def _infer_worker_profile_from_notebook_name(name: str) -> str:
     match = re.search(r"worker-(\d+)$", name.strip())
     if not match:
@@ -873,6 +878,22 @@ def cleanup_stale_worker_notebooks(*, delete: bool = False) -> tuple[int, int]:
             "active_nb_ids": len(active_nb_ids),
         },
     )
+    if not _is_safe_worker_notebook_prefix(prefix):
+        log_action(
+            "nlm_worker_notebook_cleanup_complete",
+            {
+                "deleted": 0,
+                "failed": 0,
+                "status": "prefix_untrusted",
+                "notebook_prefix": prefix,
+                "run_id": run_id or None,
+                "worker_notebook_count": 0,
+                "stale_worker_notebook_count": 0,
+                "reason": "configured worker notebook prefix is not industrial-scoped",
+            },
+        )
+        return (0, 0)
+    safe_prefixes = tuple(worker_prefix for worker_prefix in _get_worker_notebook_prefixes() if _is_safe_worker_notebook_prefix(worker_prefix))
     res = ingestor._run_cmd(["notebook", "list", "--json"], timeout=30)
     if res.returncode != 0:
         log_action(
@@ -908,7 +929,7 @@ def cleanup_stale_worker_notebooks(*, delete: bool = False) -> tuple[int, int]:
         if isinstance(nb, dict)
         and any(
             (nb.get("name") or nb.get("title") or "").strip().startswith(worker_prefix)
-            for worker_prefix in _get_worker_notebook_prefixes()
+            for worker_prefix in safe_prefixes
         )
     ]
     if not delete:

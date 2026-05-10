@@ -188,17 +188,32 @@ def test_load_lane_configs_accepts_explicit_expected_email(tmp_path):
     assert lane.expected_email == "future.account@example.com"
 
 
-def test_compute_combined_hot_path_vph_uses_wall_clock_not_sum_of_lane_elapsed():
+def test_compute_combined_hot_path_vph_prefers_throughput_elapsed_over_wall_clock():
     lanes = [
-        {"lane": "pro", "hot_path_success_count_total": 398, "started_at": 100.0, "finished_at": 470.0},
-        {"lane": "free", "hot_path_success_count_total": 196, "started_at": 110.0, "finished_at": 520.0},
+        {
+            "lane": "pro",
+            "hot_path_success_count_total": 398,
+            "started_at": 100.0,
+            "finished_at": 470.0,
+            "wall_elapsed_s": 370.0,
+            "throughput_wall_elapsed_s": 360.0,
+        },
+        {
+            "lane": "free",
+            "hot_path_success_count_total": 196,
+            "started_at": 110.0,
+            "finished_at": 520.0,
+            "wall_elapsed_s": 410.0,
+            "throughput_wall_elapsed_s": 390.0,
+        },
     ]
 
     combined = compute_combined_hot_path_vph(lanes)
 
     assert combined["hot_path_success_count_total"] == 594
     assert combined["wall_elapsed_s"] == 420.0
-    assert combined["hot_path_videos_per_hour"] == 5091.43
+    assert combined["throughput_elapsed_s"] == 390.0
+    assert combined["hot_path_videos_per_hour"] == 5483.08
 
 
 def test_preflight_lane_auth_profiles_refreshes_expired_profile_before_run(monkeypatch):
@@ -429,16 +444,32 @@ def test_preflight_lane_auth_profiles_rejects_unmapped_profile_without_expected_
         raise AssertionError("unmapped profile should fail closed before benchmark start")
 
 
-def test_run_sharded_lane_series_passes_isolated_lane_env(tmp_path, monkeypatch):
+def test_run_sharded_lane_series_uses_fresh_worker_state_root_by_default(tmp_path, monkeypatch):
     import csf.sharded_lane_series as mod
 
     calls: list[dict[str, object]] = []
 
-    def fake_run_lane(*, lane, trace_root, output_root, cohort_json, source_url, policy, limit, batch_size, manifest_json, python_executable, reusable_pipeline_mode, env):
+    def fake_run_lane(
+        *,
+        lane,
+        trace_root,
+        output_root,
+        cohort_json,
+        source_url,
+        policy,
+        limit,
+        batch_size,
+        manifest_json,
+        python_executable,
+        reusable_pipeline_mode,
+        preserve_worker_state_root,
+        env,
+    ):
         calls.append(
             {
                 "lane": lane.lane,
                 "output_root": output_root,
+                "preserve_worker_state_root": preserve_worker_state_root,
                 "cohort_json": cohort_json,
                 "env": {
                     key: env.get(key)
@@ -461,6 +492,7 @@ def test_run_sharded_lane_series_passes_isolated_lane_env(tmp_path, monkeypatch)
         started = 100.0 if lane.lane == "pro" else 110.0
         finished = 470.0 if lane.lane == "pro" else 520.0
         return {
+            "status": "ok",
             "lane": lane.lane,
             "account_class": lane.account_class,
             "started_at": started,
@@ -511,8 +543,9 @@ def test_run_sharded_lane_series_passes_isolated_lane_env(tmp_path, monkeypatch)
     )
 
     assert [call["lane"] for call in calls] == ["pro", "free"]
+    assert calls[0]["preserve_worker_state_root"] is False
     assert calls[0]["env"]["INTELLIGENCE_STREAM_LOG_DIR"].endswith("out\\pro\\logs")
-    assert calls[0]["env"]["YTIS_INDUSTRIAL_WORKER_STATE_ROOT"].endswith("pro\\worker_states")
+    assert calls[0]["env"]["YTIS_INDUSTRIAL_WORKER_STATE_ROOT"].endswith("out\\pro\\worker_states")
     assert calls[0]["env"]["YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX"] == "benchmark-shard-pro"
     assert calls[0]["env"]["YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILE_PREFIX"] == "ytis-pro-worker"
     assert calls[0]["env"]["YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILES"] == "alt,ytis-pro-worker-02,ytis-pro-worker-03,ytis-pro-worker-04"
@@ -520,7 +553,7 @@ def test_run_sharded_lane_series_passes_isolated_lane_env(tmp_path, monkeypatch)
     assert calls[0]["env"]["YTIS_NLM_BROWSER_PROFILE_DIRECTORY"] == "Profile 2"
     assert calls[0]["env"]["YTIS_BATCH_STATUS_DB_PATH"].endswith("out\\pro\\batch_status.sqlite")
     assert calls[0]["env"]["YTIS_NLM_AUTH_NONINTERACTIVE"] == "1"
-    assert calls[1]["env"]["YTIS_INDUSTRIAL_WORKER_STATE_ROOT"].endswith("free\\worker_states")
+    assert calls[1]["env"]["YTIS_INDUSTRIAL_WORKER_STATE_ROOT"].endswith("out\\free\\worker_states")
     assert calls[1]["env"]["YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX"] == "benchmark-shard-free"
     assert calls[1]["env"]["YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILE_PREFIX"] == "ytis-free1-worker"
     assert calls[1]["env"]["YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILES"] == "default,ytis-free1-worker-02,ytis-free1-worker-03,ytis-free1-worker-04"
@@ -533,6 +566,151 @@ def test_run_sharded_lane_series_passes_isolated_lane_env(tmp_path, monkeypatch)
     assert report["combined"]["hot_path_success_count_total"] == 594
     assert report["combined"]["hot_path_videos_per_hour"] == 5091.43
     assert report["report_version"] == 1
+    assert report["lanes"][0]["worker_state_root"].endswith("out\\pro\\worker_states")
+    assert report["lanes"][0]["configured_worker_state_root"].endswith("pro\\worker_states")
+    assert Path(report["report_path"]).exists()
+
+
+def test_run_sharded_lane_series_can_preserve_configured_worker_state_root(tmp_path, monkeypatch):
+    import csf.sharded_lane_series as mod
+
+    calls: list[dict[str, object]] = []
+
+    def fake_run_lane(
+        *,
+        lane,
+        trace_root,
+        output_root,
+        cohort_json,
+        source_url,
+        policy,
+        limit,
+        batch_size,
+        manifest_json,
+        python_executable,
+        reusable_pipeline_mode,
+        preserve_worker_state_root,
+        env,
+    ):
+        calls.append(
+            {
+                "lane": lane.lane,
+                "preserve_worker_state_root": preserve_worker_state_root,
+                "env_root": env["YTIS_INDUSTRIAL_WORKER_STATE_ROOT"],
+            }
+        )
+        return {
+            "status": "ok",
+            "lane": lane.lane,
+            "account_class": lane.account_class,
+            "started_at": 100.0,
+            "finished_at": 470.0,
+            "wall_elapsed_s": 370.0,
+            "hot_path_success_count_total": 398,
+            "fail_count_total": 2,
+            "transcript_fallback_success_count_total": 0,
+            "processed_count_total": 400,
+            "hot_path_videos_per_hour": 3870.27,
+        }
+
+    monkeypatch.setattr(mod, "_run_lane", fake_run_lane)
+
+    report = run_sharded_lane_series(
+        lanes=(
+            LaneConfig(
+                lane="pro",
+                account_class="pro",
+                workers=4,
+                notebooklm_profile_prefix="ytis-pro-worker",
+                notebooklm_profiles=("alt", "ytis-pro-worker-02", "ytis-pro-worker-03", "ytis-pro-worker-04"),
+                browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-pro"),
+                browser_profile_directory="Profile 2",
+                worker_state_root=tmp_path / "pro" / "worker_states",
+                notebook_prefix="benchmark-shard-pro",
+            ),
+        ),
+        trace_root=tmp_path / "trace",
+        output_root=tmp_path / "out",
+        cohort_json=tmp_path / "out" / "cohort.json",
+        source_url="https://www.youtube.com/channel/UCYTISFALLBACKBMK",
+        policy="notebooklm_route_plus_fallback_30s_1w",
+        limit=400,
+        batch_size=200,
+        manifest_json=Path("P:\\\\\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
+        reusable_pipeline_mode="serial",
+        preserve_worker_state_root=True,
+    )
+
+    assert calls[0]["preserve_worker_state_root"] is True
+    assert calls[0]["env_root"].endswith("pro\\worker_states")
+    assert report["lanes"][0]["worker_state_root"].endswith("pro\\worker_states")
+    assert report["lanes"][0]["configured_worker_state_root"].endswith("pro\\worker_states")
+
+
+def test_run_sharded_lane_series_marks_partial_lane_reports_as_partial(tmp_path, monkeypatch):
+    import csf.sharded_lane_series as mod
+
+    def fake_run_lane(*, lane, **kwargs):
+        success = 398 if lane.lane == "pro" else 196
+        started = 100.0 if lane.lane == "pro" else 110.0
+        finished = 470.0 if lane.lane == "pro" else 520.0
+        return {
+            "status": "ok" if lane.lane == "pro" else "partial",
+            "lane": lane.lane,
+            "account_class": lane.account_class,
+            "started_at": started,
+            "finished_at": finished,
+            "wall_elapsed_s": round(finished - started, 3),
+            "hot_path_success_count_total": success,
+            "fail_count_total": 2 if lane.lane == "pro" else 4,
+            "transcript_fallback_success_count_total": 0,
+            "processed_count_total": 400 if lane.lane == "pro" else 300,
+            "hot_path_videos_per_hour": round(success / (finished - started) * 3600.0, 2),
+        }
+
+    monkeypatch.setattr(mod, "_run_lane", fake_run_lane)
+
+    report = run_sharded_lane_series(
+        lanes=(
+            LaneConfig(
+                lane="pro",
+                account_class="pro",
+                workers=4,
+                notebooklm_profile_prefix="ytis-pro-worker",
+                notebooklm_profiles=("alt", "ytis-pro-worker-02", "ytis-pro-worker-03", "ytis-pro-worker-04"),
+                browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-pro"),
+                browser_profile_directory="Profile 2",
+                worker_state_root=tmp_path / "pro" / "worker_states",
+                notebook_prefix="benchmark-shard-pro",
+            ),
+            LaneConfig(
+                lane="free",
+                account_class="free",
+                workers=4,
+                notebooklm_profile_prefix="ytis-free1-worker",
+                notebooklm_profiles=("default", "ytis-free1-worker-02", "ytis-free1-worker-03", "ytis-free1-worker-04"),
+                browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-free"),
+                browser_profile_directory="Profile 1",
+                worker_state_root=tmp_path / "free" / "worker_states",
+                notebook_prefix="benchmark-shard-free",
+            ),
+        ),
+        trace_root=tmp_path / "trace",
+        output_root=tmp_path / "out",
+        cohort_json=tmp_path / "out" / "cohort.json",
+        source_url="https://www.youtube.com/channel/UCYTISFALLBACKBMK",
+        policy="notebooklm_route_plus_fallback_30s_1w",
+        limit=400,
+        batch_size=200,
+        manifest_json=Path("P:\\\\\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
+        reusable_pipeline_mode="serial",
+    )
+
+    assert report["status"] == "partial"
+    assert report["partial_lane_count"] == 1
+    assert report["completed_lane_count"] == 2
+    assert report["successful_lane_count"] == 1
+    assert report["combined"]["hot_path_success_count_total"] == 594
     assert Path(report["report_path"]).exists()
 
 
@@ -746,6 +924,116 @@ def test_run_lane_stops_default_profile_before_launching(tmp_path, monkeypatch):
     assert snapshot["pid"] == 4321
     assert snapshot["returncode"] == 0
     assert snapshot["status"] == "completed"
+
+
+def test_run_lane_rejects_partial_processed_count(tmp_path, monkeypatch):
+    import csf.sharded_lane_series as mod
+
+    lane = LaneConfig(
+        lane="free",
+        account_class="free",
+        workers=1,
+        notebooklm_profile_prefix="ytis-free1-worker",
+        notebooklm_profiles=("ytis-free1-worker-01",),
+        browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-free"),
+        worker_state_root=tmp_path / "free" / "worker_states",
+        notebook_prefix="benchmark-shard-free",
+    )
+    calls: list[str] = []
+    lane_root = tmp_path / "out" / "free"
+    lane_root.mkdir(parents=True, exist_ok=True)
+
+    def fake_build_command(**kwargs):
+        return ["fake-benchmark"]
+
+    def fake_popen(cmd, **kwargs):
+        calls.append("popen")
+        kwargs["stdout"].write("")
+        kwargs["stderr"].write("")
+        kwargs["stdout"].flush()
+        kwargs["stderr"].flush()
+        (lane_root / "benchmark_summary.json").write_text(
+            json.dumps(
+                {
+                    "batches": [
+                        {
+                            "policies": [
+                                {
+                                    "policy": DEFAULT_POLICY,
+                                    "results": [
+                                        {
+                                            "success_count": 299,
+                                            "fail_count": 1,
+                                            "skip_count": 0,
+                                            "processed_count": 300,
+                                            "hot_path_success_count": 299,
+                                            "transcript_fallback_success_count": 0,
+                                            "elapsed_s": 100.0,
+                                            "process_elapsed_s": 100.0,
+                                            "startup_prepare_total_elapsed_s": 0.0,
+                                            "setup_elapsed_s": 0.0,
+                                            "add_elapsed_s": 0.0,
+                                            "readiness_elapsed_s": 0.0,
+                                            "cleanup_elapsed_s": 0.0,
+                                            "worker_idle_wait_s": 0.0,
+                                            "source_ready_age_s_total": 0.0,
+                                            "source_ready_age_s_max": 0.0,
+                                            "shared_retry_deferred_count": 0,
+                                            "shared_retry_recovered_count": 0,
+                                            "shared_retry_final_failed_count": 0,
+                                            "shared_retry_processed_count": 0,
+                                            "youtube_ytdlp_elapsed_s_total": 0.0,
+                                            "youtube_ytdlp_elapsed_s_max": 0.0,
+                                            "youtube_ytdlp_elapsed_s_count": 0,
+                                            "youtube_page_elapsed_s_total": 0.0,
+                                            "youtube_page_elapsed_s_max": 0.0,
+                                            "youtube_page_elapsed_s_count": 0,
+                                            "content_fetch_status_counts": {"ready": 300},
+                                        }
+                                    ],
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        class FakePopen:
+            pid = 4321
+            returncode = 0
+
+            def wait(self):
+                calls.append("wait")
+                return 0
+
+        return FakePopen()
+
+    monkeypatch.setattr(mod, "build_fallback_benchmark_command", fake_build_command)
+    monkeypatch.setattr(mod, "_stop_default_chrome_profile_if_running", lambda stage: False)
+    monkeypatch.setattr(mod, "_find_invalid_lane_artifacts", lambda lane_root: [])
+    monkeypatch.setattr(mod.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(mod.subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("subprocess.run should not be used")))
+
+    report = mod._run_lane(
+        lane=lane,
+        trace_root=tmp_path / "trace",
+        output_root=tmp_path / "out",
+        cohort_json=tmp_path / "out" / "cohort.json",
+        source_url="https://www.youtube.com/channel/UCYTISFALLBACKBMK",
+        policy=DEFAULT_POLICY,
+        limit=400,
+        batch_size=200,
+        manifest_json=Path("P:\\\\\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
+        python_executable=None,
+        reusable_pipeline_mode="serial",
+        env={},
+    )
+
+    assert report["status"] == "partial"
+    assert report["processed_count_total"] == 300
+    assert report["partial_reason"] == "lane free incomplete benchmark: processed_count_total=300 expected=400"
 
 
 def test_run_lane_rejects_default_profile_contaminated_logs(tmp_path, monkeypatch):

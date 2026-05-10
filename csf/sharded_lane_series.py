@@ -74,6 +74,13 @@ def _normalize_path(value: object) -> Path:
     return Path(str(value or "").strip())
 
 
+def _lane_worker_state_root(lane: LaneConfig, *, lane_output_root: Path, preserve_worker_state_root: bool) -> Path:
+    """Return the worker-state root used for a lane run."""
+    if preserve_worker_state_root:
+        return lane.worker_state_root
+    return lane_output_root / "worker_states"
+
+
 def _lane_from_dict(raw: dict[str, object]) -> LaneConfig:
     lane = str(raw.get("lane") or "").strip()
     if not lane:
@@ -311,6 +318,17 @@ def _find_invalid_lane_artifacts(lane_output_root: Path) -> list[str]:
     return findings
 
 
+def _lane_processed_count_reason(*, lane: LaneConfig, expected_processed_count: int, aggregate: dict[str, Any]) -> str | None:
+    """Return a partial-run reason when a lane finishes cleanly but misses the requested limit."""
+    processed_count_total = int(aggregate.get("processed_count_total") or 0)
+    if processed_count_total != expected_processed_count:
+        return (
+            f"lane {lane.lane} incomplete benchmark: processed_count_total={processed_count_total} "
+            f"expected={expected_processed_count}"
+        )
+    return None
+
+
 def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
     """Write JSON via a temporary file so interrupted runs do not leave partial output."""
     tmp_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
@@ -355,6 +373,7 @@ def _lane_env(
     reusable_pipeline_mode: str,
     *,
     lane_output_root: Path,
+    worker_state_root: Path,
 ) -> dict[str, str]:
     # Defense-in-depth: strip vars that would contaminate per-run auth behavior.
     # The current run01/run02/run03 auth-regression diagnosis is still evidence-gated,
@@ -375,7 +394,7 @@ def _lane_env(
         env["YTIS_NLM_EXPECTED_EMAIL"] = lane.expected_email
     else:
         env.pop("YTIS_NLM_EXPECTED_EMAIL", None)
-    env["YTIS_INDUSTRIAL_WORKER_STATE_ROOT"] = str(lane.worker_state_root)
+    env["YTIS_INDUSTRIAL_WORKER_STATE_ROOT"] = str(worker_state_root)
     env["YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX"] = lane.notebook_prefix
     env["YTIS_BENCHMARK_WORKER_NOTEBOOK_PREFIX"] = lane.notebook_prefix
     if lane.notebooklm_profile_prefix:
@@ -406,17 +425,26 @@ def _run_lane(
     python_executable: str | None,
     reusable_pipeline_mode: str,
     env: dict[str, str],
+    preserve_worker_state_root: bool = False,
 ) -> dict[str, Any]:
     lane_output_root = output_root / lane.lane
     lane_output_root.mkdir(parents=True, exist_ok=True)
+    effective_worker_state_root = _lane_worker_state_root(
+        lane,
+        lane_output_root=lane_output_root,
+        preserve_worker_state_root=preserve_worker_state_root,
+    )
     lane_cohort_json = cohort_json.parent / f"{cohort_json.stem}.{lane.lane}{cohort_json.suffix}"
     lane_stdout_path = lane_output_root / "lane.stdout.txt"
     lane_stderr_path = lane_output_root / "lane.stderr.txt"
     lane_process_path = lane_output_root / "lane_process.json"
     started_at = time.monotonic()
+    throughput_started_at = started_at
+    throughput_finished_at = started_at
     if lane.startup_delay_s > 0:
         time.sleep(lane.startup_delay_s)
     _stop_default_chrome_profile_if_running(stage=f"lane_start_{lane.lane}")
+    throughput_started_at = time.monotonic()
     command = build_fallback_benchmark_command(
         python_executable=python_executable or sys.executable,
         fallback_benchmark_script=FALLBACK_BENCHMARK_SCRIPT,
@@ -432,7 +460,7 @@ def _run_lane(
         sample_label=f"shard_{lane.lane}",
         manifest_json=None,
         manifest_families=None,
-        worker_state_root=lane.worker_state_root,
+        worker_state_root=effective_worker_state_root,
         preserve_worker_state_root=False,
     )
     process_snapshot: dict[str, Any] = {
@@ -493,15 +521,20 @@ def _run_lane(
             finally:
                 stdout_handle.flush()
                 stderr_handle.flush()
+        throughput_finished_at = time.monotonic()
     finally:
         _stop_default_chrome_profile_if_running(stage=f"lane_complete_{lane.lane}")
     finished_at = time.monotonic()
+    throughput_wall_elapsed_s = round(throughput_finished_at - throughput_started_at, 3)
     process_snapshot.update(
         {
             "status": "completed" if returncode == 0 else "failed",
             "returncode": returncode,
             "finished_at": round(finished_at, 3),
             "wall_elapsed_s": round(finished_at - started_at, 3),
+            "throughput_started_at": round(throughput_started_at, 3),
+            "throughput_finished_at": round(throughput_finished_at, 3),
+            "throughput_wall_elapsed_s": throughput_wall_elapsed_s,
             "pid": proc.pid if proc is not None else process_snapshot.get("pid"),
         }
     )
@@ -519,8 +552,9 @@ def _run_lane(
         )
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     aggregate = _aggregate_summary(summary, policy)
+    partial_reason = _lane_processed_count_reason(lane=lane, expected_processed_count=limit, aggregate=aggregate)
     return {
-        "status": "ok",
+        "status": "partial" if partial_reason else "ok",
         "lane": lane.lane,
         "account_class": lane.account_class,
         "workers": lane.workers,
@@ -529,12 +563,18 @@ def _run_lane(
         "coordinator_notebooklm_profile": lane.coordinator_profile,
         "browser_profile_root": str(lane.browser_profile_root),
         "browser_profile_directory": lane.browser_profile_directory,
-        "worker_state_root": str(lane.worker_state_root),
+        "configured_worker_state_root": str(lane.worker_state_root),
+        "worker_state_root": str(effective_worker_state_root),
         "notebook_prefix": lane.notebook_prefix,
         "startup_delay_s": lane.startup_delay_s,
+        "expected_processed_count_total": limit,
+        "partial_reason": partial_reason,
         "started_at": round(started_at, 3),
         "finished_at": round(finished_at, 3),
         "wall_elapsed_s": round(finished_at - started_at, 3),
+        "throughput_started_at": round(throughput_started_at, 3),
+        "throughput_finished_at": round(throughput_finished_at, 3),
+        "throughput_wall_elapsed_s": throughput_wall_elapsed_s,
         "returncode": proc.returncode,
         "command": command,
         "output_root": str(lane_output_root),
@@ -585,6 +625,13 @@ def _invalidated_lane_report(
     }
 
 
+def _lane_throughput_elapsed_s(report: dict[str, Any]) -> float | None:
+    value = report.get("throughput_wall_elapsed_s")
+    if value is None:
+        return None
+    return round(max(float(value or 0.0), 0.0), 3)
+
+
 def compute_combined_hot_path_vph(lane_reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
     """Compute combined sharded throughput using concurrent wall-clock span."""
     reports = list(lane_reports)
@@ -593,6 +640,12 @@ def compute_combined_hot_path_vph(lane_reports: Iterable[dict[str, Any]]) -> dic
     started_at = min(float(report["started_at"]) for report in reports)
     finished_at = max(float(report["finished_at"]) for report in reports)
     wall_elapsed_s = round(finished_at - started_at, 3)
+    throughput_candidates = [
+        throughput_elapsed_s
+        for report in reports
+        if (throughput_elapsed_s := _lane_throughput_elapsed_s(report)) is not None
+    ]
+    throughput_elapsed_s = max(throughput_candidates) if throughput_candidates else wall_elapsed_s
     hot_path_success = sum(int(report.get("hot_path_success_count_total") or 0) for report in reports)
     fallback_success = sum(int(report.get("transcript_fallback_success_count_total") or 0) for report in reports)
     fail_count = sum(int(report.get("fail_count_total") or 0) for report in reports)
@@ -602,13 +655,14 @@ def compute_combined_hot_path_vph(lane_reports: Iterable[dict[str, Any]]) -> dic
         "started_at": round(started_at, 3),
         "finished_at": round(finished_at, 3),
         "wall_elapsed_s": wall_elapsed_s,
+        "throughput_elapsed_s": round(throughput_elapsed_s, 3),
         "hot_path_success_count_total": hot_path_success,
         "transcript_fallback_success_count_total": fallback_success,
         "fail_count_total": fail_count,
         "processed_count_total": processed_count,
-        "hot_path_videos_per_hour": round(hot_path_success / wall_elapsed_s * 3600.0, 2) if wall_elapsed_s > 0 else 0.0,
-        "transcript_fallback_videos_per_hour": round(fallback_success / wall_elapsed_s * 3600.0, 2) if wall_elapsed_s > 0 else 0.0,
-        "processed_per_hour": round(processed_count / wall_elapsed_s * 3600.0, 2) if wall_elapsed_s > 0 else 0.0,
+        "hot_path_videos_per_hour": round(hot_path_success / throughput_elapsed_s * 3600.0, 2) if throughput_elapsed_s > 0 else 0.0,
+        "transcript_fallback_videos_per_hour": round(fallback_success / throughput_elapsed_s * 3600.0, 2) if throughput_elapsed_s > 0 else 0.0,
+        "processed_per_hour": round(processed_count / throughput_elapsed_s * 3600.0, 2) if throughput_elapsed_s > 0 else 0.0,
     }
 
 
@@ -641,6 +695,7 @@ def run_sharded_lane_series(
     manifest_json: Path = DEFAULT_MANIFEST_JSON,
     python_executable: str | None = None,
     reusable_pipeline_mode: str = DEFAULT_REUSABLE_PIPELINE_MODE,
+    preserve_worker_state_root: bool = False,
 ) -> dict[str, Any]:
     """Run all NotebookLM lanes concurrently and aggregate hot-path VPH."""
     lane_configs = _validate_lanes(lanes)
@@ -666,11 +721,17 @@ def run_sharded_lane_series(
                 manifest_json=manifest_json,
                 python_executable=python_executable,
                 reusable_pipeline_mode=reusable_pipeline_mode,
+                preserve_worker_state_root=preserve_worker_state_root,
                 env=_lane_env(
                     base_env,
                     lane,
                     reusable_pipeline_mode,
                     lane_output_root=output_root / lane.lane,
+                    worker_state_root=_lane_worker_state_root(
+                        lane,
+                        lane_output_root=output_root / lane.lane,
+                        preserve_worker_state_root=preserve_worker_state_root,
+                    ),
                 ),
             ): lane
             for lane in lane_configs
@@ -700,23 +761,27 @@ def run_sharded_lane_series(
                 )
 
     lane_reports = [lane_reports_by_name[lane.lane] for lane in lane_configs]
-    successful_lane_reports = [report for report in lane_reports if report.get("status", "ok") == "ok"]
+    partial_lane_reports = [report for report in lane_reports if report.get("status") == "partial"]
+    completed_lane_reports = [report for report in lane_reports if report.get("status") in {"ok", "partial"}]
+    successful_lane_reports = [report for report in lane_reports if report.get("status") == "ok"]
     combined = (
-        compute_combined_hot_path_vph(successful_lane_reports)
-        if successful_lane_reports
+        compute_combined_hot_path_vph(completed_lane_reports)
+        if completed_lane_reports
         else _empty_combined_hot_path_vph()
     )
-    status = "ok" if not failures else "invalidated"
+    status = "invalidated" if failures else ("partial" if partial_lane_reports else "ok")
     report = {
         "report_version": 1,
         "status": status,
         "invalidated": bool(failures),
         "attempted_lane_count": len(lane_reports),
         "successful_lane_count": len(successful_lane_reports),
+        "completed_lane_count": len(completed_lane_reports),
+        "partial_lane_count": len(partial_lane_reports),
         "failure_count": len(failures),
         "failures": failures,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "metric_contract": "combined_hot_path_videos_per_hour_excludes_whisper",
+        "metric_contract": "combined_hot_path_videos_per_hour_excludes_whisper_and_cleanup",
         "trace_root": str(trace_root),
         "cohort_json": str(cohort_json),
         "source_url": source_url,
@@ -724,7 +789,21 @@ def run_sharded_lane_series(
         "limit": limit,
         "batch_size": batch_size,
         "reusable_pipeline_mode": reusable_pipeline_mode,
-        "lanes": [asdict(lane) | {"browser_profile_root": str(lane.browser_profile_root), "worker_state_root": str(lane.worker_state_root)} for lane in lane_configs],
+        "lanes": [
+            asdict(lane)
+            | {
+                "browser_profile_root": str(lane.browser_profile_root),
+                "configured_worker_state_root": str(lane.worker_state_root),
+                "worker_state_root": str(
+                    _lane_worker_state_root(
+                        lane,
+                        lane_output_root=output_root / lane.lane,
+                        preserve_worker_state_root=preserve_worker_state_root,
+                    )
+                ),
+            }
+            for lane in lane_configs
+        ],
         "runs": lane_reports,
         "combined": combined,
     }
@@ -746,6 +825,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--manifest-json", type=Path, default=DEFAULT_MANIFEST_JSON)
     parser.add_argument("--python-executable", default=None)
     parser.add_argument("--reusable-pipeline-mode", default=DEFAULT_REUSABLE_PIPELINE_MODE)
+    parser.add_argument(
+        "--preserve-worker-state-root",
+        action="store_true",
+        help="Reuse the worker_state_root from lane config instead of the fresh per-run worker_states directory.",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -765,14 +849,16 @@ def main(argv: list[str] | None = None) -> int:
         manifest_json=args.manifest_json,
         python_executable=args.python_executable,
         reusable_pipeline_mode=args.reusable_pipeline_mode,
+        preserve_worker_state_root=args.preserve_worker_state_root,
     )
     combined = report["combined"]
     print(
         "[sharded] combined_hot_vph={vph:.2f} hot_success={success} "
-        "fail={fail} wall_elapsed_s={elapsed:.1f}".format(
+        "fail={fail} throughput_elapsed_s={throughput:.1f} wall_elapsed_s={elapsed:.1f}".format(
             vph=float(combined["hot_path_videos_per_hour"]),
             success=int(combined["hot_path_success_count_total"]),
             fail=int(combined["fail_count_total"]),
+            throughput=float(combined.get("throughput_elapsed_s", combined.get("wall_elapsed_s", 0.0))),
             elapsed=float(combined["wall_elapsed_s"]),
         )
     )

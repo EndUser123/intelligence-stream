@@ -1597,6 +1597,37 @@ class TestWorkerNotebookCleanup:
         assert cleanup_complete["status"] == "deleted"
         assert cleanup_complete["stale_worker_notebook_count"] == 1
 
+    def test_cleanup_stale_worker_notebooks_refuses_untrusted_prefix(self, tmp_path, monkeypatch):
+        """Cleanup should fail closed when the configured notebook prefix is not industrial-scoped."""
+        state_root = tmp_path / "worker-states"
+        state_root.mkdir()
+        (state_root / "worker-01.json").write_text(json.dumps({"nb_id": "keep-1"}), encoding="utf-8")
+        monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_STATE_ROOT", str(state_root))
+        monkeypatch.setenv("YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX", "personal-notes")
+        monkeypatch.setenv("YTIS_INDUSTRIAL_RUN_ID", "run-current")
+
+        calls: list[list[str]] = []
+
+        def mock_run_cmd(self, args, timeout=300):
+            calls.append(args)
+            raise AssertionError("should not list or delete notebooks when prefix is untrusted")
+
+        monkeypatch.setattr(nlm_batch.NLMBatchIngestor, "_run_cmd", mock_run_cmd)
+        with mock.patch("subprocess.run", side_effect=AssertionError("cleanup should not call subprocess.run")):
+            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                deleted, failed = nlm_batch.cleanup_stale_worker_notebooks(delete=True)
+
+        assert deleted == 0
+        assert failed == 0
+        assert calls == []
+        cleanup_complete = next(
+            call.args[1]
+            for call in mock_log.call_args_list
+            if call.args[0] == "nlm_worker_notebook_cleanup_complete"
+        )
+        assert cleanup_complete["status"] == "prefix_untrusted"
+        assert cleanup_complete["worker_notebook_count"] == 0
+
 
 class TestReusableNotebookPrewarm:
     """Reusable notebooks should be warmed and cleared before worker batches."""

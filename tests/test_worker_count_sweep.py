@@ -159,9 +159,10 @@ def test_run_fetch_trial_captures_fetch_completed_summary(tmp_path, monkeypatch)
     assert summary.processed_count == 20
     assert summary.hot_path_success_count == 8
     assert summary.transcript_fallback_success_count == 4
-    assert summary.videos_per_hour == 2880.0
-    assert summary.transcript_fallback_videos_per_hour == 1440.0
-    assert summary.processed_per_hour == 7200.0
+    assert summary.throughput_elapsed_s == 9.5
+    assert summary.videos_per_hour == 3031.58
+    assert summary.transcript_fallback_videos_per_hour == 1515.79
+    assert summary.processed_per_hour == 7578.95
     assert summary.add_elapsed_s == 4.5
     assert summary.readiness_elapsed_s == 2.0
     assert summary.cleanup_elapsed_s == 0.5

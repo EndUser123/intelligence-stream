@@ -37,6 +37,8 @@ in the lane JSON or add the profile to the auth-family map before starting a run
 Each lane also gets its own `YTIS_BATCH_STATUS_DB_PATH` under the lane output root so the synthetic source seed does not race across concurrent lanes.
 When the worker auth profiles are not prefix-derived, set `notebooklm_profiles` to the exact CLI profile names in worker order.
 The browser-health gate normalizes Chrome subprocess `--user-data-dir` paths before matching them against lane roots, so escaped subprocess cmdlines do not trip false `unexpected_process` reports during preflight.
+The sharded lane runner now defaults to a fresh per-run worker-state root under `<run-root>/<lane>/worker_states`. Pass `--preserve-worker-state-root` only when you are explicitly testing reuse against the lane JSON fallback root.
+Lane throughput is measured with `throughput_wall_elapsed_s`, not the full end-to-end `wall_elapsed_s`. The full wall span still records hygiene and cleanup for diagnostics, but `combined.hot_path_videos_per_hour` uses the cleanup-free throughput span.
 For the YT-IS Pro/Free lanes, keep the browser roots lane-specific and persistent:
 
 - Pro root: `P:\\\\\\.data/yt-is/browser/notebooklm-pro`
@@ -85,7 +87,7 @@ Save a config like this as `P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro
 ## Command
 
 Workers are lane-specific in the JSON config.
-Use `python P:\\\\\\packages/yt-is/bin/csf-sharded-lane-sequence --lane-config <lane-config> --run-root <run-root>` for the guarded sequence. It runs doctor, smoke, evidence check, then soak, writes smoke and soak outputs under `<run-root>/smoke` and `<run-root>/soak` by default, and reads the shared benchmark trace corpus from `P:\\\\\\packages/yt-is/.logs/worker_count_trials` unless you pass `--trace-root`. The same trace corpus is used for both phases.
+Use `python P:\\\\\\packages/yt-is/bin/csf-sharded-lane-sequence --lane-config <lane-config> --run-root <run-root>` for the guarded sequence. It runs doctor, smoke, evidence check, then soak, writes smoke and soak outputs under `<run-root>/smoke` and `<run-root>/soak` by default, uses `<run-root>/<lane>/worker_states` unless you pass `--preserve-worker-state-root`, and reads the shared benchmark trace corpus from `P:\\\\\\packages/yt-is/.logs/worker_count_trials` unless you pass `--trace-root`. The same trace corpus is used for both phases.
 
 ## Dedicated Browser Auth Refresh
 
@@ -118,6 +120,7 @@ Zero-growth NotebookLM source-add failures are not split into smaller chunks. If
 - Keep a failed or partial smoke/soak root only until a newer successful root exists for the same hypothesis.
 - Once a successful replacement exists, prune older partial roots so the next run starts from a small, unambiguous evidence set.
 - Never reuse a benchmark root in place for a fresh run. A dirty root is invalid preflight evidence, even if it only contains partial cohort files.
+- The worker-notebook cleanup helper is fail closed: it only deletes notebooks whose titles match the configured industrial worker prefix, and it refuses to delete anything if that prefix is not industrial-scoped.
 - For the current source-add smoke series, `P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_add_smoke_v5` is the clean successful root. The earlier `v1` through `v4` roots are disposable partial attempts and can be removed after their evidence has been captured in the docs or registry.
 
 Preferred worker-profile repair after worker `01` for each account is valid:

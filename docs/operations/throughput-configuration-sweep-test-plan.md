@@ -63,7 +63,7 @@ Hold these constant unless the phase explicitly names the variable:
 
 - Primary metric: `combined.hot_path_videos_per_hour`.
 - Scope: NotebookLM hot path only; Whisper recovery remains excluded.
-- Sample: start with `P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/cohort.json`.
+- Sample: start with `P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/cohort.json`.
 - Limit: `400` videos per 2-lane run unless the phase says otherwise.
 - Batch size: `200`.
 - Pipeline mode: `serial`.
@@ -675,20 +675,20 @@ Avoid names like `rerun`, `test`, or `new_best` unless they are aliases in a sep
 Prefer the guarded sequence for candidate classification:
 
 ```powershell
-cd P:\\packages/yt-is
-python P:\\packages/yt-is/bin/csf-sharded-lane-sequence `
+cd P:\\\\\\packages/yt-is
+python P:\\\\\\packages/yt-is/bin/csf-sharded-lane-sequence `
   --lane-config <lane-config-json> `
-  --run-root P:\\packages/yt-is/.logs/sharded_lane_series/<fresh-run-root>
+  --run-root P:\\\\\\packages/yt-is/.logs/sharded_lane_series/<fresh-run-root>
 ```
 
 Use the raw series runner only for exact historical reconstruction or when intentionally bypassing sequence gates for diagnostics:
 
 ```powershell
-cd P:\\packages/yt-is
-python P:\\packages/yt-is/bin/csf-sharded-lane-series `
+cd P:\\\\\\packages/yt-is
+python P:\\\\\\packages/yt-is/bin/csf-sharded-lane-series `
   --lane-config <lane-config-json> `
-  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/<fresh-run-root> `
-  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/cohort.json `
+  --output-root P:\\\\\\packages/yt-is/.logs/sharded_lane_series/<fresh-run-root> `
+  --cohort-json P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/cohort.json `
   --limit 400 `
   --batch-size 200 `
   --reusable-pipeline-mode serial

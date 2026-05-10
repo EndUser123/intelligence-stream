@@ -7,7 +7,7 @@ from unittest import mock
 import pytest
 
 # Ensure the package is importable
-sys.path.insert(0, str(Path(r"P:\\\packages\\yt-is").absolute()))
+sys.path.insert(0, str(Path(r"P:\\\\\\\packages\\yt-is").absolute()))
 
 from csf.providers import (
     VideoAnalysisResult,

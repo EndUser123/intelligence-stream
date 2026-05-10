@@ -21,7 +21,7 @@ from pathlib import Path
 from csf import nlm_auth_guard
 
 # Default exports directory
-_DEFAULT_EXPORTS_DIR = Path("P:\\.data/yt-is/nlm_exports")
+_DEFAULT_EXPORTS_DIR = Path("P:\\\\\\.data/yt-is/nlm_exports")
 
 # Hard limits (NotebookLM constraints)
 _MAX_WORDS_PER_COMPOSITE = 500_000

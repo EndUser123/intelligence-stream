@@ -10,14 +10,14 @@ Explain why `pro_free_source_map_v1` reached `5572.04` combined hot-path VPH whi
 
 Known high-water mark:
 
-- Artifact: `P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/sharded_lane_series_summary.json`
+- Artifact: `P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/sharded_lane_series_summary.json`
 - Shape: Pro + Free, 4 workers per lane, batch size 200, limit 400 per lane, serial reusable pipeline
 - Combined hot-path VPH: `5572.04`
 - Result mix: `796` hot-path successes, `4` failures, `800` processed
 
 Current reproduced leader:
 
-- Artifact: `P:\\packages/yt-is/.logs/sharded_lane_series/sweep_phase3_2lane_3w_run01/sharded_lane_series_summary.json`
+- Artifact: `P:\\\\\\packages/yt-is/.logs/sharded_lane_series/sweep_phase3_2lane_3w_run01/sharded_lane_series_summary.json`
 - Shape: Pro + Free, 3 workers per lane
 - Combined hot-path VPH: `4123.28`
 - Result mix: `795` hot-path successes, `5` failures, `800` processed
@@ -91,7 +91,7 @@ Record, per run:
 Suggested command skeleton:
 
 ```powershell
-cd P:\\packages/yt-is
+cd P:\\\\\\packages/yt-is
 $runs = @(
   "pro_free_source_map_v1",
   "pro_free_source_map_v7_rerun",
@@ -100,7 +100,7 @@ $runs = @(
   "optimal_search_2lane_5w_v1"
 )
 foreach ($run in $runs) {
-  $summary = "P:\\packages/yt-is/.logs/sharded_lane_series/$run/sharded_lane_series_summary.json"
+  $summary = "P:\\\\\\packages/yt-is/.logs/sharded_lane_series/$run/sharded_lane_series_summary.json"
   if (Test-Path $summary) {
     $j = Get-Content -Raw $summary | ConvertFrom-Json
     [pscustomobject]@{
@@ -145,26 +145,26 @@ Run these back to back in the same session, with fresh roots:
 Commands:
 
 ```powershell
-cd P:\\packages/yt-is
-python P:\\packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
-  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/repro_v1_raw_current_run01 `
-  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/cohort.json `
+cd P:\\\\\\packages/yt-is
+python P:\\\\\\packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --output-root P:\\\\\\packages/yt-is/.logs/sharded_lane_series/repro_v1_raw_current_run01 `
+  --cohort-json P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/cohort.json `
   --limit 400 `
   --batch-size 200 `
   --reusable-pipeline-mode serial
 
-python P:\\packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1_frozen_lanes.json `
-  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/repro_v1_raw_frozen_run01 `
-  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/cohort.json `
+python P:\\\\\\packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1_frozen_lanes.json `
+  --output-root P:\\\\\\packages/yt-is/.logs/sharded_lane_series/repro_v1_raw_frozen_run01 `
+  --cohort-json P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_map_v1/cohort.json `
   --limit 400 `
   --batch-size 200 `
   --reusable-pipeline-mode serial
 
-python P:\\packages/yt-is/bin/csf-sharded-lane-sequence `
-  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
-  --run-root P:\\packages/yt-is/.logs/sharded_lane_series/repro_v1_guarded_current_run01
+python P:\\\\\\packages/yt-is/bin/csf-sharded-lane-sequence `
+  --lane-config P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --run-root P:\\\\\\packages/yt-is/.logs/sharded_lane_series/repro_v1_guarded_current_run01
 ```
 
 Exit criteria:
@@ -194,19 +194,47 @@ Current stage signal:
 - The single-lane calibration runs split the cohort: Pro-only completed at `1980.19` combined hot-path VPH with `505.369` add time, `102.566` cleanup time, `243.778` worker idle wait, and `27.671` source-ready age average; Free-only completed at `3361.75` combined hot-path VPH with `581.27` add time, `116.913` cleanup time, `0.0` worker idle wait, and `22.865` source-ready age average. That makes Pro the slower lane on this branch and points the next investigation at Pro startup/setup/auth cleanup behavior rather than a symmetric lane-width issue.
 - The per-worker traces in `repro_v1_pro_only_4w_run01` and `repro_v1_free_only_4w_run01` sharpened that further: Pro showed nonzero lane-wide idle wait and one worker with a much larger `extract_elapsed_s_total` (`124.53` versus Free's `62.649` on the comparable worker), while Free stayed at `0.0` idle wait.
 - The same-window follow-up pair `sweep_p2_pro_only_startup_extract_run01` and `sweep_p2_free_only_startup_extract_run01` kept the same pattern but removed the idle-wait delta: Pro improved to combined hot-path VPH `2396.42` and Free to `2721.6`, both clean with `398/2/400`, and the Pro workers still carried the higher extract totals. That moves the remaining gap toward the Pro startup/setup/extract path rather than auth TTL or lane count.
+- The fresh lane-config repair reruns were even noisier: `repro_v1_pro_only_4w_run02` fell to combined hot-path VPH `1105.3` with `398/2/400`, `worker_idle_wait_s_total=804.382`, and `source_ready_age_s_avg=67.471`, while `repro_v1_free_only_4w_run02` completed at `929.05` with `199/1/200`. The Free rerun is only auxiliary because it processed half the items, but both runs keep the investigation anchored in startup/setup, extract, and source-readiness behavior rather than auth TTL.
 - Taken together, these probes keep the highest-ROI follow-on in the startup/setup and source-readiness path, with extract now the sharper Pro-side substage to isolate.
+
+## Phase 3 Reducer Findings (2026-05-07)
+
+Stage reducer over all 7 artifacts (`csf-sharded-lane-stage-reducer`) confirmed:
+
+**Leader (run01, 4123.28 VPH):** Both lanes near-zero command_failed. Pro: 2 total, Free: 2 total. Bottleneck: setup ~37% of stage sum.
+
+**All slower runs show extract dominance correlated with command_failed:**
+| Run | VPH | command_failed | extract % of stage sum | Bottleneck |
+|-----|-----|---------------|------------------------|------------|
+| run01 (leader) | 4123 | 2 (Pro) + 2 (Free) | 37-38% | setup (proven low-cmd_fail) |
+| run05 | 1959 | 29 (Pro) + 17 (Free) | 52-54% | extract (proven high-cmd_fail) |
+| run06 | 2285 | 15 (Pro) + 12 (Free) | 48-51% | extract |
+| pro_run01 | 1980 | 2 | 39% | extract (low cf, setup/extract tied) |
+| pro_run02 | 1105 | 62 (batch 1) + 26 (batch 2) | 70% | extract (proven extreme cf) |
+| free_run01 | 3362 | 1 | 36% | setup (proven low-cmd_fail) |
+| free_run02 | 929 | 7 | 53% | extract |
+
+**Correlation:** High command_failed count → high extract% → lower VPH. run01 is the only run with near-zero cf and the only high-VPH run.
+
+**Limitation:** `extract_elapsed_s_total` is summed across workers, not critical-path. The reducer annotates "tail-suggested" to flag this. However, the correlation between cf count and extract% is consistent across all runs, and `source_ready_age_s_avg` is also elevated in slow runs (137s in run05 batch 1 vs 50s in run01 batch 1), which is consistent with workers waiting for source materialization.
+
+**Narrow instrumentation added:** `nlm_batch.py` stdout/stderr excerpt length expanded from 200 to 500 chars in all command_failed event payloads. Three regression tests added: `test_source_content_fetch_command_failed_includes_long_stderr_excerpt`, `test_source_content_fetch_command_failed_includes_long_stdout_excerpt`, `test_source_content_fetch_ready_path_stdout_stderr_unchanged`. All 11 content-fetch tests pass.
+
+**Free-only run02 (200-item result):** Cohort `cohort.troup_hominidae_free.json` contains exactly 200 captioned items. Batch 1 processed all 200 items cleanly. Batch 2 only ran 2 of 4 workers (150 items) before run termination. The run is auxiliary, not a failure condition.
+
+**Conclusion:** Extract is the dominant bottleneck in slow runs, driven by command_failed events. The leader (run01) avoided this because it had near-zero command_failed. The next investigation should focus on why current runs generate more command_failed events than the leader run, with expanded stderr excerpts enabling better error categorization in the next probe.
 
 Commands:
 
 ```powershell
-cd P:\\packages/yt-is
-python P:\\packages/yt-is/bin/csf-sharded-lane-sequence `
-  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_only_lanes.json `
-  --run-root P:\\packages/yt-is/.logs/sharded_lane_series/repro_v1_pro_only_4w_run01
+cd P:\\\\\\packages/yt-is
+python P:\\\\\\packages/yt-is/bin/csf-sharded-lane-sequence `
+  --lane-config P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_only_lanes.json `
+  --run-root P:\\\\\\packages/yt-is/.logs/sharded_lane_series/repro_v1_pro_only_4w_run01
 
-python P:\\packages/yt-is/bin/csf-sharded-lane-sequence `
-  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/free_only_lanes.json `
-  --run-root P:\\packages/yt-is/.logs/sharded_lane_series/repro_v1_free_only_4w_run01
+python P:\\\\\\packages/yt-is/bin/csf-sharded-lane-sequence `
+  --lane-config P:\\\\\\packages/yt-is/.logs/sharded_lane_series/free_only_lanes.json `
+  --run-root P:\\\\\\packages/yt-is/.logs/sharded_lane_series/repro_v1_free_only_4w_run01
 ```
 
 Exit criteria:
@@ -231,9 +259,9 @@ Current bake-off note:
 
 Document:
 
-- Update `P:\\packages/yt-is/docs/operations/test-registry.md`.
-- Update `P:\\packages/yt-is/docs/operations/sharded-lane-series.md`.
-- If a new run becomes the leader, update `P:\\packages/yt-is/docs/operations/optimal-throughput-candidate-test-plan.md`.
+- Update `P:\\\\\\packages/yt-is/docs/operations/test-registry.md`.
+- Update `P:\\\\\\packages/yt-is/docs/operations/sharded-lane-series.md`.
+- If a new run becomes the leader, update `P:\\\\\\packages/yt-is/docs/operations/optimal-throughput-candidate-test-plan.md`.
 
 ## Stop Conditions
 

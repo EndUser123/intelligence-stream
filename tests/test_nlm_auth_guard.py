@@ -31,14 +31,73 @@ def test_add_profile_args_leaves_login_commands_unpinned(monkeypatch):
 
 def _browser_health_sample(*, default_pids=None, unexpected=None, chrome_process_count=0, chrome_rss_bytes_total=0):
     return {
-        "allowed_browser_roots": [r"P:\\.data\yt-is\browser\notebooklm-pro"],
+        "allowed_browser_roots": [r"P:\\\\\\.data\yt-is\browser\notebooklm-pro"],
         "allowed_profile_pid_count": 0,
-        "allowed_profile_pid_counts_by_root": {r"P:\\.data\yt-is\browser\notebooklm-pro": 0},
+        "allowed_profile_pid_counts_by_root": {r"P:\\\\\\.data\yt-is\browser\notebooklm-pro": 0},
         "chrome_process_count": chrome_process_count,
         "chrome_rss_bytes_total": chrome_rss_bytes_total,
         "default_profile_pids": list(default_pids or []),
         "unexpected_processes": list(unexpected or []),
     }
+
+
+def _escape_backslashes(path: str, count: int) -> str:
+    return path.replace("\\", "\\" * count)
+
+
+@pytest.mark.parametrize("slash_count", [2, 3, 4, 5])
+def test_normalize_cmdline_path_collapses_escaped_user_data_dir_backslashes(slash_count):
+    root = r"P:\\\.data\yt-is\browser\notebooklm-pro"
+    escaped_root = _escape_backslashes(root, slash_count)
+    cmdline = f"chrome.exe --type=renderer --user-data-dir={escaped_root} --lang=en-US"
+
+    assert root in nlm_auth_guard._normalize_cmdline_path(cmdline)
+
+
+def test_sample_browser_health_counts_escaped_allowed_profile_subprocess(monkeypatch):
+    root = r"P:\\\.data\yt-is\browser\notebooklm-pro"
+    escaped_root = _escape_backslashes(root, 4)
+    monkeypatch.setattr(
+        nlm_auth_guard,
+        "_collect_chrome_process_records",
+        lambda: [
+            {
+                "pid": 111,
+                "cmdline": f"chrome.exe --type=renderer --user-data-dir={escaped_root} --lang=en-US",
+                "rss_bytes": 100,
+            }
+        ],
+    )
+
+    report = nlm_auth_guard._sample_browser_health([Path(root)])
+
+    assert report["allowed_profile_pid_count"] == 1
+    assert report["allowed_profile_pid_counts_by_root"][str(Path(root))] == 1
+    assert report["default_profile_pids"] == []
+    assert report["unexpected_processes"] == []
+
+
+def test_sample_browser_health_counts_escaped_default_profile_subprocess(monkeypatch):
+    allowed_root = r"P:\\\.data\yt-is\browser\notebooklm-pro"
+    default_root = str(nlm_auth_guard.DEFAULT_NLM_CHROME_PROFILE_ROOT)
+    escaped_default_root = _escape_backslashes(default_root, 4)
+    monkeypatch.setattr(
+        nlm_auth_guard,
+        "_collect_chrome_process_records",
+        lambda: [
+            {
+                "pid": 222,
+                "cmdline": f"chrome.exe --type=utility --user-data-dir={escaped_default_root} --lang=en-US",
+                "rss_bytes": 100,
+            }
+        ],
+    )
+
+    report = nlm_auth_guard._sample_browser_health([Path(allowed_root)])
+
+    assert report["allowed_profile_pid_count"] == 0
+    assert report["default_profile_pids"] == [222]
+    assert report["unexpected_processes"] == []
 
 
 def test_browser_health_gate_passes_when_environment_is_clean(monkeypatch):
@@ -51,7 +110,7 @@ def test_browser_health_gate_passes_when_environment_is_clean(monkeypatch):
     )
 
     report = nlm_auth_guard.browser_health_gate(
-        [Path(r"P:\\.data\yt-is\browser\notebooklm-pro")],
+        [Path(r"P:\\\\\\.data\yt-is\browser\notebooklm-pro")],
         settle_window_s=0.0,
         sample_interval_s=0.0,
         clock=lambda: 0.0,
@@ -76,7 +135,7 @@ def test_browser_health_gate_marks_recovered_clean_after_default_profile_cleanup
     )
 
     report = nlm_auth_guard.browser_health_gate(
-        [Path(r"P:\\.data\yt-is\browser\notebooklm-pro")],
+        [Path(r"P:\\\\\\.data\yt-is\browser\notebooklm-pro")],
         settle_window_s=0.0,
         sample_interval_s=0.0,
         clock=lambda: 0.0,
@@ -104,7 +163,7 @@ def test_browser_health_gate_is_unhealthy_for_unexpected_chrome(monkeypatch):
     )
 
     report = nlm_auth_guard.browser_health_gate(
-        [Path(r"P:\\.data\yt-is\browser\notebooklm-pro")],
+        [Path(r"P:\\\\\\.data\yt-is\browser\notebooklm-pro")],
         settle_window_s=0.0,
         sample_interval_s=0.0,
         clock=lambda: 0.0,

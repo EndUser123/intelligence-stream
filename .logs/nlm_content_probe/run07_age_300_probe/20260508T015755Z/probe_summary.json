@@ -1,0 +1,84 @@
+{
+  "started_at": "2026-05-08T01:57:55.184482+00:00",
+  "finished_at": "2026-05-08T02:03:02.828924+00:00",
+  "output_root": "P:\\packages\\yt-is\\.logs\\nlm_content_probe\\run07_age_300_probe\\20260508T015755Z",
+  "profiles": [
+    "ytis-pro-worker-01"
+  ],
+  "video_ids": [
+    "L-Ztvsb3M0E"
+  ],
+  "notebooks": {
+    "ytis-pro-worker-01": "68581811-56f3-417d-8db6-e714fe780322"
+  },
+  "results": [
+    {
+      "profile": "ytis-pro-worker-01",
+      "notebook_id": "68581811-56f3-417d-8db6-e714fe780322",
+      "video_id": "L-Ztvsb3M0E",
+      "source_id": "59a91d18-f5f1-4243-9697-6aa8258d017e",
+      "video_duration_s": null,
+      "ytdlp_classification": "ok",
+      "add_result": {
+        "profile": "ytis-pro-worker-01",
+        "notebook_id": "68581811-56f3-417d-8db6-e714fe780322",
+        "video_id": "L-Ztvsb3M0E",
+        "url": "https://www.youtube.com/watch?v=L-Ztvsb3M0E",
+        "returncode": 0,
+        "stdout": "Adding https://www.youtube.com/watch?v=L-Ztvsb3M0E and waiting for processing...\n\u2713 Added source: How the Vegan Diet doesn't always serve athletes (ready)\nSource ID: 59a91d18-f5f1-4243-9697-6aa8258d017e\n",
+        "stderr": "",
+        "elapsed_s": 2.96,
+        "source_ids": [
+          "59a91d18-f5f1-4243-9697-6aa8258d017e"
+        ],
+        "source_id": "59a91d18-f5f1-4243-9697-6aa8258d017e"
+      },
+      "attempts": [
+        {
+          "profile": "ytis-pro-worker-01",
+          "source_id": "59a91d18-f5f1-4243-9697-6aa8258d017e",
+          "status": "ready",
+          "returncode": 0,
+          "content_length": 509,
+          "nlm_content_chars": 509,
+          "usable_text_chars": 509,
+          "stdout": "{\n  \"value\": {\n    \"content\": \"you know this push for a vegan diet at the Olympic level and for the average adult might not be the best idea you know first off protein is the building block for Muscle Recovery and overall performance when you're training at an Olympic level your body's protein demands are through the roof the same goes for anyone actively pursuing health and fitness goals including weight loss without adequate protein you simply cannot perform at your Peak whether that Peak is on the world stage or in your daily life \",\n    \"title\": \"How the Vegan Diet doesn't always serve athletes\",\n    \"source_type\": \"youtube\",\n    \"url\": null,\n    \"char_count\": 509\n  }\n}\n",
+          "stderr": "",
+          "started_at_epoch": 1778205481.300719,
+          "completed_at_epoch": 1778205482.007816,
+          "elapsed_s": 0.707,
+          "attempt_index": 1,
+          "scheduled_delay_s": 0,
+          "video_id": "L-Ztvsb3M0E",
+          "notebook_id": "68581811-56f3-417d-8db6-e714fe780322",
+          "video_duration_s": null,
+          "ytdlp_classification": "ok",
+          "ytdlp_available": true,
+          "ytdlp_availability": "public"
+        },
+        {
+          "profile": "ytis-pro-worker-01",
+          "source_id": "59a91d18-f5f1-4243-9697-6aa8258d017e",
+          "status": "ready",
+          "returncode": 0,
+          "content_length": 509,
+          "nlm_content_chars": 509,
+          "usable_text_chars": 509,
+          "stdout": "{\n  \"value\": {\n    \"content\": \"you know this push for a vegan diet at the Olympic level and for the average adult might not be the best idea you know first off protein is the building block for Muscle Recovery and overall performance when you're training at an Olympic level your body's protein demands are through the roof the same goes for anyone actively pursuing health and fitness goals including weight loss without adequate protein you simply cannot perform at your Peak whether that Peak is on the world stage or in your daily life \",\n    \"title\": \"How the Vegan Diet doesn't always serve athletes\",\n    \"source_type\": \"youtube\",\n    \"url\": null,\n    \"char_count\": 509\n  }\n}\n",
+          "stderr": "",
+          "started_at_epoch": 1778205782.0080543,
+          "completed_at_epoch": 1778205782.8288531,
+          "elapsed_s": 0.821,
+          "attempt_index": 2,
+          "scheduled_delay_s": 300,
+          "video_id": "L-Ztvsb3M0E",
+          "notebook_id": "68581811-56f3-417d-8db6-e714fe780322",
+          "video_duration_s": null,
+          "ytdlp_classification": "ok",
+          "ytdlp_available": true,
+          "ytdlp_availability": "public"
+        }
+      ]
+    }
+  ]
+}

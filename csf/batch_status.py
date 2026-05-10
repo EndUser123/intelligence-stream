@@ -101,7 +101,7 @@ _NEGATIVE_CACHE_DEFAULT_TTL_SECONDS = 86400
 _NEGATIVE_CACHE_TERMINAL_TTL_SECONDS = 3650 * 24 * 3600
 
 # Default DB path — separate from transcript cache and quota DBs
-_DEFAULT_DB_DIR = Path("P:\\.data/yt-is")
+_DEFAULT_DB_DIR = Path("P:\\\\\\.data/yt-is")
 _DEFAULT_DB_PATH = _DEFAULT_DB_DIR / "batch_status.sqlite"
 _DEFAULT_BACKUP_DIR = _DEFAULT_DB_DIR / "backups"
 

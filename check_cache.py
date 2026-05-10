@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import sqlite3
 
-db_path = 'P:\\.data/yt-is/transcripts/transcripts.sqlite'
+db_path = 'P:\\\\\\.data/yt-is/transcripts/transcripts.sqlite'
 conn = sqlite3.connect(db_path)
 
 # FIX: Ensure tables exist before querying (prevents empty database bug)

@@ -25,8 +25,8 @@ def test_load_lane_configs_requires_distinct_profile_and_state_namespaces(tmp_pa
                     "account_class": "pro",
                     "workers": 4,
                     "notebooklm_profile_prefix": "ytis-worker",
-                    "browser_profile_root": "P:\\.data/yt-is/browser/notebooklm-pro",
-                    "worker_state_root": "P:\\.logs/shards/pro/worker_states",
+                    "browser_profile_root": "P:\\\\\\.data/yt-is/browser/notebooklm-pro",
+                    "worker_state_root": "P:\\\\\\.logs/shards/pro/worker_states",
                     "notebook_prefix": "benchmark-shard-pro",
                 },
                 {
@@ -34,8 +34,8 @@ def test_load_lane_configs_requires_distinct_profile_and_state_namespaces(tmp_pa
                     "account_class": "free",
                     "workers": 4,
                     "notebooklm_profile_prefix": "ytis-worker",
-                    "browser_profile_root": "P:\\.data/yt-is/browser/notebooklm-free",
-                    "worker_state_root": "P:\\.logs/shards/free/worker_states",
+                    "browser_profile_root": "P:\\\\\\.data/yt-is/browser/notebooklm-free",
+                    "worker_state_root": "P:\\\\\\.logs/shards/free/worker_states",
                     "notebook_prefix": "benchmark-shard-free",
                 },
             ]
@@ -61,9 +61,9 @@ def test_load_lane_configs_accepts_same_browser_root_with_distinct_directories(t
                     "account_class": "pro",
                     "workers": 1,
                     "notebooklm_profiles": ["alt"],
-                    "browser_profile_root": "P:\\.data/yt-is/browser/notebooklm",
+                    "browser_profile_root": "P:\\\\\\.data/yt-is/browser/notebooklm",
                     "browser_profile_directory": "Profile 2",
-                    "worker_state_root": "P:\\.logs/shards/pro/worker_states",
+                    "worker_state_root": "P:\\\\\\.logs/shards/pro/worker_states",
                     "notebook_prefix": "benchmark-shard-pro",
                 },
                 {
@@ -71,9 +71,9 @@ def test_load_lane_configs_accepts_same_browser_root_with_distinct_directories(t
                     "account_class": "free",
                     "workers": 1,
                     "notebooklm_profiles": ["default"],
-                    "browser_profile_root": "P:\\.data/yt-is/browser/notebooklm",
+                    "browser_profile_root": "P:\\\\\\.data/yt-is/browser/notebooklm",
                     "browser_profile_directory": "Default",
-                    "worker_state_root": "P:\\.logs/shards/free/worker_states",
+                    "worker_state_root": "P:\\\\\\.logs/shards/free/worker_states",
                     "notebook_prefix": "benchmark-shard-free",
                 },
             ]
@@ -88,7 +88,7 @@ def test_load_lane_configs_accepts_same_browser_root_with_distinct_directories(t
 
 
 def test_pro_free_lane_config_uses_dedicated_browser_roots():
-    config_path = Path("P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json")
+    config_path = Path("P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json")
     lanes = load_lane_configs(config_path)
 
     assert len(lanes) == 2
@@ -100,8 +100,36 @@ def test_pro_free_lane_config_uses_dedicated_browser_roots():
     assert lanes[0].browser_profile_root != lanes[1].browser_profile_root
 
 
+def test_load_lane_configs_repairs_overescaped_windows_paths(tmp_path):
+    config_path = tmp_path / "lane_config.json"
+    config_path.write_text(
+        r"""[
+  {
+    "lane": "a_hominidae_pro",
+    "account_class": "pro",
+    "workers": 4,
+    "notebooklm_profile_prefix": "ytis-pro-worker",
+    "notebooklm_profiles": ["ytis-pro-worker-01", "ytis-pro-worker-02", "ytis-pro-worker-03", "ytis-pro-worker-04"],
+    "browser_profile_root": "P:\\\\\\.data\\yt-is\\browser\\notebooklm-pro",
+    "browser_profile_directory": "Profile",
+    "worker_state_root": "P:\\\\\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states",
+    "notebook_prefix": "benchmark-shard-a-hominidae-pro"
+  }
+]""",
+        encoding="utf-8",
+    )
+
+    lanes = load_lane_configs(config_path)
+
+    assert len(lanes) == 1
+    assert str(lanes[0].browser_profile_root) == r"P:\.data\yt-is\browser\notebooklm-pro"
+    assert str(lanes[0].worker_state_root).replace("\\", "/").endswith(
+        "sharded_lane_series/a_hominidae_pro/worker_states"
+    )
+
+
 def test_pro_free_hotmail_lane_config_includes_second_free_account():
-    config_path = Path("P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_hotmail_lanes.json")
+    config_path = Path("P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_hotmail_lanes.json")
     lanes = load_lane_configs(config_path)
 
     assert len(lanes) == 3
@@ -119,7 +147,7 @@ def test_pro_free_hotmail_lane_config_includes_second_free_account():
 
 
 def test_free_only_lane_config_uses_free_account_route():
-    config_path = Path("P:\\packages/yt-is/.logs/sharded_lane_series/free_only_lanes.json")
+    config_path = Path("P:\\\\\\packages/yt-is/.logs/sharded_lane_series/free_only_lanes.json")
     (lane,) = load_lane_configs(config_path)
 
     assert lane.lane == "troup_hominidae_free"
@@ -146,8 +174,8 @@ def test_load_lane_configs_accepts_explicit_expected_email(tmp_path):
                     "notebooklm_profile_prefix": "ytis-future-worker",
                     "notebooklm_profiles": ["ytis-future-worker-01"],
                     "expected_email": "future.account@example.com",
-                    "browser_profile_root": "P:\\.data/yt-is/browser/notebooklm-future",
-                    "worker_state_root": "P:\\.logs/shards/future/worker_states",
+                    "browser_profile_root": "P:\\\\\\.data/yt-is/browser/notebooklm-future",
+                    "worker_state_root": "P:\\\\\\.logs/shards/future/worker_states",
                     "notebook_prefix": "benchmark-shard-future",
                 }
             ]
@@ -210,8 +238,8 @@ def test_preflight_lane_auth_profiles_refreshes_expired_profile_before_run(monke
                 workers=1,
                 notebooklm_profile_prefix="ytis-free1-worker",
                 notebooklm_profiles=("ytis-free1-worker-01",),
-                browser_profile_root=Path("P:\\.data/yt-is/browser/notebooklm-free"),
-                worker_state_root=Path("P:\\.logs/shards/free/worker_states"),
+                browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-free"),
+                worker_state_root=Path("P:\\\\\\.logs/shards/free/worker_states"),
                 notebook_prefix="benchmark-shard-free",
             ),
         )
@@ -262,8 +290,8 @@ def test_preflight_lane_auth_profiles_refreshes_wrong_account_before_run(monkeyp
                 workers=1,
                 notebooklm_profile_prefix="ytis-free1-worker",
                 notebooklm_profiles=("ytis-free1-worker-01",),
-                browser_profile_root=Path("P:\\.data/yt-is/browser/notebooklm-free"),
-                worker_state_root=Path("P:\\.logs/shards/free/worker_states"),
+                browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-free"),
+                worker_state_root=Path("P:\\\\\\.logs/shards/free/worker_states"),
                 notebook_prefix="benchmark-shard-free",
             ),
         )
@@ -297,8 +325,8 @@ def test_preflight_lane_auth_profiles_rejects_profile_when_refresh_fails(monkeyp
                     workers=1,
                     notebooklm_profile_prefix="ytis-free1-worker",
                     notebooklm_profiles=("ytis-free1-worker-01",),
-                    browser_profile_root=Path("P:\\.data/yt-is/browser/notebooklm-free"),
-                    worker_state_root=Path("P:\\.logs/shards/free/worker_states"),
+                    browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-free"),
+                    worker_state_root=Path("P:\\\\\\.logs/shards/free/worker_states"),
                     notebook_prefix="benchmark-shard-free",
                 ),
             )
@@ -336,8 +364,8 @@ def test_preflight_lane_auth_profiles_stops_default_profile_before_checks(monkey
                 workers=1,
                 notebooklm_profile_prefix="ytis-free1-worker",
                 notebooklm_profiles=("ytis-free1-worker-01",),
-                browser_profile_root=Path("P:\\.data/yt-is/browser/notebooklm-free"),
-                worker_state_root=Path("P:\\.logs/shards/free/worker_states"),
+                browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-free"),
+                worker_state_root=Path("P:\\\\\\.logs/shards/free/worker_states"),
                 notebook_prefix="benchmark-shard-free",
             ),
         )
@@ -366,8 +394,8 @@ def test_preflight_lane_auth_profiles_accepts_explicit_expected_email_for_unmapp
                 notebooklm_profile_prefix="ytis-future-worker",
                 notebooklm_profiles=("ytis-future-worker-01",),
                 expected_email="future.account@example.com",
-                browser_profile_root=Path("P:\\.data/yt-is/browser/notebooklm-future"),
-                worker_state_root=Path("P:\\.logs/shards/future/worker_states"),
+                browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-future"),
+                worker_state_root=Path("P:\\\\\\.logs/shards/future/worker_states"),
                 notebook_prefix="benchmark-shard-future",
             ),
         )
@@ -388,8 +416,8 @@ def test_preflight_lane_auth_profiles_rejects_unmapped_profile_without_expected_
                     workers=1,
                     notebooklm_profile_prefix="ytis-future-worker",
                     notebooklm_profiles=("ytis-future-worker-01",),
-                    browser_profile_root=Path("P:\\.data/yt-is/browser/notebooklm-future"),
-                    worker_state_root=Path("P:\\.logs/shards/future/worker_states"),
+                    browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-future"),
+                    worker_state_root=Path("P:\\\\\\.logs/shards/future/worker_states"),
                     notebook_prefix="benchmark-shard-future",
                 ),
             )
@@ -454,7 +482,7 @@ def test_run_sharded_lane_series_passes_isolated_lane_env(tmp_path, monkeypatch)
                 workers=4,
                 notebooklm_profile_prefix="ytis-pro-worker",
                 notebooklm_profiles=("alt", "ytis-pro-worker-02", "ytis-pro-worker-03", "ytis-pro-worker-04"),
-                browser_profile_root=Path("P:\\.data/yt-is/browser/notebooklm-pro"),
+                browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-pro"),
                 browser_profile_directory="Profile 2",
                 worker_state_root=tmp_path / "pro" / "worker_states",
                 notebook_prefix="benchmark-shard-pro",
@@ -465,7 +493,7 @@ def test_run_sharded_lane_series_passes_isolated_lane_env(tmp_path, monkeypatch)
                 workers=4,
                 notebooklm_profile_prefix="ytis-free1-worker",
                 notebooklm_profiles=("default", "ytis-free1-worker-02", "ytis-free1-worker-03", "ytis-free1-worker-04"),
-                browser_profile_root=Path("P:\\.data/yt-is/browser/notebooklm-free"),
+                browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-free"),
                 browser_profile_directory="Profile 1",
                 worker_state_root=tmp_path / "free" / "worker_states",
                 notebook_prefix="benchmark-shard-free",
@@ -478,7 +506,7 @@ def test_run_sharded_lane_series_passes_isolated_lane_env(tmp_path, monkeypatch)
         policy="notebooklm_route_plus_fallback_30s_1w",
         limit=400,
         batch_size=200,
-        manifest_json=Path("P:\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
+        manifest_json=Path("P:\\\\\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
         reusable_pipeline_mode="serial",
     )
 
@@ -488,7 +516,7 @@ def test_run_sharded_lane_series_passes_isolated_lane_env(tmp_path, monkeypatch)
     assert calls[0]["env"]["YTIS_INDUSTRIAL_WORKER_NOTEBOOK_PREFIX"] == "benchmark-shard-pro"
     assert calls[0]["env"]["YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILE_PREFIX"] == "ytis-pro-worker"
     assert calls[0]["env"]["YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILES"] == "alt,ytis-pro-worker-02,ytis-pro-worker-03,ytis-pro-worker-04"
-    assert calls[0]["env"]["YTIS_NLM_BROWSER_PROFILE_ROOT"] == "P:\\\.data\\yt-is\\browser\\notebooklm-pro"
+    assert calls[0]["env"]["YTIS_NLM_BROWSER_PROFILE_ROOT"] == str(Path(r"P:\.data\yt-is\browser\notebooklm-pro"))
     assert calls[0]["env"]["YTIS_NLM_BROWSER_PROFILE_DIRECTORY"] == "Profile 2"
     assert calls[0]["env"]["YTIS_BATCH_STATUS_DB_PATH"].endswith("out\\pro\\batch_status.sqlite")
     assert calls[0]["env"]["YTIS_NLM_AUTH_NONINTERACTIVE"] == "1"
@@ -497,7 +525,7 @@ def test_run_sharded_lane_series_passes_isolated_lane_env(tmp_path, monkeypatch)
     assert calls[1]["env"]["YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILE_PREFIX"] == "ytis-free1-worker"
     assert calls[1]["env"]["YTIS_INDUSTRIAL_WORKER_NOTEBOOKLM_PROFILES"] == "default,ytis-free1-worker-02,ytis-free1-worker-03,ytis-free1-worker-04"
     assert calls[1]["env"]["INTELLIGENCE_STREAM_LOG_DIR"].endswith("out\\free\\logs")
-    assert calls[1]["env"]["YTIS_NLM_BROWSER_PROFILE_ROOT"] == "P:\\\.data\\yt-is\\browser\\notebooklm-free"
+    assert calls[1]["env"]["YTIS_NLM_BROWSER_PROFILE_ROOT"] == str(Path(r"P:\.data\yt-is\browser\notebooklm-free"))
     assert calls[1]["env"]["YTIS_NLM_BROWSER_PROFILE_DIRECTORY"] == "Profile 1"
     assert calls[1]["env"]["YTIS_BATCH_STATUS_DB_PATH"].endswith("out\\free\\batch_status.sqlite")
     assert calls[1]["env"]["YTIS_NLM_AUTH_NONINTERACTIVE"] == "1"
@@ -528,7 +556,7 @@ def test_run_sharded_lane_series_clears_stale_summary_before_run(tmp_path, monke
                 workers=1,
                 notebooklm_profile_prefix="ytis-pro-worker",
                 notebooklm_profiles=("ytis-pro-worker-01",),
-                browser_profile_root=Path("P:\\.data/yt-is/browser/notebooklm-pro"),
+                browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-pro"),
                 worker_state_root=tmp_path / "pro" / "worker_states",
                 notebook_prefix="benchmark-shard-pro",
             ),
@@ -540,7 +568,7 @@ def test_run_sharded_lane_series_clears_stale_summary_before_run(tmp_path, monke
         policy="notebooklm_route_plus_fallback_30s_1w",
         limit=1,
         batch_size=1,
-        manifest_json=Path("P:\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
+        manifest_json=Path("P:\\\\\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
         reusable_pipeline_mode="serial",
     )
 
@@ -593,7 +621,7 @@ def test_run_sharded_lane_series_preserves_previous_summary_if_write_fails(tmp_p
                     workers=1,
                     notebooklm_profile_prefix="ytis-pro-worker",
                     notebooklm_profiles=("ytis-pro-worker-01",),
-                    browser_profile_root=Path("P:\\.data/yt-is/browser/notebooklm-pro"),
+                    browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-pro"),
                     worker_state_root=tmp_path / "pro" / "worker_states",
                     notebook_prefix="benchmark-shard-pro",
                 ),
@@ -605,7 +633,7 @@ def test_run_sharded_lane_series_preserves_previous_summary_if_write_fails(tmp_p
             policy="notebooklm_route_plus_fallback_30s_1w",
             limit=1,
             batch_size=1,
-            manifest_json=Path("P:\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
+            manifest_json=Path("P:\\\\\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
             reusable_pipeline_mode="serial",
         )
     except OSError as exc:
@@ -626,7 +654,7 @@ def test_run_lane_stops_default_profile_before_launching(tmp_path, monkeypatch):
         workers=1,
         notebooklm_profile_prefix="ytis-free1-worker",
         notebooklm_profiles=("ytis-free1-worker-01",),
-        browser_profile_root=Path("P:\\.data/yt-is/browser/notebooklm-free"),
+        browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-free"),
         worker_state_root=tmp_path / "free" / "worker_states",
         notebook_prefix="benchmark-shard-free",
     )
@@ -704,7 +732,7 @@ def test_run_lane_stops_default_profile_before_launching(tmp_path, monkeypatch):
         policy=DEFAULT_POLICY,
         limit=1,
         batch_size=1,
-        manifest_json=Path("P:\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
+        manifest_json=Path("P:\\\\\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
         python_executable=None,
         reusable_pipeline_mode="serial",
         env={},
@@ -730,7 +758,7 @@ def test_run_lane_rejects_default_profile_contaminated_logs(tmp_path, monkeypatc
         workers=1,
         notebooklm_profile_prefix="ytis-free1-worker",
         notebooklm_profiles=("ytis-free1-worker-01",),
-        browser_profile_root=Path("P:\\.data/yt-is/browser/notebooklm-free"),
+        browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-free"),
         worker_state_root=tmp_path / "free" / "worker_states",
         notebook_prefix="benchmark-shard-free",
     )
@@ -809,7 +837,7 @@ def test_run_lane_rejects_default_profile_contaminated_logs(tmp_path, monkeypatc
             policy=DEFAULT_POLICY,
             limit=1,
             batch_size=1,
-            manifest_json=Path("P:\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
+            manifest_json=Path("P:\\\\\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
             python_executable=None,
             reusable_pipeline_mode="serial",
             env={},
@@ -889,7 +917,7 @@ def test_main_refuses_to_start_when_doctor_fails(tmp_path, monkeypatch):
                     "workers": 1,
                     "notebooklm_profile_prefix": "ytis-free1-worker",
                     "notebooklm_profiles": ["ytis-free1-worker-01"],
-                    "browser_profile_root": "P:\\.data/yt-is/browser/notebooklm-free",
+                    "browser_profile_root": "P:\\\\\\.data/yt-is/browser/notebooklm-free",
                     "browser_profile_directory": "Default",
                     "worker_state_root": str(tmp_path / "worker_states"),
                     "notebook_prefix": "benchmark-shard-free",
@@ -929,7 +957,7 @@ def test_main_returns_nonzero_for_invalidated_report(tmp_path, monkeypatch):
             workers=1,
             notebooklm_profile_prefix="ytis-free1-worker",
             notebooklm_profiles=("ytis-free1-worker-01",),
-            browser_profile_root=Path("P:\\.data/yt-is/browser/notebooklm-free"),
+            browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-free"),
             worker_state_root=tmp_path / "worker_states",
             notebook_prefix="benchmark-shard-free",
         ),
@@ -977,7 +1005,7 @@ def test_main_reports_versioned_invalidated_summary(tmp_path, monkeypatch):
             workers=1,
             notebooklm_profile_prefix="ytis-free1-worker",
             notebooklm_profiles=("ytis-free1-worker-01",),
-            browser_profile_root=Path("P:\\.data/yt-is/browser/notebooklm-free"),
+            browser_profile_root=Path("P:\\\\\\.data/yt-is/browser/notebooklm-free"),
             worker_state_root=tmp_path / "worker_states",
             notebook_prefix="benchmark-shard-free",
         ),

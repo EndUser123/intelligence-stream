@@ -7,7 +7,7 @@ from unittest import mock
 
 
 # Ensure the package is importable
-sys.path.insert(0, str(Path(r"P:\\\packages\\yt-is").absolute()))
+sys.path.insert(0, str(Path(r"P:\\\\\\\packages\\yt-is").absolute()))
 
 from csf.clip_client import tag_frames, DEFAULT_CANDIDATE_LABELS
 

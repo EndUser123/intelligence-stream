@@ -12,16 +12,16 @@
 
 ## File Structure
 
-- Modify: `P:\\packages/yt-is/csf/breadth_series.py`
+- Modify: `P:\\\\\\packages/yt-is/csf/breadth_series.py`
   - add reusable pipeline mode support to benchmark command execution and aggregation
-- Modify: `P:\\packages/yt-is/tests/test_breadth_series.py`
+- Modify: `P:\\\\\\packages/yt-is/tests/test_breadth_series.py`
   - cover serial vs double-buffered comparison metadata
-- Modify: `P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
+- Modify: `P:\\\\\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
   - record completed phase results
-- Modify: `P:\\packages/yt-is/docs/operations/test-registry.md`
+- Modify: `P:\\\\\\packages/yt-is/docs/operations/test-registry.md`
   - mark phase outcomes as `proven`, `negative`, or `pending`
 
-No direct Phase 1 change is expected in `P:\\packages/yt-is/csf/load_ladder.py` or `P:\\packages/yt-is/bin/csf-fallback-crossover-benchmark`; the pipeline-mode comparison is owned by `csf/breadth_series.py`.
+No direct Phase 1 change is expected in `P:\\\\\\packages/yt-is/csf/load_ladder.py` or `P:\\\\\\packages/yt-is/bin/csf-fallback-crossover-benchmark`; the pipeline-mode comparison is owned by `csf/breadth_series.py`.
 
 Do not modify Whisper admission behavior as part of this plan. Do not count Whisper recovery in sustained throughput.
 
@@ -30,8 +30,8 @@ Do not modify Whisper admission behavior as part of this plan. Do not count Whis
 ## Task 1: Add pipeline-mode support to the benchmark series
 
 **Files:**
-- Modify: `P:\\packages/yt-is/csf/breadth_series.py`
-- Test: `P:\\packages/yt-is/tests/test_breadth_series.py`
+- Modify: `P:\\\\\\packages/yt-is/csf/breadth_series.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_breadth_series.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -114,8 +114,8 @@ Expected: pass.
 ## Task 2: Preserve pipeline env through benchmark command execution
 
 **Files:**
-- Modify: `P:\\packages/yt-is/csf/breadth_series.py`
-- Test: `P:\\packages/yt-is/tests/test_breadth_series.py`
+- Modify: `P:\\\\\\packages/yt-is/csf/breadth_series.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_breadth_series.py`
 
 - [ ] **Step 1: Write the failing env propagation test**
 
@@ -207,8 +207,8 @@ Expected: pass.
 ## Task 3: Add the serial-vs-double-buffered comparison runner
 
 **Files:**
-- Modify: `P:\\packages/yt-is/csf/breadth_series.py`
-- Test: `P:\\packages/yt-is/tests/test_breadth_series.py`
+- Modify: `P:\\\\\\packages/yt-is/csf/breadth_series.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_breadth_series.py`
 
 - [ ] **Step 1: Write the failing comparison test**
 
@@ -295,9 +295,9 @@ Expected: pass.
 ## Task 4: Add CLI support for the comparison
 
 **Files:**
-- Modify: `P:\\packages/yt-is/csf/breadth_series.py`
-- Modify: `P:\\packages/yt-is/bin/csf-breadth-series`
-- Test: `P:\\packages/yt-is/tests/test_breadth_series.py`
+- Modify: `P:\\\\\\packages/yt-is/csf/breadth_series.py`
+- Modify: `P:\\\\\\packages/yt-is/bin/csf-breadth-series`
+- Test: `P:\\\\\\packages/yt-is/tests/test_breadth_series.py`
 
 - [ ] **Step 1: Add CLI parser coverage**
 
@@ -345,7 +345,7 @@ Expected: help text includes `--comparison` and `--pipeline-modes`.
 ## Task 5: Run Phase 1 live validation
 
 **Files:**
-- Output: `P:\\packages/yt-is/.logs/pipeline_mode_comparison_v1/pipeline_mode_comparison_summary.json`
+- Output: `P:\\\\\\packages/yt-is/.logs/pipeline_mode_comparison_v1/pipeline_mode_comparison_summary.json`
 
 - [ ] **Step 1: Run the comparison**
 
@@ -395,8 +395,8 @@ Decision:
 ## Task 6: Document Phase 1 result
 
 **Files:**
-- Modify: `P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
-- Modify: `P:\\packages/yt-is/docs/operations/test-registry.md`
+- Modify: `P:\\\\\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
+- Modify: `P:\\\\\\packages/yt-is/docs/operations/test-registry.md`
 
 - [ ] **Step 1: Update the run sheet**
 
@@ -405,7 +405,7 @@ Add a section under the throughput conclusions:
 ```markdown
 ### Pipeline Mode Comparison
 
-- Artifact: `P:\\packages/yt-is/.logs/pipeline_mode_comparison_v1/pipeline_mode_comparison_summary.json`
+- Artifact: `P:\\\\\\packages/yt-is/.logs/pipeline_mode_comparison_v1/pipeline_mode_comparison_summary.json`
 - Control: serial reusable path, `4` workers, `--batch-size 200`, narrow/captioned cohort
 - Candidate: double-buffered reusable path
 - Hot-path vph excludes Whisper recovery.
@@ -452,8 +452,8 @@ Expected:
 
 **Files:**
 - Modify only after Phase 1 shows source-add failures:
-  - `P:\\packages/yt-is/csf/nlm_batch.py`
-  - `P:\\packages/yt-is/dev/worker_pool/worker_main.py`
+  - `P:\\\\\\packages/yt-is/csf/nlm_batch.py`
+  - `P:\\\\\\packages/yt-is/dev/worker_pool/worker_main.py`
   - relevant tests
 
 - [ ] **Step 1: Identify the failure signature**
@@ -542,7 +542,7 @@ $CLAUDE_PLUGIN_ROOT/.logs\pipeline_mode_comparison_v1\pipeline_mode_comparison_s
 
 The double-buffered worker path already has a smoke result:
 
-- `P:\\packages/yt-is/.logs/double_buffered_smoke4/result.json`
+- `P:\\\\\\packages/yt-is/.logs/double_buffered_smoke4/result.json`
 - `pipeline_strategy = double_buffered_reusable`
 - `stage_swap_count_total = 1`
 - `staging_overlap_elapsed_s_total = 173.56`

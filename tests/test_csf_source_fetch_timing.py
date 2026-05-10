@@ -1432,7 +1432,7 @@ def test_cmd_fetch_logs_worker_prewarm_summary_before_dispatch(tmp_path):
                         "batch_elapsed_s_total": 25.75,
                         "status": "ok",
                         "returncode": 0,
-                        "state_path": "P:\\.data/yt-is/industrial-worker-states/worker-01.json",
+                        "state_path": "P:\\\\\\.data/yt-is/industrial-worker-states/worker-01.json",
                         "notebook_title": "yt-is-worker-01",
                     }
                 ),

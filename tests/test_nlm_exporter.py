@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 from unittest import mock
 
-sys.path.insert(0, str(Path(r"P:\\\packages\\yt-is").absolute()))
+sys.path.insert(0, str(Path(r"P:\\\\\\\packages\\yt-is").absolute()))
 
 from csf.nlm_exporter import (
     build_composites,

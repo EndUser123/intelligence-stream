@@ -236,7 +236,7 @@ def test_default_pro_family_uses_signed_in_pro_chrome_profile():
 
     assert pro_family.source_profile == "ytis-pro-worker-01"
     assert pro_family.expected_email == "a.hominidae@gmail.com"
-    assert pro_family.cdp_browser_root == r"P:\\.data\yt-is\browser\notebooklm-pro"
+    assert pro_family.cdp_browser_root == r"P:\\\\\\.data\yt-is\browser\notebooklm-pro"
     assert pro_family.cdp_browser_profile_directory == "Profile"
 
 
@@ -486,21 +486,21 @@ def test_worker_auth_cli_sync_uses_real_nlm_process_for_force_recovery(tmp_path)
     _write_profile(root, "ytis-free2-worker-04", "brsthomson@hotmail.com", "stale-free2")
 
     env = os.environ.copy()
-    env["PYTHONPATH"] = "P:\\\packages\\yt-is"
+    env["PYTHONPATH"] = "P:\\\\\\\packages\\yt-is"
     env["YTIS_NLM_CLI"] = str(bin_dir / ("nlm.cmd" if os.name == "nt" else "nlm"))
     env["YTIS_FAKE_NLM_PROFILE_ROOT"] = str(root)
     env["YTIS_NLM_WORKER_AUTH_USE_CDP"] = "0"
     result = subprocess.run(
         [
             sys.executable,
-            "P:\\packages/yt-is/bin/csf-nlm-worker-auth",
+            "P:\\\\\\packages/yt-is/bin/csf-nlm-worker-auth",
             "--profile-root",
             str(root),
             "sync",
         ],
         capture_output=True,
         text=True,
-        cwd="P:\\packages/yt-is",
+        cwd="P:\\\\\\packages/yt-is",
         env=env,
         timeout=30,
         check=False,
@@ -558,21 +558,21 @@ def test_worker_auth_cli_snapshot_and_restore_round_trip(tmp_path):
     valid_marker.write_text(json.dumps(nlm_worker_auth.iter_worker_profiles()), encoding="utf-8")
     _write_fake_nlm_executable(bin_dir, log_path, valid_marker)
     env = os.environ.copy()
-    env["PYTHONPATH"] = "P:\\\packages\\yt-is"
+    env["PYTHONPATH"] = "P:\\\\\\\packages\\yt-is"
     env["YTIS_NLM_CLI"] = str(bin_dir / ("nlm.cmd" if os.name == "nt" else "nlm"))
     env["YTIS_FAKE_NLM_PROFILE_ROOT"] = str(root)
 
     snapshot_result = subprocess.run(
         [
             sys.executable,
-            "P:\\packages/yt-is/bin/csf-nlm-worker-auth",
+            "P:\\\\\\packages/yt-is/bin/csf-nlm-worker-auth",
             "--profile-root",
             str(root),
             "snapshot",
         ],
         capture_output=True,
         text=True,
-        cwd="P:\\packages/yt-is",
+        cwd="P:\\\\\\packages/yt-is",
         env=env,
         timeout=30,
         check=False,
@@ -584,7 +584,7 @@ def test_worker_auth_cli_snapshot_and_restore_round_trip(tmp_path):
     restore_result = subprocess.run(
         [
             sys.executable,
-            "P:\\packages/yt-is/bin/csf-nlm-worker-auth",
+            "P:\\\\\\packages/yt-is/bin/csf-nlm-worker-auth",
             "--profile-root",
             str(root),
             "--skip-check",
@@ -592,7 +592,7 @@ def test_worker_auth_cli_snapshot_and_restore_round_trip(tmp_path):
         ],
         capture_output=True,
         text=True,
-        cwd="P:\\packages/yt-is",
+        cwd="P:\\\\\\packages/yt-is",
         env=env,
         timeout=30,
         check=False,

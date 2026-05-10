@@ -14,25 +14,25 @@
 
 The implementation should stay small and focused:
 
-- `P:\\packages/yt-is/csf/nlm_batch.py`
+- `P:\\\\\\packages/yt-is/csf/nlm_batch.py`
   - add the double-buffered reusable pipeline wrapper and the stage metrics it needs
-- `P:\\packages/yt-is/csf/nlm_config.py`
+- `P:\\\\\\packages/yt-is/csf/nlm_config.py`
   - add one config flag only if the wrapper needs a runtime knob
-- `P:\\packages/yt-is/csf/load_ladder.py`
+- `P:\\\\\\packages/yt-is/csf/load_ladder.py`
   - carry a comparison mode through the benchmark command builder if needed
-- `P:\\packages/yt-is/bin/csf-breadth-series`
+- `P:\\\\\\packages/yt-is/bin/csf-breadth-series`
   - add a switch so the breadth/scaling runner can compare serial vs double-buffered reusable paths
-- `P:\\packages/yt-is/bin/csf-fallback-crossover-benchmark`
+- `P:\\\\\\packages/yt-is/bin/csf-fallback-crossover-benchmark`
   - keep the existing serial reusable path available for direct comparison
-- `P:\\packages/yt-is/tests/test_nlm_batch.py`
+- `P:\\\\\\packages/yt-is/tests/test_nlm_batch.py`
   - cover the new wrapper and the stage-swap / fallback behavior
-- `P:\\packages/yt-is/tests/test_nlm_config.py`
+- `P:\\\\\\packages/yt-is/tests/test_nlm_config.py`
   - cover any new config default if one is introduced
-- `P:\\packages/yt-is/tests/test_breadth_series.py`
+- `P:\\\\\\packages/yt-is/tests/test_breadth_series.py`
   - cover the comparison shape if the series runner is extended
-- `P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
+- `P:\\\\\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
   - record the benchmark result after the run
-- `P:\\packages/yt-is/docs/operations/test-registry.md`
+- `P:\\\\\\packages/yt-is/docs/operations/test-registry.md`
   - mark the comparison as proven or negative after the run
 
 ---
@@ -40,7 +40,7 @@ The implementation should stay small and focused:
 ## Task 1: Write the failing tests for the double-buffered wrapper
 
 **Files:**
-- Modify: `P:\\packages/yt-is/tests/test_nlm_batch.py`
+- Modify: `P:\\\\\\packages/yt-is/tests/test_nlm_batch.py`
 
 - [ ] **Step 1: Add a focused test for stage swapping**
 
@@ -88,7 +88,7 @@ Expected:
 ## Task 2: Implement the bounded double-buffered reusable wrapper
 
 **Files:**
-- Modify: `P:\\packages/yt-is/csf/nlm_batch.py`
+- Modify: `P:\\\\\\packages/yt-is/csf/nlm_batch.py`
 
 - [ ] **Step 1: Extract the reusable serial path as the fallback control**
 
@@ -143,7 +143,7 @@ The selector should default to the existing serial path unless the benchmark exp
 Run:
 ```powershell
 python -m pytest tests/test_nlm_batch.py -q -k "double_buffered"
-python -m py_compile P:\\packages/yt-is/csf/nlm_batch.py
+python -m py_compile P:\\\\\\packages/yt-is/csf/nlm_batch.py
 ```
 
 Expected:
@@ -155,9 +155,9 @@ Expected:
 ## Task 3: Wire the comparison into the benchmark series
 
 **Files:**
-- Modify: `P:\\packages/yt-is/csf/breadth_series.py`
-- Modify: `P:\\packages/yt-is/bin/csf-breadth-series`
-- Modify: `P:\\packages/yt-is/tests/test_breadth_series.py`
+- Modify: `P:\\\\\\packages/yt-is/csf/breadth_series.py`
+- Modify: `P:\\\\\\packages/yt-is/bin/csf-breadth-series`
+- Modify: `P:\\\\\\packages/yt-is/tests/test_breadth_series.py`
 
 - [ ] **Step 1: Add a comparison-mode test**
 
@@ -185,7 +185,7 @@ The series should still choose the winning breadth tier the same way as before. 
 Run:
 ```powershell
 python -m pytest tests/test_breadth_series.py -q
-python -m py_compile P:\\packages/yt-is/csf/breadth_series.py P:\\packages/yt-is/bin/csf-breadth-series
+python -m py_compile P:\\\\\\packages/yt-is/csf/breadth_series.py P:\\\\\\packages/yt-is/bin/csf-breadth-series
 ```
 
 Expected:
@@ -197,8 +197,8 @@ Expected:
 ## Task 4: Run the validation benchmark and record the result
 
 **Files:**
-- Modify: `P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
-- Modify: `P:\\packages/yt-is/docs/operations/test-registry.md`
+- Modify: `P:\\\\\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
+- Modify: `P:\\\\\\packages/yt-is/docs/operations/test-registry.md`
 
 - [ ] **Step 1: Run the fixed validation cohort**
 

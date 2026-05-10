@@ -18,7 +18,7 @@ from csf.youtube_page_inspector import inspect_youtube_watch_page_via_ytdlp
 
 _NLM_CONTENT_READY_THRESHOLD = 100
 _DEFAULT_RETRY_DELAYS_S = (0, 30, 60, 120)
-_DEFAULT_OUTPUT_ROOT = Path("P:\\packages/yt-is/.logs/nlm_content_probe")
+_DEFAULT_OUTPUT_ROOT = Path("P:\\\\\\packages/yt-is/.logs/nlm_content_probe")
 
 
 def _parse_source_ids(stdout: str) -> list[str]:
@@ -143,6 +143,7 @@ class ProbeVideoResult:
     video_duration_s: int | None
     ytdlp_classification: str | None
     add_result: dict[str, Any]
+    preloads: list[dict[str, Any]]
     attempts: list[dict[str, Any]]
 
 
@@ -152,6 +153,9 @@ def run_probe(
     *,
     output_root: Path = _DEFAULT_OUTPUT_ROOT,
     retry_delays_s: tuple[int, ...] = _DEFAULT_RETRY_DELAYS_S,
+    continue_after_ready: bool = False,
+    preload_video_ids: list[str] | None = None,
+    target_video_id: str | None = None,
 ) -> dict[str, Any]:
     started_at = datetime.now(timezone.utc)
     run_dir = output_root / started_at.strftime("%Y%m%dT%H%M%SZ")
@@ -162,10 +166,28 @@ def run_probe(
         notebook_name = f"yt-is-content-probe-{profile}-{started_at.strftime('%Y%m%d-%H%M%S')}"
         notebooks[profile] = _create_probe_notebook(profile, notebook_name)
 
+    probe_video_ids = [target_video_id] if target_video_id else list(video_ids)
+    preload_video_ids = list(preload_video_ids or [])
+
     def _run_profile(profile: str) -> list[dict[str, Any]]:
         profile_results: list[dict[str, Any]] = []
         notebook_id = notebooks[profile]
-        for video_id in video_ids:
+        preloads: list[dict[str, Any]] = []
+        for preload_video_id in preload_video_ids:
+            preload_probe = inspect_youtube_watch_page_via_ytdlp(preload_video_id)
+            preload_add_result = _add_video_source(profile, notebook_id, preload_video_id)
+            preloads.append(
+                {
+                    "profile": profile,
+                    "video_id": preload_video_id,
+                    "source_id": preload_add_result.get("source_id"),
+                    "add_result": preload_add_result,
+                    "ytdlp_classification": preload_probe.get("classification"),
+                    "ytdlp_available": preload_probe.get("available"),
+                    "ytdlp_availability": preload_probe.get("availability"),
+                }
+            )
+        for video_id in probe_video_ids:
             ytdlp_probe = inspect_youtube_watch_page_via_ytdlp(video_id)
             duration = ytdlp_probe.get("duration")
             add_result = _add_video_source(profile, notebook_id, video_id)
@@ -190,7 +212,7 @@ def run_probe(
                         }
                     )
                     attempts.append(attempt)
-                    if attempt["status"] == "ready":
+                    if attempt["status"] == "ready" and not continue_after_ready:
                         break
             profile_results.append(
                 asdict(
@@ -202,6 +224,7 @@ def run_probe(
                         video_duration_s=duration if isinstance(duration, int) else None,
                         ytdlp_classification=str(ytdlp_probe.get("classification") or None),
                         add_result=add_result,
+                        preloads=preloads,
                         attempts=attempts,
                     )
                 )
@@ -216,7 +239,9 @@ def run_probe(
         "finished_at": datetime.now(timezone.utc).isoformat(),
         "output_root": str(run_dir),
         "profiles": profiles,
-        "video_ids": video_ids,
+        "video_ids": probe_video_ids,
+        "preload_video_ids": preload_video_ids,
+        "target_video_id": target_video_id,
         "notebooks": notebooks,
         "results": results,
     }
@@ -231,6 +256,29 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run a targeted NotebookLM source-content probe.")
     parser.add_argument("--profile", action="append", dest="profiles", required=True, help="NotebookLM profile to use. Repeat for multiple profiles.")
     parser.add_argument("--video-id", action="append", dest="video_ids", required=True, help="YouTube video ID to probe. Repeat for multiple videos.")
+    parser.add_argument(
+        "--preload-video-id",
+        action="append",
+        dest="preload_video_ids",
+        help="Video ID to add before the target probe, to simulate notebook load pressure.",
+    )
+    parser.add_argument(
+        "--target-video-id",
+        dest="target_video_id",
+        help="Single target video ID to fetch after any preloads are added.",
+    )
+    parser.add_argument(
+        "--retry-delay-s",
+        action="append",
+        dest="retry_delays_s",
+        type=int,
+        help="Delay in seconds before each fetch attempt. Repeat to override the default 0,30,60,120 schedule.",
+    )
+    parser.add_argument(
+        "--continue-after-ready",
+        action="store_true",
+        help="Keep running the configured retry delays even after the first ready result.",
+    )
     parser.add_argument("--output-root", type=Path, default=_DEFAULT_OUTPUT_ROOT, help="Directory for JSON artifacts.")
     return parser
 
@@ -238,6 +286,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_arg_parser()
     args = parser.parse_args(argv)
-    summary = run_probe(list(args.profiles), list(args.video_ids), output_root=args.output_root)
+    retry_delays_s = tuple(args.retry_delays_s) if args.retry_delays_s else _DEFAULT_RETRY_DELAYS_S
+    summary = run_probe(
+        list(args.profiles),
+        list(args.video_ids),
+        output_root=args.output_root,
+        retry_delays_s=retry_delays_s,
+        continue_after_ready=bool(args.continue_after_ready),
+        preload_video_ids=list(args.preload_video_ids or []),
+        target_video_id=args.target_video_id,
+    )
     print(json.dumps(summary, indent=2))
     return 0

@@ -48,9 +48,9 @@ The current retry behavior is:
 
 This baseline is already implemented in:
 
-- `P:\\packages/yt-is/csf/nlm_batch.py`
-- `P:\\packages/yt-is/csf/nlm_config.py`
-- `P:\\packages/yt-is/tests/test_nlm_batch.py`
+- `P:\\\\\\packages/yt-is/csf/nlm_batch.py`
+- `P:\\\\\\packages/yt-is/csf/nlm_config.py`
+- `P:\\\\\\packages/yt-is/tests/test_nlm_batch.py`
 
 ## Proposed Experiment
 

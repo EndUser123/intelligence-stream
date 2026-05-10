@@ -32,12 +32,12 @@
 
 ## Preflight
 
-Run from `P:\\packages/yt-is`.
+Run from `P:\\\\\\packages/yt-is`.
 
 ```powershell
-$env:PYTHONPATH = 'P:\\packages\yt-is'
-python P:\\packages/yt-is/bin/csf-nlm-worker-auth sync
-python P:\\packages/yt-is/bin/csf-nlm-worker-auth snapshot
+$env:PYTHONPATH = 'P:\\\\\\packages\yt-is'
+python P:\\\\\\packages/yt-is/bin/csf-nlm-worker-auth sync
+python P:\\\\\\packages/yt-is/bin/csf-nlm-worker-auth snapshot
 
 foreach ($profile in @(
   'ytis-pro-worker-01', 'ytis-pro-worker-02', 'ytis-pro-worker-03', 'ytis-pro-worker-04',
@@ -63,9 +63,9 @@ If any profile reports the wrong account, stop and repair that family before ben
 Use a verified snapshot after any manual login repair or before a long soak. This protects the `worker-01` source profiles as well as sibling worker profiles.
 
 ```powershell
-$env:PYTHONPATH = 'P:\\packages\yt-is'
-python P:\\packages/yt-is/bin/csf-nlm-worker-auth check
-python P:\\packages/yt-is/bin/csf-nlm-worker-auth snapshot
+$env:PYTHONPATH = 'P:\\\\\\packages\yt-is'
+python P:\\\\\\packages/yt-is/bin/csf-nlm-worker-auth check
+python P:\\\\\\packages/yt-is/bin/csf-nlm-worker-auth snapshot
 ```
 
 Snapshot location:
@@ -75,9 +75,9 @@ Snapshot location:
 If a profile becomes corrupt, restore the latest verified snapshot first:
 
 ```powershell
-$env:PYTHONPATH = 'P:\\packages\yt-is'
-python P:\\packages/yt-is/bin/csf-nlm-worker-auth restore
-python P:\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+$env:PYTHONPATH = 'P:\\\\\\packages\yt-is'
+python P:\\\\\\packages/yt-is/bin/csf-nlm-worker-auth restore
+python P:\\\\\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
 ```
 
 Restore refuses snapshots whose manifest expected account does not match the configured auth families. If restore fails validation, manually repair the affected `worker-01` profile and create a fresh snapshot.
@@ -87,7 +87,7 @@ Restore refuses snapshots whose manifest expected account does not match the con
 Use a direct auth-helper probe when you need to prove the forced-refresh marker lands in a pinned log root.
 
 ```powershell
-$env:PYTHONPATH = 'P:\\packages\yt-is'
+$env:PYTHONPATH = 'P:\\\\\\packages\yt-is'
 $env:INTELLIGENCE_STREAM_LOG_DIR = '$CLAUDE_PLUGIN_ROOT/.logs\sharded_lane_series\pro_free_auth_marker_v4\logs'
 $env:YTIS_NLM_AUTH_NONINTERACTIVE = '1'
 $env:YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS = '1'
@@ -114,9 +114,9 @@ $chrome = Start-Process -FilePath 'C:\Program Files\Google\Chrome\Application\ch
   -ArgumentList '--remote-debugging-port=9222 --no-first-run --no-default-browser-check --disable-extensions --user-data-dir=C:\Users\brsth\.notebooklm-mcp-cli\chrome-profile https://notebooklm.google.com' `
   -WindowStyle Hidden -PassThru
 Start-Sleep -Seconds 5
-$env:PYTHONPATH = 'P:\\packages\yt-is'
+$env:PYTHONPATH = 'P:\\\\\\packages\yt-is'
 $env:YTIS_NLM_AUTH_NONINTERACTIVE = '1'
-python P:\\packages/yt-is/bin/csf-nlm-worker-auth check
+python P:\\\\\\packages/yt-is/bin/csf-nlm-worker-auth check
 Remove-Item Env:\YTIS_NLM_AUTH_NONINTERACTIVE
 ```
 
@@ -131,13 +131,13 @@ Observed drill:
 Use this first. It proves repeated re-authentication without maximum browser churn.
 
 ```powershell
-$env:PYTHONPATH = 'P:\\packages\yt-is'
+$env:PYTHONPATH = 'P:\\\\\\packages\yt-is'
 $env:YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS = '5'
-python P:\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
-python P:\\packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
-  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_forced_smoke_v1 `
-  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_forced_smoke_v1/cohort.json `
+python P:\\\\\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+python P:\\\\\\packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --output-root P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_forced_smoke_v1 `
+  --cohort-json P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_forced_smoke_v1/cohort.json `
   --limit 50 `
   --batch-size 50 `
   --reusable-pipeline-mode serial
@@ -151,7 +151,7 @@ Pass criteria:
 - Any refresh command stays profile-pinned.
 - No default NotebookLM Chrome profile appears.
 - If a stale default `chrome-profile` exists before preflight, the series runner closes it and continues; if a profile check or lane command opens it during the run, the run fails closed.
-- Post-run `python P:\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync` still passes.
+- Post-run `python P:\\\\\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync` still passes.
 
 Current clean smoke run:
 
@@ -191,13 +191,13 @@ Current endurance soak:
 Run this before the next long soak. It exercises normal sharded ingestion with smaller add windows so we can distinguish a transient large-batch add problem from auth/profile contamination.
 
 ```powershell
-$env:PYTHONPATH = 'P:\\packages\yt-is'
+$env:PYTHONPATH = 'P:\\\\\\packages\yt-is'
 $env:YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS = '5'
-python P:\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
-python P:\\packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
-  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_add_smoke_v1 `
-  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_add_smoke_v1/cohort.json `
+python P:\\\\\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+python P:\\\\\\packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --output-root P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_add_smoke_v1 `
+  --cohort-json P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_source_add_smoke_v1/cohort.json `
   --limit 20 `
   --batch-size 10 `
   --reusable-pipeline-mode serial
@@ -247,13 +247,13 @@ Recommended cadence:
 - unset the variable if you only want sustained throughput evidence.
 
 ```powershell
-$env:PYTHONPATH = 'P:\\packages\yt-is'
+$env:PYTHONPATH = 'P:\\\\\\packages\yt-is'
 $env:YTIS_NLM_AUTH_FORCE_REFRESH_EVERY_CHECKS = '5'
-python P:\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
-python P:\\packages/yt-is/bin/csf-sharded-lane-series `
-  --lane-config P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
-  --output-root P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run01 `
-  --cohort-json P:\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run01/cohort.json `
+python P:\\\\\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+python P:\\\\\\packages/yt-is/bin/csf-sharded-lane-series `
+  --lane-config P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_lanes.json `
+  --output-root P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run01 `
+  --cohort-json P:\\\\\\packages/yt-is/.logs/sharded_lane_series/pro_free_auth_soak_v1_run01/cohort.json `
   --limit 400 `
   --batch-size 200 `
   --reusable-pipeline-mode serial
@@ -266,7 +266,7 @@ Keep running new output roots until total wall time exceeds `75` minutes if you 
 After each run:
 
 ```powershell
-python P:\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
+python P:\\\\\\packages/yt-is/bin/csf-nlm-worker-auth --no-backup sync
 Get-CimInstance Win32_Process |
   Where-Object { $_.CommandLine -match 'nlm login --force|remote-debugging-port=9222|\.notebooklm-mcp-cli\\chrome-profile|notebooklm-pro|notebooklm-free|notebooklm-free-2' } |
   Select-Object ProcessId, Name, CommandLine

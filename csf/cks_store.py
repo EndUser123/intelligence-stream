@@ -3,8 +3,8 @@
 import sys
 from pathlib import Path
 
-# Add P:\\packages/search-research/core to sys.path — APPEND not insert(0,) to avoid shadowing
-# cks_store.py at P:\\packages/yt-is/csf/cks_store.py
+# Add P:\\\\\\packages/search-research/core to sys.path — APPEND not insert(0,) to avoid shadowing
+# cks_store.py at P:\\\\\\packages/yt-is/csf/cks_store.py
 # .parent = csf/, .parent.parent = yt-is/, .parent.parent.parent = packages/
 # Then /search-research/core to reach the CKS
 _src = Path(__file__).parent.parent.parent / "search-research" / "core"

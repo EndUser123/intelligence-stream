@@ -13,10 +13,10 @@
 ### Task 1: Add env-controlled stagger knobs
 
 **Files:**
-- Modify: `P:\\packages/yt-is/csf/nlm_config.py`
-- Modify: `P:\\packages/yt-is/csf/transcript.py`
-- Modify: `P:\\packages/yt-is/csf/batch.py`
-- Test: `P:\\packages/yt-is/tests/test_nlm_config.py`
+- Modify: `P:\\\\\\packages/yt-is/csf/nlm_config.py`
+- Modify: `P:\\\\\\packages/yt-is/csf/transcript.py`
+- Modify: `P:\\\\\\packages/yt-is/csf/batch.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_nlm_config.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -49,17 +49,17 @@ Expected: PASS with the new jitter fields and no regression in existing config d
 - [ ] **Step 5: Commit**
 
 ```bash
-git add P:\\packages/yt-is/csf/nlm_config.py P:\\packages/yt-is/csf/transcript.py P:\\packages/yt-is/csf/batch.py P:\\packages/yt-is/tests/test_nlm_config.py
+git add P:\\\\\\packages/yt-is/csf/nlm_config.py P:\\\\\\packages/yt-is/csf/transcript.py P:\\\\\\packages/yt-is/csf/batch.py P:\\\\\\packages/yt-is/tests/test_nlm_config.py
 git commit -m "feat: make worker jitter configurable for stagger tests"
 ```
 
 ### Task 2: Add a load-ladder benchmark runner
 
 **Files:**
-- Create: `P:\\packages/yt-is/bin/csf-load-ladder`
-- Create: `P:\\packages/yt-is/csf/load_ladder.py`
-- Modify: `P:\\packages/yt-is/bin/csf-fallback-crossover-benchmark`
-- Test: `P:\\packages/yt-is/tests/test_load_ladder.py`
+- Create: `P:\\\\\\packages/yt-is/bin/csf-load-ladder`
+- Create: `P:\\\\\\packages/yt-is/csf/load_ladder.py`
+- Modify: `P:\\\\\\packages/yt-is/bin/csf-fallback-crossover-benchmark`
+- Test: `P:\\\\\\packages/yt-is/tests/test_load_ladder.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -104,15 +104,15 @@ Expected: PASS with stable scenario ordering and env merge behavior.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add P:\\packages/yt-is/bin/csf-load-ladder P:\\packages/yt-is/csf/load_ladder.py P:\\packages/yt-is/tests/test_load_ladder.py
+git add P:\\\\\\packages/yt-is/bin/csf-load-ladder P:\\\\\\packages/yt-is/csf/load_ladder.py P:\\\\\\packages/yt-is/tests/test_load_ladder.py
 git commit -m "feat: add notebooklm benchmark load ladder"
 ```
 
 ### Task 3: Document the new benchmark sequence
 
 **Files:**
-- Modify: `P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
-- Modify: `P:\\packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md`
+- Modify: `P:\\\\\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
+- Modify: `P:\\\\\\packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md`
 
 - [ ] **Step 1: Update the run sheet**
 
@@ -136,15 +136,15 @@ Add the new CLI invocation and the exact artifacts the next agent should inspect
 - [ ] **Step 3: Commit**
 
 ```bash
-git add P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md P:\\packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md
+git add P:\\\\\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md P:\\\\\\packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md
 git commit -m "docs: add notebooklm benchmark load ladder"
 ```
 
 ### Task 4: Validate the ladder end-to-end
 
 **Files:**
-- Test: `P:\\packages/yt-is/tests/test_nlm_config.py`
-- Test: `P:\\packages/yt-is/tests/test_load_ladder.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_nlm_config.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_load_ladder.py`
 
 - [ ] **Step 1: Run the focused unit tests**
 

@@ -97,20 +97,20 @@ Observed conclusion:
 - The fallback tail now works for `yt-dlp = ok` videos with no captions:
   - audio download includes `--js-runtimes node` when `node` is available
   - Whisper now runs on the downloaded audio instead of failing at the download stage
-  - successful transcripts are written to `P:\\.data/yt-is/transcripts.sqlite`
+  - successful transcripts are written to `P:\\\\\\.data/yt-is/transcripts.sqlite`
 - Verified live example:
   - `zgf2d8gsy70`
   - source: `whisper`
   - transcript length: `15419`
   - cached at `2026-04-24T23:06:39.164905`
 
-Before any live sweep or NotebookLM cleanup, run `python P:\\packages/yt-is/bin/csf-backup-transcripts` so the transcript cache is snapshotted under `P:\\.data/yt-is/backups/`.
+Before any live sweep or NotebookLM cleanup, run `python P:\\\\\\packages/yt-is/bin/csf-backup-transcripts` so the transcript cache is snapshotted under `P:\\\\\\.data/yt-is/backups/`.
 
-For a staged run that should be merged later, point `YTIS_TRANSCRIPT_CACHE_DB_PATH` at `P:\\.data/yt-is/transcripts-staging.sqlite`, let the run build transcripts there, then promote them into live with `python P:\\packages/yt-is/bin/csf-promote-transcripts`. That promote step is blocking and fail-closed, so it refuses to merge an empty or missing staging DB or any source/destination collision.
+For a staged run that should be merged later, point `YTIS_TRANSCRIPT_CACHE_DB_PATH` at `P:\\\\\\.data/yt-is/transcripts-staging.sqlite`, let the run build transcripts there, then promote them into live with `python P:\\\\\\packages/yt-is/bin/csf-promote-transcripts`. That promote step is blocking and fail-closed, so it refuses to merge an empty or missing staging DB or any source/destination collision.
 
-Before any tracked-channel sync or blocklist change, run `python P:\\packages/yt-is/bin/csf-backup-channel-state` so `P:\\.data/yt-is/batch_status.sqlite` is snapshotted under `P:\\.data/yt-is/backups/`.
+Before any tracked-channel sync or blocklist change, run `python P:\\\\\\packages/yt-is/bin/csf-backup-channel-state` so `P:\\\\\\.data/yt-is/batch_status.sqlite` is snapshotted under `P:\\\\\\.data/yt-is/backups/`.
 
-For staged channel-state changes, point `YTIS_BATCH_STATUS_DB_PATH` at `P:\\.data/yt-is/batch-status-staging.sqlite`, let `yt-is sync` update that staging DB, then promote it with `python P:\\packages/yt-is/bin/csf-promote-channel-state`. That promote step is blocking and fail-closed, so it refuses to merge an empty or missing staging DB or any source/destination collision.
+For staged channel-state changes, point `YTIS_BATCH_STATUS_DB_PATH` at `P:\\\\\\.data/yt-is/batch-status-staging.sqlite`, let `yt-is sync` update that staging DB, then promote it with `python P:\\\\\\packages/yt-is/bin/csf-promote-channel-state`. That promote step is blocking and fail-closed, so it refuses to merge an empty or missing staging DB or any source/destination collision.
 
 ## Code state that matters
 
@@ -152,7 +152,7 @@ For staged channel-state changes, point `YTIS_BATCH_STATUS_DB_PATH` at `P:\\.dat
 
 - After the free-tier `50`-source baseline is understood, repeat the same readiness and throughput tests on a Pro NotebookLM subscription with the `300`-source notebook limit.
 - Keep the same worker-owned notebook model and the same logging fields so the free-tier and Pro results can be compared directly.
-- Use the readiness calibration matrix in [worker-count-trial-run-sheet.md](P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md) for the fixed eight-URL comparison set when you want DOM spinner/checkmark and CLI `source content` readiness side by side.
+- Use the readiness calibration matrix in [worker-count-trial-run-sheet.md](P:\\\\\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md) for the fixed eight-URL comparison set when you want DOM spinner/checkmark and CLI `source content` readiness side by side.
 
 ## Open issue to watch
 
@@ -161,13 +161,13 @@ For staged channel-state changes, point `YTIS_BATCH_STATUS_DB_PATH` at `P:\\.dat
 
 ## What to read first
 
-1. [HANDOFF.md](P:\\packages/yt-is/HANDOFF.md)
-2. [worker-count-trial-run-sheet.md](P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md)
-3. [csf/nlm_config.py](P:\\packages/yt-is/csf/nlm_config.py)
-4. [bin/csf-source](P:\\packages/yt-is/bin/csf-source)
-5. [dev/worker_pool/worker_main.py](P:\\packages/yt-is/dev/worker_pool/worker_main.py)
-6. [tests/test_nlm_batch.py](P:\\packages/yt-is/tests/test_nlm_batch.py)
-7. [tests/test_dev_worker_pool.py](P:\\packages/yt-is/tests/test_dev_worker_pool.py)
+1. [HANDOFF.md](P:\\\\\\packages/yt-is/HANDOFF.md)
+2. [worker-count-trial-run-sheet.md](P:\\\\\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md)
+3. [csf/nlm_config.py](P:\\\\\\packages/yt-is/csf/nlm_config.py)
+4. [bin/csf-source](P:\\\\\\packages/yt-is/bin/csf-source)
+5. [dev/worker_pool/worker_main.py](P:\\\\\\packages/yt-is/dev/worker_pool/worker_main.py)
+6. [tests/test_nlm_batch.py](P:\\\\\\packages/yt-is/tests/test_nlm_batch.py)
+7. [tests/test_dev_worker_pool.py](P:\\\\\\packages/yt-is/tests/test_dev_worker_pool.py)
 
 ## DOM Preflight
 
@@ -183,7 +183,7 @@ Before any browser/DOM readiness test:
 - Reconfirm `nlm login --check -p default`.
 - Bootstrap the persistent browser profile before any DOM readiness run.
 - Verify the NotebookLM inventory is clean.
-- Follow the three-phase plan in [worker-count-trial-run-sheet.md](P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md):
+- Follow the three-phase plan in [worker-count-trial-run-sheet.md](P:\\\\\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md):
   1. phase 1: find the best shape
   2. phase 2: prove the winner is real
   3. phase 3: lock it in

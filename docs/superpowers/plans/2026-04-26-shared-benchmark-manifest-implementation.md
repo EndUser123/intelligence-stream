@@ -13,15 +13,15 @@
 ### Task 1: Add the shared manifest loader and fixture
 
 **Files:**
-- Create: `P:\\packages/yt-is/csf/benchmark_manifest.py`
-- Create: `P:\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json`
-- Create: `P:\\packages/yt-is/tests/test_benchmark_manifest.py`
+- Create: `P:\\\\\\packages/yt-is/csf/benchmark_manifest.py`
+- Create: `P:\\\\\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json`
+- Create: `P:\\\\\\packages/yt-is/tests/test_benchmark_manifest.py`
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
 def test_load_manifest_filters_live_trace_cases_only():
-    manifest = load_benchmark_manifest(Path("P:\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"))
+    manifest = load_benchmark_manifest(Path("P:\\\\\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"))
     live_ids = [case.case_id for case in manifest.cases_for_benchmark()]
     assert "whisper-skip-music-001" in live_ids
     assert "whisper-recover-001" in live_ids
@@ -92,15 +92,15 @@ Expected: pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add P:\\packages/yt-is/csf/benchmark_manifest.py P:\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json P:\\packages/yt-is/tests/test_benchmark_manifest.py
+git add P:\\\\\\packages/yt-is/csf/benchmark_manifest.py P:\\\\\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json P:\\\\\\packages/yt-is/tests/test_benchmark_manifest.py
 git commit -m "feat: add shared benchmark manifest"
 ```
 
 ### Task 2: Teach the benchmark runner to consume the manifest
 
 **Files:**
-- Modify: `P:\\packages/yt-is/bin/csf-fallback-crossover-benchmark`
-- Modify: `P:\\packages/yt-is/tests/test_fallback_crossover_benchmark.py`
+- Modify: `P:\\\\\\packages/yt-is/bin/csf-fallback-crossover-benchmark`
+- Modify: `P:\\\\\\packages/yt-is/tests/test_fallback_crossover_benchmark.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -112,7 +112,7 @@ def test_load_or_build_cohort_manifest_shape_uses_live_trace_cases(tmp_path):
         cohort_path,
         tmp_path / "trace-root",
         "manifest",
-        manifest_json=Path("P:\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
+        manifest_json=Path("P:\\\\\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
     )
     assert cohort["cohort_shape"] == "manifest"
     assert all(item["source_type"] == "live_trace" for item in cohort["items"])
@@ -158,15 +158,15 @@ Expected: pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add P:\\packages/yt-is/bin/csf-fallback-crossover-benchmark P:\\packages/yt-is/tests/test_fallback_crossover_benchmark.py
+git add P:\\\\\\packages/yt-is/bin/csf-fallback-crossover-benchmark P:\\\\\\packages/yt-is/tests/test_fallback_crossover_benchmark.py
 git commit -m "feat: load benchmark cohorts from shared manifest"
 ```
 
 ### Task 3: Document the canonical test inventory
 
 **Files:**
-- Modify: `P:\\packages/yt-is/docs/operations/test-registry.md`
-- Modify: `P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
+- Modify: `P:\\\\\\packages/yt-is/docs/operations/test-registry.md`
+- Modify: `P:\\\\\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
 
 - [ ] **Step 1: Add the manifest registry row**
 
@@ -184,20 +184,20 @@ Canonical test registry:
 - [ ] **Step 3: Commit**
 
 ```bash
-git add P:\\packages/yt-is/docs/operations/test-registry.md P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md
+git add P:\\\\\\packages/yt-is/docs/operations/test-registry.md P:\\\\\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md
 git commit -m "docs: record manifest test inventory"
 ```
 
 ### Task 4: Validate with a manifest-backed proof run
 
 **Files:**
-- Use: `P:\\packages/yt-is/.logs/whisper_admission_proof_mix_run/benchmark_summary.json`
-- Use: `P:\\packages/yt-is/.logs/whisper_admission_proof_run/benchmark_summary.json`
+- Use: `P:\\\\\\packages/yt-is/.logs/whisper_admission_proof_mix_run/benchmark_summary.json`
+- Use: `P:\\\\\\packages/yt-is/.logs/whisper_admission_proof_run/benchmark_summary.json`
 
 - [ ] **Step 1: Run the manifest-backed proof cohort**
 
 Run:
-`python P:\\packages/yt-is/bin/csf-fallback-crossover-benchmark --cohort-shape manifest --manifest-json P:\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json --manifest-families whisper_admission,fallback_recovery --workers 1 --batch-size 5 --limit 5 --policy notebooklm_route_plus_fallback_30s --sample-label manifest_proof`
+`python P:\\\\\\packages/yt-is/bin/csf-fallback-crossover-benchmark --cohort-shape manifest --manifest-json P:\\\\\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json --manifest-families whisper_admission,fallback_recovery --workers 1 --batch-size 5 --limit 5 --policy notebooklm_route_plus_fallback_30s --sample-label manifest_proof`
 
 Expected:
 - skip cases trigger `transcript_whisper_admission_skipped`

@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
-sys.path.insert(0, str(Path(r"P:\\\packages\\yt-is").absolute()))
+sys.path.insert(0, str(Path(r"P:\\\\\\\packages\\yt-is").absolute()))
 
 from csf.retry_queue import (
     _MAX_RETRIES,

@@ -228,7 +228,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # Output directory for transcripts
-    output_dir = Path("P:\\.data/yt-is")
+    output_dir = Path("P:\\\\\\.data/yt-is")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Get pending videos from batch_status

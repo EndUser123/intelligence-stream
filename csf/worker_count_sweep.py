@@ -124,6 +124,113 @@ class TrialArtifact:
         return dict(counts) if isinstance(counts, dict) else {}
 
     @property
+    def content_fetch_command_elapsed_s_total(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("content_fetch_command_elapsed_s_total")
+        if value is None:
+            value = self.fetch_completed.get("content_fetch_command_elapsed_s_total", 0)
+        return float(value or 0.0)
+
+    @property
+    def content_fetch_command_elapsed_s_max(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("content_fetch_command_elapsed_s_max")
+        if value is None:
+            value = self.fetch_completed.get("content_fetch_command_elapsed_s_max", 0)
+        return float(value or 0.0)
+
+    @property
+    def content_fetch_command_elapsed_s_count(self) -> int:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("content_fetch_command_elapsed_s_count")
+        if value is None:
+            value = self.fetch_completed.get("content_fetch_command_elapsed_s_count", 0)
+        return int(value or 0)
+
+    @property
+    def content_fetch_command_elapsed_s_avg(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        count = self.content_fetch_command_elapsed_s_count
+        if count <= 0:
+            value = totals.get("content_fetch_command_elapsed_s_avg")
+            if value is None:
+                value = self.fetch_completed.get("content_fetch_command_elapsed_s_avg", 0)
+            return float(value or 0.0)
+        return round(self.content_fetch_command_elapsed_s_total / count, 3)
+
+    @property
+    def content_fetch_retry_sleep_elapsed_s_total(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("content_fetch_retry_sleep_elapsed_s_total")
+        if value is None:
+            value = self.fetch_completed.get("content_fetch_retry_sleep_elapsed_s_total", 0)
+        return float(value or 0.0)
+
+    @property
+    def content_fetch_retry_queue_sleep_elapsed_s_total(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("content_fetch_retry_queue_sleep_elapsed_s_total")
+        if value is None:
+            value = self.fetch_completed.get("content_fetch_retry_queue_sleep_elapsed_s_total", 0)
+        return float(value or 0.0)
+
+    @property
+    def source_list_probe_elapsed_s_total(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("source_list_probe_elapsed_s_total")
+        if value is None:
+            value = self.fetch_completed.get("source_list_probe_elapsed_s_total", 0)
+        return float(value or 0.0)
+
+    @property
+    def source_list_probe_elapsed_s_max(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("source_list_probe_elapsed_s_max")
+        if value is None:
+            value = self.fetch_completed.get("source_list_probe_elapsed_s_max", 0)
+        return float(value or 0.0)
+
+    @property
+    def source_list_probe_count(self) -> int:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("source_list_probe_count")
+        if value is None:
+            value = self.fetch_completed.get("source_list_probe_count", 0)
+        return int(value or 0)
+
+    @property
+    def source_content_readiness_probe_elapsed_s_total(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("source_content_readiness_probe_elapsed_s_total")
+        if value is None:
+            value = self.fetch_completed.get("source_content_readiness_probe_elapsed_s_total", 0)
+        return float(value or 0.0)
+
+    @property
+    def source_content_readiness_probe_elapsed_s_max(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("source_content_readiness_probe_elapsed_s_max")
+        if value is None:
+            value = self.fetch_completed.get("source_content_readiness_probe_elapsed_s_max", 0)
+        return float(value or 0.0)
+
+    @property
+    def source_content_readiness_probe_count(self) -> int:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("source_content_readiness_probe_count")
+        if value is None:
+            value = self.fetch_completed.get("source_content_readiness_probe_count", 0)
+        return int(value or 0)
+
+    @property
+    def source_content_readiness_probe_sleep_elapsed_s_total(self) -> float:
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        value = totals.get("source_content_readiness_probe_sleep_elapsed_s_total")
+        if value is None:
+            value = self.fetch_completed.get("source_content_readiness_probe_sleep_elapsed_s_total", 0)
+        return float(value or 0.0)
+
+    @property
     def source_ready_age_s_total(self) -> float:
         totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
         value = totals.get("source_ready_age_s_total")
@@ -229,6 +336,19 @@ class TrialArtifact:
     def to_row(self) -> dict[str, Any]:
         payload = asdict(self)
         elapsed_s = float(self.fetch_completed.get("elapsed_s", self.elapsed_s) or self.elapsed_s)
+        totals = self.fetch_completed.get("worker_stage_totals", {}) or {}
+        startup_prepare_total_elapsed_s = float(
+            totals.get("startup_prepare_total_elapsed_s_total")
+            if totals.get("startup_prepare_total_elapsed_s_total") is not None
+            else self.fetch_completed.get("startup_prepare_total_elapsed_s", 0)
+            or 0.0
+        )
+        setup_elapsed_s = float(
+            totals.get("setup_elapsed_s_total")
+            if totals.get("setup_elapsed_s_total") is not None
+            else self.fetch_completed.get("setup_elapsed_s", 0)
+            or 0.0
+        )
         payload.update(
             {
                 "elapsed_s": round(elapsed_s, 3),
@@ -242,6 +362,8 @@ class TrialArtifact:
                 "videos_per_hour": self.videos_per_hour,
                 "transcript_fallback_videos_per_hour": self.transcript_fallback_videos_per_hour,
                 "processed_per_hour": self.processed_per_hour,
+                "startup_prepare_total_elapsed_s": round(startup_prepare_total_elapsed_s, 3),
+                "setup_elapsed_s": round(setup_elapsed_s, 3),
                 "add_elapsed_s": round(self.add_elapsed_s, 3),
                 "readiness_elapsed_s": round(self.readiness_elapsed_s, 3),
                 "cleanup_elapsed_s": round(self.cleanup_elapsed_s, 3),
@@ -251,6 +373,19 @@ class TrialArtifact:
                 "source_ready_age_s_total": round(self.source_ready_age_s_total, 3),
                 "source_ready_age_s_max": round(self.source_ready_age_s_max, 3),
                 "source_ready_age_s_avg": round(self.source_ready_age_s_avg, 3),
+                "content_fetch_command_elapsed_s_total": round(self.content_fetch_command_elapsed_s_total, 3),
+                "content_fetch_command_elapsed_s_max": round(self.content_fetch_command_elapsed_s_max, 3),
+                "content_fetch_command_elapsed_s_count": self.content_fetch_command_elapsed_s_count,
+                "content_fetch_command_elapsed_s_avg": round(self.content_fetch_command_elapsed_s_avg, 3),
+                "content_fetch_retry_sleep_elapsed_s_total": round(self.content_fetch_retry_sleep_elapsed_s_total, 3),
+                "content_fetch_retry_queue_sleep_elapsed_s_total": round(self.content_fetch_retry_queue_sleep_elapsed_s_total, 3),
+                "source_list_probe_elapsed_s_total": round(self.source_list_probe_elapsed_s_total, 3),
+                "source_list_probe_elapsed_s_max": round(self.source_list_probe_elapsed_s_max, 3),
+                "source_list_probe_count": self.source_list_probe_count,
+                "source_content_readiness_probe_elapsed_s_total": round(self.source_content_readiness_probe_elapsed_s_total, 3),
+                "source_content_readiness_probe_elapsed_s_max": round(self.source_content_readiness_probe_elapsed_s_max, 3),
+                "source_content_readiness_probe_count": self.source_content_readiness_probe_count,
+                "source_content_readiness_probe_sleep_elapsed_s_total": round(self.source_content_readiness_probe_sleep_elapsed_s_total, 3),
                 "shared_retry_deferred_count": round(self.shared_retry_deferred_count, 3),
                 "shared_retry_recovered_count": round(self.shared_retry_recovered_count, 3),
                 "shared_retry_final_failed_count": round(self.shared_retry_final_failed_count, 3),
@@ -365,6 +500,11 @@ def _synthesize_fetch_completed_from_worker_summaries(stdout_text: str, *, elaps
                 "notebook_title",
                 "error",
             }:
+                continue
+            if key == "startup_prepare_total_elapsed_s" and not isinstance(value, (dict, list, tuple, set)):
+                worker_stage_totals["startup_prepare_total_elapsed_s_total"] = float(
+                    worker_stage_totals.get("startup_prepare_total_elapsed_s_total", 0.0) or 0.0
+                ) + float(value)
                 continue
             if isinstance(value, (int, float)):
                 if key.endswith("_max"):
@@ -534,6 +674,8 @@ def run_worker_count_sweep(
                 "videos_per_hour",
                 "transcript_fallback_videos_per_hour",
                 "processed_per_hour",
+                "startup_prepare_total_elapsed_s",
+                "setup_elapsed_s",
                 "add_elapsed_s",
                 "readiness_elapsed_s",
                 "cleanup_elapsed_s",
@@ -582,6 +724,8 @@ def run_worker_count_sweep(
                     "videos_per_hour": row["videos_per_hour"],
                     "transcript_fallback_videos_per_hour": row["transcript_fallback_videos_per_hour"],
                     "processed_per_hour": row["processed_per_hour"],
+                    "startup_prepare_total_elapsed_s": row["startup_prepare_total_elapsed_s"],
+                    "setup_elapsed_s": row["setup_elapsed_s"],
                     "add_elapsed_s": row["add_elapsed_s"],
                     "readiness_elapsed_s": row["readiness_elapsed_s"],
                     "cleanup_elapsed_s": row["cleanup_elapsed_s"],

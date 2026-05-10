@@ -1,0 +1,15 @@
+#!/usr/bin/env python
+"""Run the stage-level comparison reducer for sharded NotebookLM benchmark runs."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from csf.sharded_lane_stage_reducer import main
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -13,8 +13,8 @@
 ### Task 1: Add explicit browser-session config
 
 **Files:**
-- Modify: `P:\\packages/yt-is/csf/nlm_config.py`
-- Test: `P:\\packages/yt-is/tests/test_nlm_config.py`
+- Modify: `P:\\\\\\packages/yt-is/csf/nlm_config.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_nlm_config.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -37,7 +37,7 @@ def test_browser_session_defaults_are_explicit():
 
 Run:
 ```powershell
-PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_config.py -q
+PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_config.py -q
 ```
 Expected: fail because the new browser-session config fields do not exist yet.
 
@@ -67,7 +67,7 @@ class NLMConfig:
 
 Run:
 ```powershell
-PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_config.py -q
+PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_config.py -q
 ```
 Expected: pass.
 
@@ -76,8 +76,8 @@ Expected: pass.
 ### Task 2: Make `nlm-playwright` the canonical browser bootstrap helper
 
 **Files:**
-- Modify: `P:\\packages/yt-is/bin/nlm-playwright`
-- Test: `P:\\packages/yt-is/tests/test_nlm_playwright.py`
+- Modify: `P:\\\\\\packages/yt-is/bin/nlm-playwright`
+- Test: `P:\\\\\\packages/yt-is/tests/test_nlm_playwright.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -99,7 +99,7 @@ def test_browser_mode_defaults_to_persistent():
 
 Run:
 ```powershell
-PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_playwright.py -q
+PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_playwright.py -q
 ```
 Expected: fail until the script reads the shared config and uses the dedicated profile root.
 
@@ -126,7 +126,7 @@ def bootstrap_auth(page_url: str) -> None:
 
 Run:
 ```powershell
-PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_playwright.py -q
+PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_playwright.py -q
 ```
 Expected: pass.
 
@@ -135,9 +135,9 @@ Expected: pass.
 ### Task 3: Refactor the DOM scraper to consume an explicit browser session
 
 **Files:**
-- Modify: `P:\\packages/yt-is/csf/nlm_scraper.py`
-- Modify: `P:\\packages/yt-is/csf/nlm_config.py`
-- Test: `P:\\packages/yt-is/tests/test_nlm_scraper.py`
+- Modify: `P:\\\\\\packages/yt-is/csf/nlm_scraper.py`
+- Modify: `P:\\\\\\packages/yt-is/csf/nlm_config.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_nlm_scraper.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -162,7 +162,7 @@ def test_preflight_rejects_request_access():
 
 Run:
 ```powershell
-PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_scraper.py -q
+PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_scraper.py -q
 ```
 Expected: fail until the scraper accepts explicit browser config and stops trying to own the human Chrome profile.
 
@@ -198,7 +198,7 @@ Remove or retire the code paths that:
 
 Run:
 ```powershell
-PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_scraper.py -q
+PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_scraper.py -q
 ```
 Expected: pass.
 
@@ -207,9 +207,9 @@ Expected: pass.
 ### Task 4: Wire `csf-source` to the new browser contract
 
 **Files:**
-- Modify: `P:\\packages/yt-is/bin/csf-source`
-- Modify: `P:\\packages/yt-is/csf/nlm_scraper.py`
-- Test: `P:\\packages/yt-is/tests/test_csf_source_fetch_timing.py`
+- Modify: `P:\\\\\\packages/yt-is/bin/csf-source`
+- Modify: `P:\\\\\\packages/yt-is/csf/nlm_scraper.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_csf_source_fetch_timing.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -225,7 +225,7 @@ Add an assertion around the launcher/wiring so the DOM test path does not hardco
 
 Run:
 ```powershell
-PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_csf_source_fetch_timing.py -q
+PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_csf_source_fetch_timing.py -q
 ```
 Expected: fail or remain insufficient until the launcher passes browser config through and respects the visible bootstrap flow.
 
@@ -247,7 +247,7 @@ For the DOM/auth path:
 
 Run:
 ```powershell
-PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_csf_source_fetch_timing.py -q
+PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_csf_source_fetch_timing.py -q
 ```
 Expected: pass.
 
@@ -256,10 +256,10 @@ Expected: pass.
 ### Task 5: Update docs and run the browser/auth smoke test
 
 **Files:**
-- Modify: `P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
-- Modify: `P:\\packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md`
-- Modify: `P:\\packages/yt-is/README.md`
-- Modify: `P:\\packages/yt-is/CHANGELOG.md`
+- Modify: `P:\\\\\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
+- Modify: `P:\\\\\\packages/yt-is/docs/operations/worker-owned-notebooks-handoff.md`
+- Modify: `P:\\\\\\packages/yt-is/README.md`
+- Modify: `P:\\\\\\packages/yt-is/CHANGELOG.md`
 
 - [ ] **Step 1: Write the doc assertions**
 
@@ -289,7 +289,7 @@ Record that:
 
 Run:
 ```powershell
-PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_config.py $CLAUDE_PLUGIN_ROOT/tests\test_nlm_playwright.py $CLAUDE_PLUGIN_ROOT/tests\test_nlm_scraper.py $CLAUDE_PLUGIN_ROOT/tests\test_csf_source_fetch_timing.py -q
+PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_config.py $CLAUDE_PLUGIN_ROOT/tests\test_nlm_playwright.py $CLAUDE_PLUGIN_ROOT/tests\test_nlm_scraper.py $CLAUDE_PLUGIN_ROOT/tests\test_csf_source_fetch_timing.py -q
 ```
 
 Then run one manual smoke:
@@ -303,16 +303,16 @@ Then run one manual smoke:
 ### Task 6: Final regression check
 
 **Files:**
-- Test: `P:\\packages/yt-is/tests/test_nlm_config.py`
-- Test: `P:\\packages/yt-is/tests/test_nlm_playwright.py`
-- Test: `P:\\packages/yt-is/tests/test_nlm_scraper.py`
-- Test: `P:\\packages/yt-is/tests/test_csf_source_fetch_timing.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_nlm_config.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_nlm_playwright.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_nlm_scraper.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_csf_source_fetch_timing.py`
 
 - [ ] **Step 1: Run the full targeted slice**
 
 Run:
 ```powershell
-PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_config.py $CLAUDE_PLUGIN_ROOT/tests\test_nlm_playwright.py $CLAUDE_PLUGIN_ROOT/tests\test_nlm_scraper.py $CLAUDE_PLUGIN_ROOT/tests\test_csf_source_fetch_timing.py -q
+PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_config.py $CLAUDE_PLUGIN_ROOT/tests\test_nlm_playwright.py $CLAUDE_PLUGIN_ROOT/tests\test_nlm_scraper.py $CLAUDE_PLUGIN_ROOT/tests\test_csf_source_fetch_timing.py -q
 ```
 
 - [ ] **Step 2: Confirm the browser contract**

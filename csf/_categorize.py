@@ -44,8 +44,8 @@ from csf.channel_filtering import (
 # Config
 # ---------------------------------------------------------------------------
 
-DB = Path("P:\\.data/yt-is/batch_status.sqlite")
-EXPORT_DIR = Path("P:\\packages/yt-is/csf/exports")
+DB = Path("P:\\\\\\.data/yt-is/batch_status.sqlite")
+EXPORT_DIR = Path("P:\\\\\\packages/yt-is/csf/exports")
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Weight config — video titles are authoritative; title+desc is fallback

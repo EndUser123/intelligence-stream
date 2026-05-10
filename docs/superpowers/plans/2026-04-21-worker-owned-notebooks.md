@@ -43,7 +43,7 @@ def test_create_batch_notebook_uses_owner_title_not_reusable_title():
 Run:
 
 ```powershell
-PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_batch.py -k "ensure_notebook_reuses_single_exact_title_match or ensure_notebook_deletes_duplicate_exact_title_matches_and_recreates or create_batch_notebook_uses_owner_title_not_reusable_title" -q
+PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_batch.py -k "ensure_notebook_reuses_single_exact_title_match or ensure_notebook_deletes_duplicate_exact_title_matches_and_recreates or create_batch_notebook_uses_owner_title_not_reusable_title" -q
 ```
 
 Expected:
@@ -86,7 +86,7 @@ Update `_rotate_notebook()`, `create_batch_notebook()`, and `_save_reusable_note
 Run:
 
 ```powershell
-PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_batch.py -q
+PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_batch.py -q
 ```
 
 Expected:
@@ -116,7 +116,7 @@ def test_worker_startup_reuses_existing_worker_notebook(monkeypatch):
 Run:
 
 ```powershell
-PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_dev_worker_pool.py -q
+PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_dev_worker_pool.py -q
 ```
 
 Expected:
@@ -147,8 +147,8 @@ The serial path should resolve to the worker-owned notebook title rather than cr
 Run:
 
 ```powershell
-PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_dev_worker_pool.py -q
-PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_batch.py -q
+PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_dev_worker_pool.py -q
+PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_batch.py -q
 ```
 
 Expected:

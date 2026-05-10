@@ -107,8 +107,8 @@ This is a one-time migration, not a long coexistence period.
 
 Before any write migration:
 
-- back up `P:\\.data/yt-is/batch_status.sqlite`
-- keep the backup in `P:\\.data/yt-is/backups/`
+- back up `P:\\\\\\.data/yt-is/batch_status.sqlite`
+- keep the backup in `P:\\\\\\.data/yt-is/backups/`
 
 ### Step 2: Create v2 schema
 

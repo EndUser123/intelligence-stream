@@ -20,7 +20,7 @@ from csf.batch_scheduler import (
 
 # ─── Shared test DB path ───────────────────────────────────────────────────────
 
-_TEST_DB_DIR = Path("P:\\.data/yt-is/batch_status")
+_TEST_DB_DIR = Path("P:\\\\\\.data/yt-is/batch_status")
 _TEST_DB_DIR.mkdir(parents=True, exist_ok=True)
 _TEST_DB = _TEST_DB_DIR / "test_scheduler.sqlite"
 

@@ -216,12 +216,12 @@ def test_add_same_channel_via_handle_and_uc_creates_one_row(tmp_path, monkeypatc
     env = os.environ.copy()
     env["YTIS_BATCH_STATUS_DB_PATH"] = str(tmp_path / "live.sqlite")
     subprocess.run(
-        ["python", "P:\\packages/yt-is/bin/csf-source", "add", "https://www.youtube.com/@RyanRumsey"],
+        ["python", "P:\\\\\\packages/yt-is/bin/csf-source", "add", "https://www.youtube.com/@RyanRumsey"],
         check=True,
         env=env,
     )
     subprocess.run(
-        ["python", "P:\\packages/yt-is/bin/csf-source", "add", "https://www.youtube.com/channel/UCZ5zIdFEqD_u9EohzswYI3Q"],
+        ["python", "P:\\\\\\packages/yt-is/bin/csf-source", "add", "https://www.youtube.com/channel/UCZ5zIdFEqD_u9EohzswYI3Q"],
         check=True,
         env=env,
     )
@@ -302,7 +302,7 @@ git commit -m "feat: resolve channel ids before storing channel state"
 ```python
 def test_migrate_channel_ids_cli_backups_and_migrates(tmp_path):
     ...
-    result = subprocess.run(["python", "P:\\packages/yt-is/bin/csf-migrate-channel-ids"], check=True)
+    result = subprocess.run(["python", "P:\\\\\\packages/yt-is/bin/csf-migrate-channel-ids"], check=True)
     backups = list((tmp_path / "backups").glob("*.sqlite"))
     assert backups
     conn = sqlite3.connect(live_db)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import threading
 import time
@@ -166,6 +167,38 @@ def _collect_chrome_process_records() -> list[dict[str, Any]]:
     return records
 
 
+def _normalize_path_for_matching(value: str | Path) -> str:
+    """Return a canonical path with consecutive backslashes collapsed to one.
+
+    Chrome sub-processes can store paths with extra backslash escaping
+    (e.g. P:\\\\\\\\\\.data instead of P:\\\\\\.data). Normalizing before the
+    substring check ensures these variants still match.
+    """
+    return re.sub(r"\\+", r"\\", str(value))
+
+
+def _normalize_cmdline_path(cmdline: str) -> str:
+    """Strip Chrome's extra backslash escaping from the user-data-dir path in a cmdline.
+
+    Chrome sub-processes escape each backslash multiple times in the
+    user-data-dir argument. This normalizes the cmdline by halving consecutive
+    backslashes (4 -> 2 -> 1) so it can be matched against canonical paths.
+    """
+    USER_DATA_DIR = "--user-data-dir="
+    idx = cmdline.find(USER_DATA_DIR)
+    if idx < 0:
+        return cmdline
+    start = idx + len(USER_DATA_DIR)
+    # Find end of the path argument (next space or end of string)
+    end = len(cmdline)
+    next_space = cmdline.find(" ", start)
+    if next_space >= 0:
+        end = next_space
+    path_part = cmdline[start:end]
+    normalized_path = _normalize_path_for_matching(path_part)
+    return cmdline[:start] + normalized_path + cmdline[end:]
+
+
 def _sample_browser_health(allowed_browser_roots: Iterable[str | Path]) -> dict[str, Any]:
     allowed_roots = tuple(
         sorted(
@@ -177,6 +210,11 @@ def _sample_browser_health(allowed_browser_roots: Iterable[str | Path]) -> dict[
         )
     )
     default_root = str(DEFAULT_NLM_CHROME_PROFILE_ROOT)
+    normalized_allowed_roots = {
+        root: _normalize_path_for_matching(root)
+        for root in allowed_roots
+    }
+    normalized_default_root = _normalize_path_for_matching(default_root)
     allowed_profile_pid_counts_by_root = {root: 0 for root in allowed_roots}
     default_profile_pids: list[int] = []
     unexpected_processes: list[dict[str, Any]] = []
@@ -188,11 +226,19 @@ def _sample_browser_health(allowed_browser_roots: Iterable[str | Path]) -> dict[
         cmdline = str(record.get("cmdline") or "")
         rss_bytes = int(record.get("rss_bytes") or 0)
         chrome_rss_bytes_total += rss_bytes
-        matched_root = next((root for root in allowed_roots if root and root in cmdline), None)
+        normalized_cmdline = _normalize_cmdline_path(cmdline)
+        matched_root = next(
+            (
+                root
+                for root in allowed_roots
+                if root and (root in cmdline or normalized_allowed_roots[root] in normalized_cmdline)
+            ),
+            None,
+        )
         if matched_root is not None:
             allowed_profile_pid_counts_by_root[matched_root] += 1
             continue
-        if default_root in cmdline:
+        if default_root in cmdline or normalized_default_root in normalized_cmdline:
             default_profile_pids.append(pid)
             continue
         unexpected_processes.append({"pid": pid, "cmdline": cmdline})

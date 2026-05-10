@@ -13,8 +13,8 @@
 ### Task 1: Create the shared NotebookLM config module
 
 **Files:**
-- Create: `P:\\packages/yt-is/csf/nlm_config.py`
-- Test: `P:\\packages/yt-is/tests/test_nlm_config.py`
+- Create: `P:\\\\\\packages/yt-is/csf/nlm_config.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_nlm_config.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -34,7 +34,7 @@ def test_shared_defaults_cover_batch_and_auth_policy():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_config.py -q`
+Run: `PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_config.py -q`
 Expected: FAIL because `csf.nlm_config` does not exist yet.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -60,14 +60,14 @@ def get_nlm_config() -> NLMConfig:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_config.py -q`
+Run: `PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_config.py -q`
 Expected: PASS.
 
 ### Task 2: Switch transcript auth logic to the shared config
 
 **Files:**
-- Modify: `P:\\packages/yt-is/csf/transcript.py`
-- Test: `P:\\packages/yt-is/tests/test_transcript.py`
+- Modify: `P:\\\\\\packages/yt-is/csf/transcript.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_transcript.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -81,7 +81,7 @@ def test_transcript_uses_shared_nlm_config():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_transcript.py -q`
+Run: `PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_transcript.py -q`
 Expected: FAIL until `transcript.py` imports the shared module.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -94,16 +94,16 @@ Remove the duplicated `NLMConfig` dataclass and singleton code from `transcript.
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_transcript.py -q`
+Run: `PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_transcript.py -q`
 Expected: PASS.
 
 ### Task 3: Switch batch policy defaults to the shared config
 
 **Files:**
-- Modify: `P:\\packages/yt-is/csf/nlm_batch.py`
-- Modify: `P:\\packages/yt-is/bin/csf-source`
-- Modify: `P:\\packages/yt-is/bin/nlm-subbatch-sweep`
-- Test: `P:\\packages/yt-is/tests/test_nlm_batch.py`
+- Modify: `P:\\\\\\packages/yt-is/csf/nlm_batch.py`
+- Modify: `P:\\\\\\packages/yt-is/bin/csf-source`
+- Modify: `P:\\\\\\packages/yt-is/bin/nlm-subbatch-sweep`
+- Test: `P:\\\\\\packages/yt-is/tests/test_nlm_batch.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -119,7 +119,7 @@ def test_batch_defaults_come_from_shared_config():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_batch.py -q`
+Run: `PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_batch.py -q`
 Expected: FAIL until `nlm_batch.py` imports the shared config values.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -137,19 +137,19 @@ Update `bin/csf-source` and `bin/nlm-subbatch-sweep` to import the shared defaul
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_batch.py -q`
+Run: `PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_batch.py -q`
 Expected: PASS.
 
 ### Task 4: Verify the repo-wide regression slice
 
 **Files:**
-- Test: `P:\\packages/yt-is/tests/test_nlm_config.py`
-- Test: `P:\\packages/yt-is/tests/test_nlm_batch.py`
-- Test: `P:\\packages/yt-is/tests/test_transcript.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_nlm_config.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_nlm_batch.py`
+- Test: `P:\\\\\\packages/yt-is/tests/test_transcript.py`
 
 - [ ] **Step 1: Run the focused test slice**
 
-Run: `PYTHONPATH=P:\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_config.py $CLAUDE_PLUGIN_ROOT/tests\test_nlm_batch.py $CLAUDE_PLUGIN_ROOT/tests\test_transcript.py -q`
+Run: `PYTHONPATH=P:\\\\\\packages\yt-is python -m pytest $CLAUDE_PLUGIN_ROOT/tests\test_nlm_config.py $CLAUDE_PLUGIN_ROOT/tests\test_nlm_batch.py $CLAUDE_PLUGIN_ROOT/tests\test_transcript.py -q`
 
 - [ ] **Step 2: Confirm the new config module is the single edit point**
 

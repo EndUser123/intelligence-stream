@@ -41,7 +41,7 @@ New-Item -ItemType Junction -Path "$CLAUDE_ROOT/skills\yt-nlm" -Target "$CLAUDE_
 ```
 
 **Key points:**
-- Skills are in `P:\\.claude/skills/yt-is/` and `P:\\.claude/skills/yt-nlm/`
+- Skills are in `P:\\\\\\.claude/skills/yt-is/` and `P:\\\\\\.claude/skills/yt-nlm/`
 - Changes to skill files take effect immediately
 - No reinstallation required
 
@@ -52,8 +52,8 @@ New-Item -ItemType Junction -Path "$CLAUDE_ROOT/skills\yt-nlm" -Target "$CLAUDE_
 **Setup:**
 ```powershell
 # Symlink bin tools to a directory in your PATH
-cmd /c "mklink P:\\bin\yt-is $CLAUDE_PLUGIN_ROOT/bin\yt-is"
-cmd /c "mklink P:\\bin\csf-source $CLAUDE_PLUGIN_ROOT/bin\csf-source"
+cmd /c "mklink P:\\\\\\bin\yt-is $CLAUDE_PLUGIN_ROOT/bin\yt-is"
+cmd /c "mklink P:\\\\\\bin\csf-source $CLAUDE_PLUGIN_ROOT/bin\csf-source"
 ```
 
 **Key points:**
@@ -68,7 +68,7 @@ cmd /c "mklink P:\\bin\csf-source $CLAUDE_PLUGIN_ROOT/bin\csf-source"
 **Setup:**
 ```bash
 # End users install via /plugin command
-/plugin P:\\packages/yt-is
+/plugin P:\\\\\\packages/yt-is
 
 # Or from marketplace (when published)
 /plugin install yt-is
@@ -234,4 +234,4 @@ graph TB
 - Configurable NotebookLM policy via `csf/nlm_config.py` and the `YTIS_NLM_*` env vars it reads
 - External transcript provider hook for custom sources
 - Multi-terminal safe batch processing with InterProcessLock
-- See [PLAYBOOK_LINKS.md](P:\\packages/yt-is/PLAYBOOK_LINKS.md) for the debugging playbook, handoff, and memory pointers.
+- See [PLAYBOOK_LINKS.md](P:\\\\\\packages/yt-is/PLAYBOOK_LINKS.md) for the debugging playbook, handoff, and memory pointers.

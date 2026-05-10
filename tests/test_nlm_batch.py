@@ -3,6 +3,8 @@
 import json
 import os
 import subprocess
+import time
+
 import pytest
 from unittest import mock
 from csf import nlm_batch, nlm_config
@@ -778,6 +780,44 @@ class TestAuthAutoLogin:
         assert sync_calls and sync_calls[0]["families"][0].source_profile == "ytis-free1-worker-01"
         log_names = [call.args[0] for call in mock_log.call_args_list]
         assert "nlm_auth_forced_refresh_scheduled" in log_names
+        login_started = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_login_started")
+        assert login_started["auth_refresh_reason"] == "forced_schedule"
+        assert login_started["auth_cache_hit"] is False
+
+    def test_ensure_nlm_auth_family_refresh_logs_cache_miss_reason(self, monkeypatch):
+        """Family refreshes without a cache hit should say they missed cache, not just that they ran."""
+
+        monkeypatch.setenv("NOTEBOOKLM_PROFILE", "ytis-free1-worker-04")
+        monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
+        refresh_calls = []
+        sync_calls = []
+
+        def mock_refresh_source_profile(family, **kwargs):
+            refresh_calls.append(family.source_profile)
+            return True
+
+        def mock_sync_worker_profiles(**kwargs):
+            sync_calls.append(kwargs)
+            return None
+
+        with mock.patch("csf.nlm_batch._default_chrome_profile_pids", return_value=set()):
+            with mock.patch("csf.nlm_batch.refresh_source_profile", side_effect=mock_refresh_source_profile):
+                with mock.patch("csf.nlm_batch.sync_worker_profiles", side_effect=mock_sync_worker_profiles):
+                    with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                        with mock.patch("csf.nlm_batch.run_nlm", side_effect=AssertionError("family auth should not use bare login --check")):
+                            result = nlm_batch._ensure_nlm_auth()
+
+        assert result is True
+        assert refresh_calls == ["ytis-free1-worker-01"]
+        assert sync_calls and sync_calls[0]["families"][0].source_profile == "ytis-free1-worker-01"
+        login_started = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_login_started")
+        login_completed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_login_completed")
+        auth_refreshed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_auth_refreshed")
+        assert login_started["auth_refresh_reason"] == "cache_miss"
+        assert login_started["auth_cache_hit"] is False
+        assert login_started["auth_cache_session_age_s"] is None
+        assert login_completed["auth_refresh_reason"] == "cache_miss"
+        assert auth_refreshed["auth_refresh_reason"] == "cache_miss"
 
     def test_ensure_nlm_auth_logs_family_refresh_timing_markers(self, monkeypatch):
         """Family auth refresh should emit dedicated timing markers for startup probes."""
@@ -1063,6 +1103,19 @@ class TestReusableBatchLogging:
                                             "shared_retry_recovered_count": 0,
                                             "shared_retry_final_failed_count": 0,
                                             "materialization_ready_at_epoch": 123.0,
+                                            "content_fetch_command_elapsed_s_total": 1.25,
+                                            "content_fetch_command_elapsed_s_max": 0.75,
+                                            "content_fetch_command_elapsed_s_count": 2,
+                                            "content_fetch_command_elapsed_s_avg": 0.625,
+                                            "content_fetch_retry_sleep_elapsed_s_total": 0.5,
+                                            "content_fetch_retry_queue_sleep_elapsed_s_total": 0.1,
+                                            "source_list_probe_elapsed_s_total": 0.25,
+                                            "source_list_probe_elapsed_s_max": 0.25,
+                                            "source_list_probe_count": 1,
+                                            "source_content_readiness_probe_elapsed_s_total": 0.0,
+                                            "source_content_readiness_probe_elapsed_s_max": 0.0,
+                                            "source_content_readiness_probe_count": 0,
+                                            "source_content_readiness_probe_sleep_elapsed_s_total": 0.0,
                                             "youtube_ytdlp_elapsed_s_total": 3.5,
                                             "youtube_ytdlp_elapsed_s_max": 2.0,
                                             "youtube_ytdlp_elapsed_s_count": 2,
@@ -1086,12 +1139,18 @@ class TestReusableBatchLogging:
         assert completed["youtube_ytdlp_elapsed_s_count"] == 2
         assert completed["youtube_page_elapsed_s_total"] == 0.75
         assert completed["youtube_page_elapsed_s_count"] == 1
+        assert completed["content_fetch_command_elapsed_s_total"] == 1.25
+        assert completed["content_fetch_command_elapsed_s_count"] == 2
+        assert completed["source_list_probe_count"] == 1
         summary = ingestor.get_last_process_metrics()
         assert summary is not None
         assert summary["youtube_ytdlp_elapsed_s_total"] == 3.5
         assert summary["youtube_ytdlp_elapsed_s_count"] == 2
         assert summary["youtube_page_elapsed_s_total"] == 0.75
         assert summary["youtube_page_elapsed_s_count"] == 1
+        assert summary["content_fetch_command_elapsed_s_total"] == 1.25
+        assert summary["content_fetch_command_elapsed_s_count"] == 2
+        assert summary["source_list_probe_count"] == 1
 
 
 class TestDoubleBufferedReusableBatch:
@@ -1247,10 +1306,10 @@ class TestReusableNotebookEnvironmentOverrides:
         """YTIS_NLM_OWNER_STATE_PATH should override the default state file."""
         monkeypatch.setenv(
             "YTIS_NLM_OWNER_STATE_PATH",
-            "P:\\.data/yt-is/dev-workers/worker-01.json",
+            "P:\\\\\\.data/yt-is/dev-workers/worker-01.json",
         )
         assert nlm_batch._get_reusable_notebook_state_path() == nlm_batch.Path(
-            "P:\\.data/yt-is/dev-workers/worker-01.json"
+            "P:\\\\\\.data/yt-is/dev-workers/worker-01.json"
         )
 
     def test_title_override_is_used(self, monkeypatch):
@@ -1310,6 +1369,7 @@ class TestReusableNotebookEnvironmentOverrides:
         monkeypatch.setenv("NOTEBOOKLM_PROFILE", "custom-worker-12")
         monkeypatch.setenv("YTIS_NLM_AUTH_NONINTERACTIVE", "1")
         monkeypatch.setenv("YTIS_NLM_AUTH_CHECK_CACHE_TTL_SECONDS", "120")
+        monkeypatch.setattr(nlm_batch, "_default_chrome_profile_pids", lambda: set())
 
         def mock_run(cmd, **kwargs):
             return subprocess.CompletedProcess(cmd, 0, "", "Auth valid")
@@ -1352,6 +1412,14 @@ class TestReusableNotebookEnvironmentOverrides:
             "nlm_login_completed",
             "nlm_auth_refreshed",
         ]
+        login_started = mock_log.call_args_list[2].args[1]
+        login_completed = mock_log.call_args_list[3].args[1]
+        auth_refreshed = mock_log.call_args_list[4].args[1]
+        assert login_started["auth_refresh_reason"] == "check_failed"
+        assert login_started["auth_cache_hit"] is False
+        assert login_started["auth_cache_session_age_s"] is None
+        assert login_completed["auth_refresh_reason"] == "check_failed"
+        assert auth_refreshed["auth_refresh_reason"] == "check_failed"
 
 
 class TestWorkerNotebookCleanup:
@@ -2128,6 +2196,9 @@ class TestNotebookCapRotation:
         ingestor = nlm_batch.NLMBatchIngestor()
         ingestor._nb_id = "nb-old"
         ingestor._current_source_count = 50
+        ingestor._oldest_source_materialization_epoch = 1234.5
+        ingestor._last_materialization_ready_at_epoch = 2345.6
+        ingestor._video_ready_epoch_by_id = {"v1": 1.0}
 
         with mock.patch.object(ingestor, "reset_sources") as mock_reset:
             with mock.patch.object(ingestor, "_get_current_source_count", return_value=0):
@@ -2138,6 +2209,9 @@ class TestNotebookCapRotation:
         mock_reset.assert_called_once()
         assert ingestor._nb_id == "nb-old"
         assert ingestor._current_source_count == 0
+        assert ingestor._oldest_source_materialization_epoch is None
+        assert ingestor._last_materialization_ready_at_epoch == 0.0
+        assert ingestor._video_ready_epoch_by_id == {}
         mock_save.assert_called_once_with("nb-old")
 
         log_names = [call.args[0] for call in mock_log.call_args_list]
@@ -2149,6 +2223,21 @@ class TestNotebookCapRotation:
         assert recycle_event["new_source_count"] == 0
         assert recycle_event["reason"] == "source_cap_near_threshold"
         assert recycle_event["cap_threshold"] == nlm_batch._NOTEBOOK_SOURCE_CAP
+
+    def test_rotate_notebook_can_log_custom_reason(self):
+        """_rotate_notebook should preserve the caller-provided rotation reason."""
+        ingestor = nlm_batch.NLMBatchIngestor()
+        ingestor._nb_id = "nb-old"
+        ingestor._current_source_count = 50
+
+        with mock.patch.object(ingestor, "reset_sources"):
+            with mock.patch.object(ingestor, "_get_current_source_count", return_value=0):
+                with mock.patch("csf.nlm_batch._save_reusable_notebook_id"):
+                    with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                        ingestor._rotate_notebook(reason="source_age_cliff")
+
+        recycle_event = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_notebook_recycled")
+        assert recycle_event["reason"] == "source_age_cliff"
 
     def test_capacity_rotation_requests_before_add_when_at_cap(self):
         """A notebook at capacity should recycle before attempting the next add."""
@@ -2447,6 +2536,292 @@ class TestNotebookCapRotation:
         assert summary["content_fetch_attempts_max"] == 1
         assert summary["content_fetch_attempts_avg"] == 1.0
 
+    def test_source_content_fetch_logs_not_found_probe_metrics(self):
+        """A final NOT_FOUND should contribute command and source-list probe timing."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=1)
+        ingestor._nb_id = "nb-probe"
+        fake_clock = {"value": 1000.0}
+
+        def fake_time():
+            fake_clock["value"] += 0.1
+            return fake_clock["value"]
+
+        def fake_run_cmd(cmd, timeout=300):
+            if cmd[:2] == ["source", "list"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 0, "stdout": json.dumps({"sources": [{"id": "s1"}]}), "stderr": ""},
+                )()
+            if cmd[:2] == ["source", "content"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 1, "stdout": "", "stderr": "API error (code 5): NOT_FOUND"},
+                )()
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_ATTEMPTS", 0):
+            with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S", 0.0):
+                with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
+                    with mock.patch(
+                        "csf.nlm_batch.inspect_youtube_watch_page_via_ytdlp",
+                        return_value={
+                            "classification": "ok",
+                            "available": False,
+                            "availability": None,
+                            "live_status": None,
+                            "was_live": False,
+                            "is_live": False,
+                            "title": None,
+                            "error": None,
+                        },
+                    ):
+                        with mock.patch("csf.nlm_batch.time.time", side_effect=fake_time):
+                            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                results = ingestor.extract_transcripts(["vid1"])
+
+        assert results["vid1"][0] is False
+        completed = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_source_content_fetch_completed")
+        assert completed["status"] == "command_failed"
+        assert completed["content_fetch_command_elapsed_s_count"] == 1
+        assert completed["content_fetch_command_elapsed_s_total"] > 0.0
+        assert completed["source_list_probe_count"] == 1
+        assert completed["source_list_probe_elapsed_s_total"] > 0.0
+        summary = next(call.args[1] for call in mock_log.call_args_list if call.args[0] == "nlm_batch_extract_completed")
+        assert summary["content_fetch_command_elapsed_s_count"] == 1
+        assert summary["source_list_probe_count"] == 1
+
+    def test_source_content_not_found_probe_fires_once_for_a_notebook(self):
+        """The first NOT_FOUND on a notebook should still validate the source list once."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=1)
+        ingestor._nb_id = "nb-probe-once"
+
+        def fake_run_cmd(cmd, timeout=300):
+            if cmd[:2] == ["source", "list"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {
+                        "returncode": 0,
+                        "stdout": json.dumps(
+                            {"sources": [{"id": "s1", "title": "https://www.youtube.com/watch?v=vid1"}]}
+                        ),
+                        "stderr": "",
+                    },
+                )()
+            if cmd[:2] == ["source", "content"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 1, "stdout": "", "stderr": "API error (code 5): NOT_FOUND"},
+                )()
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        with mock.patch.object(nlm_batch, "_NOT_FOUND_SOURCE_LIST_PROBE_CAP", 1):
+            with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_ATTEMPTS", 0):
+                with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S", 0.0):
+                    with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
+                        with mock.patch(
+                            "csf.nlm_batch.inspect_youtube_watch_page_via_ytdlp",
+                            return_value={
+                                "classification": "ok",
+                                "available": False,
+                                "availability": None,
+                                "live_status": None,
+                                "was_live": False,
+                                "is_live": False,
+                                "title": None,
+                                "error": None,
+                            },
+                        ):
+                            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                results = ingestor.extract_transcripts(["vid1"])
+
+        assert results["vid1"][0] is False
+        completed = next(
+            call.args[1]
+            for call in mock_log.call_args_list
+            if call.args[0] == "nlm_batch_source_content_fetch_completed"
+        )
+        assert completed["status"] == "command_failed"
+        assert completed["source_list_probe_count"] == 1
+        assert completed["source_id_validated_after_not_found"] is True
+
+    def test_source_content_not_found_probe_caps_repeated_failures_and_resets_for_new_notebook(self):
+        """Repeated NOT_FOUNDs should stop probing the same notebook after the cap, then reset for a new notebook."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=1)
+        ingestor._nb_id = "nb-a"
+
+        def fake_run_cmd(cmd, timeout=300):
+            if cmd[:2] == ["source", "list"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {
+                        "returncode": 0,
+                        "stdout": json.dumps(
+                            {"sources": [{"id": "s1", "title": "https://www.youtube.com/watch?v=vid1"}]}
+                        ),
+                        "stderr": "",
+                    },
+                )()
+            if cmd[:2] == ["source", "content"]:
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 1, "stdout": "", "stderr": "API error (code 5): NOT_FOUND"},
+                )()
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        with mock.patch.object(nlm_batch, "_NOT_FOUND_SOURCE_LIST_PROBE_CAP", 1):
+            with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_ATTEMPTS", 0):
+                with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S", 0.0):
+                    with mock.patch.object(ingestor, "_run_cmd", side_effect=fake_run_cmd):
+                        with mock.patch(
+                            "csf.nlm_batch.inspect_youtube_watch_page_via_ytdlp",
+                            return_value={
+                                "classification": "ok",
+                                "available": False,
+                                "availability": None,
+                                "live_status": None,
+                                "was_live": False,
+                                "is_live": False,
+                                "title": None,
+                                "error": None,
+                            },
+                        ):
+                            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                ingestor.extract_transcripts(["vid1"])
+                                first_summary = next(
+                                    call.args[1]
+                                    for call in mock_log.call_args_list
+                                    if call.args[0] == "nlm_batch_extract_completed"
+                                )
+                                mock_log.reset_mock()
+
+                                ingestor.extract_transcripts(["vid1"])
+                                second_summary = next(
+                                    call.args[1]
+                                    for call in mock_log.call_args_list
+                                    if call.args[0] == "nlm_batch_extract_completed"
+                                )
+                                mock_log.reset_mock()
+
+                                ingestor._nb_id = "nb-b"
+                                ingestor.extract_transcripts(["vid1"])
+                                third_summary = next(
+                                    call.args[1]
+                                    for call in mock_log.call_args_list
+                                    if call.args[0] == "nlm_batch_extract_completed"
+                                )
+
+        assert first_summary["source_list_probe_count"] == 1
+        assert second_summary["source_list_probe_count"] == 0
+        assert third_summary["source_list_probe_count"] == 1
+
+    def test_source_content_ready_and_generic_failure_do_not_consume_not_found_probe_budget(self):
+        """Ready-path and non-NOT_FOUND failures should remain unchanged and avoid the probe."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=1)
+        ingestor._nb_id = "nb-ready"
+
+        ready_calls = {"content": 0, "list": 0}
+
+        def ready_run_cmd(cmd, timeout=300):
+            if cmd[:2] == ["source", "list"]:
+                ready_calls["list"] += 1
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {
+                        "returncode": 0,
+                        "stdout": json.dumps(
+                            {"sources": [{"id": "s1", "title": "https://www.youtube.com/watch?v=vid-ready"}]}
+                        ),
+                        "stderr": "",
+                    },
+                )()
+            if cmd[:2] == ["source", "content"]:
+                ready_calls["content"] += 1
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 0, "stdout": json.dumps({"value": {"content": "x" * 101}}), "stderr": ""},
+                )()
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        failure_calls = {"content": 0, "list": 0}
+
+        def failure_run_cmd(cmd, timeout=300):
+            if cmd[:2] == ["source", "list"]:
+                failure_calls["list"] += 1
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {
+                        "returncode": 0,
+                        "stdout": json.dumps(
+                            {"sources": [{"id": "s1", "title": "https://www.youtube.com/watch?v=vid-fail"}]}
+                        ),
+                        "stderr": "",
+                    },
+                )()
+            if cmd[:2] == ["source", "content"]:
+                failure_calls["content"] += 1
+                return type(
+                    "CompletedProcess",
+                    (),
+                    {"returncode": 1, "stdout": "", "stderr": "temporary API failure"},
+                )()
+            return type("CompletedProcess", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        with mock.patch.object(nlm_batch, "_NOT_FOUND_SOURCE_LIST_PROBE_CAP", 1):
+            with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_ATTEMPTS", 0):
+                with mock.patch.object(nlm_batch, "_SOURCE_CONTENT_RETRY_QUEUE_BUDGET_S", 0.0):
+                    with mock.patch.object(ingestor, "_run_cmd", side_effect=ready_run_cmd):
+                        with mock.patch("csf.nlm_batch.inspect_youtube_watch_page_via_ytdlp") as mock_ytdlp:
+                            with mock.patch("csf.nlm_batch.log_action") as mock_log:
+                                ready_results = ingestor.extract_transcripts(["vid-ready"])
+
+                    with mock.patch.object(ingestor, "_run_cmd", side_effect=failure_run_cmd):
+                        with mock.patch(
+                            "csf.nlm_batch.inspect_youtube_watch_page_via_ytdlp",
+                            return_value={
+                                "classification": "ok",
+                                "available": False,
+                                "availability": None,
+                                "live_status": None,
+                                "was_live": False,
+                                "is_live": False,
+                                "title": None,
+                                "error": None,
+                            },
+                        ):
+                            with mock.patch("csf.nlm_batch.log_action") as mock_log_failure:
+                                failure_results = ingestor.extract_transcripts(["vid-fail"])
+
+        assert ready_results["vid-ready"][0] is True
+        assert ready_calls["content"] == 1
+        assert ready_calls["list"] == 1
+        mock_ytdlp.assert_not_called()
+        ready_completed = next(
+            call.args[1]
+            for call in mock_log.call_args_list
+            if call.args[0] == "nlm_batch_extract_completed"
+        )
+        assert ready_completed["source_list_probe_count"] == 0
+
+        assert failure_results["vid-fail"][0] is False
+        assert failure_calls["content"] == 1
+        assert failure_calls["list"] == 1
+        failure_completed = next(
+            call.args[1]
+            for call in mock_log_failure.call_args_list
+            if call.args[0] == "nlm_batch_extract_completed"
+        )
+        assert failure_completed["source_list_probe_count"] == 0
+        assert failure_completed.get("source_id_validated_after_not_found") is None
+
     def test_source_content_fetch_retries_transient_not_found_and_recovers(self):
         """A transient NOT_FOUND should be retried until content becomes ready."""
         ingestor = nlm_batch.NLMBatchIngestor(batch_size=1)
@@ -2711,6 +3086,8 @@ class TestNotebookCapRotation:
         assert summary["retry_queue_final_failed_count"] == 0
         assert summary["content_fetch_attempts_total"] == 1
         assert summary["content_fetch_attempts_max"] == 1
+        assert summary["content_fetch_retry_queue_sleep_elapsed_s_total"] == 0.1
+        assert summary["content_fetch_command_elapsed_s_count"] == 2
 
     def test_source_content_fetch_queues_shared_retry_pool_entries_when_enabled(self):
         """Shared retry pool mode should enqueue retryable items instead of draining locally."""
@@ -3135,3 +3512,138 @@ class TestBackoffCalculation:
         assert delays == [0.5, 1.0, 2.0, 4.0]
 
 
+class TestAgeGuardRotatesBeforeCliff:
+    """Age guard rotates the notebook before source age crosses the configured cliff.
+
+    The existing _rotate_notebook is currently triggered only by source COUNT
+    approaching _NOTEBOOK_SOURCE_CAP. The age-guard adds a parallel trigger:
+    source AGE (time since notebook creation or time since oldest source was added)
+    exceeding a configurable cliff. The plan's decision gate showed that the 400s
+    age cap run produced 3045 VPH vs the 200s cap run's 3084 VPH, with source
+    age maxes of 272-279s — above the ~240s cliff observed in run08. This means
+    the notebook rotation needs to fire on AGE, not just count.
+    """
+
+    def test_age_guard_rotates_before_cliff(self):
+        """Notebook rotates when source age exceeds the configured cliff."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
+        ingestor._nb_id = "nb-age-test"
+        ingestor._current_source_count = 0
+        # Simulate oldest source having exceeded the cliff (300s ago).
+        # Patch time.time at the module level since that's where the age guard reads it.
+        old_time = 1000000000.0  # fixed epoch
+        with mock.patch.object(ingestor, "_get_current_source_count", return_value=0):
+            with mock.patch("csf.nlm_batch.time.time", return_value=old_time + 300):
+                with mock.patch.object(ingestor, "_add_sources_chunk", return_value=["v1", "v2"]) as mock_add:
+                    with mock.patch.object(ingestor, "_rotate_notebook") as mock_rotate:
+                        with mock.patch("csf.nlm_batch.log_action"):
+                            ingestor._oldest_source_materialization_epoch = old_time
+                            ingestor._add_sources_in_subbatches(["v1", "v2"], subbatch_size=2)
+
+        assert mock_rotate.call_count >= 1, (
+            f"Age guard should trigger rotation before add when age exceeds cliff. "
+            f"Got call_count={mock_rotate.call_count}"
+        )
+
+    def test_age_guard_logs_check_event_for_fresh_notebook(self):
+        """The guard should log a skipped decision when no epoch is available."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
+        ingestor._nb_id = "nb-fresh"
+        ingestor._current_source_count = 0
+        log_events = []
+
+        def capture_log(name, data):
+            log_events.append((name, data))
+
+        with mock.patch.object(ingestor, "_get_current_source_count", return_value=0):
+            with mock.patch.object(ingestor, "_add_sources_chunk", return_value=["v1", "v2"]):
+                with mock.patch.object(ingestor, "_rotate_notebook") as mock_rotate:
+                    with mock.patch("csf.nlm_batch.log_action", side_effect=capture_log):
+                        ingestor._add_sources_in_subbatches(["v1", "v2"], subbatch_size=2)
+
+        check_events = [data for name, data in log_events if name == "nlm_batch_subbatch_age_guard_checked"]
+        assert check_events
+        assert check_events[0]["decision"] == "skipped_no_epoch"
+        assert check_events[0]["oldest_source_materialization_epoch"] is None
+        mock_rotate.assert_not_called()
+
+    def test_age_guard_logs_check_event_below_cliff(self):
+        """The guard should log a below-cliff decision without rotating."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
+        ingestor._nb_id = "nb-fresh"
+        ingestor._current_source_count = 0
+        log_events = []
+
+        def capture_log(name, data):
+            log_events.append((name, data))
+
+        old_time = 1000000000.0
+        with mock.patch.object(ingestor, "_get_current_source_count", return_value=0):
+            with mock.patch("csf.nlm_batch.time.time", return_value=old_time + 50):
+                with mock.patch.object(ingestor, "_add_sources_chunk", return_value=["v1", "v2"]):
+                    with mock.patch.object(ingestor, "_rotate_notebook") as mock_rotate:
+                        with mock.patch("csf.nlm_batch.log_action", side_effect=capture_log):
+                            ingestor._oldest_source_materialization_epoch = old_time
+                            ingestor._add_sources_in_subbatches(["v1", "v2"], subbatch_size=2)
+
+        check_events = [data for name, data in log_events if name == "nlm_batch_subbatch_age_guard_checked"]
+        assert check_events
+        assert check_events[0]["decision"] == "below_cliff"
+        assert check_events[0]["oldest_source_age_s"] == 50.0
+        mock_rotate.assert_not_called()
+
+    def test_age_guard_does_not_fire_for_fresh_notebook(self):
+        """No rotation from age guard when the notebook is freshly created."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
+        ingestor._nb_id = "nb-fresh"
+        ingestor._current_source_count = 0
+        log_events = []
+
+        def capture_log(name, data):
+            log_events.append((name, data))
+
+        with mock.patch.object(ingestor, "_get_current_source_count", return_value=0):
+            with mock.patch.object(ingestor, "_add_sources_chunk", return_value=["v1", "v2"]):
+                with mock.patch.object(ingestor, "_rotate_notebook") as mock_rotate:
+                    with mock.patch("csf.nlm_batch.log_action", side_effect=capture_log):
+                        ingestor._add_sources_in_subbatches(["v1", "v2"], subbatch_size=2)
+
+        # Capacity cap is 50, current count is 0 — no rotation expected; age guard sees 0.
+        assert mock_rotate.call_count == 0, (
+            f"No rotation expected for fresh notebook with 0 sources. Got call_count={mock_rotate.call_count}"
+        )
+        check_events = [data for name, data in log_events if name == "nlm_batch_subbatch_age_guard_checked"]
+        assert check_events
+        assert check_events[0]["decision"] == "skipped_no_epoch"
+        assert check_events[0]["oldest_source_materialization_epoch"] is None
+
+    def test_age_guard_logs_distinct_reason(self):
+        """Age-guard rotation emits a log event with rotation_reason='source_age_cliff'."""
+        ingestor = nlm_batch.NLMBatchIngestor(batch_size=2)
+        ingestor._nb_id = "nb-log-age"
+        ingestor._current_source_count = 0
+        # Simulate oldest source having exceeded the cliff.
+        old_time = 1000000000.0  # fixed epoch
+
+        log_events = []
+        def capture_log(name, data):
+            log_events.append((name, data))
+
+        with mock.patch.object(ingestor, "_get_current_source_count", return_value=0):
+            with mock.patch("csf.nlm_batch.time.time", return_value=old_time + 300):
+                with mock.patch.object(ingestor, "_add_sources_chunk", return_value=["v1", "v2"]):
+                    with mock.patch.object(ingestor, "_rotate_notebook"):
+                        with mock.patch("csf.nlm_batch.log_action", side_effect=capture_log):
+                            ingestor._oldest_source_materialization_epoch = old_time
+                            ingestor._add_sources_in_subbatches(["v1", "v2"], subbatch_size=2)
+
+        age_rotation_events = [
+            data for name, data in log_events
+            if data.get("rotation_reason") == "source_age_cliff"
+        ]
+        assert len(age_rotation_events) >= 1, (
+            f"Expected at least one age-cliff rotation event. Got {log_events!s}"
+        )
+        check_events = [data for name, data in log_events if name == "nlm_batch_subbatch_age_guard_checked"]
+        assert check_events
+        assert check_events[0]["decision"] == "rotate_source_age_cliff"

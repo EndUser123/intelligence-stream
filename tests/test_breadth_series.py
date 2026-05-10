@@ -171,7 +171,7 @@ def test_run_breadth_series_runs_breadth_then_scaling(tmp_path, monkeypatch):
         phase_b_workers=(2, 4, 6, 8, 10),
         limit=400,
         batch_size=200,
-        manifest_json=Path("P:\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
+        manifest_json=Path("P:\\\\\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
         tiers=tiers,
     )
 
@@ -250,7 +250,7 @@ def test_run_breadth_series_propagates_reusable_pipeline_mode(tmp_path, monkeypa
         phase_b_workers=(2,),
         limit=400,
         batch_size=200,
-        manifest_json=Path("P:\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
+        manifest_json=Path("P:\\\\\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
         tiers=tiers,
         reusable_pipeline_mode="double_buffered",
     )

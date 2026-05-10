@@ -13,7 +13,7 @@ from typing import Any
 
 from csf.batch_status import block_channel, set_channel_metadata
 
-_DEFAULT_DB_PATH = Path("P:\\.data/yt-is/playlists.sqlite")
+_DEFAULT_DB_PATH = Path("P:\\\\\\.data/yt-is/playlists.sqlite")
 _db_lock = threading.RLock()
 
 

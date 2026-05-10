@@ -204,6 +204,19 @@ def main(argv: list[str] | None = None) -> int:
         "staging_wait_elapsed_s_total": 0.0,
         "stage_swap_count_total": 0,
         "content_fetch_status_counts_total": {},
+        "content_fetch_command_elapsed_s_total": 0.0,
+        "content_fetch_command_elapsed_s_max": 0.0,
+        "content_fetch_command_elapsed_s_count": 0,
+        "content_fetch_command_elapsed_s_avg": 0.0,
+        "content_fetch_retry_sleep_elapsed_s_total": 0.0,
+        "content_fetch_retry_queue_sleep_elapsed_s_total": 0.0,
+        "source_list_probe_elapsed_s_total": 0.0,
+        "source_list_probe_elapsed_s_max": 0.0,
+        "source_list_probe_count": 0,
+        "source_content_readiness_probe_elapsed_s_total": 0.0,
+        "source_content_readiness_probe_elapsed_s_max": 0.0,
+        "source_content_readiness_probe_count": 0,
+        "source_content_readiness_probe_sleep_elapsed_s_total": 0.0,
         "source_ready_age_s_total": 0.0,
         "source_ready_age_s_max": 0.0,
         "source_ready_age_s_avg": 0.0,
@@ -507,6 +520,19 @@ def main(argv: list[str] | None = None) -> int:
             extract_elapsed_s = float(metrics.get("extract_elapsed_s") or 0.0)
             cleanup_elapsed_s = float(metrics.get("cleanup_elapsed_s") or 0.0)
             content_fetch_status_counts = dict(metrics.get("content_fetch_status_counts") or {})
+            content_fetch_command_elapsed_s_total = float(metrics.get("content_fetch_command_elapsed_s_total") or 0.0)
+            content_fetch_command_elapsed_s_max = float(metrics.get("content_fetch_command_elapsed_s_max") or 0.0)
+            content_fetch_command_elapsed_s_count = int(metrics.get("content_fetch_command_elapsed_s_count") or 0)
+            content_fetch_command_elapsed_s_avg = float(metrics.get("content_fetch_command_elapsed_s_avg") or 0.0)
+            content_fetch_retry_sleep_elapsed_s_total = float(metrics.get("content_fetch_retry_sleep_elapsed_s_total") or 0.0)
+            content_fetch_retry_queue_sleep_elapsed_s_total = float(metrics.get("content_fetch_retry_queue_sleep_elapsed_s_total") or 0.0)
+            source_list_probe_elapsed_s_total = float(metrics.get("source_list_probe_elapsed_s_total") or 0.0)
+            source_list_probe_elapsed_s_max = float(metrics.get("source_list_probe_elapsed_s_max") or 0.0)
+            source_list_probe_count = int(metrics.get("source_list_probe_count") or 0)
+            source_content_readiness_probe_elapsed_s_total = float(metrics.get("source_content_readiness_probe_elapsed_s_total") or 0.0)
+            source_content_readiness_probe_elapsed_s_max = float(metrics.get("source_content_readiness_probe_elapsed_s_max") or 0.0)
+            source_content_readiness_probe_count = int(metrics.get("source_content_readiness_probe_count") or 0)
+            source_content_readiness_probe_sleep_elapsed_s_total = float(metrics.get("source_content_readiness_probe_sleep_elapsed_s_total") or 0.0)
             source_ready_age_s_total = float(metrics.get("source_ready_age_s_total") or 0.0)
             source_ready_age_s_max = float(metrics.get("source_ready_age_s_max") or 0.0)
             source_ready_age_s_avg = float(metrics.get("source_ready_age_s_avg") or 0.0)
@@ -546,6 +572,31 @@ def main(argv: list[str] | None = None) -> int:
                 Counter(worker_result.get("content_fetch_status_counts_total", {}) or {})
                 + Counter(content_fetch_status_counts)
             )
+            worker_result["content_fetch_command_elapsed_s_total"] = float(worker_result.get("content_fetch_command_elapsed_s_total", 0.0)) + content_fetch_command_elapsed_s_total
+            worker_result["content_fetch_command_elapsed_s_max"] = max(
+                float(worker_result.get("content_fetch_command_elapsed_s_max", 0.0)),
+                content_fetch_command_elapsed_s_max,
+            )
+            worker_result["content_fetch_command_elapsed_s_count"] = int(worker_result.get("content_fetch_command_elapsed_s_count", 0)) + content_fetch_command_elapsed_s_count
+            worker_result["content_fetch_command_elapsed_s_avg"] = round(
+                float(worker_result["content_fetch_command_elapsed_s_total"]) / max(int(worker_result["content_fetch_command_elapsed_s_count"]), 1),
+                3,
+            )
+            worker_result["content_fetch_retry_sleep_elapsed_s_total"] = float(worker_result.get("content_fetch_retry_sleep_elapsed_s_total", 0.0)) + content_fetch_retry_sleep_elapsed_s_total
+            worker_result["content_fetch_retry_queue_sleep_elapsed_s_total"] = float(worker_result.get("content_fetch_retry_queue_sleep_elapsed_s_total", 0.0)) + content_fetch_retry_queue_sleep_elapsed_s_total
+            worker_result["source_list_probe_elapsed_s_total"] = float(worker_result.get("source_list_probe_elapsed_s_total", 0.0)) + source_list_probe_elapsed_s_total
+            worker_result["source_list_probe_elapsed_s_max"] = max(
+                float(worker_result.get("source_list_probe_elapsed_s_max", 0.0)),
+                source_list_probe_elapsed_s_max,
+            )
+            worker_result["source_list_probe_count"] = int(worker_result.get("source_list_probe_count", 0)) + source_list_probe_count
+            worker_result["source_content_readiness_probe_elapsed_s_total"] = float(worker_result.get("source_content_readiness_probe_elapsed_s_total", 0.0)) + source_content_readiness_probe_elapsed_s_total
+            worker_result["source_content_readiness_probe_elapsed_s_max"] = max(
+                float(worker_result.get("source_content_readiness_probe_elapsed_s_max", 0.0)),
+                source_content_readiness_probe_elapsed_s_max,
+            )
+            worker_result["source_content_readiness_probe_count"] = int(worker_result.get("source_content_readiness_probe_count", 0)) + source_content_readiness_probe_count
+            worker_result["source_content_readiness_probe_sleep_elapsed_s_total"] = float(worker_result.get("source_content_readiness_probe_sleep_elapsed_s_total", 0.0)) + source_content_readiness_probe_sleep_elapsed_s_total
             worker_result["source_ready_age_s_total"] = float(worker_result.get("source_ready_age_s_total", 0.0)) + source_ready_age_s_total
             worker_result["source_ready_age_s_max"] = max(
                 float(worker_result.get("source_ready_age_s_max", 0.0)),
@@ -774,13 +825,26 @@ def main(argv: list[str] | None = None) -> int:
                     "extract_elapsed_s_total": worker_result["extract_elapsed_s_total"],
                     "cleanup_elapsed_s_total": worker_result["cleanup_elapsed_s_total"],
                     "batch_elapsed_s_total": worker_result["batch_elapsed_s_total"],
-                    "staging_overlap_elapsed_s_total": worker_result["staging_overlap_elapsed_s_total"],
-                    "staging_wait_elapsed_s_total": worker_result["staging_wait_elapsed_s_total"],
-                    "stage_swap_count_total": worker_result["stage_swap_count_total"],
-                    "content_fetch_status_counts_total": worker_result["content_fetch_status_counts_total"],
-                    "source_ready_age_s_total": worker_result["source_ready_age_s_total"],
-                    "source_ready_age_s_max": worker_result["source_ready_age_s_max"],
-                    "source_ready_age_s_avg": worker_result["source_ready_age_s_avg"],
+                "staging_overlap_elapsed_s_total": worker_result["staging_overlap_elapsed_s_total"],
+                "staging_wait_elapsed_s_total": worker_result["staging_wait_elapsed_s_total"],
+                "stage_swap_count_total": worker_result["stage_swap_count_total"],
+                "content_fetch_status_counts_total": worker_result["content_fetch_status_counts_total"],
+                "content_fetch_command_elapsed_s_total": worker_result["content_fetch_command_elapsed_s_total"],
+                "content_fetch_command_elapsed_s_max": worker_result["content_fetch_command_elapsed_s_max"],
+                "content_fetch_command_elapsed_s_count": worker_result["content_fetch_command_elapsed_s_count"],
+                "content_fetch_command_elapsed_s_avg": worker_result["content_fetch_command_elapsed_s_avg"],
+                "content_fetch_retry_sleep_elapsed_s_total": worker_result["content_fetch_retry_sleep_elapsed_s_total"],
+                "content_fetch_retry_queue_sleep_elapsed_s_total": worker_result["content_fetch_retry_queue_sleep_elapsed_s_total"],
+                "source_list_probe_elapsed_s_total": worker_result["source_list_probe_elapsed_s_total"],
+                "source_list_probe_elapsed_s_max": worker_result["source_list_probe_elapsed_s_max"],
+                "source_list_probe_count": worker_result["source_list_probe_count"],
+                "source_content_readiness_probe_elapsed_s_total": worker_result["source_content_readiness_probe_elapsed_s_total"],
+                "source_content_readiness_probe_elapsed_s_max": worker_result["source_content_readiness_probe_elapsed_s_max"],
+                "source_content_readiness_probe_count": worker_result["source_content_readiness_probe_count"],
+                "source_content_readiness_probe_sleep_elapsed_s_total": worker_result["source_content_readiness_probe_sleep_elapsed_s_total"],
+                "source_ready_age_s_total": worker_result["source_ready_age_s_total"],
+                "source_ready_age_s_max": worker_result["source_ready_age_s_max"],
+                "source_ready_age_s_avg": worker_result["source_ready_age_s_avg"],
                     "youtube_ytdlp_elapsed_s_total": worker_result["youtube_ytdlp_elapsed_s_total"],
                     "youtube_ytdlp_elapsed_s_max": worker_result["youtube_ytdlp_elapsed_s_max"],
                     "youtube_ytdlp_elapsed_s_count": worker_result["youtube_ytdlp_elapsed_s_count"],
@@ -844,6 +908,19 @@ def main(argv: list[str] | None = None) -> int:
                 "staging_wait_elapsed_s_total": worker_result["staging_wait_elapsed_s_total"],
                 "stage_swap_count_total": worker_result["stage_swap_count_total"],
                 "content_fetch_status_counts_total": worker_result["content_fetch_status_counts_total"],
+                "content_fetch_command_elapsed_s_total": worker_result["content_fetch_command_elapsed_s_total"],
+                "content_fetch_command_elapsed_s_max": worker_result["content_fetch_command_elapsed_s_max"],
+                "content_fetch_command_elapsed_s_count": worker_result["content_fetch_command_elapsed_s_count"],
+                "content_fetch_command_elapsed_s_avg": worker_result["content_fetch_command_elapsed_s_avg"],
+                "content_fetch_retry_sleep_elapsed_s_total": worker_result["content_fetch_retry_sleep_elapsed_s_total"],
+                "content_fetch_retry_queue_sleep_elapsed_s_total": worker_result["content_fetch_retry_queue_sleep_elapsed_s_total"],
+                "source_list_probe_elapsed_s_total": worker_result["source_list_probe_elapsed_s_total"],
+                "source_list_probe_elapsed_s_max": worker_result["source_list_probe_elapsed_s_max"],
+                "source_list_probe_count": worker_result["source_list_probe_count"],
+                "source_content_readiness_probe_elapsed_s_total": worker_result["source_content_readiness_probe_elapsed_s_total"],
+                "source_content_readiness_probe_elapsed_s_max": worker_result["source_content_readiness_probe_elapsed_s_max"],
+                "source_content_readiness_probe_count": worker_result["source_content_readiness_probe_count"],
+                "source_content_readiness_probe_sleep_elapsed_s_total": worker_result["source_content_readiness_probe_sleep_elapsed_s_total"],
                 "source_ready_age_s_total": worker_result["source_ready_age_s_total"],
                 "source_ready_age_s_max": worker_result["source_ready_age_s_max"],
                 "source_ready_age_s_avg": worker_result["source_ready_age_s_avg"],

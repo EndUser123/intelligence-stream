@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(r"P:\\\packages\\yt-is").absolute()))
+sys.path.insert(0, str(Path(r"P:\\\\\\\packages\\yt-is").absolute()))
 
 from csf._categorize import score_channel, score_text
 

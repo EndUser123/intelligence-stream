@@ -23,14 +23,16 @@ class ShardedLaneRunSummary:
     hygiene_status: str
     hot_path_videos_per_hour: float
     wall_elapsed_s: float
-    add_elapsed_s_total: float
-    cleanup_elapsed_s_total: float
-    worker_idle_wait_s_total: float
-    source_ready_age_s_avg: float
-    success_count_total: int
-    fail_count_total: int
-    processed_count_total: int
-    lane_count: int
+    startup_prepare_total_elapsed_s_total: float = 0.0
+    setup_elapsed_s_total: float = 0.0
+    add_elapsed_s_total: float = 0.0
+    cleanup_elapsed_s_total: float = 0.0
+    worker_idle_wait_s_total: float = 0.0
+    source_ready_age_s_avg: float = 0.0
+    success_count_total: int = 0
+    fail_count_total: int = 0
+    processed_count_total: int = 0
+    lane_count: int = 0
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -41,6 +43,8 @@ class ShardedLaneRunSummary:
             "hygiene_status": self.hygiene_status,
             "hot_path_videos_per_hour": self.hot_path_videos_per_hour,
             "wall_elapsed_s": self.wall_elapsed_s,
+            "startup_prepare_total_elapsed_s_total": self.startup_prepare_total_elapsed_s_total,
+            "setup_elapsed_s_total": self.setup_elapsed_s_total,
             "add_elapsed_s_total": self.add_elapsed_s_total,
             "cleanup_elapsed_s_total": self.cleanup_elapsed_s_total,
             "worker_idle_wait_s_total": self.worker_idle_wait_s_total,
@@ -75,6 +79,8 @@ def _load_payload(path: Path) -> dict[str, Any]:
 
 def _summed_run_totals(payload: dict[str, Any]) -> dict[str, float]:
     totals = {
+        "startup_prepare_total_elapsed_s_total": 0.0,
+        "setup_elapsed_s_total": 0.0,
         "add_elapsed_s_total": 0.0,
         "cleanup_elapsed_s_total": 0.0,
         "worker_idle_wait_s_total": 0.0,
@@ -91,6 +97,8 @@ def _summed_run_totals(payload: dict[str, Any]) -> dict[str, float]:
         aggregate = run.get("aggregate")
         if not isinstance(aggregate, dict):
             aggregate = run
+        totals["startup_prepare_total_elapsed_s_total"] += _float_value(aggregate.get("startup_prepare_total_elapsed_s_total"))
+        totals["setup_elapsed_s_total"] += _float_value(aggregate.get("setup_elapsed_s_total"))
         totals["add_elapsed_s_total"] += _float_value(aggregate.get("add_elapsed_s_total"))
         totals["cleanup_elapsed_s_total"] += _float_value(aggregate.get("cleanup_elapsed_s_total"))
         totals["worker_idle_wait_s_total"] += _float_value(aggregate.get("worker_idle_wait_s_total"))
@@ -129,6 +137,10 @@ def load_sharded_lane_summary(path: Path) -> ShardedLaneRunSummary:
         hygiene_status=str(post_run_hygiene.get("status") or ""),
         hot_path_videos_per_hour=_float_value(combined.get("hot_path_videos_per_hour")),
         wall_elapsed_s=_float_value(combined.get("wall_elapsed_s")),
+        startup_prepare_total_elapsed_s_total=_float_value(combined.get("startup_prepare_total_elapsed_s_total"))
+        or run_totals["startup_prepare_total_elapsed_s_total"],
+        setup_elapsed_s_total=_float_value(combined.get("setup_elapsed_s_total"))
+        or run_totals["setup_elapsed_s_total"],
         add_elapsed_s_total=_float_value(combined.get("add_elapsed_s_total")) or run_totals["add_elapsed_s_total"],
         cleanup_elapsed_s_total=_float_value(combined.get("cleanup_elapsed_s_total")) or run_totals["cleanup_elapsed_s_total"],
         worker_idle_wait_s_total=_float_value(combined.get("worker_idle_wait_s_total")) or run_totals["worker_idle_wait_s_total"],
@@ -147,6 +159,8 @@ def format_sharded_lane_summary(summary: ShardedLaneRunSummary) -> str:
         f"hygiene={summary.hygiene_status or 'n/a'} "
         f"vph={summary.hot_path_videos_per_hour:.2f} "
         f"wall_s={summary.wall_elapsed_s:.3f} "
+        f"startup_prepare_s={summary.startup_prepare_total_elapsed_s_total:.3f} "
+        f"setup_s={summary.setup_elapsed_s_total:.3f} "
         f"add_s={summary.add_elapsed_s_total:.3f} "
         f"cleanup_s={summary.cleanup_elapsed_s_total:.3f} "
         f"idle_wait_s={summary.worker_idle_wait_s_total:.3f} "

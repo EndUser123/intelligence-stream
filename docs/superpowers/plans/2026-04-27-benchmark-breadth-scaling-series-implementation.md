@@ -14,19 +14,19 @@
 
 The plan keeps the new code small and focused:
 
-- `P:\\packages/yt-is/csf/load_ladder.py`
+- `P:\\\\\\packages/yt-is/csf/load_ladder.py`
   - extend the benchmark command builder so the breadth-series runner can pass manifest family filters without duplicating subprocess construction
-- `P:\\packages/yt-is/csf/breadth_series.py`
+- `P:\\\\\\packages/yt-is/csf/breadth_series.py`
   - new orchestration module for the breadth proof and worker-scaling sweep
-- `P:\\packages/yt-is/bin/csf-breadth-series`
+- `P:\\\\\\packages/yt-is/bin/csf-breadth-series`
   - new CLI entrypoint for the combined series
-- `P:\\packages/yt-is/tests/test_load_ladder.py`
+- `P:\\\\\\packages/yt-is/tests/test_load_ladder.py`
   - cover the extended command builder
-- `P:\\packages/yt-is/tests/test_breadth_series.py`
+- `P:\\\\\\packages/yt-is/tests/test_breadth_series.py`
   - cover breadth selection, phase ordering, hot-path accounting, and summary shape
-- `P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
+- `P:\\\\\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
   - document the final combined result after it runs
-- `P:\\packages/yt-is/docs/operations/test-registry.md`
+- `P:\\\\\\packages/yt-is/docs/operations/test-registry.md`
   - mark the new breadth cases as proven or negative after the run
 
 ---
@@ -34,8 +34,8 @@ The plan keeps the new code small and focused:
 ### Task 1: Extend the command builder for manifest family selection
 
 **Files:**
-- Modify: `P:\\packages/yt-is/csf/load_ladder.py`
-- Modify: `P:\\packages/yt-is/tests/test_load_ladder.py`
+- Modify: `P:\\\\\\packages/yt-is/csf/load_ladder.py`
+- Modify: `P:\\\\\\packages/yt-is/tests/test_load_ladder.py`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -43,10 +43,10 @@ The plan keeps the new code small and focused:
 def test_command_builder_includes_manifest_selection(tmp_path):
     command = build_fallback_benchmark_command(
         python_executable="python",
-        fallback_benchmark_script=Path("P:\\packages/yt-is/bin/csf-fallback-crossover-benchmark"),
-        trace_root=Path("P:\\packages/yt-is/.logs/worker_count_trials"),
-        cohort_json=Path("P:\\packages/yt-is/.logs/breadth_series/cohort.json"),
-        output_root=Path("P:\\packages/yt-is/.logs/breadth_series/broad"),
+        fallback_benchmark_script=Path("P:\\\\\\packages/yt-is/bin/csf-fallback-crossover-benchmark"),
+        trace_root=Path("P:\\\\\\packages/yt-is/.logs/worker_count_trials"),
+        cohort_json=Path("P:\\\\\\packages/yt-is/.logs/breadth_series/cohort.json"),
+        output_root=Path("P:\\\\\\packages/yt-is/.logs/breadth_series/broad"),
         source_url="https://www.youtube.com/channel/UCYTISFALLBACKBMK",
         workers=2,
         limit=400,
@@ -54,7 +54,7 @@ def test_command_builder_includes_manifest_selection(tmp_path):
         policy="notebooklm_only_30s",
         cohort_shape="manifest",
         sample_label="breadth_broad",
-        manifest_json=Path("P:\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
+        manifest_json=Path("P:\\\\\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json"),
         manifest_families="routing,hot_path_control",
         worker_state_root=tmp_path / "worker_states",
         preserve_worker_state_root=False,
@@ -97,7 +97,7 @@ Expected: pass, including the new manifest-selection assertion.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add P:\\packages/yt-is/csf/load_ladder.py P:\\packages/yt-is/tests/test_load_ladder.py
+git add P:\\\\\\packages/yt-is/csf/load_ladder.py P:\\\\\\packages/yt-is/tests/test_load_ladder.py
 git commit -m "feat: carry manifest selection through ladder command builder"
 ```
 
@@ -106,9 +106,9 @@ git commit -m "feat: carry manifest selection through ladder command builder"
 ### Task 2: Add the breadth-series orchestration module and CLI
 
 **Files:**
-- Create: `P:\\packages/yt-is/csf/breadth_series.py`
-- Create: `P:\\packages/yt-is/bin/csf-breadth-series`
-- Modify: `P:\\packages/yt-is/tests/test_breadth_series.py`
+- Create: `P:\\\\\\packages/yt-is/csf/breadth_series.py`
+- Create: `P:\\\\\\packages/yt-is/bin/csf-breadth-series`
+- Modify: `P:\\\\\\packages/yt-is/tests/test_breadth_series.py`
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -206,14 +206,14 @@ The wrapper should call `run_breadth_series()` and print the path to the combine
 Run:
 ```powershell
 python -m pytest tests/test_breadth_series.py -q
-python -m py_compile P:\\packages/yt-is/csf/breadth_series.py P:\\packages/yt-is/bin/csf-breadth-series
+python -m py_compile P:\\\\\\packages/yt-is/csf/breadth_series.py P:\\\\\\packages/yt-is/bin/csf-breadth-series
 ```
 Expected: tests pass and the new module compiles.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add P:\\packages/yt-is/csf/breadth_series.py P:\\packages/yt-is/bin/csf-breadth-series P:\\packages/yt-is/tests/test_breadth_series.py
+git add P:\\\\\\packages/yt-is/csf/breadth_series.py P:\\\\\\packages/yt-is/bin/csf-breadth-series P:\\\\\\packages/yt-is/tests/test_breadth_series.py
 git commit -m "feat: add breadth scaling benchmark series"
 ```
 
@@ -222,18 +222,18 @@ git commit -m "feat: add breadth scaling benchmark series"
 ### Task 3: Run the combined breadth series and lock the result into the docs
 
 **Files:**
-- Modify: `P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
-- Modify: `P:\\packages/yt-is/docs/operations/test-registry.md`
+- Modify: `P:\\\\\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md`
+- Modify: `P:\\\\\\packages/yt-is/docs/operations/test-registry.md`
 
 - [ ] **Step 1: Run the breadth proof**
 
 Run the combined series with the fixed hot-path accounting and the fixed batch size:
 
 ```powershell
-python P:\\packages/yt-is/bin/csf-breadth-series `
-  --output-root P:\\packages/yt-is/.logs/breadth_scaling_series `
-  --trace-root P:\\packages/yt-is/.logs/worker_count_trials `
-  --cohort-json P:\\packages/yt-is/.logs/breadth_scaling_series/cohort.json `
+python P:\\\\\\packages/yt-is/bin/csf-breadth-series `
+  --output-root P:\\\\\\packages/yt-is/.logs/breadth_scaling_series `
+  --trace-root P:\\\\\\packages/yt-is/.logs/worker_count_trials `
+  --cohort-json P:\\\\\\packages/yt-is/.logs/breadth_scaling_series/cohort.json `
   --phase-a-workers 2 `
   --phase-b-workers 2,4,6,8,10 `
   --limit 400 `
@@ -243,7 +243,7 @@ python P:\\packages/yt-is/bin/csf-breadth-series `
   --cohort-shape-broad mixed `
   --cohort-shape-mid manifest `
   --cohort-shape-narrow manifest `
-  --manifest-json P:\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json `
+  --manifest-json P:\\\\\\packages/yt-is/tests/fixtures/shared_benchmark_manifest.json `
   --broad-manifest-families routing,hot_path_control `
   --mid-manifest-families routing,whisper_admission,hot_path_control `
   --narrow-manifest-families hot_path_control
@@ -277,7 +277,7 @@ Use `proven` or `negative` status and name the code path that would justify reru
 - [ ] **Step 4: Commit**
 
 ```bash
-git add P:\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md P:\\packages/yt-is/docs/operations/test-registry.md
+git add P:\\\\\\packages/yt-is/docs/operations/worker-count-trial-run-sheet.md P:\\\\\\packages/yt-is/docs/operations/test-registry.md
 git commit -m "docs: record breadth scaling benchmark series results"
 ```
 

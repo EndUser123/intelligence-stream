@@ -207,6 +207,8 @@ def _aggregate_summary(summary: dict[str, Any], policy_name: str) -> dict[str, A
         "transcript_fallback_success_count_total": 0,
         "elapsed_s_total": 0.0,
         "process_elapsed_s_total": 0.0,
+        "startup_prepare_total_elapsed_s_total": 0.0,
+        "setup_elapsed_s_total": 0.0,
         "add_elapsed_s_total": 0.0,
         "readiness_elapsed_s_total": 0.0,
         "cleanup_elapsed_s_total": 0.0,
@@ -226,6 +228,8 @@ def _aggregate_summary(summary: dict[str, Any], policy_name: str) -> dict[str, A
     }
 
     for row in rows:
+        fetch_completed = row.get("fetch_completed", {}) if isinstance(row.get("fetch_completed"), dict) else {}
+        worker_stage_totals = fetch_completed.get("worker_stage_totals", {}) if isinstance(fetch_completed.get("worker_stage_totals"), dict) else {}
         totals["success_count_total"] += _int_value(row.get("success_count"))
         totals["fail_count_total"] += _int_value(row.get("fail_count"))
         totals["skip_count_total"] += _int_value(row.get("skip_count"))
@@ -234,6 +238,12 @@ def _aggregate_summary(summary: dict[str, Any], policy_name: str) -> dict[str, A
         totals["transcript_fallback_success_count_total"] += _int_value(row.get("transcript_fallback_success_count"))
         totals["elapsed_s_total"] += _float_value(row.get("elapsed_s"))
         totals["process_elapsed_s_total"] += _float_value(row.get("process_elapsed_s"))
+        totals["startup_prepare_total_elapsed_s_total"] += _float_value(
+            worker_stage_totals.get("startup_prepare_total_elapsed_s_total") or row.get("startup_prepare_total_elapsed_s")
+        )
+        totals["setup_elapsed_s_total"] += _float_value(
+            worker_stage_totals.get("setup_elapsed_s_total") or row.get("setup_elapsed_s")
+        )
         totals["add_elapsed_s_total"] += _float_value(row.get("add_elapsed_s"))
         totals["readiness_elapsed_s_total"] += _float_value(row.get("readiness_elapsed_s"))
         totals["cleanup_elapsed_s_total"] += _float_value(row.get("cleanup_elapsed_s"))

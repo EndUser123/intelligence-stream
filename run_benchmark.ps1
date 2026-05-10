@@ -1,0 +1,2 @@
+$env:PYTHONPATH = 'P:\packages\yt-is'
+python P:\packages\yt-is\bin\csf-sharded-lane-sequence --lane-config P:\packages\yt-is\.logs\sharded_lane_series\pro_free_lanes.json --run-root P:\packages\yt-is\.logs\sharded_lane_series\highest_vph_ageguard_run02 --smoke-limit 50 --smoke-batch-size 200 --soak-limit 400 --soak-batch-size 200 --source-url https://www.youtube.com/channel/UCYTISFALLBACKBMK --policy notebooklm_route_plus_fallback_30s_1w --reusable-pipeline-mode serial

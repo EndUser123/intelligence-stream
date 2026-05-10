@@ -48,7 +48,7 @@ The current shared NotebookLM config lives in `csf/nlm_config.py` and currently 
 
 ## Evidence to consult
 
-- [HANDOFF.md](P:\\packages/yt-is/HANDOFF.md)
-- [DEBUGGING_PLAYBOOK.md](P:\\packages/yt-is/DEBUGGING_PLAYBOOK.md)
-- [csf/nlm_batch.py](P:\\packages/yt-is/csf/nlm_batch.py)
-- [term_eba27297.jsonl](P:\\packages/yt-is/.logs/term_eba27297.jsonl)
+- [HANDOFF.md](P:\\\\\\packages/yt-is/HANDOFF.md)
+- [DEBUGGING_PLAYBOOK.md](P:\\\\\\packages/yt-is/DEBUGGING_PLAYBOOK.md)
+- [csf/nlm_batch.py](P:\\\\\\packages/yt-is/csf/nlm_batch.py)
+- [term_eba27297.jsonl](P:\\\\\\packages/yt-is/.logs/term_eba27297.jsonl)

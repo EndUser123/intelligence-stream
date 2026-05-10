@@ -12,12 +12,12 @@ Last updated: 2026-04-20
 
 ## Verified bug we hit
 
-- `mark_failed()` in `P:\\packages/yt-is/csf/batch_status.py` originally did not accept `source`.
-- `P:\\packages/yt-is/csf/transcript.py` called `_mark_failed_video(video_id, source=source, failure_reason="unavailable")`.
+- `mark_failed()` in `P:\\\\\\packages/yt-is/csf/batch_status.py` originally did not accept `source`.
+- `P:\\\\\\packages/yt-is/csf/transcript.py` called `_mark_failed_video(video_id, source=source, failure_reason="unavailable")`.
 - That mismatch caused live warnings and prevented terminal failures from being recorded correctly until the wrapper was fixed.
 # Debugging and logging reminders
 
-- See [DEBUGGING_PLAYBOOK.md](P:\\packages/yt-is/DEBUGGING_PLAYBOOK.md) for the compact reusable version.
+- See [DEBUGGING_PLAYBOOK.md](P:\\\\\\packages/yt-is/DEBUGGING_PLAYBOOK.md) for the compact reusable version.
 - Do not trust the JSONL trace alone; check live stderr/stdout too.
 - Verify wrapper signatures when threading new kwargs through a helper.
 - Treat the worker result file as the source of truth for completed work.

@@ -1,0 +1,66 @@
+#!/usr/bin/env python
+"""CLI for nlm_batch command_failed classifier.
+
+Scans run artifact directories for content-fetch command_failed events and
+produces a classification report so retry-policy changes can be grounded in evidence.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from csf.nlm_command_failed_classifier import classify_run, format_report
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Classify nlm_batch command_failed events from benchmark run artifacts."
+    )
+    parser.add_argument(
+        "--runs-root",
+        default=".logs/sharded_lane_series",
+        help="Root directory containing run subdirectories (default: .logs/sharded_lane_series)",
+    )
+    parser.add_argument(
+        "runs",
+        nargs="+",
+        help="Run directory names to classify (subdirectories under --runs-root)",
+    )
+    parser.add_argument(
+        "--format",
+        choices=["markdown", "text"],
+        default="markdown",
+        help="Output format (default: markdown)",
+    )
+    args = parser.parse_args()
+
+    runs_root = Path(args.runs_root)
+    reports = []
+
+    for run_name in args.runs:
+        run_root = runs_root / run_name
+        if not run_root.is_dir():
+            print(f"WARNING: run directory not found: {run_root}", file=sys.stderr)
+            continue
+
+        try:
+            report = classify_run(run_root, run_name)
+            reports.append(report)
+        except Exception as exc:
+            print(f"ERROR classifying {run_name}: {exc}", file=sys.stderr)
+            continue
+
+    if not reports:
+        print("No runs found or processed.", file=sys.stderr)
+        return 1
+
+    print(format_report(reports, fmt=args.format))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

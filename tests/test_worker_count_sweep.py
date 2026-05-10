@@ -28,8 +28,22 @@ def test_load_fetch_completed_event_from_jsonl(tmp_path):
                             "elapsed_s": 26.0,
                             "transcript_fallback_success_count": 3,
                             "worker_stage_totals": {
+                                "startup_prepare_total_elapsed_s_total": 1.25,
+                                "setup_elapsed_s_total": 2.25,
                                 "add_sources_elapsed_s_total": 3.0,
                                 "content_fetch_status_counts_total": {"ready": 2, "nlm_content_below_threshold": 1},
+                                "content_fetch_command_elapsed_s_total": 7.5,
+                                "content_fetch_command_elapsed_s_max": 4.0,
+                                "content_fetch_command_elapsed_s_count": 2,
+                                "content_fetch_retry_sleep_elapsed_s_total": 1.0,
+                                "content_fetch_retry_queue_sleep_elapsed_s_total": 2.0,
+                                "source_list_probe_elapsed_s_total": 0.5,
+                                "source_list_probe_elapsed_s_max": 0.5,
+                                "source_list_probe_count": 1,
+                                "source_content_readiness_probe_elapsed_s_total": 0.75,
+                                "source_content_readiness_probe_elapsed_s_max": 0.75,
+                                "source_content_readiness_probe_count": 1,
+                                "source_content_readiness_probe_sleep_elapsed_s_total": 0.25,
                                 "source_ready_age_s_total": 6.0,
                                 "source_ready_age_s_max": 4.0,
                                 "youtube_ytdlp_elapsed_s_total": 2.5,
@@ -55,8 +69,12 @@ def test_load_fetch_completed_event_from_jsonl(tmp_path):
     assert payload["skip_count"] == 1
     assert payload["processed_count"] == 13
     assert payload["transcript_fallback_success_count"] == 3
+    assert payload["worker_stage_totals"]["startup_prepare_total_elapsed_s_total"] == 1.25
+    assert payload["worker_stage_totals"]["setup_elapsed_s_total"] == 2.25
     assert payload["worker_stage_totals"]["add_sources_elapsed_s_total"] == 3.0
     assert payload["worker_stage_totals"]["content_fetch_status_counts_total"]["ready"] == 2
+    assert payload["worker_stage_totals"]["content_fetch_command_elapsed_s_total"] == 7.5
+    assert payload["worker_stage_totals"]["source_list_probe_count"] == 1
     assert payload["worker_stage_totals"]["youtube_ytdlp_elapsed_s_total"] == 2.5
     assert payload["worker_stage_totals"]["youtube_page_elapsed_s_count"] == 1
 
@@ -82,13 +100,27 @@ def test_run_fetch_trial_captures_fetch_completed_summary(tmp_path, monkeypatch)
                             "fail_count": 3,
                             "skip_count": 5,
                             "processed_count": 20,
-                            "elapsed_s": 10.0,
-                            "transcript_fallback_success_count": 4,
-                            "worker_stage_totals": {
-                                "add_sources_elapsed_s_total": 4.5,
-                                "materialization_wait_elapsed_s_total": 2.0,
-                                "cleanup_elapsed_s_total": 0.5,
-                                "content_fetch_status_counts_total": {"ready": 2, "nlm_content_below_threshold": 1},
+                        "elapsed_s": 10.0,
+                        "transcript_fallback_success_count": 4,
+                        "worker_stage_totals": {
+                            "startup_prepare_total_elapsed_s_total": 1.5,
+                            "setup_elapsed_s_total": 3.5,
+                            "add_sources_elapsed_s_total": 4.5,
+                            "materialization_wait_elapsed_s_total": 2.0,
+                            "cleanup_elapsed_s_total": 0.5,
+                            "content_fetch_status_counts_total": {"ready": 2, "nlm_content_below_threshold": 1},
+                            "content_fetch_command_elapsed_s_total": 5.25,
+                            "content_fetch_command_elapsed_s_max": 3.0,
+                            "content_fetch_command_elapsed_s_count": 2,
+                            "content_fetch_retry_sleep_elapsed_s_total": 0.5,
+                            "content_fetch_retry_queue_sleep_elapsed_s_total": 0.75,
+                            "source_list_probe_elapsed_s_total": 0.25,
+                            "source_list_probe_elapsed_s_max": 0.25,
+                            "source_list_probe_count": 1,
+                            "source_content_readiness_probe_elapsed_s_total": 1.0,
+                            "source_content_readiness_probe_elapsed_s_max": 1.0,
+                            "source_content_readiness_probe_count": 1,
+                            "source_content_readiness_probe_sleep_elapsed_s_total": 0.125,
                             "source_ready_age_s_total": 6.0,
                             "source_ready_age_s_max": 4.0,
                             "youtube_ytdlp_elapsed_s_total": 2.5,
@@ -134,6 +166,8 @@ def test_run_fetch_trial_captures_fetch_completed_summary(tmp_path, monkeypatch)
     assert summary.readiness_elapsed_s == 2.0
     assert summary.cleanup_elapsed_s == 0.5
     assert summary.worker_idle_wait_s == 3.0
+    assert summary.fetch_completed["worker_stage_totals"]["startup_prepare_total_elapsed_s_total"] == 1.5
+    assert summary.fetch_completed["worker_stage_totals"]["setup_elapsed_s_total"] == 3.5
     assert summary.sample_label == "mixed_lane"
     assert summary.source_filter == "https://www.youtube.com/channel/UCYTISFALLBACKBMK"
     assert summary.materialization_started is True
@@ -142,6 +176,14 @@ def test_run_fetch_trial_captures_fetch_completed_summary(tmp_path, monkeypatch)
     assert summary.source_ready_age_s_total == 6.0
     assert summary.source_ready_age_s_max == 4.0
     assert summary.source_ready_age_s_avg == 2.0
+    assert summary.content_fetch_command_elapsed_s_total == 5.25
+    assert summary.content_fetch_command_elapsed_s_max == 3.0
+    assert summary.content_fetch_command_elapsed_s_count == 2
+    assert summary.content_fetch_command_elapsed_s_avg == 2.625
+    assert summary.content_fetch_retry_sleep_elapsed_s_total == 0.5
+    assert summary.content_fetch_retry_queue_sleep_elapsed_s_total == 0.75
+    assert summary.source_list_probe_count == 1
+    assert summary.source_content_readiness_probe_count == 1
     assert summary.youtube_ytdlp_elapsed_s_total == 2.5
     assert summary.youtube_ytdlp_elapsed_s_count == 2
     assert summary.youtube_ytdlp_elapsed_s_avg == 1.25
@@ -172,6 +214,18 @@ def test_run_fetch_trial_falls_back_to_worker_summaries_when_fetch_completed_mis
                         "succeeded": 49,
                         "failed": 1,
                         "content_fetch_status_counts_total": {"ready": 49, "command_failed": 1},
+                        "content_fetch_command_elapsed_s_total": 4.0,
+                        "content_fetch_command_elapsed_s_max": 2.0,
+                        "content_fetch_command_elapsed_s_count": 1,
+                        "content_fetch_retry_sleep_elapsed_s_total": 0.25,
+                        "content_fetch_retry_queue_sleep_elapsed_s_total": 0.5,
+                        "source_list_probe_elapsed_s_total": 0.1,
+                        "source_list_probe_elapsed_s_max": 0.1,
+                        "source_list_probe_count": 1,
+                        "source_content_readiness_probe_elapsed_s_total": 0.2,
+                        "source_content_readiness_probe_elapsed_s_max": 0.2,
+                        "source_content_readiness_probe_count": 1,
+                        "source_content_readiness_probe_sleep_elapsed_s_total": 0.05,
                         "startup_prepare_total_elapsed_s": 2.0,
                         "setup_elapsed_s_total": 3.0,
                         "add_sources_elapsed_s_total": 4.0,
@@ -215,6 +269,10 @@ def test_run_fetch_trial_falls_back_to_worker_summaries_when_fetch_completed_mis
     assert summary.processed_count == 100
     assert summary.fetch_completed["terminal_source"] == "stdout_worker_summaries"
     assert summary.content_fetch_status_counts == {"ready": 99, "command_failed": 1}
+    assert summary.content_fetch_command_elapsed_s_total == 4.0
+    assert summary.source_list_probe_count == 1
     assert summary.add_elapsed_s == 7.0
     assert summary.readiness_elapsed_s == 9.0
     assert summary.cleanup_elapsed_s == 2.5
+    assert summary.fetch_completed["worker_stage_totals"]["startup_prepare_total_elapsed_s_total"] == 3.0
+    assert summary.fetch_completed["worker_stage_totals"]["setup_elapsed_s_total"] == 5.0

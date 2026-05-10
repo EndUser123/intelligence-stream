@@ -12,7 +12,7 @@ import pytest
 # Smuggle in conftest fixtures via the package's test setup
 import sys
 
-sys.path.insert(0, str(Path(r"P:\\packages\yt-is").absolute()))
+sys.path.insert(0, str(Path(r"P:\\\\\\packages\yt-is").absolute()))
 
 
 class TestNLMIndustrialScraperStagingNotebook:
@@ -399,9 +399,9 @@ class TestSeleniumProfileAuthAndPersistence:
         scraper._driver = mock.MagicMock()
         scraper._driver.current_url = "https://notebooklm.google.com/notebook/nb-123"
         scraper._driver.title = "Request access"
-        scraper._selected_browser_profile_root = "P:\\browser-root"
+        scraper._selected_browser_profile_root = "P:\\\\\\browser-root"
         scraper._selected_browser_profile_directory = "Default"
-        scraper._selected_browser_seeded_from = "P:\\seed-root"
+        scraper._selected_browser_seeded_from = "P:\\\\\\seed-root"
 
         with mock.patch.object(scraper, "_browser_auth_probe_text", return_value="Request access"):
             with mock.patch("csf.nlm_scraper.log_action") as mock_log:
@@ -417,9 +417,9 @@ class TestSeleniumProfileAuthAndPersistence:
             if call.args and call.args[0] == "selenium_browser_auth_failed"
         )
         assert failed_payload["status"] == "request_access"
-        assert failed_payload["selected_browser_profile_root"] == "P:\\browser-root"
+        assert failed_payload["selected_browser_profile_root"] == "P:\\\\\\browser-root"
         assert failed_payload["selected_browser_profile_directory"] == "Default"
-        assert failed_payload["selected_browser_seeded_from"] == "P:\\seed-root"
+        assert failed_payload["selected_browser_seeded_from"] == "P:\\\\\\seed-root"
         assert "cli_notebooklm_profile" in failed_payload
         assert "config_browser_profile_root" in failed_payload
 
@@ -430,9 +430,9 @@ class TestSeleniumProfileAuthAndPersistence:
         scraper._driver = mock.MagicMock()
         scraper._driver.current_url = "https://notebooklm.google.com/notebook/nb-123"
         scraper._driver.title = "Request access"
-        scraper._selected_browser_profile_root = "P:\\browser-root"
+        scraper._selected_browser_profile_root = "P:\\\\\\browser-root"
         scraper._selected_browser_profile_directory = "Default"
-        scraper._selected_browser_seeded_from = "P:\\seed-root"
+        scraper._selected_browser_seeded_from = "P:\\\\\\seed-root"
 
         with mock.patch.object(scraper, "_browser_auth_probe_text", return_value="Request access"):
             with mock.patch("csf.nlm_scraper.log_action") as mock_log:
@@ -445,7 +445,7 @@ class TestSeleniumProfileAuthAndPersistence:
             if call.args and call.args[0] == "selenium_browser_auth_failed"
         )
         assert failed_payload["status"] == "request_access"
-        assert failed_payload["selected_browser_profile_root"] == "P:\\browser-root"
+        assert failed_payload["selected_browser_profile_root"] == "P:\\\\\\browser-root"
         assert "cli_notebooklm_profile" in failed_payload
 
 
@@ -878,7 +878,7 @@ class TestSeleniumProfileIsolation:
             auth_cooldown=300.0,
             browser_profile_mode="persistent",
             browser_profile_name="notebooklm",
-            browser_profile_seed_root="P:\\.data/yt-is/notebooklm-browser-session",
+            browser_profile_seed_root="P:\\\\\\.data/yt-is/notebooklm-browser-session",
             nlm_browser_mode="clone",
             nlm_browser_profile_root=str(browser_root),
             nlm_browser_executable=r"C:\Program Files\Google\Chrome\Application\chrome.exe",

@@ -1939,6 +1939,19 @@ def cmd_fetch(
     shared_retry_recovered_count_total = 0.0
     shared_retry_final_failed_count_total = 0.0
     shared_retry_processed_count_total = 0.0
+    content_fetch_command_elapsed_s_total = 0.0
+    content_fetch_command_elapsed_s_max = 0.0
+    content_fetch_command_elapsed_s_count = 0
+    content_fetch_command_elapsed_s_avg = 0.0
+    content_fetch_retry_sleep_elapsed_s_total = 0.0
+    content_fetch_retry_queue_sleep_elapsed_s_total = 0.0
+    source_list_probe_elapsed_s_total = 0.0
+    source_list_probe_elapsed_s_max = 0.0
+    source_list_probe_count = 0
+    source_content_readiness_probe_elapsed_s_total = 0.0
+    source_content_readiness_probe_elapsed_s_max = 0.0
+    source_content_readiness_probe_count = 0
+    source_content_readiness_probe_sleep_elapsed_s_total = 0.0
     industrial_source_profile_totals = _empty_source_profile_totals()
     terminal_entries: list[BatchEntry] = []
     terminal_sample: list[dict[str, object]] = []
@@ -2087,6 +2100,19 @@ def cmd_fetch(
             "cleanup_elapsed_s_total": float(summary.get("cleanup_elapsed_s_total", 0) or 0.0),
             "batch_elapsed_s_total": float(summary.get("batch_elapsed_s_total", 0) or 0.0),
             "content_fetch_status_counts_total": dict(summary.get("content_fetch_status_counts_total", {}) or {}),
+            "content_fetch_command_elapsed_s_total": float(summary.get("content_fetch_command_elapsed_s_total", 0) or 0.0),
+            "content_fetch_command_elapsed_s_max": float(summary.get("content_fetch_command_elapsed_s_max", 0) or 0.0),
+            "content_fetch_command_elapsed_s_count": int(summary.get("content_fetch_command_elapsed_s_count", 0) or 0),
+            "content_fetch_command_elapsed_s_avg": float(summary.get("content_fetch_command_elapsed_s_avg", 0) or 0.0),
+            "content_fetch_retry_sleep_elapsed_s_total": float(summary.get("content_fetch_retry_sleep_elapsed_s_total", 0) or 0.0),
+            "content_fetch_retry_queue_sleep_elapsed_s_total": float(summary.get("content_fetch_retry_queue_sleep_elapsed_s_total", 0) or 0.0),
+            "source_list_probe_elapsed_s_total": float(summary.get("source_list_probe_elapsed_s_total", 0) or 0.0),
+            "source_list_probe_elapsed_s_max": float(summary.get("source_list_probe_elapsed_s_max", 0) or 0.0),
+            "source_list_probe_count": int(summary.get("source_list_probe_count", 0) or 0),
+            "source_content_readiness_probe_elapsed_s_total": float(summary.get("source_content_readiness_probe_elapsed_s_total", 0) or 0.0),
+            "source_content_readiness_probe_elapsed_s_max": float(summary.get("source_content_readiness_probe_elapsed_s_max", 0) or 0.0),
+            "source_content_readiness_probe_count": int(summary.get("source_content_readiness_probe_count", 0) or 0),
+            "source_content_readiness_probe_sleep_elapsed_s_total": float(summary.get("source_content_readiness_probe_sleep_elapsed_s_total", 0) or 0.0),
             "source_ready_age_s_total": float(summary.get("source_ready_age_s_total", 0) or 0.0),
             "source_ready_age_s_max": float(summary.get("source_ready_age_s_max", 0) or 0.0),
             "source_ready_age_s_avg": float(summary.get("source_ready_age_s_avg", 0) or 0.0),
@@ -2134,6 +2160,19 @@ def cmd_fetch(
         nonlocal shared_retry_recovered_count_total
         nonlocal shared_retry_final_failed_count_total
         nonlocal shared_retry_processed_count_total
+        nonlocal content_fetch_command_elapsed_s_total
+        nonlocal content_fetch_command_elapsed_s_max
+        nonlocal content_fetch_command_elapsed_s_count
+        nonlocal content_fetch_command_elapsed_s_avg
+        nonlocal content_fetch_retry_sleep_elapsed_s_total
+        nonlocal content_fetch_retry_queue_sleep_elapsed_s_total
+        nonlocal source_list_probe_elapsed_s_total
+        nonlocal source_list_probe_elapsed_s_max
+        nonlocal source_list_probe_count
+        nonlocal source_content_readiness_probe_elapsed_s_total
+        nonlocal source_content_readiness_probe_elapsed_s_max
+        nonlocal source_content_readiness_probe_count
+        nonlocal source_content_readiness_probe_sleep_elapsed_s_total
         nonlocal industrial_source_profile_totals
         startup_retire_elapsed_s_total += float(summary.get("startup_retire_elapsed_s", 0) or 0.0)
         startup_notebook_check_elapsed_s_total += float(summary.get("startup_notebook_check_elapsed_s", 0) or 0.0)
@@ -2166,6 +2205,19 @@ def cmd_fetch(
         shared_retry_recovered_count_total += float(summary.get("shared_retry_recovered_count", 0) or 0.0)
         shared_retry_final_failed_count_total += float(summary.get("shared_retry_final_failed_count", 0) or 0.0)
         shared_retry_processed_count_total += float(summary.get("shared_retry_processed_count", 0) or 0.0)
+        content_fetch_command_elapsed_s_total += float(summary.get("content_fetch_command_elapsed_s_total", 0) or 0.0)
+        content_fetch_command_elapsed_s_max = max(content_fetch_command_elapsed_s_max, float(summary.get("content_fetch_command_elapsed_s_max", 0) or 0.0))
+        content_fetch_command_elapsed_s_count += int(summary.get("content_fetch_command_elapsed_s_count", 0) or 0)
+        content_fetch_command_elapsed_s_avg = max(content_fetch_command_elapsed_s_avg, float(summary.get("content_fetch_command_elapsed_s_avg", 0) or 0.0))
+        content_fetch_retry_sleep_elapsed_s_total += float(summary.get("content_fetch_retry_sleep_elapsed_s_total", 0) or 0.0)
+        content_fetch_retry_queue_sleep_elapsed_s_total += float(summary.get("content_fetch_retry_queue_sleep_elapsed_s_total", 0) or 0.0)
+        source_list_probe_elapsed_s_total += float(summary.get("source_list_probe_elapsed_s_total", 0) or 0.0)
+        source_list_probe_elapsed_s_max = max(source_list_probe_elapsed_s_max, float(summary.get("source_list_probe_elapsed_s_max", 0) or 0.0))
+        source_list_probe_count += int(summary.get("source_list_probe_count", 0) or 0)
+        source_content_readiness_probe_elapsed_s_total += float(summary.get("source_content_readiness_probe_elapsed_s_total", 0) or 0.0)
+        source_content_readiness_probe_elapsed_s_max = max(source_content_readiness_probe_elapsed_s_max, float(summary.get("source_content_readiness_probe_elapsed_s_max", 0) or 0.0))
+        source_content_readiness_probe_count += int(summary.get("source_content_readiness_probe_count", 0) or 0)
+        source_content_readiness_probe_sleep_elapsed_s_total += float(summary.get("source_content_readiness_probe_sleep_elapsed_s_total", 0) or 0.0)
         _merge_source_profile_totals(industrial_source_profile_totals, summary.get("source_profile"))
 
     def _build_worker_stage_totals_payload() -> dict[str, object]:
@@ -2196,6 +2248,19 @@ def cmd_fetch(
             "shared_retry_recovered_count_total": shared_retry_recovered_count_total,
             "shared_retry_final_failed_count_total": shared_retry_final_failed_count_total,
             "shared_retry_processed_count_total": shared_retry_processed_count_total,
+            "content_fetch_command_elapsed_s_total": content_fetch_command_elapsed_s_total,
+            "content_fetch_command_elapsed_s_max": content_fetch_command_elapsed_s_max,
+            "content_fetch_command_elapsed_s_count": content_fetch_command_elapsed_s_count,
+            "content_fetch_command_elapsed_s_avg": content_fetch_command_elapsed_s_avg,
+            "content_fetch_retry_sleep_elapsed_s_total": content_fetch_retry_sleep_elapsed_s_total,
+            "content_fetch_retry_queue_sleep_elapsed_s_total": content_fetch_retry_queue_sleep_elapsed_s_total,
+            "source_list_probe_elapsed_s_total": source_list_probe_elapsed_s_total,
+            "source_list_probe_elapsed_s_max": source_list_probe_elapsed_s_max,
+            "source_list_probe_count": source_list_probe_count,
+            "source_content_readiness_probe_elapsed_s_total": source_content_readiness_probe_elapsed_s_total,
+            "source_content_readiness_probe_elapsed_s_max": source_content_readiness_probe_elapsed_s_max,
+            "source_content_readiness_probe_count": source_content_readiness_probe_count,
+            "source_content_readiness_probe_sleep_elapsed_s_total": source_content_readiness_probe_sleep_elapsed_s_total,
             "extract_elapsed_s_total": extract_elapsed_s_total,
             "cleanup_elapsed_s_total": cleanup_elapsed_s_total,
             "batch_elapsed_s_total": batch_elapsed_s_total,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -332,7 +333,14 @@ def _write_lane_process_snapshot(path: Path, payload: dict[str, Any]) -> None:
 
 def load_lane_configs(path: Path) -> tuple[LaneConfig, ...]:
     """Load and validate lane configs from JSON."""
-    data = json.loads(path.read_text(encoding="utf-8"))
+    text = path.read_text(encoding="utf-8")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        # Older lane config files encode Windows paths with over-escaped backslashes.
+        # Normalize any 3+ run of backslashes down to a valid JSON escape sequence.
+        repaired_text = re.sub(r"\\{3,}", r"\\\\", text)
+        data = json.loads(repaired_text)
     if not isinstance(data, list):
         raise ValueError("lane config must be a JSON list")
     lanes = [_lane_from_dict(item) for item in data if isinstance(item, dict)]

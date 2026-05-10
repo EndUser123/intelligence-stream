@@ -7,7 +7,7 @@
       "severity": "P0",
       "title": "batch_status.py: get_pending_by_source method destroyed by indentation error",
       "description": "Lines 886-894 contain code for get_pending_by_source but lack a def statement. The code sits after the finally: conn.close() of upsert_channel at the same indentation. Python treats the docstring as a no-op then executes the SQL query and return unconditionally on every upsert_channel call. The class has no get_pending_by_source method so the public API at lines 1368-1372 raises AttributeError.",
-      "file_path": "P:\\packages/yt-is/csf/batch_status.py",
+      "file_path": "P:\\\\\\packages/yt-is/csf/batch_status.py",
       "line_range": "884-894",
       "confidence": "high"
     },
@@ -16,7 +16,7 @@
       "severity": "P0",
       "title": "transcript.py: get_browser_cookies called without import causing NameError",
       "description": "Line 1192 calls get_browser_cookies(firefox) but the function is never imported. Defined in csf/youtube_auth.py but no import exists in transcript.py. Causes NameError when whisper fallback is triggered.",
-      "file_path": "P:\\packages/yt-is/csf/transcript.py",
+      "file_path": "P:\\\\\\packages/yt-is/csf/transcript.py",
       "line_range": "1190-1193",
       "confidence": "high"
     },
@@ -25,7 +25,7 @@
       "severity": "P0",
       "title": "batch_status.py: set_channel_metadata INSERT OR REPLACE destroys existing data on partial updates",
       "description": "Uses INSERT OR REPLACE which deletes existing row then inserts new one with only provided fields. All params default to None. Partial updates destroy playlist_id video_count_estimate next_page_token quota_exhausted_at etc. Contrast with upsert_channel which correctly merges.",
-      "file_path": "P:\\packages/yt-is/csf/batch_status.py",
+      "file_path": "P:\\\\\\packages/yt-is/csf/batch_status.py",
       "line_range": "690-737",
       "confidence": "high"
     },
@@ -34,7 +34,7 @@
       "severity": "P1",
       "title": "transcript.py: _get_scheduler and _get_nlm_scraper singleton race without lock",
       "description": "Lines 38-42 and 72-82 check/set module-level singletons without any lock. Under concurrent thread access multiple threads can create duplicate instances. Contrast with _get_auth_rate_limiter at lines 302-308 which uses double-checked locking.",
-      "file_path": "P:\\packages/yt-is/csf/transcript.py",
+      "file_path": "P:\\\\\\packages/yt-is/csf/transcript.py",
       "line_range": "38-42, 72-82",
       "confidence": "high"
     },
@@ -43,7 +43,7 @@
       "severity": "P1",
       "title": "transcript.py: CookieFreshnessTracker.is_fresh() lock gap allows thundering herd",
       "description": "Releases self._lock after TTL check runs subprocess probe (~30s) then re-acquires. Between release and re-acquire other threads with expired TTL also start probes causing multiple concurrent nlm login --check calls.",
-      "file_path": "P:\\packages/yt-is/csf/transcript.py",
+      "file_path": "P:\\\\\\packages/yt-is/csf/transcript.py",
       "line_range": "329-358",
       "confidence": "high"
     },
@@ -52,7 +52,7 @@
       "severity": "P1",
       "title": "source_enumerator.py: _api_request quota state mutations without locking",
       "description": "Mutates _key_state dict (calls_made += 1 units_consumed += cost) without any locking. Under concurrent calls dict mutations interleave causing incorrect quota tracking. No threading.Lock in module.",
-      "file_path": "P:\\packages/yt-is/csf/source_enumerator.py",
+      "file_path": "P:\\\\\\packages/yt-is/csf/source_enumerator.py",
       "line_range": "183-185",
       "confidence": "high"
     },
@@ -61,7 +61,7 @@
       "severity": "P1",
       "title": "orchestrator.py: imports private _VIDEO_ID_PATTERN from csf.transcript",
       "description": "Line 28 imports _VIDEO_ID_PATTERN (private by convention). If transcript.py refactors this symbol orchestrator.py breaks. source_enumerator.py defines its own copy at line 310 instead of importing.",
-      "file_path": "P:\\packages/yt-is/csf/orchestrator.py",
+      "file_path": "P:\\\\\\packages/yt-is/csf/orchestrator.py",
       "line_range": "28",
       "confidence": "high"
     }

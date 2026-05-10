@@ -8,8 +8,8 @@
   "failures": [],
   "generated_at": "2026-05-05T03:09:50.978456+00:00",
   "metric_contract": "combined_hot_path_videos_per_hour_excludes_whisper",
-  "trace_root": "P:\\\packages\\yt-is\\.logs\\worker_count_trials",
-  "cohort_json": "P:\\\packages\\yt-is\\.logs\\sharded_lane_series\\sweep_phase2_pro_only_4w_run01\\soak\\cohort.json",
+  "trace_root": "P:\\\\\\\packages\\yt-is\\.logs\\worker_count_trials",
+  "cohort_json": "P:\\\\\\\packages\\yt-is\\.logs\\sharded_lane_series\\sweep_phase2_pro_only_4w_run01\\soak\\cohort.json",
   "source_url": "https://www.youtube.com/channel/UCYTISFALLBACKBMK",
   "policy": "notebooklm_route_plus_fallback_30s_1w",
   "limit": 400,
@@ -21,8 +21,8 @@
       "account_class": "pro",
       "workers": 4,
       "notebooklm_profile_prefix": "ytis-pro-worker",
-      "browser_profile_root": "P:\\\.data\\yt-is\\browser\\notebooklm-pro",
-      "worker_state_root": "P:\\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states",
+      "browser_profile_root": "P:\\\\\\\.data\\yt-is\\browser\\notebooklm-pro",
+      "worker_state_root": "P:\\\\\\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states",
       "notebook_prefix": "benchmark-shard-a-hominidae-pro",
       "notebooklm_profiles": [
         "ytis-pro-worker-01",
@@ -50,9 +50,9 @@
         "ytis-pro-worker-04"
       ],
       "coordinator_notebooklm_profile": "ytis-pro-worker-01",
-      "browser_profile_root": "P:\\\.data\\yt-is\\browser\\notebooklm-pro",
+      "browser_profile_root": "P:\\\\\\\.data\\yt-is\\browser\\notebooklm-pro",
       "browser_profile_directory": "Profile",
-      "worker_state_root": "P:\\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states",
+      "worker_state_root": "P:\\\\\\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states",
       "notebook_prefix": "benchmark-shard-a-hominidae-pro",
       "startup_delay_s": 0.0,
       "started_at": 1081270.632,
@@ -61,13 +61,13 @@
       "returncode": 0,
       "command": [
         "C:\\Python314\\python.exe",
-        "P:\\\packages\\yt-is\\bin\\csf-fallback-crossover-benchmark",
+        "P:\\\\\\\packages\\yt-is\\bin\\csf-fallback-crossover-benchmark",
         "--trace-root",
-        "P:\\\packages\\yt-is\\.logs\\worker_count_trials",
+        "P:\\\\\\\packages\\yt-is\\.logs\\worker_count_trials",
         "--cohort-json",
-        "P:\\\packages\\yt-is\\.logs\\sharded_lane_series\\sweep_phase2_pro_only_4w_run01\\soak\\cohort.a_hominidae_pro.json",
+        "P:\\\\\\\packages\\yt-is\\.logs\\sharded_lane_series\\sweep_phase2_pro_only_4w_run01\\soak\\cohort.a_hominidae_pro.json",
         "--output-root",
-        "P:\\\packages\\yt-is\\.logs\\sharded_lane_series\\sweep_phase2_pro_only_4w_run01\\soak\\a_hominidae_pro",
+        "P:\\\\\\\packages\\yt-is\\.logs\\sharded_lane_series\\sweep_phase2_pro_only_4w_run01\\soak\\a_hominidae_pro",
         "--source-url",
         "https://www.youtube.com/channel/UCYTISFALLBACKBMK",
         "--workers",
@@ -81,12 +81,12 @@
         "--cohort-shape",
         "captioned",
         "--worker-state-root",
-        "P:\\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states",
+        "P:\\\\\\\packages\\yt-is\\.logs\\sharded_lane_series\\a_hominidae_pro\\worker_states",
         "--sample-label",
         "shard_a_hominidae_pro"
       ],
-      "output_root": "P:\\\packages\\yt-is\\.logs\\sharded_lane_series\\sweep_phase2_pro_only_4w_run01\\soak\\a_hominidae_pro",
-      "benchmark_summary_path": "P:\\\packages\\yt-is\\.logs\\sharded_lane_series\\sweep_phase2_pro_only_4w_run01\\soak\\a_hominidae_pro\\benchmark_summary.json",
+      "output_root": "P:\\\\\\\packages\\yt-is\\.logs\\sharded_lane_series\\sweep_phase2_pro_only_4w_run01\\soak\\a_hominidae_pro",
+      "benchmark_summary_path": "P:\\\\\\\packages\\yt-is\\.logs\\sharded_lane_series\\sweep_phase2_pro_only_4w_run01\\soak\\a_hominidae_pro\\benchmark_summary.json",
       "aggregate": {
         "row_count": 2,
         "success_count_total": 397,
@@ -178,5 +178,5 @@
     "transcript_fallback_videos_per_hour": 0.0,
     "processed_per_hour": 2364.72
   },
-  "report_path": "P:\\\packages\\yt-is\\.logs\\sharded_lane_series\\sweep_phase2_pro_only_4w_run01\\soak\\sharded_lane_series_summary.json"
+  "report_path": "P:\\\\\\\packages\\yt-is\\.logs\\sharded_lane_series\\sweep_phase2_pro_only_4w_run01\\soak\\sharded_lane_series_summary.json"
 }
